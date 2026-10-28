@@ -92,6 +92,7 @@
     var r = root(); if (!r) return;
     T.err = '';
     if (!(window.S && S.quote && S.quote.quoteKind === 'tender')) {
+      var pp = document.getElementById('tnPlansPop'); if (pp) pp.classList.remove('has-pages');
       r.innerHTML = '<div class="tn-card"><div class="tn-card-bd"><div class="tn-empty">This job is not an AI Tendering job. Set the job type to AI Tendering in the job details (or the Quote tab’s More menu) to use the plan-set reader on it.</div></div></div>';
       return;
     }
@@ -135,11 +136,321 @@
     h += '<div id="tnDocHost">' + docHtml(d) + '</div>';
     if (d.doc) h += '<details class="tn-fold" id="tnSheetIdx"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';
     else h += indexHtml(d);
+    // With a tender drafted, the menu runs down the far left and the A.I.
+    // chat down the right, both from the very top, with the tender full
+    // width between them (2026-10-28, the owner).
+    if (d.doc) h = '<div class="tn-lay"><aside class="tn-side" id="tnSide">' + sideHtml(d) + '</aside><div class="tn-main">' + h + '</div><aside class="tn-side tn-chatside" id="tnChatSide">' + chatHtml(d.doc) + '</aside></div>';
     r.innerHTML = h;
+    sidePin();
     wireDrop();
     loadThumbs();
     afterDocRender();
+    plansSync();
   }
+
+  // The menu sticks exactly where it starts, so it never moves at all as the
+  // page scrolls, and runs to the foot of the screen.
+  // Three columns when there is room for the tender between them (menu far
+  // left, chat on the right); on a narrower screen the chat goes back under
+  // the menu so the tender keeps a width it can be read at.
+  var LAY3_MIN = 1300;
+  var LAY1_MAX = 1000;   // narrower than this, the menu and the chat leave the side
+  function layMode(){
+    var lay = document.querySelector('#tenderRoot .tn-lay'), side = document.getElementById('tnSide'), cs = document.getElementById('tnChatSide'), main = lay && lay.querySelector('.tn-main');
+    if (!lay || !side || !cs || !main || !lay.offsetParent) return;
+    var wide = window.innerWidth > 900 && lay.clientWidth >= LAY3_MIN;
+    lay.classList.toggle('tn-3', wide);
+    lay.classList.toggle('tn-1', window.innerWidth > 900 && lay.clientWidth < LAY1_MAX);
+    if (wide && cs.parentNode !== lay) lay.appendChild(cs);
+    else if (!wide && cs.parentNode !== side) side.appendChild(cs);
+  }
+  function sidePin(){
+    layMode();
+    var side = document.getElementById('tnSide'), lay = side && side.parentNode; if (!side || !lay.offsetParent) return;
+    var cs = document.getElementById('tnChatSide');
+    var both = [side, cs && cs.parentNode === lay ? cs : null].filter(Boolean);
+    if (cs && cs.parentNode !== lay) { cs.style.top = ''; cs.style.height = ''; }
+    var chat = document.getElementById('tnChat'); if (chat) chat.style.left = '';
+    if (window.innerWidth <= 900) { both.forEach(function(el){ el.style.top = ''; el.style.height = ''; }); return; }
+    var y = Math.max(0, Math.round(lay.getBoundingClientRect().top + window.scrollY));
+    if (lay.classList.contains('tn-1')) {   // the strip of links stays at the top; the chat runs along the foot of the tender's column
+      side.style.top = y + 'px'; side.style.height = '';
+      if (chat) chat.style.left = Math.round(lay.getBoundingClientRect().left + 8) + 'px';
+      return;
+    }
+    if (both.length === 2) {   // three columns: the menu ends just below its last link (Sheet index) and the chat is the same height (2026-10-28, the owner)
+      side.style.top = cs.style.top = y + 'px'; side.style.height = 'auto';
+      var h = Math.min(window.innerHeight - y - 10, Math.max(360, Math.ceil(side.getBoundingClientRect().height)));
+      side.style.height = cs.style.height = h + 'px';
+      return;
+    }
+    both.forEach(function(el){ el.style.top = y + 'px'; el.style.height = 'calc(100vh - ' + (y + 10) + 'px)'; });
+  }
+  window.addEventListener('resize', function(){ sidePin(); });
+  // drawn while the tab was hidden: pin it the first time it is seen
+  window.addEventListener('scroll', function(){ var sd = document.getElementById('tnSide'); if (sd && !sd.style.top && window.scrollY < 40) sidePin(); }, { passive: true });
+
+  // ── THE PLANS SLIDE-OUT (2026-10-28, the owner: "a slide out window just
+  // like the quote photos ... each scroll changes a page, and then if I zoom
+  // in, it zooms in on that page and I can click and hold the mouse to drag
+  // around"). A tab on the right edge of the tendering page; one plan page
+  // per slot, a plain wheel turns one page, Ctrl + wheel (or − +) zooms the
+  // page on screen towards the pointer, a press-and-drag moves a zoomed page.
+  var PV = { open: false, list: [], at: 0, z: {}, wheelAcc: 0, lockUntil: 0, urls: {}, drag: null };
+  try { PV.open = sessionStorage.getItem('fr_tn_plans') === '1'; } catch (e) {}
+  (function(){
+    var st = document.createElement('style');
+    st.textContent = [
+      '#tnPlansPop{position:fixed;top:70px;right:0;bottom:16px;width:var(--tnpv-w,clamp(360px,42vw,980px));min-width:260px;max-width:96vw;z-index:76;background:#fff;border:1px solid #dbe3ec;border-right:none;border-radius:12px 0 0 12px;box-shadow:-6px 8px 24px rgba(0,0,0,.12);transform:translateX(100%);transition:transform .28s ease;display:none;flex-direction:column}',
+      'body[data-tab="tender"] #tnPlansPop.has-pages{display:flex}#tnPlansPop.is-open{transform:translateX(0)}#tnPlansPop.is-resizing{transition:none;user-select:none}',
+      '#tnPlansTab{position:absolute;left:-46px;top:16px;width:46px;height:150px;background:#0099cc;color:#fff;border:none;border-radius:10px 0 0 10px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.05em;padding:8px 0 10px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;gap:6px;box-shadow:-3px 4px 12px rgba(0,153,204,.35)}',
+      '#tnPlansTab:hover{background:#007bab}#tnPlansTab .a{font-size:16px;line-height:1;transition:transform .28s ease}#tnPlansPop.is-open #tnPlansTab .a{transform:rotate(180deg)}#tnPlansTab .t{writing-mode:vertical-rl;text-orientation:mixed}',
+      '#tnPlansResize{position:absolute;left:0;top:0;bottom:0;width:12px;cursor:ew-resize;z-index:3;display:flex;align-items:center;justify-content:center;touch-action:none}#tnPlansResize::after{content:"";width:4px;height:52px;border-radius:3px;background:rgba(10,22,40,.18)}#tnPlansResize:hover::after{background:#0099cc;height:80px}',
+      '.tnpv-hd{display:flex;align-items:center;gap:6px;padding:9px 12px 9px 20px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#0a1628}.tnpv-hd b{font-weight:800}.tnpv-hd .tnpv-at{color:#64748b;font-size:12px;margin-right:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-b{width:30px;height:30px;border:1px solid #cbd5e1;background:#fff;border-radius:7px;cursor:pointer;font-size:14px;line-height:1;color:#0a1628;flex:0 0 auto}.tnpv-b:hover{background:#f1f5f9}',
+      '.tnpv-list{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:10px 12px 10px 20px;background:#eef2f6}',
+      '.tnpv-slot{position:relative;height:var(--tnpv-slot,74vh);margin:0 0 12px;background:#fff;border:1px solid #d5dde7;border-radius:8px;overflow:hidden;cursor:default}',
+      '.tnpv-slot.zoomed{cursor:grab}.tnpv-slot.grabbing{cursor:grabbing}',
+      '.tnpv-slot img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;transform-origin:0 0;user-select:none;-webkit-user-drag:none;pointer-events:none}',
+      '.tnpv-cap{position:absolute;left:8px;bottom:8px;z-index:2;background:rgba(10,22,40,.78);color:#fff;font-size:11.5px;padding:3px 8px;border-radius:6px;max-width:80%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.tnpv-slot canvas.tnpv-hi{position:absolute;left:0;top:0;z-index:1;transform-origin:0 0;pointer-events:none;display:none}',
+      '.tnpv-zoom{display:flex;align-items:center;gap:6px;flex:0 1 170px;min-width:90px}.tnpv-zoom input{flex:1 1 auto;min-width:60px;accent-color:#0099cc;cursor:pointer}.tnpv-zoom span{font-size:11.5px;color:#475569;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}',
+      '.tnpv-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px}',
+      '@media screen and (max-width:900px){#tnPlansPop{width:92vw}}',
+      '@media print{#tnPlansPop{display:none!important}}',
+    ].join('\n');
+    document.head.appendChild(st);
+  })();
+  function plansList(){
+    var d = T.data || {}, files = d.files || [], fno = {};
+    files.forEach(function(f, i){ fno[f.id] = i; });
+    return (d.pages || []).filter(function(p){ return p.has_image !== false; }).slice().sort(function(a, b){ return (fno[a.file_id] || 0) - (fno[b.file_id] || 0) || a.page_no - b.page_no; });
+  }
+  function plansEl(){
+    var el = document.getElementById('tnPlansPop');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'tnPlansPop';
+    el.innerHTML = '<div id="tnPlansResize" title="Drag to make the plans wider or narrower"></div>' +
+      '<button type="button" id="tnPlansTab" onclick="_tnPlans()" title="The plan set"><span class="a">◀</span><span class="t">PLANS</span><span></span></button>' +
+      '<div class="tnpv-hd"><b>Plans</b><span class="tnpv-at" id="tnpvAt"></span>' +
+      '<button type="button" class="tnpv-b" title="Previous page" onclick="_tnPlansStep(-1)">▲</button><button type="button" class="tnpv-b" title="Next page" onclick="_tnPlansStep(1)">▼</button>' +
+      '<button type="button" class="tnpv-b" title="Zoom out" onclick="_tnPlansZoom(1/1.25)">−</button>' +
+      '<label class="tnpv-zoom" title="Zoom"><input type="range" id="tnpvZoom" min="0" max="100" step="1" value="0" oninput="_tnPlansZoomTo(this.value)" aria-label="Zoom"><span id="tnpvPct">100%</span></label>' +
+      '<button type="button" class="tnpv-b" title="Zoom in (or Ctrl + wheel)" onclick="_tnPlansZoom(1.25)">+</button>' +
+      '<button type="button" class="tnpv-b" title="Fit the page" onclick="_tnPlansZoom(0)">↺</button></div>' +
+      '<div class="tnpv-list" id="tnpvList"></div>';
+    document.body.appendChild(el);
+    var list = el.querySelector('#tnpvList');
+    list.addEventListener('wheel', plansWheel, { passive: false });
+    list.addEventListener('scroll', function(){ var i = plansIndexAt(); if (i !== PV.at) { PV.at = i; plansHead(); plansLoadNear(); } });
+    list.addEventListener('mousedown', plansDown);
+    window.addEventListener('mousemove', plansMove);
+    window.addEventListener('mouseup', plansUp);
+    el.querySelector('#tnPlansResize').addEventListener('pointerdown', plansResizeStart);
+    try { var w = localStorage.getItem('fr_tn_plans_w'); if (w) el.style.setProperty('--tnpv-w', w); } catch (e) {}
+    return el;
+  }
+  function plansSync(){
+    var el = plansEl(), L = plansList();
+    var sig = L.map(function(p){ return p.id; }).join(',');
+    el.classList.toggle('has-pages', L.length > 0);
+    el.classList.toggle('is-open', PV.open && L.length > 0);
+    plansFit();
+    if (sig === PV.sig) return;
+    PV.sig = sig; PV.list = L; PV.z = {}; PV.at = Math.min(PV.at, Math.max(0, L.length - 1));
+    var list = el.querySelector('#tnpvList');
+    list.innerHTML = L.map(function(p, i){
+      var cap = (p.sheet_id ? p.sheet_id + ' · ' : '') + (p.title || ('Page ' + p.page_no));
+      return '<div class="tnpv-slot" data-i="' + i + '"><div class="tnpv-load">Loading…</div><img alt="" data-pid="' + esc(p.id) + '"><span class="tnpv-cap">' + esc(cap) + '</span></div>';
+    }).join('');
+    plansHead(); plansLoadNear();
+  }
+  // One page to a slot, the next one peeking under it.
+  function plansFit(){
+    var el = document.getElementById('tnPlansPop'), list = el && el.querySelector('#tnpvList');
+    if (list && list.clientHeight > 100) el.style.setProperty('--tnpv-slot', Math.round(list.clientHeight - 20 - 48) + 'px');
+  }
+  window.addEventListener('resize', function(){ plansFit(); });
+  function plansHead(){
+    var at = document.getElementById('tnpvAt'), p = PV.list[PV.at];
+    if (at) at.textContent = PV.list.length ? ('Page ' + (PV.at + 1) + ' of ' + PV.list.length + (p && p.sheet_id ? ' · ' + p.sheet_id : '') + (p && p.title ? ' ' + p.title : '')) : '';
+    plansZoomSync();
+  }
+  // THE ZOOM SLIDER (2026-10-28, the owner: "add a zoom slider bar"): 0..100
+  // on a log scale, so the first doubling is not crammed into the left tenth.
+  var PV_ZMAX = 12;
+  function plansZoomSync(){
+    var sl = document.getElementById('tnpvZoom'), pc = document.getElementById('tnpvPct'), z = PV.z[PV.at] || { s: 1 };
+    if (sl && document.activeElement !== sl) sl.value = Math.round(100 * Math.log(z.s) / Math.log(PV_ZMAX));
+    if (pc) pc.textContent = Math.round(z.s * 100) + '%';
+  }
+  window._tnPlansZoomTo = function(v){
+    var s2 = Math.pow(PV_ZMAX, Math.max(0, Math.min(100, +v || 0)) / 100), z = PV.z[PV.at] || { s: 1 };
+    plansZoomAt(PV.at, s2 / z.s);
+  };
+  function plansSlot(i){ return document.querySelector('#tnpvList .tnpv-slot[data-i="' + i + '"]'); }
+  function plansIndexAt(){
+    var list = document.getElementById('tnpvList'), s0 = plansSlot(0); if (!list || !s0) return 0;
+    var pitch = s0.offsetHeight + 12;
+    return Math.max(0, Math.min(PV.list.length - 1, Math.round(list.scrollTop / pitch)));
+  }
+  // ONE ZOOM FOR THE SET (2026-10-28, the owner: "i zoom into one page to
+  // 150%, then i go to the next page it jumps back to 100% but i want it to
+  // keep the zoom i set"): the zoom and its place carry to the pages either
+  // side, so the next page arrives as zoomed as the last.
+  function plansCarry(i){
+    var k = PV.keep; if (!k || !plansSlot(i)) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    if (z.s === k.s && z.x === k.x && z.y === k.y) return;
+    PV.z[i] = { s: k.s, x: k.x, y: k.y }; plansClamp(i); plansApply(i);
+  }
+  function plansKeep(i){ if (i === PV.at) { var z = PV.z[i] || { s: 1, x: 0, y: 0 }; PV.keep = { s: z.s, x: z.x, y: z.y }; } }
+  function plansLoadNear(){
+    if (!PV.open) return;
+    for (var i = PV.at - 1; i <= PV.at + 2; i++) {
+      var p = PV.list[i]; if (!p) continue;
+      plansCarry(i);
+      (function(p, i){
+        var slot = plansSlot(i); if (!slot) return;
+        var img = slot.querySelector('img'); if (img.getAttribute('src')) return;
+        var put = function(u){ img.onload = function(){ var l = slot.querySelector('.tnpv-load'); if (l) l.remove(); }; img.src = u; plansApply(i); };
+        if (PV.urls[p.id]) return put(PV.urls[p.id]);
+        img.setAttribute('src', '');
+        api('GET', '/tender/' + T.id + '/pages/' + p.id + '/image').then(function(x){ PV.urls[p.id] = x.url; put(x.url); }).catch(function(){ img.removeAttribute('src'); var l = slot.querySelector('.tnpv-load'); if (l) l.textContent = 'This page could not be loaded.'; });
+      })(p, i);
+    }
+  }
+  function plansApply(i){
+    var slot = plansSlot(i); if (!slot) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    var img = slot.querySelector('img'); if (img) img.style.transform = 'translate(' + z.x + 'px,' + z.y + 'px) scale(' + z.s + ')';
+    slot.classList.toggle('zoomed', z.s > 1.001);
+    plansHiAlign(i); plansSharpSoon(i);
+    if (i === PV.at) plansZoomSync();
+  }
+  // SHARP WHEN ZOOMED (2026-10-28, the owner: "the plans are blurry on zoom
+  // in"). The page picture is at most 2000 px, so blown up it goes soft. Once
+  // a zoom settles, the part of the page in view is drawn again from the plan
+  // set itself (pdf.js, range requests, so only the bytes needed come down)
+  // at the screen's own resolution, on a canvas over the picture. While the
+  // page is moving the last drawing is carried along with it; if the PDF
+  // cannot be had the picture alone stays, as before.
+  var PDFS = {}, sharpT = {};
+  function plansDoc(p){
+    if (PDFS[p.file_id]) return PDFS[p.file_id];
+    var pr = PDFS[p.file_id] = api('GET', '/tender/' + T.id + '/pages/' + p.id + '/image?kind=pdf').then(function(x){
+      if (!x || !x.url || !x.page || typeof window._pdfjsLoad !== 'function') throw new Error('no plan set');
+      return window._pdfjsLoad().then(function(lib){ return lib.getDocument({ url: x.url, disableAutoFetch: true, disableStream: true }).promise; });
+    });
+    pr.catch(function(){ setTimeout(function(){ if (PDFS[p.file_id] === pr) delete PDFS[p.file_id]; }, 60000); });
+    return pr;
+  }
+  function plansHiAlign(i){
+    var slot = plansSlot(i), cv = slot && slot.querySelector('canvas.tnpv-hi'), z = PV.z[i];
+    if (!cv || !cv._z) return;
+    if (!z || z.s <= 1.001 || cv._W !== slot.clientWidth || cv._H !== slot.clientHeight) { cv.style.display = 'none'; return; }
+    var k = z.s / cv._z.s;
+    cv.style.transform = 'translate(' + (z.x - k * cv._z.x) + 'px,' + (z.y - k * cv._z.y) + 'px) scale(' + k + ')';
+    cv.style.display = 'block';
+  }
+  function plansSharpSoon(i){ clearTimeout(sharpT[i]); sharpT[i] = setTimeout(function(){ plansSharp(i); }, 220); }
+  function plansSharp(i){
+    var slot = plansSlot(i), p = PV.list[i], z = PV.z[i];
+    if (!slot || !p || !z || z.s <= 1.001 || !PV.open) return;
+    var want = { s: z.s, x: z.x, y: z.y }, W = slot.clientWidth, H = slot.clientHeight;
+    plansDoc(p).then(function(doc){ return doc.getPage(p.page_no); }).then(function(pg){
+      var cur = PV.z[i]; if (!cur || cur.s !== want.s || cur.x !== want.x || cur.y !== want.y || slot.clientWidth !== W) return;   // moved on; the next settle draws it
+      var dpr = Math.min(3, window.devicePixelRatio || 1), v1 = pg.getViewport({ scale: 1 });
+      var f = Math.min(W / v1.width, H / v1.height), ox = (W - v1.width * f) / 2, oy = (H - v1.height * f) / 2;
+      var cv = slot.querySelector('canvas.tnpv-hi');
+      if (!cv) { cv = document.createElement('canvas'); cv.className = 'tnpv-hi'; slot.insertBefore(cv, slot.querySelector('.tnpv-cap')); }
+      if (cv._task) { try { cv._task.cancel(); } catch (e) {} }
+      var off = document.createElement('canvas'); off.width = Math.round(W * dpr); off.height = Math.round(H * dpr);
+      var ctx = off.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, off.width, off.height);
+      var task = pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: f * want.s * dpr }), transform: [1, 0, 0, 1, dpr * (want.x + want.s * ox), dpr * (want.y + want.s * oy)] });
+      cv._task = task;
+      return task.promise.then(function(){
+        cv._task = null;
+        cv.width = off.width; cv.height = off.height; cv.getContext('2d').drawImage(off, 0, 0);
+        cv.style.width = W + 'px'; cv.style.height = H + 'px'; cv._z = want; cv._W = W; cv._H = H;
+        plansHiAlign(i);
+      });
+    }).catch(function(e){
+      if (e && /Cancel/i.test(e.name || '')) return;
+      if (e && /40[13]|expired|Unexpected server response/i.test(String(e.message || e))) delete PDFS[p.file_id];   // the hour-long link ran out: ask again next time
+    });
+  }
+  // Keep a zoomed page from being dragged right off its slot.
+  function plansClamp(i){
+    var slot = plansSlot(i), z = PV.z[i]; if (!slot || !z) return;
+    var W = slot.clientWidth, H = slot.clientHeight;
+    if (z.s <= 1.001) { PV.z[i] = { s: 1, x: 0, y: 0 }; return; }
+    z.x = Math.min(0, Math.max(W - W * z.s, z.x)); z.y = Math.min(0, Math.max(H - H * z.s, z.y));
+  }
+  function plansZoomAt(i, f, px, py){
+    var slot = plansSlot(i); if (!slot) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    if (px == null) { px = slot.clientWidth / 2; py = slot.clientHeight / 2; }
+    var s2 = f === 0 ? 1 : Math.max(1, Math.min(PV_ZMAX, z.s * f));
+    z.x = px - (px - z.x) * (s2 / z.s); z.y = py - (py - z.y) * (s2 / z.s); z.s = s2;
+    PV.z[i] = z; plansClamp(i); plansKeep(i); plansApply(i);
+  }
+  window._tnPlansZoom = function(f){ plansZoomAt(PV.at, f); };
+  window._tnPlansStep = function(dir){
+    var list = document.getElementById('tnpvList'), i = Math.max(0, Math.min(PV.list.length - 1, PV.at + dir)), slot = plansSlot(i);
+    if (!list || !slot) return;
+    PV.at = i; plansHead(); plansLoadNear();
+    list.scrollTo({ top: slot.offsetTop - 10, behavior: 'smooth' });
+  };
+  window._tnPlans = function(open){
+    PV.open = open == null ? !PV.open : !!open;
+    try { sessionStorage.setItem('fr_tn_plans', PV.open ? '1' : '0'); } catch (e) {}
+    var el = plansEl(); el.classList.toggle('is-open', PV.open);
+    if (PV.open) plansLoadNear();
+  };
+  function plansWheel(e){
+    var slot = e.target.closest && e.target.closest('.tnpv-slot');
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (!slot) return;
+      var i = +slot.getAttribute('data-i'), r = slot.getBoundingClientRect();
+      plansZoomAt(i, Math.exp(-e.deltaY * 0.0022), e.clientX - r.left, e.clientY - r.top);
+      return;
+    }
+    // A plain wheel turns one page a notch; a flick never skips pages.
+    e.preventDefault();
+    var now = Date.now(); if (now < PV.lockUntil) return;
+    PV.wheelAcc += e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+    if (Math.abs(PV.wheelAcc) < 40) return;
+    var dir = PV.wheelAcc > 0 ? 1 : -1; PV.wheelAcc = 0; PV.lockUntil = now + 380;
+    window._tnPlansStep(dir);
+  }
+  function plansDown(e){
+    if (e.button !== 0) return;
+    var slot = e.target.closest && e.target.closest('.tnpv-slot'); if (!slot) return;
+    var i = +slot.getAttribute('data-i'), z = PV.z[i];
+    if (!z || z.s <= 1.001) return;
+    e.preventDefault();
+    PV.drag = { i: i, x0: e.clientX, y0: e.clientY, zx: z.x, zy: z.y, slot: slot };
+    slot.classList.add('grabbing');
+  }
+  function plansMove(e){
+    var g = PV.drag; if (!g) return;
+    var z = PV.z[g.i]; z.x = g.zx + (e.clientX - g.x0); z.y = g.zy + (e.clientY - g.y0);
+    plansClamp(g.i); plansKeep(g.i); plansApply(g.i);
+  }
+  function plansUp(){ if (PV.drag) { PV.drag.slot.classList.remove('grabbing'); PV.drag = null; } }
+  function plansResizeStart(e){
+    var el = plansEl(); e.preventDefault(); el.classList.add('is-resizing');
+    var mv = function(ev){ var w = Math.max(260, Math.min(window.innerWidth * 0.96, window.innerWidth - ev.clientX)); el.style.setProperty('--tnpv-w', w + 'px'); };
+    var up = function(){ window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); el.classList.remove('is-resizing');
+      try { localStorage.setItem('fr_tn_plans_w', el.style.getPropertyValue('--tnpv-w')); } catch (e) {}
+      Object.keys(PV.z).forEach(function(i){ plansClamp(+i); plansApply(+i); }); };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  }
+  window.__tnPlansState = function(){ return { open: PV.open, at: PV.at, n: PV.list.length, z: PV.z[PV.at] || { s: 1, x: 0, y: 0 } }; };
+
   function statusWord(s){ return { new: 'No files yet', queued: 'Waiting to be read', processing: 'Reading the set', indexed: 'Indexed', drafted: 'Tender drafted', failed: 'Failed' }[s] || s; }
   function progressHtml(d){
     var up = T.uploads.filter(function(u){ return !u.done; });
@@ -311,13 +622,29 @@
     } finally { DOC.saving = false; }
   }
   window._tenderSaveNow = saveNow;
+  window.__tnRerender = function(fn){ if (fn && T.data && T.data.doc) fn(T.data.doc); docRerender(); };   // a test seam
   function docRerender(){
     var host = document.getElementById('tnDocHost');
     if (!host || !T.data) { render(); return; }
     var y = window.scrollY;
-    host.innerHTML = docHtml(T.data);
-    afterDocRender();
+    hostFill(host);
     window.scrollTo(0, y);
+  }
+  // Redraw the working sheet without losing where each box was scrolled to,
+  // or what was half typed into the chat.
+  function hostFill(host){
+    var sc = {}, ci = document.getElementById('tnChatIn'), typed = ci && !ci.disabled ? ci.value : '', chatFocus = ci && document.activeElement === ci;
+    host.querySelectorAll('.tn-box').forEach(function(b){ sc[b.getAttribute('data-box')] = b.scrollTop; });
+    host.innerHTML = docHtml(T.data);
+    var side = document.getElementById('tnSide');
+    // the nav alone: on a narrower screen the chat lives inside the same aside
+    if (side && T.data.doc) { var nv = document.getElementById('tnNav'), ns = nv ? nv.scrollTop : 0; if (nv) nv.outerHTML = sideHtml(T.data); else side.insertAdjacentHTML('afterbegin', sideHtml(T.data)); nv = document.getElementById('tnNav'); if (nv) nv.scrollTop = ns; }
+    var cs = document.getElementById('tnChatSide');
+    if (cs && T.data.doc) { layMode(); var lg = document.getElementById('tnChatLog'), ls = lg ? lg.scrollTop : 0, atEnd = !lg || lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 4; cs.innerHTML = chatHtml(T.data.doc); lg = document.getElementById('tnChatLog'); if (lg) lg.scrollTop = atEnd ? lg.scrollHeight : ls; }
+    host.querySelectorAll('.tn-box').forEach(function(b){ var v = sc[b.getAttribute('data-box')]; if (v) b.scrollTop = v; });
+    var ci2 = document.getElementById('tnChatIn');
+    if (ci2 && typed && !ci2.disabled) { ci2.value = typed; if (chatFocus) ci2.focus(); }
+    afterDocRender();
   }
 
   // ── edits ──────────────────────────────────────────────────────────
@@ -386,6 +713,7 @@
     var order = qOrder(d);
     var i = order.indexOf(sec);
     if (what === 'hide') q.hide[sec] = !q.hide[sec];
+    else if (what === 'page') { q.newPage = q.newPage || {}; if (q.newPage[sec]) delete q.newPage[sec]; else q.newPage[sec] = true; }
     else if (what === 'up' && i > 0) { order.splice(i, 1); order.splice(i - 1, 0, sec); q.order = order; }
     else if (what === 'down' && i >= 0 && i < order.length - 1) { order.splice(i, 1); order.splice(i + 1, 0, sec); q.order = order; }
     saveSoon(); docRerender();
@@ -403,24 +731,33 @@
   }
 
   // ── Claude ─────────────────────────────────────────────────────────
-  window._tnAmend = async function(mode){
+  window._tnAmend = async function(mode, extra){
     var d = T.data && T.data.doc; if (!d || DOC.chatBusy) return;
-    var instr = '';
-    if (mode === 'chat') {
+    var instr = '', change = false;
+    if (mode === 'tagout') {
+      // A scope line tagged out (2026-10-28): it moves to the exclusions at
+      // once, then Claude takes out the items, labour and time only it needed.
+      var line = (d.scope || [])[extra]; if (line == null) return;
+      d.scope.splice(extra, 1);
+      d.exclusions = (d.exclusions || []).concat([{ text: line, why: 'Tagged out of our scope' }]);
+      DOC.dirty = true;
+      instr = 'The estimator has tagged this line OUT of our scope of work, and it is now in the exclusions: "' + line + '". Take out the items, labour and programme time that were only for that work, and keep the exclusion. Change nothing else.';
+      mode = 'chat'; change = true;
+    } else if (mode === 'chat') {
       var inp = document.getElementById('tnChatIn');
       instr = inp ? inp.value.trim() : '';
       if (!instr) { if (inp) inp.focus(); return; }
     }
     DOC.chatBusy = mode;
     d.chat = d.chat || [];
-    var pending = { who: 'you', text: mode === 'chat' ? instr : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: new Date().toISOString(), pending: true };
+    var pending = { who: 'you', text: change ? ('Tag out: ' + d.exclusions[d.exclusions.length - 1].text) : mode === 'chat' ? instr : (mode === 'simplify' ? 'Simplify the scope' : 'Minimise the scope'), at: new Date().toISOString(), pending: true };
     d.chat.push(pending);
     docRerender();
     try {
       if (DOC.dirty) await saveNow();
-      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, doc: d });
+      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d, secs: change ? undefined : secsNow() });
       T.data.doc = x.doc;
-      T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
+      if (!x.answered) T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
     } catch (e) {
       d.chat = d.chat.filter(function(m){ return m !== pending; });
       d.chat.push({ who: 'ai', text: 'Sorry — that did not work: ' + (e && e.message || e), at: new Date().toISOString(), err: true });
@@ -469,8 +806,9 @@
     h += A('pricing', pricingCard(doc, c));
     h += A('programme', programmeCard(doc));
     h += A('doc', quoteCard(d, doc, c));
-    return '<div class="tn-lay"><nav class="tn-nav" id="tnNav">' + navHtml(d, doc) + '</nav><div class="tn-main">' + h + '</div></div>';
+    return h;
   }
+  function sideHtml(d){ return '<nav class="tn-nav" id="tnNav">' + navHtml(d, d.doc) + '</nav>'; }
   // The menu down the left, like Settings': a click scrolls to that part.
   function navHtml(d, doc){
     var q = doc.quote || {}, hide = q.hide || {};
@@ -512,7 +850,7 @@
 
   // ── "Edit [section]": describe the change, typed or spoken ─────────
   function editBtn(sec, cls){
-    return '<button type="button" class="tn-edit ' + (cls || '') + '" onclick="event.stopPropagation();_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(SEC_LABEL[sec] || sec) + '</button>';
+    return '<button type="button" class="tn-edit ' + (cls || '') + '" title="Edit ' + esc(SEC_LABEL[sec] || sec) + ' with A.I." onclick="event.stopPropagation();_tnEdit(\'' + sec + '\')">✨ Edit with A.I.</button>';
   }
   var EDIT = { sec: '', busy: false, rec: null };
   var EDIT_HINT = {
@@ -527,7 +865,7 @@
     var m = document.getElementById('tnEditModal'); if (m) return m;
     m = document.createElement('div'); m.id = 'tnEditModal'; m.className = 'tn-modal';
     m.innerHTML = '<div class="tn-modal-card" role="dialog" aria-modal="true" aria-labelledby="tnEditTitle"><div class="tn-modal-hd"><b id="tnEditTitle"></b><button type="button" class="tn-x" onclick="_tnEditClose()" aria-label="Close">✕</button></div>' +
-      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><label class="tn-modal-lbl" for="tnEditIn">Describe your change</label>' +
+      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><div class="tn-edit-ask" id="tnEditAsk" style="display:none"></div><label class="tn-modal-lbl" for="tnEditIn" id="tnEditLbl">Describe your change</label>' +
       '<textarea id="tnEditIn" rows="4" placeholder="Type it, or press Speak and say it"></textarea>' +
       '<div class="tn-modal-ft"><button type="button" class="tn-btn sec tn-mic" id="tnEditMic" onclick="_tnMic()">🎤 Speak</button><span id="tnEditMsg" class="tn-edit-msg"></span>' +
       '<button type="button" class="tn-btn sec" onclick="_tnEditClose()">Cancel</button><button type="button" class="tn-btn" id="tnEditGo" onclick="_tnEditGo()">Make the change</button></div></div>';
@@ -540,10 +878,11 @@
     if (!T.data || !T.data.doc) return;
     var m = editModal();
     EDIT.sec = sec;
-    m.querySelector('#tnEditTitle').textContent = 'Edit ' + (SEC_LABEL[sec] || sec);
+    m.querySelector('#tnEditTitle').textContent = '✨ Edit ' + (SEC_LABEL[sec] || sec) + ' with A.I.';
     m.querySelector('#tnEditHint').textContent = EDIT_HINT[sec] || 'Say what you want changed in this section, in your own words.';
     var inp = m.querySelector('#tnEditIn'); inp.value = ''; inp.disabled = false;
     m.querySelector('#tnEditMsg').textContent = '';
+    EDIT.ask = null; editAsk('');
     m.querySelector('#tnEditMic').style.display = speechCtor() ? '' : 'none';
     editBusy(false);
     m.classList.add('open');
@@ -556,6 +895,12 @@
     var go = m.querySelector('#tnEditGo'); go.disabled = on; go.textContent = on ? 'Working on it…' : 'Make the change';
     m.querySelector('#tnEditIn').disabled = on; m.querySelector('#tnEditMic').disabled = on;
   }
+  // Every words-only section as it reads now: a chat change may land on one.
+  function secsNow(){
+    var o = {};
+    Object.keys(SEC_TEXT).forEach(function(k){ if (k !== 'org') { try { o[k] = secCurrent(k); } catch (e) {} } });
+    return o;
+  }
   // What the section says now, as plain text, for the words-only sections.
   function secCurrent(sec){
     if (sec === 'org') return orgOf(T.data).people;
@@ -563,14 +908,24 @@
     var el = document.querySelector('#tqPage [data-qk="' + key + '"]');
     if (!el) return '';
     var t = '';
-    el.querySelectorAll('p,li').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
+    el.querySelectorAll('p:not(.tq-pb),li:not(.tq-pb)').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
     return t || el.textContent.trim();
+  }
+  // A clarifying question from Claude (2026-10-28, the owner: "keep the
+  // conversation open and ask a clarifying question first"): shown in the
+  // window, which stays open for the answer.
+  function editAsk(q){
+    var m = document.getElementById('tnEditModal'); if (!m) return;
+    var a = m.querySelector('#tnEditAsk'), l = m.querySelector('#tnEditLbl');
+    a.style.display = q ? '' : 'none'; a.textContent = q ? '❓ ' + q : '';
+    l.textContent = q ? 'Your answer' : 'Describe your change';
   }
   window._tnEditGo = async function(){
     var m = document.getElementById('tnEditModal'); if (!m || EDIT.busy) return;
     var inp = m.querySelector('#tnEditIn'), msg = m.querySelector('#tnEditMsg');
-    var instr = inp.value.trim();
-    if (!instr) { msg.textContent = 'Say what to change first.'; inp.focus(); return; }
+    var typed = inp.value.trim();
+    if (!typed) { msg.textContent = EDIT.ask ? 'Answer the question first.' : 'Say what to change first.'; inp.focus(); return; }
+    var instr = EDIT.ask ? (EDIT.ask.instr + '\n(You asked: "' + EDIT.ask.q + '" My answer: ' + typed + ')') : typed;
     micStop();
     var sec = EDIT.sec;
     editBusy(true); msg.textContent = SEC_TEXT[sec] ? 'Claude is rewriting the section…' : 'Claude is changing the tender — this can take a minute…';
@@ -578,8 +933,15 @@
       if (DOC.dirty) await saveNow();
       var d = T.data.doc, x;
       if (SEC_TEXT[sec]) x = await api('POST', '/tender/' + T.id + '/section', { section: sec, instruction: instr, current: secCurrent(sec), doc: d });
-      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
+      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, said: 'Edit ' + (SEC_LABEL[sec] || sec) + ': ' + typed, doc: d, secs: secsNow() });
       T.data.doc = x.doc;
+      if (x.answered) {
+        editBusy(false); docRerender();
+        if (x.clarify) { EDIT.ask = { instr: instr, q: x.question || '' }; editAsk(x.question || ''); inp.value = ''; msg.textContent = ''; setTimeout(function(){ inp.focus(); }, 30); }
+        else { var last = (x.doc.chat || [])[x.doc.chat.length - 1]; EDIT.ask = null; editAsk(''); msg.textContent = last ? last.text : 'Nothing was changed.'; }
+        return;
+      }
+      EDIT.ask = null;
       T.data.history = [{ at: new Date().toISOString(), why: 'Edit ' + (SEC_LABEL[sec] || sec) }].concat(T.data.history || []);
       editBusy(false);
       window._tnEditClose();
@@ -595,12 +957,15 @@
   function speechCtor(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
   function micStop(){
     if (EDIT.rec) { try { EDIT.rec.stop(); } catch (e) {} EDIT.rec = null; }
-    var b = document.getElementById('tnEditMic'); if (b) { b.classList.remove('on'); b.textContent = '🎤 Speak'; }
+    ['tnEditMic', 'tnChatMic'].forEach(function(id){ var b = document.getElementById(id); if (b) { b.classList.remove('on'); b.textContent = '🎤 Speak'; } });
+    var cm = document.getElementById('tnChatMsg'); if (cm && cm.textContent === 'Listening…') cm.textContent = '';
   }
-  window._tnMic = function(){
+  window._tnMic = function(where){
     if (EDIT.rec) { micStop(); return; }
     var C = speechCtor(); if (!C) return;
-    var inp = document.getElementById('tnEditIn'), b = document.getElementById('tnEditMic'), msg = document.getElementById('tnEditMsg');
+    var chat = where === 'chat';
+    var inp = document.getElementById(chat ? 'tnChatIn' : 'tnEditIn'), b = document.getElementById(chat ? 'tnChatMic' : 'tnEditMic'), msg = document.getElementById(chat ? 'tnChatMsg' : 'tnEditMsg');
+    if (!inp || !b || !msg) return;
     var rec = new C();
     rec.lang = 'en-NZ'; rec.continuous = true; rec.interimResults = true;
     var base = inp.value ? inp.value.replace(/\s*$/, ' ') : '';
@@ -621,18 +986,29 @@
     var ids = {}; ppl.forEach(function(p){ ids[p.id] = p; });
     var kids = {}; var roots = [];
     ppl.forEach(function(p){ if (p.reports_to && ids[p.reports_to] && p.reports_to !== p.id) (kids[p.reports_to] = kids[p.reports_to] || []).push(p); else roots.push(p); });
-    var seen = {};
-    var li = function(p){
-      if (seen[p.id]) return ''; seen[p.id] = 1;
+    // ROW BY ROW, NOT A NESTED TREE (2026-10-28, the owner: "i still want
+    // Paula and Aron brought in closer ... don't allow a scroll left/right
+    // function, the org structure must fit to size"). A nested tree spreads
+    // a manager's siblings out to the edges of the widest team under them;
+    // here each level is one centred row, packed close, and every box shrinks
+    // to fit the page. The lines are drawn after layout (orgLines).
+    var seen = {}, rows = [];
+    var box = function(p){
       var e = function(f, v, tag, ph){ return '<' + tag + ' class="tq-ed" contenteditable="true" data-oid="' + esc(p.id) + '" data-of="' + f + '" data-ph="' + ph + '">' + esc(v || '') + '</' + tag + '>'; };
-      var ch = (kids[p.id] || []).map(li).join('');
-      return '<li><div class="tq-ob">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
-        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>' + (ch ? '<ul>' + ch + '</ul>' : '') + '</li>';
+      return '<div class="tq-ob" data-oid="' + esc(p.id) + '" data-up="' + esc(p.reports_to && ids[p.reports_to] && p.reports_to !== p.id ? p.reports_to : '') + '">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
+        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>';
     };
+    var level = roots.filter(function(p){ return !seen[p.id] && (seen[p.id] = 1); });
+    while (level.length) {
+      rows.push(level);
+      var next = [];
+      level.forEach(function(p){ (kids[p.id] || []).forEach(function(c){ if (!seen[c.id]) { seen[c.id] = 1; next.push(c); } }); });
+      level = next;
+    }
     var h = '';
     if (!org.described) h += '<div class="tq-orgask no-print">This is a standard structure. Press <b>✎ Edit Organisation structure</b> and describe yours (who does what, and how many crews) — it is kept for your next tenders.</div>';
     h += ce('orgNote', qText(d.doc, 'orgNote', '<p>Our team for this project:</p>'));
-    h += '<div class="tq-org"><ul>' + roots.map(li).join('') + '</ul></div>';
+    h += '<div class="tq-org"><svg class="tq-org-ln" aria-hidden="true"></svg>' + rows.map(function(r){ return '<div class="tq-org-row">' + r.map(box).join('') + '</div>'; }).join('') + '</div>';
     h += '<div class="no-print" style="margin-top:6px"><button type="button" class="tn-btn sec tn-add" onclick="_tnOrgAdd()">+ Add a role</button></div>';
     return h;
   }
@@ -660,7 +1036,7 @@
 
   function specCard(doc, c){
     var items = (doc.items || []).map(function(it, i){ return { it: it, i: i }; }).sort(function(a, b){ return catSort(a.it, b.it) || a.i - b.i; });
-    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities' + editBtn('spec') + '<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Roofing specification &amp; quantities' + editBtn('spec') + boxCtl('w-spec') + '<span class="tn-r">' + items.length + ' items</span></div><div class="tn-card-bd">' + boxOpen('w-spec') + '';
     h += '<p class="tn-note">Read from the plans. Every box can be changed; quantities here are the ones priced below. Hover “From” for where on the plans it came from.</p>';
     h += '<div class="tn-scroll"><table class="tn-tbl tn-spec"><thead><tr><th>Type</th><th>Item</th><th>Profile</th><th>Thickness</th><th>Grade / material</th><th>Colour</th><th class="r">Qty</th><th>Unit</th><th>From</th><th></th></tr></thead><tbody>';
     items.forEach(function(x){
@@ -676,46 +1052,66 @@
         '<td class="tn-from" title="' + esc([it.qty_basis, it.spec_ref, it.source_pages].filter(Boolean).join(' — ')) + '">' + esc(it.source_pages || it.spec_ref || '') + '</td>' +
         '<td class="nw"><button type="button" class="tn-x" title="' + (it.off ? 'Put back in the price' : 'Leave out of the price') + '" onclick="_tnToggleItem(' + i + ')">' + (it.off ? '↺' : '⊘') + '</button><button type="button" class="tn-x" title="Delete" onclick="_tnDel(\'items\',' + i + ')">✕</button></td></tr>';
     });
-    h += '</tbody></table></div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'items\')">+ Add item</button></div></div>';
+    h += '</tbody></table></div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'items\')">+ Add item</button></div></div></div>';
     return h;
   }
 
   function scopeCard(doc){
-    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work' + editBtn('scope') + '<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Scope of work' + editBtn('scope') + boxCtl('w-scope') + '<span class="tn-r">' + (doc.scope || []).length + ' items</span></div><div class="tn-card-bd">' + boxOpen('w-scope') + '';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn sec" onclick="_tnAmend(\'simplify\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'simplify' ? 'Simplifying…' : '✂ Simplify') + '</button>' +
       '<button type="button" class="tn-btn sec" onclick="_tnAmend(\'minimise\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'minimise' ? 'Minimising…' : '⇣ Minimise scope') + '</button>' +
       '<span class="tn-note" style="margin:0">Simplify rewrites it shorter and plainer. Minimise cuts it to the core roofing and moves the rest to exclusions (and out of the price).</span></div>';
     h += '<ol class="tn-list">' + (doc.scope || []).map(function(s, i){
-      return '<li><textarea rows="1" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onchange="_tnSet(\'scope\',' + i + ',\'\',this.value)">' + esc(s) + '</textarea>' + rowTools('scope', i) + '</li>';
+      return '<li><textarea rows="1" oninput="this.style.height=\'auto\';this.style.height=this.scrollHeight+\'px\'" onchange="_tnSet(\'scope\',' + i + ',\'\',this.value)">' + esc(s) + '</textarea>' +
+        '<button type="button" class="tn-tagout" title="Take this out of our scope: it moves to the exclusions and its items come out of the price" onclick="_tnAmend(\'tagout\',' + i + ')" ' + (DOC.chatBusy ? 'disabled' : '') + '>Tag out</button>' + rowTools('scope', i) + '</li>';
     }).join('') + '</ol><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'scope\')">+ Add scope item</button>';
-    // the chat
-    var chat = doc.chat || [];
-    h += '<div class="tn-chat"><div class="tn-chat-hd">✨ Ask Claude to change the tender</div><div class="tn-chat-log" id="tnChatLog">' +
-      (chat.length ? chat.map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
-        : '<div class="tn-note" style="margin:0">e.g. “take the spouting out, the builder is doing it”, “add 20 m of 0.55 parapet capping”, “we are not stripping the existing roof”.</div>') +
-      '</div><div class="tn-chat-in"><textarea id="tnChatIn" rows="2" placeholder="Tell Claude what to change…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
-      '<button type="button" class="tn-btn" onclick="_tnAmend(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'chat' ? 'Working…' : 'Send') + '</button></div>' +
-      '<div class="tn-note" style="margin:6px 0 0">Claude changes the scope, the items, the price and the programme together. Undo puts the last change back.</div></div>';
-    h += '</div></div>';
+    h += '</div></div></div>';
     return h;
   }
+  // The A.I. chat, pinned down the right so it is there wherever the page is.
+  function chatHtml(doc){
+    var chat = doc.chat || [];
+    return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. — questions or changes</div><div class="tn-chat-log" id="tnChatLog">' +
+      (chat.length ? chat.filter(function(m){ return !m.pending || DOC.chatBusy; }).map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + (m.kind === 'clarify' ? ' ask' : '') + '">' + (m.kind === 'clarify' ? '❓ ' : '') + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
+        : '<div class="tn-note" style="margin:0">Ask about the plans or the tender — “are Blocks 1 and 5/6 separate buildings?” — or ask for a change — “take the spouting out, the builder is doing it”.</div>') +
+      '</div><textarea id="tnChatIn" rows="2" placeholder="Ask a question or say what to change — type, or press Speak…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
+      '<div class="tn-chat-in"><button type="button" class="tn-btn sec tn-mic" id="tnChatMic" onclick="_tnMic(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>🎤 Speak</button><span id="tnChatMsg" class="tn-edit-msg"></span>' +
+      '<button type="button" class="tn-btn" onclick="_tnAmend(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>' + (DOC.chatBusy === 'chat' ? 'Working…' : 'Send') + '</button></div>' +
+      '<div class="tn-note tn-chat-nt" style="margin:6px 0 0;font-size:11.5px">A question changes nothing. A change updates the scope, items, price and programme together — Undo puts it back.</div></div>';
+  }
+  // ── the section boxes: 8 lines tall and scrolling, opened out, or folded ──
+  var BOX = (function(){ try { return JSON.parse(localStorage.getItem('fr_tn_box') || '{}') || {}; } catch (e) { return {}; } })();
+  function boxMode(id){ var m = BOX[id]; return m === 'full' || m === 'min' ? m : 'mid'; }
+  function boxCtl(id){
+    var m = boxMode(id);
+    var b = function(to, lab, t){ return '<button type="button" class="tn-bx" data-bx="' + to + '" title="' + t + '" onclick="event.stopPropagation();_tnBox(\'' + id + '\',\'' + to + '\')">' + lab + '</button>'; };
+    return '<span class="tn-bxs no-print" data-bxfor="' + id + '">' +
+      (m === 'full' ? b('mid', '▭ 8 lines', 'Back to the 8-line view') : b('full', '⤢ Expand', 'Show the whole section')) +
+      (m === 'min' ? b('mid', '▾ Open', 'Open it to the 8-line view') : b('min', '– Minimise', 'Fold this section away')) + '</span>';
+  }
+  function boxOpen(id){ return '<div class="tn-box ' + boxMode(id) + '" data-box="' + id + '">'; }
+  window._tnBox = function(id, to){
+    BOX[id] = to; try { localStorage.setItem('fr_tn_box', JSON.stringify(BOX)); } catch (e) {}
+    document.querySelectorAll('.tn-box[data-box="' + id + '"]').forEach(function(el){ el.className = 'tn-box ' + boxMode(id); if (to !== 'mid') el.scrollTop = 0; });
+    document.querySelectorAll('.tn-bxs[data-bxfor="' + id + '"]').forEach(function(el){ el.outerHTML = boxCtl(id); });
+  };
   function rowTools(list, i){
     return '<span class="tn-tools"><button type="button" class="tn-x" title="Up" onclick="_tnMove(\'' + list + '\',' + i + ',-1)">↑</button><button type="button" class="tn-x" title="Down" onclick="_tnMove(\'' + list + '\',' + i + ',1)">↓</button><button type="button" class="tn-x" title="Delete" onclick="_tnDel(\'' + list + '\',' + i + ')">✕</button></span>';
   }
   function listCard(doc, key, title, note){
     var arr = doc[key] || [];
-    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + editBtn(key) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd"><p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">' + esc(title) + editBtn(key) + boxCtl('w-' + key) + '<span class="tn-r">' + arr.length + '</span></div><div class="tn-card-bd">' + boxOpen('w-' + key) + '<p class="tn-note">' + esc(note) + '</p><ul class="tn-list">';
     arr.forEach(function(x, i){
       if (key === 'exclusions') h += '<li><div style="flex:1"><textarea rows="1" onchange="_tnSet(\'exclusions\',' + i + ',\'text\',this.value)">' + esc(x.text) + '</textarea>' + (x.why ? '<div class="tn-why">' + esc(x.why) + '</div>' : '') + '</div>' + rowTools(key, i) + '</li>';
       else h += '<li><textarea rows="1" onchange="_tnSet(\'' + key + '\',' + i + ',\'\',this.value)">' + esc(x) + '</textarea>' + rowTools(key, i) + '</li>';
     });
-    return h + '</ul><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'' + key + '\')">+ Add</button></div></div>';
+    return h + '</ul><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'' + key + '\')">+ Add</button></div></div></div>';
   }
 
   function pricingCard(doc, c){
     var r = doc.rates || {};
     var rate = function(f, label, v, suf){ return '<label>' + label + '<span><input inputmode="decimal" value="' + esc(v) + '" onchange="_tnRate(\'' + f + '\',this.value)">' + (suf || '') + '</span></label>'; };
-    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet' + editBtn('pricing') + '<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Pricing sheet' + editBtn('pricing') + boxCtl('w-pricing') + '<span class="tn-r">' + money(c.sub) + ' + GST</span></div><div class="tn-card-bd">' + boxOpen('w-pricing') + '';
     h += '<div class="tn-rates">' + rate('bufferPct', 'Waste allowance', num(r.bufferPct, 5), '%') + rate('markupPct', 'Material mark-up', num(r.markupPct, 10), '%') +
       rate('leadPrice', 'Lead charge-out', num(r.leadPrice, 180), '/hr') + rate('leadCost', 'Lead cost', num(r.leadCost, 45), '/hr') +
       rate('appPrice', 'Apprentice charge-out', num(r.appPrice, 90), '/hr') + rate('appCost', 'Apprentice cost', num(r.appCost, 25), '/hr') + rate('gstPct', 'GST', num(r.gstPct, 15), '%') + '</div>';
@@ -748,20 +1144,26 @@
       (c.scOn ? '<tr><td>Scaffolding</td><td>' + money(c.scPrice) + '</td></tr>' : '') + (c.extras ? '<tr><td>Other lines</td><td>' + money(c.extras) + '</td></tr>' : '') +
       '<tr class="b"><td>Tender price ex GST</td><td>' + money(c.sub) + '</td></tr><tr><td>GST ' + num(r.gstPct, 15) + '%</td><td>' + money(c.gst) + '</td></tr><tr class="b"><td>Total incl GST</td><td>' + money(c.total) + '</td></tr>' +
       '<tr class="gp"><td>Gross profit</td><td>' + money(c.gp) + ' · ' + c.gpPct.toFixed(1) + '% · ' + money(c.gpHr) + '/hr</td></tr></table>';
-    return h + '</div></div>';
+    return h + '</div></div></div>';
   }
 
+  // THE TOTAL UNDER THE GANTT (2026-10-28, the owner: "an arrow points from
+  // the start (left) of gantt start to the end (right) with the total days").
+  function ganttArrow(end){
+    var n = Math.ceil(end) || 0;
+    return '<div class="tq-g-arr" title="Day 0 to day ' + n + '"><i></i><b>' + n + ' working day' + (n === 1 ? '' : 's') + ' in total</b></div>';
+  }
   function programmeCard(doc){
     var tl = doc.timeline || [];
     var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
-    var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + boxCtl('w-programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">' + boxOpen('w-programme') + '';
     h += '<div class="tn-gantt">' + tl.map(function(t, i){
       var l = 100 * num(t.start_day) / end, w = Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end);
-      return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
+      return '<div class="tn-g-row"><div class="tn-g-lbl"><textarea class="tn-g-ph" rows="2" title="' + esc(t.phase || '') + '" onchange="_tnSet(\'timeline\',' + i + ',\'phase\',this.value)">' + esc(t.phase == null ? '' : t.phase) + '</textarea></div>' +
         '<div class="tn-g-num">Day ' + inp('timeline', i, 'start_day', t.start_day, 'xs r', 'n') + ' for ' + inp('timeline', i, 'days', t.days, 'xs r', 'n') + '</div>' +
         '<div class="tn-g-track"><i style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%"></i></div>' + rowTools('timeline', i) + '</div>';
-    }).join('') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
-    return h + '</div></div>';
+    }).join('') + (tl.length ? '<div class="tn-g-row tn-g-totrow"><div></div><div></div>' + ganttArrow(end) + '<span class="tn-tools" style="visibility:hidden" aria-hidden="true"><span class="tn-x">↑</span><span class="tn-x">↓</span><span class="tn-x">✕</span></span></div>' : '') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
+    return h + '</div></div></div>';
   }
 
   // ── the tender document: an editable page that prints as the PDF ───
@@ -778,7 +1180,7 @@
     var ref = (window.S && S.quote && S.quote.ref) || '';
     var today = new Date().toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric' });
     var dep = (window.S && S.settings && S.settings.invoicing && S.settings.invoicing.deposit_percent != null) ? S.settings.invoicing.deposit_percent : 50;
-    var h = '<div class="tn-card"><div class="tn-card-hd">Tender document<span class="tn-r">click any text on the page to change it</span></div><div class="tn-card-bd">';
+    var h = '<div class="tn-card"><div class="tn-card-hd">Tender document<span class="tn-r"><span id="tqPages"></span>click any text on the page to change it</span></div><div class="tn-card-bd">';
     h += '<div class="tn-ai-row"><button type="button" class="tn-btn" onclick="_tnPdf()">⬇ Save tender as PDF</button>' +
       '<label class="tn-chk"><input type="checkbox" ' + (q.showBreakdown ? 'checked' : '') + ' onchange="_tnQToggle(\'showBreakdown\')"> Show the price breakdown</label></div>';
     var order = qOrder(doc), hide = q.hide || {};
@@ -794,8 +1196,12 @@
       '<tr><td>Our ref</td><td>' + ce('m_ref', esc(qText(doc, 'm_ref', ref)), 'span') + '</td></tr></table>';
     order.forEach(function(sec){
       var label = (QSECTIONS.find(function(s){ return s[0] === sec; }) || [sec, sec])[1];
-      var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" onclick="_tnEdit(\'' + sec + '\')">✎ Edit ' + esc(label) + '</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
+      var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" title="Edit ' + esc(label) + ' with A.I." onclick="_tnEdit(\'' + sec + '\')">✨ Edit with A.I.</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
       if (hide[sec]) { page += '<div class="tq-sec tq-hidden no-print" id="tq-sec-' + sec + '"><h2>' + esc(label) + ' <i>(hidden)</i>' + tools + '</h2></div>'; return; }
+      // Move to next page (2026-10-29, the owner): the section starts a new
+      // sheet, in the app's page lines and in the PDF alike
+      var np = !!(q.newPage && q.newPage[sec]);
+      var mv = '<span class="tq-mv no-print"><button type="button" class="' + (np ? 'on' : '') + '" onclick="_tnQSection(\'' + sec + '\',\'page\')" title="' + (np ? 'Let this section follow on from the one before it' : 'Start this section at the top of the next page') + '">' + (np ? 'Back to previous page ↑' : 'Move to next page ↓') + '</button></span>';
       var body = '';
       if (sec === 'intro') body = ce('intro', qText(doc, 'intro', '<p>Thank you for the opportunity to tender for the roofing on this project. We are pleased to submit our price below for the supply and installation of the roofing as described, based on the documents listed above.</p>'));
       else if (sec === 'scope') body = '<ul class="tq-ul">' + (doc.scope || []).map(function(s, i){ return '<li>' + ceList('scope', i, '', s) + '</li>'; }).join('') + '</ul>';
@@ -815,11 +1221,11 @@
         body = ce('progNote', qText(doc, 'progNote', '<p>Our programme for the roofing works, in working days from our start on site (weather permitting):</p>')) +
           '<div class="tq-gantt">' + tl.map(function(t){
             return '<div class="tq-g"><span>' + esc(t.phase) + '</span><span class="tq-g-d">' + (num(t.days) ? num(t.days) + (num(t.days) === 1 ? ' day' : ' days') : '') + '</span><span class="tq-g-t"><i style="left:' + (100 * num(t.start_day) / end).toFixed(2) + '%;width:' + Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end).toFixed(2) + '%"></i></span></div>';
-          }).join('') + '</div><p class="tq-sub">Total: ' + Math.ceil(end) + ' working days on site.</p>';
+          }).join('') + (tl.length ? '<div class="tq-g tq-g-tot"><span></span><span></span>' + ganttArrow(end) + '</div>' : '') + '</div>';
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
-      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' ? ' tq-keep' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2>' + body + '</div>';
+      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' || sec === 'price' || sec === 'accept' ? ' tq-keep' : '') + (np ? ' tq-newpage' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + mv + tools + '</h2><div class="tq-body">' + body + '</div></div>';
     });
     page += '<div class="tq-foot">' + esc(b.company_name || '') + (b.website ? ' · ' + esc(b.website) : '') + '</div></div>';
     h += '<div class="tq-wrap">' + page + '</div></div></div>';
@@ -828,15 +1234,67 @@
   // A word changed on the page goes back where it came from: a list line
   // into its list (so the scope on the page and the scope above are one),
   // anything else into doc.quote.
+  // The sheet is always laid out at A4's own width, the PDF's, and shrunk to
+  // fit a narrower column rather than reflowed or run off the right
+  // (2026-10-28, the owner: "it's falling off to the right hand side").
+  var PG_W = 794 + 2 * Math.round(49 / (695 / 794)), _pgRO = null;   // the content's 794 + its margins, all at the PDF's scale
+  function pageFitScale(){
+    var pg = document.getElementById('tqPage'); return pg ? (+pg.getAttribute('data-scale') || 1) : 1;
+  }
+  function pageFit(){
+    var pg = document.getElementById('tqPage'), wrap = pg && pg.parentNode; if (!pg || !wrap || !wrap.offsetParent) return;
+    var cs = getComputedStyle(wrap), avail = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var s = window.innerWidth <= 760 ? 1 : Math.min(PB_K, avail / PG_W);
+    if (s > 0.9999) {
+      if (pg.getAttribute('data-scale')) { pg.removeAttribute('data-scale'); pg.style.transform = ''; pg.style.transformOrigin = ''; pg.style.marginLeft = ''; wrap.style.height = ''; }
+      return;
+    }
+    pg.setAttribute('data-scale', s.toFixed(4));
+    pg.style.transformOrigin = '0 0'; pg.style.transform = 'scale(' + s.toFixed(4) + ')'; pg.style.marginLeft = '0';
+    wrap.style.height = Math.ceil(pg.offsetHeight * s + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)) + 'px';
+  }
+  function pageFitWatch(){
+    var pg = document.getElementById('tqPage'); if (!pg || !window.ResizeObserver) return;
+    if (_pgRO) _pgRO.disconnect();
+    _pgRO = new ResizeObserver(function(){ pageFit(); });
+    _pgRO.observe(pg); _pgRO.observe(pg.parentNode);
+  }
+  // a new window size can change how the live sheet lays out (the app's own
+  // narrow-screen rules), so the sheets are measured again once it settles
+  var _pgRsT = null;
+  window.addEventListener('resize', function(){ pageFit(); clearTimeout(_pgRsT); _pgRsT = setTimeout(function(){ if (document.getElementById('tqPage')) pageBreaks(); }, 350); });
+  // The org chart's lines: from each box down to a bar over its team, and a
+  // drop to every box in it. Worked from where the boxes landed, so they are
+  // right at any width; redrawn whenever the chart changes size.
+  function orgLines(root){
+    (root || document).querySelectorAll('.tq-org').forEach(function(o){
+      var svg = o.querySelector('.tq-org-ln'); if (!svg) return;
+      var R = o.getBoundingClientRect(), k = o.offsetWidth ? R.width / o.offsetWidth : 1, at = {}, out = '';
+      if (!R.width) return;
+      o.querySelectorAll('.tq-ob[data-oid]').forEach(function(b){ var r = b.getBoundingClientRect(); at[b.getAttribute('data-oid')] = { x: (r.left + r.width / 2 - R.left) / k, top: (r.top - R.top) / k, bot: (r.bottom - R.top) / k }; });
+      var team = {};
+      o.querySelectorAll('.tq-ob[data-up]').forEach(function(b){ var u = b.getAttribute('data-up'); if (u && at[u]) (team[u] = team[u] || []).push(at[b.getAttribute('data-oid')]); });
+      Object.keys(team).forEach(function(u){
+        var P = at[u], C = team[u], top = Math.min.apply(null, C.map(function(c){ return c.top; })), y = Math.max(P.bot + 4, top - 13);
+        var xs = C.map(function(c){ return c.x; }).concat([P.x]), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        out += 'M' + P.x + ' ' + P.bot + 'V' + y + 'M' + x0 + ' ' + y + 'H' + x1;
+        C.forEach(function(c){ out += 'M' + c.x + ' ' + y + 'V' + c.top; });
+      });
+      svg.innerHTML = '<path d="' + out + '" fill="none" stroke="#94a3b8" stroke-width="1.5"/>';
+      if (!root && !o._ro && window.ResizeObserver) { o._ro = new ResizeObserver(function(){ orgLines(); }); o._ro.observe(o); }
+    });
+  }
   function afterDocRender(){
     var pg = document.getElementById('tqPage'); if (!pg) return;
+    orgLines();
+    pageFit(); pageFitWatch();
     pg.querySelectorAll('[contenteditable]').forEach(function(el){
       el.addEventListener('blur', function(){
         var d = T.data && T.data.doc; if (!d) return;
         if (el.hasAttribute('data-oid')) { window._tnOrgSet(el.getAttribute('data-oid'), el.getAttribute('data-of'), el.textContent.trim()); return; }
         if (el.hasAttribute('data-qk')) {
           var k = el.getAttribute('data-qk');
-          var v = /^(intro|terms|accept|priceNote|progNote|orgNote)$/.test(k) ? el.innerHTML : el.textContent.trim();
+          var v = /^(intro|terms|accept|priceNote|progNote|orgNote)$/.test(k) ? pbStripped(el) : el.textContent.trim();
           if ((d.quote || {})[k] === v) return;
           window._tnQuoteSet(k, v);
           return;
@@ -849,27 +1307,193 @@
         window._tnSet(list, i, f, t, true);
         // the cards above show the same words: redraw them, not the page under the caret
         var y = window.scrollY; var host = document.getElementById('tnDocHost');
-        if (host && !host.contains(document.activeElement)) { host.innerHTML = docHtml(T.data); afterDocRender(); window.scrollTo(0, y); }
+        if (host && !host.contains(document.activeElement)) { hostFill(host); window.scrollTo(0, y); }
       });
       el.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !el.hasAttribute('data-qk')) { e.preventDefault(); el.blur(); } });
     });
+    pg.addEventListener('focusout', function(){ clearTimeout(_pbT); _pbT = setTimeout(function(){ if (!pg.contains(document.activeElement)) pageBreaks(); }, 250); });
+    pageBreaks();
+    if (!_pbFonts && document.fonts && document.fonts.ready) { _pbFonts = 1; document.fonts.ready.then(function(){ pageBreaks(); }); }
     navSpy();
     document.querySelectorAll('#tnDocHost textarea').forEach(function(t){ if (t.id !== 'tnChatIn') { t.style.height = 'auto'; t.style.height = Math.max(34, t.scrollHeight) + 'px'; } });
     var log = document.getElementById('tnChatLog'); if (log) log.scrollTop = log.scrollHeight;
   }
 
-  // The PDF: the page above, alone, through the browser's own Save as PDF —
-  // real text, real page breaks, nothing re-drawn as a picture.
-  window._tnPdf = function(){
-    var pg = document.getElementById('tqPage'); if (!pg) return;
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  // ── where the PDF's pages will break, drawn on the page as dashed lines ──
+  // The page is copied into a hidden frame exactly as the PDF copies it (the
+  // tender's own styles, none of the app's, every box opened) at the PDF's
+  // width — A4 less the 13 mm margins — and walked block by block as Chrome
+  // paginates: a section kept whole stays whole, a heading keeps its first
+  // line. The lines then go on the live page against the same elements.
+  // the app's own fonts, in the app's order (Google's Inter, then rsms.me's,
+  // which wins), so the PDF wraps every line where the screen does
+  var PDF_FONTS = '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"><style>@import url("https://rsms.me/inter/inter.css");</style>';
+  // THE PDF IS LAID OUT 794px WIDE AND PRINTED AT 87.5% (2026-10-28). The
+  // sheet's content is 794px, A4's printable width is 184 mm = 695px, so
+  // Chrome shrank it to fit — and the app, laying it out at 695px, wrapped
+  // lines sooner and broke every page early (the owner: "the page break on
+  // the app is too high"). Now it is explicit everywhere: the content is laid
+  // out at PB_W and drawn at PB_K, on screen (the sheet's own scale) and on
+  // paper (zoom), so a page holds PB_H of it.
+  // A sheet is FILLED to 14px short of A4 (PB_FIT): Chrome's own pagination
+  // runs a few pixels shorter than the measure here, and a block the app put
+  // at the foot of a sheet went over in the PDF (2026-10-29, the owner: the
+  // tender price on the last page of the PDF, the page before in the app). The
+  // PDF then breaks exactly where the app does (`break-before` on each line).
+  var PB_K = 695 / 794, PB_W = 794, PB_H = 1016 / PB_K, PB_FIT = PB_H - 14, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
+  function pbStripped(el){
+    if (!el.querySelector('.tq-pb')) return el.innerHTML;
+    var c = el.cloneNode(true); c.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); }); return c.innerHTML;
+  }
+  function pbLeaves(el, out){
+    var kids = el.children;
+    if (el.matches('li,tr,p,h1,h2,h3,.tq-price,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
+    for (var i = 0; i < kids.length; i++) pbLeaves(kids[i], out);
+  }
+  // every element of the page the PDF keeps, in order: the same list in the
+  // live page and in its printed copy, so an index in one is the other's
+  function pbKept(root){
+    var out = [];
+    (function walk(el){ for (var i = 0; i < el.children.length; i++) { var k = el.children[i]; if (k.classList.contains('no-print')) continue; out.push(k); walk(k); } })(root);
+    return out;
+  }
+  function pbPrintHtml(pg, extra){
     var clone = pg.cloneNode(true);
     clone.querySelectorAll('.no-print').forEach(function(n){ n.remove(); });
     clone.querySelectorAll('[contenteditable]').forEach(function(n){ n.removeAttribute('contenteditable'); });
     var css = document.getElementById('tenderCss');
-    var p = (T.data.doc && T.data.doc.project) || {};
-    var ref = (window.S && S.quote && S.quote.ref) || '';
-    var title = ('Tender ' + [ref, p.name || T.data.name || ''].filter(Boolean).join(' - ')).replace(/[\\/:*?"<>|]+/g, ' ').slice(0, 100);
+    return { clone: clone, css: (css ? css.textContent : '') };
+  }
+  function pageBreaks(){
+    var pg = document.getElementById('tqPage'); if (!pg) return;
+    pg.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); });
+    if (!pg.offsetParent) return;
+    var gen = ++_pbGen;
+    var pc = pbPrintHtml(pg);
+    // Measured in this page, in the fonts this page has loaded, on a copy at
+    // the PDF's width — the PDF loads the same fonts (PDF_FONTS), so the
+    // breaks drawn here are the PDF's (2026-10-28, the owner: "the page break
+    // on the app is too high"; an iframe of its own measured before its font
+    // had arrived, and the app's Inter is not Google's).
+    if (!_pbFrame || !_pbFrame.isConnected) {
+      _pbFrame = document.createElement('div');
+      _pbFrame.id = 'tqMeasure'; _pbFrame.setAttribute('aria-hidden', 'true');
+      _pbFrame.style.cssText = 'position:absolute;left:-30000px;top:0;width:' + PB_W + 'px;visibility:hidden;pointer-events:none;contain:layout';
+      document.body.appendChild(_pbFrame);
+    }
+    pc.clone.removeAttribute('id'); pc.clone.querySelectorAll('[id]').forEach(function(n){ n.removeAttribute('id'); });
+    _pbFrame.innerHTML = '';
+    _pbFrame.appendChild(pc.clone);
+    var measure = function(){
+      if (gen !== _pbGen) return;
+      var cp = _pbFrame.querySelector('.tq-page'); if (!cp) return;
+      var live = pbKept(pg), copy = pbKept(cp);
+      if (live.length !== copy.length) return;   // changed under us; the next pass will do it
+      var ix = new Map(); copy.forEach(function(el, i){ ix.set(el, i); });
+      var top0 = cp.getBoundingClientRect().top, blocks = [];
+      var add = function(el, a, b){ var r1 = a.getBoundingClientRect(), r2 = (b || a).getBoundingClientRect(); if (r2.bottom - r1.top > 0) blocks.push({ el: el, end: b || a, top: r1.top - top0, bot: r2.bottom - top0 }); };
+      Array.prototype.forEach.call(cp.children, function(ch){
+        var n0 = blocks.length;
+        sec(ch);
+        if (ch.classList.contains('tq-newpage') && blocks.length > n0) blocks[n0].force = true;
+      });
+      function sec(ch){
+        if (!ch.classList.contains('tq-sec')) { add(ch, ch); return; }
+        if (ch.classList.contains('tq-keep') && ch.getBoundingClientRect().height <= PB_H) { add(ch, ch); return; }
+        var h2 = ch.querySelector('h2'), leaves = [], box = ch.querySelector('.tq-body');
+        if (box) pbLeaves(box, leaves);
+        if (h2) add(ch, h2, leaves[0] || h2);
+        leaves.slice(h2 ? 1 : 0).forEach(function(l){ add(l, l); });
+      }
+      // where each sheet ends: how much of it the content fills, and the
+      // element that content ends on
+      var pageTop = 0, page = 1, marks = [], prev = null;
+      blocks.forEach(function(b){
+        if (prev && (b.force || (b.bot - pageTop > PB_FIT && b.top > pageTop + 1))) { marks.push({ el: b.el, page: page + 1, used: prev.bot - pageTop, endEl: prev.end }); page++; pageTop = b.top; }
+        while (b.bot - pageTop > PB_H) { pageTop += PB_H; page++; }
+        prev = b;
+      });
+      var lastUsed = prev ? prev.bot - pageTop : 0, lastEnd = prev && prev.end;
+      pg.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); });
+      // On a computer the page is laid out at the PDF's own width, so each
+      // sheet is drawn to A4's height: the content, white to the foot of the
+      // sheet, a gap, the next sheet's top margin. On a phone the width is
+      // not the PDF's, so only the gap is drawn.
+      var sc = pageFitScale(), pgR = pg.getBoundingClientRect(), cs = getComputedStyle(pg);
+      var exact = Math.abs(pgR.width / sc - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - PB_W) < 6;
+      var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+      var padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+      // each sheet's margins carry what the PDF's do: "Page 2 of 3" at the
+      // foot, the logo at the head of every sheet after the letterhead
+      var lg = brand().logo_data_url;
+      var noHtml = function(k){ return exact ? '<span class="tq-pb-no" style="right:' + padR + 'px;bottom:' + (padB / 2 - 7) + 'px">Page ' + k + ' of ' + page + '</span>' : ''; };
+      var liveOf = function(cel){ var i = ix.get(cel); return i == null ? null : live[i]; };
+      var startY = pgR.top + padT * sc;
+      marks.forEach(function(m){
+        var el = liveOf(m.el); if (!el || !el.parentNode) return;
+        if (el.tagName === 'TR') el = el.closest('table') || el;
+        var mk = document.createElement(el.tagName === 'LI' ? 'li' : 'div');
+        mk.className = 'tq-pb no-print'; mk.setAttribute('contenteditable', 'false'); mk.setAttribute('data-page', m.page);
+        mk.innerHTML = '<div class="tq-pb-f">' + noHtml(m.page - 1) + '</div><div class="tq-pb-g"><span>Page ' + m.page + '</span></div><div class="tq-pb-t">' + (exact && lg ? '<img class="tq-pb-lg" alt="" style="left:' + padL + 'px" src="' + esc(lg) + '">' : '') + '</div>';
+        el.parentNode.insertBefore(mk, el);
+        var r = mk.getBoundingClientRect();
+        mk.style.marginLeft = ((pgR.left - r.left) / sc) + 'px'; mk.style.width = (pgR.width / sc) + 'px';
+        // the sheet is filled out to A4's height from where it starts on
+        // screen, not from the copy's figure: the live page carries the
+        // editing buttons the PDF leaves out, so its content runs a little
+        // longer, and the sheets must still be drawn one height
+        var fill = exact ? Math.max(0, PB_H - (mk.getBoundingClientRect().top - startY) / sc) : 0;
+        mk.querySelector('.tq-pb-f').style.height = (exact ? fill + padB : 14) + 'px';
+        mk.querySelector('.tq-pb-t').style.height = (exact ? padT : 14) + 'px';
+        startY = mk.getBoundingClientRect().bottom;
+      });
+      if (exact && lastEnd) {   // the last sheet is a whole sheet too
+        var tail = document.createElement('div'); tail.className = 'tq-pb tq-pb-end no-print';
+        pg.appendChild(tail);
+        var tf = Math.max(0, PB_H - (tail.getBoundingClientRect().top - startY) / sc);
+        tail.style.height = tf + 'px';
+        tail.innerHTML = '<span class="tq-pb-no" style="right:0;bottom:' + (-padB / 2 - 7) + 'px">Page ' + page + ' of ' + page + '</span>';
+      }
+      pageFit();
+      var n = document.getElementById('tqPages'); if (n) n.textContent = 'A4 PDF: ' + page + (page === 1 ? ' page' : ' pages') + ' · ';
+      pg.setAttribute('data-pages', page);
+    };
+    var done = false, once = function(){ if (done) return; done = true; measure(); };
+    try { if (document.fonts && document.fonts.ready) { document.fonts.ready.then(function(){ setTimeout(once, 0); }); setTimeout(once, 1500); return; } } catch (e) {}
+    setTimeout(once, 0);
+  }
+
+  // The PDF: the page above, alone, through the browser's own Save as PDF —
+  // real text, real page breaks, nothing re-drawn as a picture.
+  // the PDF's page margins: the logo at the head of every page after the
+  // letterhead, "Page 2 of 3" at the foot of every page (2026-10-29, the
+  // owner). The logo goes in an SVG of the size it prints at, so a margin box
+  // (which draws an image at its own size) shows it small and sharp.
+  function pdfMargins(){
+    var out = '@bottom-right{content:"Page " counter(page) " of " counter(pages);font:600 8.5px Inter,Segoe UI,Arial,sans-serif;color:#64748b;vertical-align:middle}';
+    var lg = brand().logo_data_url, im = document.querySelector('#tqPage .tq-logo');
+    if (lg && /^data:image\//.test(lg) && im && im.naturalWidth && im.naturalHeight) {
+      var hh = 28, ww = Math.min(200, Math.round(hh * im.naturalWidth / im.naturalHeight));
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + ww + '" height="' + hh + '" viewBox="0 0 ' + ww + ' ' + hh + '"><image width="' + ww + '" height="' + hh + '" preserveAspectRatio="xMinYMid meet" xlink:href="' + lg + '" href="' + lg + '"/></svg>';
+      var b64 = ''; try { b64 = btoa(unescape(encodeURIComponent(svg))); } catch (e) {}
+      if (b64) out += '@top-left{content:url("data:image/svg+xml;base64,' + b64 + '");vertical-align:middle}';
+    }
+    return out;
+  }
+  window._tnPdf = function(){
+    var pg = document.getElementById('tqPage'); if (!pg) return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    var clone = pg.cloneNode(true);
+    // a new sheet wherever the app draws one, so the PDF's pages are the app's
+    clone.querySelectorAll('.tq-pb:not(.tq-pb-end)').forEach(function(m){ var nx = m.nextElementSibling; if (nx) nx.style.breakBefore = 'page'; });
+    clone.querySelectorAll('.no-print').forEach(function(n){ n.remove(); });
+    clone.querySelectorAll('[contenteditable]').forEach(function(n){ n.removeAttribute('contenteditable'); });
+    var css = document.getElementById('tenderCss');
+    var dc = T.data.doc || {}, p = dc.project || {}, bz = brand();
+    // The file is named for the job and the business: Chrome takes the name
+    // from the printed page's title (2026-10-27, the owner).
+    var proj = String(qText(dc, 'm_project', p.name || T.data.name || '') || '').replace(/<[^>]*>/g, '').trim() || 'Tender';
+    var title = [proj, bz.company_name || ''].filter(Boolean).join(' - ').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
     var f = document.createElement('iframe');
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
     document.body.appendChild(f);
@@ -880,15 +1504,17 @@
     // were simply missing from the PDF (2026-10-27, the owner: "the pdf
     // doesn't look as good as the app").
     dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
-      '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"><style>' + (css ? css.textContent : '') +
+      PDF_FONTS + '<style>' + (css ? css.textContent : '') + '.tq-page{width:794px!important;zoom:' + PB_K.toFixed(5) + '}' +
       '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
-      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
+      '@page{size:A4;margin:14mm 13mm;' + pdfMargins() + '}@page:first{@top-left{content:none}}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
-    var go = function(){ try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ f.remove(); }, 60000); };
+    var go = function(){ var was = document.title; document.title = title; try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ document.title = was; }, 1500); setTimeout(function(){ f.remove(); }, 60000); };
     var started = false; var go1 = function(){ if (started) return; started = true; go(); };
     // Wait for the font as well as the logo, or the PDF prints in the fallback face.
-    var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.ready) { var t = setTimeout(cb, 2500); dd.fonts.ready.then(function(){ clearTimeout(t); cb(); }); return; } } catch (e) {} cb(); };
-    var go0 = go; go = function(){ whenFonts(function(){ go0(); }); };
+    // the stylesheets first, then every weight the tender uses, so nothing
+    // prints in a stand-in face
+    var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.load) { var t = setTimeout(cb, 4000), fin = function(){ clearTimeout(t); cb(); }; var links = [].slice.call(dd.querySelectorAll('link[rel=stylesheet]')), n = links.length; var loadAll = function(){ Promise.all(['400', '500', '600', '700', '800'].map(function(wt){ return dd.fonts.load(wt + ' 12.5px Inter').catch(function(){}); })).then(function(){ return dd.fonts.ready; }).then(fin, fin); }; if (!n) { loadAll(); return; } links.forEach(function(l){ if (l.sheet) { if (--n === 0) loadAll(); } else l.onload = l.onerror = function(){ if (--n === 0) loadAll(); }; }); return; } } catch (e) {} cb(); };
+    var go0 = go; go = function(){ whenFonts(function(){ try { orgLines(dd); } catch (e) {} go0(); }); };
     var imgs = dd.images; var left = imgs.length;
     if (!left) setTimeout(go1, 150);
     else Array.prototype.forEach.call(imgs, function(im){ if (im.complete) { if (--left === 0) setTimeout(go1, 150); } else im.onload = im.onerror = function(){ if (--left === 0) setTimeout(go1, 150); }; });
@@ -926,7 +1552,7 @@
       '.tn-chat-hd{font-weight:800;color:#312e81;font-size:13px;margin-bottom:8px}',
       '.tn-chat-log{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}',
       '.tn-msg{padding:7px 10px;border-radius:10px;font-size:13px;max-width:85%;white-space:pre-wrap}.tn-msg.you{align-self:flex-end;background:#0099cc;color:#fff}',
-      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}',
+      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}.tn-msg.ask{background:#fffbeb;border-color:#fcd34d}',
       '.tn-chat-in{display:flex;gap:8px;align-items:flex-end}.tn-chat-in textarea{flex:1;font:inherit;font-size:13.5px;padding:8px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical}',
       '.tn-rates{display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px}',
       '.tn-rates label{display:flex;flex-direction:column;font-size:11px;color:#64748b;font-weight:700;letter-spacing:.03em;text-transform:uppercase;gap:3px}',
@@ -938,7 +1564,8 @@
       '.tn-totals{margin:16px 0 0 auto;border-collapse:collapse;font-size:13.5px;min-width:300px}.tn-totals td{padding:5px 8px}.tn-totals td:last-child{text-align:right;white-space:nowrap}',
       '.tn-totals tr.b td{font-weight:800;border-top:1px solid #e2e8f0}.tn-totals tr.gp td{color:#166534;font-weight:700;font-size:12.5px}',
       '.tn-gantt{display:flex;flex-direction:column;gap:6px}',
-      '.tn-g-row{display:grid;grid-template-columns:minmax(150px,240px) 170px 1fr auto;gap:8px;align-items:center}',
+      '.tq-g-arr{position:relative;height:24px;margin-top:2px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tq-g-arr i{position:absolute;left:0;right:7px;top:11px;border-top:2px solid #0a1628}.tq-g-arr i:before{content:"";position:absolute;left:0;top:-7px;height:12px;border-left:2px solid #0a1628}.tq-g-arr i:after{content:"";position:absolute;right:-8px;top:-7px;border-left:9px solid #0a1628;border-top:6px solid transparent;border-bottom:6px solid transparent}.tq-g-arr b{position:relative;display:inline-block;background:#fff;padding:0 8px;font-size:12px;line-height:24px;color:#0a1628;font-weight:700}',
+      '.tn-g-row{display:grid;grid-template-columns:minmax(180px,1.15fr) 170px 1fr auto;gap:8px;align-items:center}.tn-g-row+.tn-g-row:not(.tn-g-totrow){padding-top:6px;border-top:1px solid #eef2f6}.tn-g-ph{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:13px;line-height:18px;height:46px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;resize:none;overflow-y:auto;color:#0a1628}.tn-g-ph:focus{background:#fff;outline:2px solid #0099cc33;border-color:#0099cc}',
       '.tn-g-row input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box}.tn-g-row input.wide{width:100%}.tn-g-row input.xs{width:46px;text-align:right}',
       '.tn-g-num{font-size:12px;color:#64748b;white-space:nowrap}',
       '.tn-g-track,.tq-g-t{position:relative;height:16px;background:#f1f5f9;border-radius:5px}.tn-g-track i,.tq-g-t i{position:absolute;top:0;bottom:0;background:#0099cc;border-radius:5px}',
@@ -947,8 +1574,8 @@
       '.tn-fold:not([open])>summary .tn-card-hd::after{content:"▸"}',
       '.tn-next{padding:16px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;margin-bottom:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:#1e3a8a}',
       // the document
-      '.tq-wrap{background:#e2e8f0;padding:18px;border-radius:10px;overflow-x:auto}',
-      '.tq-page{background:#fff;max-width:794px;margin:0 auto;padding:44px 50px;box-shadow:0 2px 14px rgba(15,23,42,.14);font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;font-size:12.5px;line-height:1.5;box-sizing:border-box}',
+      '.tq-wrap{background:#e2e8f0;padding:18px;border-radius:10px;overflow:hidden;box-sizing:border-box}',
+      '.tq-page{background:#fff;width:906px;max-width:906px;margin:0 auto;padding:61px 56px;box-shadow:0 2px 14px rgba(15,23,42,.14);font-family:Inter,Segoe UI,Arial,sans-serif;color:#0f172a;font-size:12.5px;line-height:1.5;box-sizing:border-box}',
       '.tq-head{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;border-bottom:3px solid #0a1628;padding-bottom:14px;margin-bottom:18px}',
       '.tq-logo{max-height:70px;max-width:230px;object-fit:contain}.tq-co{font-size:20px;font-weight:800;color:#0a1628}.tq-cod{text-align:right;font-size:11px;color:#475569;line-height:1.5}',
       '.tq-title{font-size:26px;margin:0 0 12px;color:#0a1628;font-weight:800}',
@@ -960,45 +1587,75 @@
       '.tq-tbl td{padding:5px 6px;border-bottom:1px solid #e2e8f0;vertical-align:top}.tq-tbl td:first-child{white-space:nowrap;color:#475569;font-weight:600;width:110px}',
       '.tq-tbl .r{text-align:right}.tq-sub{color:#64748b;font-size:11px}',
       '.tq-ul{margin:0;padding-left:18px}.tq-ul li{margin:2px 0}',
-      '.tq-price{border-collapse:collapse;margin:0 0 8px auto;min-width:320px}.tq-price td{padding:4px 8px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
+      '.tq-price{border-collapse:collapse;margin:0 0 10px auto;min-width:420px;font-size:21px;line-height:1.35}.tq-price td{padding:6px 10px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
       '.tq-price tr.b td{font-weight:800;border-top:1.5px solid #0a1628}',
-      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:3px 0}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
+      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:0;padding:5px 0;border-bottom:1px solid #e2e8f0}.tq-gantt .tq-g:first-child{border-top:1px solid #e2e8f0}.tq-g.tq-g-tot{border-bottom:0;padding-top:6px}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
       '.tq-ed{outline:none;border-radius:3px}.tq-ed:hover{box-shadow:0 0 0 1px #93c5fd}.tq-ed:focus{box-shadow:0 0 0 2px #0099cc;background:#f0f9ff}',
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
-      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
+      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t,.tq-g-arr{grid-column:1/-1}.tq-g-tot>span{display:none}.tn-g-totrow>:not(.tq-g-arr){display:none}.tn-g-totrow .tq-g-arr{grid-column:1/-1}.tq-wrap{padding:6px}}',
       // the menu down the left
-      '.tn-lay{display:grid;grid-template-columns:196px minmax(0,1fr);gap:16px;align-items:start}.tn-main{padding-bottom:40vh}',
-      '.tn-nav{position:sticky;top:58px;max-height:calc(100vh - 70px);overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      // The page uses the screen (2026-10-28, the owner: "there's plenty of
+      // screen to use, but it's only sort of in the middle").
+      'body[data-tab="tender"] .content{max-width:none!important;margin-left:0!important;margin-right:0!important;padding-left:12px!important;padding-right:12px!important}',
+      '#tenderRoot{max-width:none!important;margin:0!important;padding-left:6px!important;padding-right:6px!important}',
+      // menu far left | the tender, full width | the A.I. chat on the right
+      // (2026-10-28, the owner); the 44px on the right keeps the PLANS tab clear
+      '.tn-lay{display:grid;grid-template-columns:340px minmax(0,1fr);gap:18px;align-items:start;padding-right:44px}.tn-main{padding-bottom:40vh;min-width:0}',
+      '.tn-lay.tn-3{grid-template-columns:240px minmax(0,1fr) 340px;gap:16px}',
+      // a narrow window on a computer (the owner's, half the screen beside the PDF):
+      // the menu becomes a strip of jump links over the tender and the chat a bar
+      // along the foot, as on a phone, so the sheet keeps a readable width
+      '.tn-lay.tn-1{grid-template-columns:minmax(0,1fr);gap:10px;padding-right:44px}.tn-lay.tn-1 > .tn-side{z-index:5;max-height:none;height:auto!important;display:block}.tn-lay.tn-1 .tn-chatside .tn-chat{position:fixed;right:150px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-lay.tn-1 .tn-side > .tn-chatside{min-height:0;display:block}.tn-lay.tn-1 .tn-chatside .tn-chat-hd{margin-bottom:4px}.tn-lay.tn-1 .tn-chatside .tn-chat-log{max-height:120px}.tn-lay.tn-1 .tn-chatside .tn-chat .tn-chat-nt{display:none}.tn-lay.tn-1 .tn-chatside .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-lay.tn-1 .tn-chatside #tnChatIn{height:38px!important;min-height:0!important;resize:none}.tn-lay.tn-1 .tn-nav{display:flex;align-items:center;min-height:0;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px}.tn-lay.tn-1 .tn-nav-g{display:none}.tn-lay.tn-1 .tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-lay.tn-1 .tn-nav-i.sub{padding-left:10px}',
+      '@media screen and (min-width:1900px){.tn-lay.tn-3{grid-template-columns:270px minmax(0,1fr) 380px}}',
+      '.tn-lay.tn-3 > .tn-chatside .tn-chat{height:100%;box-sizing:border-box}',
+      // the chat back under the menu: it takes what the menu leaves
+      '.tn-side > .tn-chatside{position:static;height:auto;flex:1 1 auto;min-height:240px;display:flex;flex-direction:column}.tn-side > .tn-chatside .tn-chat{flex:1 1 auto}',
+      '.tn-lay:not(.tn-3) .tn-nav{max-height:46%}',
+      // Pinned from the top of the page, so it never slides before it sticks;
+      // the menu takes what it needs (scrolling past about half the screen)
+      // and the chat runs to the bottom of the screen.
+      '.tn-side{position:sticky;top:52px;height:calc(100vh - 62px);display:flex;flex-direction:column;gap:10px}',
+      '.tn-nav{flex:1 1 auto;min-height:80px;overflow-y:auto;background:#fff;border:1px solid #dbe3ec;border-radius:12px;padding:8px}',
+      '.tn-chatside .tn-chat{flex:1 1 auto;min-height:240px;margin:0;padding:12px;display:flex;flex-direction:column;box-shadow:0 4px 14px rgba(49,46,129,.08)}.tn-chatside .tn-chat-log{flex:1 1 auto;max-height:none;min-height:60px;overflow-y:auto}.tn-chatside .tn-chat .tn-chat-nt{display:block}',
+      '.tn-chatside #tnChatIn{display:block;flex:0 0 auto;width:100%;box-sizing:border-box;font:inherit;font-size:13.5px;padding:8px 10px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical;margin-bottom:6px;height:96px}',
+      '.tn-tagout{flex:0 0 auto;align-self:center;font:inherit;font-size:11px;font-weight:700;color:#b45309;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;padding:3px 8px;cursor:pointer;white-space:nowrap}.tn-tagout:hover{background:#ffedd5}.tn-tagout:disabled{opacity:.5;cursor:default}',
+      '.tn-msg-src{display:block;margin-top:4px;font-size:11px;color:#64748b}',
+      '.tn-chatside .tn-chat-in{align-items:center}.tn-chatside .tn-chat-in .tn-edit-msg{flex:1 1 auto;font-size:11.5px}.tn-side .tn-msg{max-width:92%;font-size:12.5px}',
       '.tn-nav-g{margin:8px 0 4px;padding:5px 8px;border-radius:6px;background:#0a1628;color:#fff;font-size:10.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase}.tn-nav-g:first-child{margin-top:0}',
       '.tn-nav-i{display:block;padding:6px 10px;border-radius:7px;font-size:13px;color:#334155;text-decoration:none;line-height:1.3}.tn-nav-i:hover{background:#f1f5f9;color:#0a1628}',
       '.tn-nav-i.sub{padding-left:20px;font-size:12.5px}.tn-nav-i.off{color:#94a3b8;text-decoration:line-through}',
       '.tn-nav-i.on{background:#0099cc;color:#fff;font-weight:700}',
       '.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:64px}',
-      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr)}.tn-nav{top:56px;z-index:5;display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      '@media screen and (max-width:900px){.tn-anchor,.tq-sec,#tnPlanSet,#tnSheetIdx{scroll-margin-top:118px}.tn-lay{grid-template-columns:minmax(0,1fr);padding-right:0}.tn-side{top:56px;z-index:5;max-height:none;height:auto;display:block}.tn-chatside .tn-chat{position:fixed;left:8px;right:76px;bottom:8px;z-index:6;padding:8px;min-height:0;display:block;box-shadow:0 6px 24px rgba(15,23,42,.25)}.tn-chatside .tn-chat-hd{margin-bottom:4px}.tn-chatside .tn-chat-log{max-height:90px}.tn-chatside .tn-chat .tn-chat-nt{display:none}.tn-chatside .tn-chat:not(:focus-within) .tn-chat-log{display:none}.tn-chatside #tnChatIn{height:38px;min-height:0}.tq-sec h2{flex-wrap:wrap}.tq-tools{flex-wrap:wrap}.tn-nav{display:flex;align-items:center;min-height:0;gap:4px;overflow-x:auto;overflow-y:hidden;max-height:none;padding:6px;border-radius:10px;-webkit-overflow-scrolling:touch}.tn-nav-g{display:none}.tn-nav-i{white-space:nowrap;flex:0 0 auto}.tn-nav-i.sub{padding-left:10px}}',
+      // the section boxes: one height for all, scrolling inside; print shows everything
+      '@media screen{.tn-card .tn-box.mid{height:540px}.tq-sec .tn-box.mid{height:172px}.tn-box.mid{height:540px;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;box-shadow:inset 0 -10px 10px -10px rgba(15,23,42,.18);padding-right:4px}.tn-box.min{display:none}',
+      '}',
+      '@media screen{.tn-card-bd:has(>.tn-box.min){display:none}}',
+      '.tn-bxs{display:inline-flex;gap:4px;flex:0 0 auto}.tn-bx{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:0;text-transform:none;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap}.tn-bx:hover{background:rgba(255,255,255,.3)}',
+      // the gap between two A4 sheets on the document
+      '.tq-pb{list-style:none;display:block;margin-top:0;margin-bottom:0;box-sizing:border-box;user-select:none}.tq-pb-f,.tq-pb-t{background:#fff}',
+      '.tq-pb-f,.tq-pb-t,.tq-pb-end{position:relative}.tq-pb-no{position:absolute;font-size:9.7px;line-height:14px;font-weight:600;color:#64748b;white-space:nowrap}.tq-pb-lg{position:absolute;top:50%;transform:translateY(-50%);height:32px;max-width:230px;object-fit:contain}.tq-pb-g{height:26px;background:#e2e8f0;margin:0 -16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 6px 8px -6px rgba(15,23,42,.25),inset 0 -6px 8px -6px rgba(15,23,42,.25)}.tq-pb-g span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b}',
+      '#tqPages{font-weight:700;color:#fca5a5}',
+      // the copy the page breaks are measured on: the PDF's own box
+      '#tqMeasure .tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important;width:794px!important;transform:none!important}#tqMeasure .tn-box{height:auto!important;overflow:visible!important;display:block!important;box-shadow:none!important;padding:0!important}',
       // Edit [section]
       '.tn-edit{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;background:#0099cc;color:#fff;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}.tn-edit:hover{background:#0087b4}',
       '.tq-tools .tq-edit{background:#0099cc;font-weight:700}',
+      '.tq-mv{margin-left:auto}.tq-mv button{font:inherit;font-size:10.5px;letter-spacing:0;text-transform:none;background:rgba(255,255,255,.14);color:#fff;border:1px dashed rgba(255,255,255,.5);border-radius:4px;padding:1px 9px;cursor:pointer;white-space:nowrap}.tq-mv button:hover{background:rgba(255,255,255,.26)}.tq-mv button.on{background:#f59e0b;border:1px solid #f59e0b;color:#0a1628;font-weight:700}',
       '.tn-modal{position:fixed;inset:0;background:rgba(10,22,40,.45);display:none;align-items:center;justify-content:center;z-index:10060;padding:16px}.tn-modal.open{display:flex}',
       '.tn-modal-card{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:560px;padding:16px 18px;font-family:Inter,Segoe UI,Arial,sans-serif}',
       '.tn-modal-hd{display:flex;align-items:center;margin-bottom:8px}.tn-modal-hd b{font-size:16px;color:#0a1628;margin-right:auto}',
       '.tn-modal-lbl{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b;margin-bottom:4px}',
       '#tnEditIn{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:10px;border:1px solid #cbd5e1;border-radius:9px;resize:vertical;min-height:96px}#tnEditIn:focus{border-color:#0099cc;outline:none}',
-      '.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
+      '.tn-edit-ask{background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;margin:0 0 8px;font-size:13.5px;color:#0a1628}.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
       '.tn-mic.on{background:#fee2e2;border-color:#fca5a5;color:#991b1b}',
       '.tn-flash{animation:tnFlash 1.8s ease}@keyframes tnFlash{0%,40%{box-shadow:0 0 0 3px #0099cc;border-radius:8px}100%{box-shadow:0 0 0 0 transparent}}',
       // the organisation structure
       '.tq-orgask{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:12px}',
-      '.tq-org{overflow-x:auto;padding:4px 0 2px}.tq-org ul{display:flex;justify-content:center;margin:0;padding:16px 0 0;position:relative}.tq-org>ul{padding-top:0}',
-      '.tq-org li{list-style:none;text-align:center;position:relative;padding:16px 5px 0;flex:0 1 auto}',
-      '.tq-org li::before,.tq-org li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:16px;border-top:1.5px solid #94a3b8}',
-      '.tq-org li::after{right:auto;left:50%;border-left:1.5px solid #94a3b8}',
-      '.tq-org li:only-child::before,.tq-org li:only-child::after{display:none}.tq-org li:only-child{padding-top:0}',
-      '.tq-org li:first-child::before,.tq-org li:last-child::after{border:0 none}',
-      '.tq-org li:last-child::before{border-right:1.5px solid #94a3b8;border-radius:0 5px 0 0}.tq-org li:first-child::after{border-radius:5px 0 0 0}',
-      '.tq-org ul ul::before{content:"";position:absolute;top:0;left:50%;height:16px;border-left:1.5px solid #94a3b8}',
-      '.tq-org>ul>li::before,.tq-org>ul>li::after{display:none}.tq-org>ul>li{padding-top:0}',
-      '.tq-ob{display:inline-flex;flex-direction:column;min-width:104px;max-width:150px;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
+      '.tq-org{position:relative;padding:2px 0;overflow:hidden}.tq-org-row{display:flex;justify-content:center;align-items:flex-start;gap:12px;margin-top:26px;position:relative;z-index:1}.tq-org-row:first-of-type{margin-top:0}',
+      '.tq-org-row .tq-ob{flex:0 1 150px;min-width:0;max-width:150px}.tq-org-ln{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}',
+      '.tq-ob{display:inline-flex;flex-direction:column;min-width:0;max-width:150px;overflow-wrap:anywhere;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
       '.tq-ob b{display:block;background:#0a1628;color:#fff;font-size:10.5px;line-height:1.3;padding:5px 7px;letter-spacing:.02em}',
       '.tq-ob span{display:block;font-size:11.5px;font-weight:600;color:#0f172a;padding:4px 7px 0;min-height:15px}.tq-ob small{display:block;font-size:10px;color:#64748b;padding:1px 7px 5px;min-height:6px}',
       '@media screen{.tq-ob [contenteditable]:empty::before{content:attr(data-ph);color:#94a3b8;font-weight:400}}',

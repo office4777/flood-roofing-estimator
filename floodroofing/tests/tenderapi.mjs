@@ -43,7 +43,7 @@ globalThis.__TEST_TENDER_STORAGE = STORE;
 
 // The classifier: answers from the title-block text it is handed, the way
 // the model would, and keeps every request so the pins can read them.
-const AI_CALLS = [], DRAFT_CALLS = [];
+const AI_CALLS = [], DRAFT_CALLS = [], ASK_CALLS = [];
 // The tender itself (2026-10-27): a roof read off the set, one item matched
 // to the price book at a wrong price (the book's must win) and one not in
 // the book at all (the estimate must stand).
@@ -69,7 +69,8 @@ const SECTION_CALLS = [];
 globalThis.__TEST_TENDER_AI = async (req) => {
   if (req.tool === 'record_section') {
     SECTION_CALLS.push(req);
-    const blank = { paragraphs: [], bullets: [], exclusions: [], lines: [], people: [], summary: '' };
+    const blank = { paragraphs: [], bullets: [], exclusions: [], lines: [], people: [], question: '', summary: '' };
+    if (/make it bigger/.test(req.text) && !/My answer/.test(req.text)) return Object.assign(blank, { question: 'Do you mean longer wording, or bigger text on the page?' });
     if (/\(org\)/.test(req.text)) return Object.assign(blank, { people: [
       { id: 'p1', role: 'Director', name: 'Aron Flood', reports_to: '', note: '' },
       { id: 'p2', role: 'Project Manager', name: 'Ethan', reports_to: 'p1', note: '' },
@@ -79,6 +80,14 @@ globalThis.__TEST_TENDER_AI = async (req) => {
     if (/\(exclusions\)/.test(req.text)) return Object.assign(blank, { exclusions: [{ text: 'Spouting', why: 'by the builder' }], summary: 'Cut to one.' });
     if (/\(price\)/.test(req.text)) return Object.assign(blank, { paragraphs: ['Valid for 60 days.'], lines: [{ desc: 'P&G', amount: 1500 }], summary: 'Added P&G.' });
     return blank;
+  }
+  if (req.tool === 'record_reply') {
+    ASK_CALLS.push(req);
+    const msg = req.text.split("THE ESTIMATOR'S MESSAGE:")[1] || '';
+    if (/make the pricing bigger/.test(msg)) return { kind: 'clarify', answer: 'Do you mean raise the price amounts (by how much?), or make the price text bigger on the page?', pages: '', instruction: '', section: '' };
+    if (/terms to 14 days/.test(msg)) return { kind: 'change', answer: '', pages: '', instruction: 'Make payment due in 14 days.', section: 'terms' };
+    if (/\?\s*$/.test(msg)) return { kind: 'question', answer: 'Yes — A201 shows them as two buildings joined by a covered link.', pages: 'A201' };
+    return { kind: 'change', answer: '', pages: '' };
   }
   if (req.tool === 'record_tender') {
     DRAFT_CALLS.push(req);
@@ -273,6 +282,24 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   check('a chat instruction changes items, scope and exclusions together', x.status === 200 && !B.items.some(i => i.category === 'gutter') && B.exclusions.some(e => /Spouting/.test(e.text)), JSON.stringify(x.body).slice(0, 300));
   const cap = B.items.find(i => /Parapet/.test(i.description));
   check('…a new item gets an id and the book\'s price when it names a key', cap && cap.id && cap.unit_cost === 22 && cap.cost_source === 'pricebook', JSON.stringify(cap));
+  // A question is answered and changes nothing (2026-10-28)
+  const nAmend = DRAFT_CALLS.length;
+  x = await call(T1, 'GET', '/tender/' + TID);
+  const histBefore = (x.body.history || []).length, itemsBefore = JSON.stringify(x.body.doc.items);
+  const Bp = Object.assign({}, B, { chat: (B.chat || []).concat([{ who: 'you', text: 'Are blocks 1 and 5/6 separate buildings?', pending: true }]) });
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'Are blocks 1 and 5/6 separate buildings?', doc: Bp });
+  const Q = x.body.doc || {};
+  check('a question is answered in the chat', x.status === 200 && x.body.answered === true && /two buildings/.test(Q.chat[Q.chat.length - 1].text) && Q.chat[Q.chat.length - 1].pages === 'A201', JSON.stringify(x.body).slice(0, 300));
+  check('…the page\'s "working on it" copy of the question is not kept beside the real one', !Q.chat.some(m => m.pending) && Q.chat.filter(m => m.text === 'Are blocks 1 and 5/6 separate buildings?').length === 1, JSON.stringify(Q.chat.slice(-3)));
+  check('…without rewriting the tender', DRAFT_CALLS.length === nAmend && JSON.stringify(Q.items) === itemsBefore && Q.confidence_notes === B.confidence_notes);
+  check('…read with the plan set and the ask prompt', ASK_CALLS.length && ASK_CALLS[ASK_CALLS.length - 1].promptVersion === 'ask-tender.v2' && /THE PLAN SET, PAGE BY PAGE/.test(ASK_CALLS[ASK_CALLS.length - 1].text));
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…and is not an undo point', (x.body.history || []).length === histBefore && x.body.doc.chat.length === Q.chat.length);
+  const nAsk = ASK_CALLS.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', change: true, said: 'Tag out: Spouting', instruction: 'take the spouting out', doc: B });
+  check('a change asked for as one (Tag out, Edit with A.I.) skips the question step', x.status === 200 && ASK_CALLS.length === nAsk && !x.body.answered && x.body.doc.chat[x.body.doc.chat.length - 2].text === 'Tag out: Spouting');
+  check('…and leaves the draft\'s warnings alone', x.body.doc.confidence_notes === B.confidence_notes);
+  x = await call(T1, 'POST', '/tender/' + TID + '/undo', {});
   x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: '   ' });
   check('an empty instruction is refused', x.status === 400);
   x = await call(T1, 'GET', '/tender/' + TID);
@@ -298,7 +325,7 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   const O = x.body.doc || {};
   check('Edit Organisation structure lays out the people Claude read', x.status === 200 && O.org && O.org.described === true && O.org.people.length === 4 && O.org.people[0].name === 'Aron Flood', JSON.stringify(x.body).slice(0, 300));
   check('…a role reporting to nobody who exists is put at the top, not lost', O.org.people.find(p => p.id === 'p4').reports_to === '');
-  check('…asked of the fast extract pass with the section prompt', SECTION_CALLS.length === 1 && SECTION_CALLS[0].pass === 'extract' && SECTION_CALLS[0].promptVersion === 'edit-section.v1' && /four crews/.test(SECTION_CALLS[0].text));
+  check('…asked of the fast extract pass with the section prompt', SECTION_CALLS.length === 1 && SECTION_CALLS[0].pass === 'extract' && SECTION_CALLS[0].promptVersion === 'edit-section.v2' && /four crews/.test(SECTION_CALLS[0].text));
   check('…and nothing priced moves', JSON.stringify(O.items) === JSON.stringify(D0.items) && JSON.stringify(O.scope) === JSON.stringify(D0.scope));
   x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'terms', instruction: 'payment in 20 days', current: '- 50% deposit' });
   check('a text section comes back as the document\'s HTML, escaped', x.status === 200 && x.body.doc.quote.terms === '<p>Payment within 20 days &lt;of invoice&gt;.</p><ul><li>Variations by agreement</li></ul>', x.body.doc && x.body.doc.quote.terms);
@@ -316,6 +343,30 @@ check('the task finished with its progress on it', T.tasks[0].status === 'done' 
   check('another company cannot edit it', x.status === 404);
   x = await call(T1, 'GET', '/tender/' + TID);
   check('each section edit is in the history, so Undo can take it back', /Edit Tender price/.test(x.body.history[0].why) && x.body.history.some(h => /Edit Organisation structure/.test(h.why)), JSON.stringify(x.body.history.map(h => h.why)));
+  // Ask first when a change could mean two things (2026-10-28, the owner:
+  // "keep the conversation open and ask a clarifying question first").
+  const D1 = x.body.doc, h1 = x.body.history.length, nDraft = DRAFT_CALLS.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'make the pricing bigger', doc: D1 });
+  const C = x.body.doc || {};
+  check('an unclear change in the chat gets a clarifying question back', x.status === 200 && x.body.clarify === true && x.body.answered === true && /price amounts/.test(x.body.question) && C.chat[C.chat.length - 1].kind === 'clarify' && C.chat[C.chat.length - 2].text === 'make the pricing bigger', JSON.stringify(x.body).slice(0, 300));
+  check('…and changes nothing', DRAFT_CALLS.length === nDraft && JSON.stringify(C.items) === JSON.stringify(D1.items) && JSON.stringify(C.quote) === JSON.stringify(D1.quote));
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…is not an undo point, and the conversation is kept', x.body.history.length === h1 && x.body.doc.chat.length === C.chat.length);
+  const nSec = SECTION_CALLS.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/amend', { mode: 'chat', instruction: 'no, the terms to 14 days', doc: C, secs: { terms: '- 50% deposit' } });
+  check('a wording change in the chat edits just that section', x.status === 200 && x.body.section === 'terms' && /Payment within 20 days/.test(x.body.doc.quote.terms) && DRAFT_CALLS.length === nDraft && SECTION_CALLS.length === nSec + 1, JSON.stringify(x.body).slice(0, 300));
+  const sc = SECTION_CALLS[SECTION_CALLS.length - 1];
+  check('…with the router\'s whole instruction, the section as it reads and the conversation so far', /Make payment due in 14 days/.test(sc.text) && /50% deposit/.test(sc.text) && /THE CONVERSATION SO FAR/.test(sc.text) && /price amounts/.test(sc.text), sc.text.slice(0, 600));
+  check('…the chat shows what was typed, not the rewrite', x.body.doc.chat[x.body.doc.chat.length - 2].text === 'no, the terms to 14 days');
+  const termsBefore = x.body.doc.quote.terms, D2 = x.body.doc;
+  x = await call(T1, 'GET', '/tender/' + TID);
+  const h2 = x.body.history.length;
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'terms', instruction: 'make it bigger', current: '- 50% deposit', doc: D2 });
+  check('Edit with A.I. asks back too, and leaves the section as it was', x.status === 200 && x.body.clarify === true && /bigger text/.test(x.body.question) && x.body.doc.quote.terms === termsBefore && x.body.doc.chat[x.body.doc.chat.length - 1].kind === 'clarify', JSON.stringify(x.body).slice(0, 300));
+  x = await call(T1, 'GET', '/tender/' + TID);
+  check('…and the question is not an undo point', x.body.history.length === h2);
+  x = await call(T1, 'POST', '/tender/' + TID + '/section', { section: 'terms', instruction: 'make it bigger\n(You asked: "Do you mean longer wording?" My answer: longer wording)', current: '- 50% deposit', doc: x.body.doc });
+  check('…then the answer makes the change', x.status === 200 && !x.body.clarify && /Payment within 20 days/.test(x.body.doc.quote.terms));
   const t2 = await call(T1, 'POST', '/tender', { name: 'Kerikeri Library', job_id: 'job-org' });
   x = await call(T1, 'GET', '/tender/' + t2.body.id);
   check('the next tender starts from the structure the company described', x.body.orgDefault && x.body.orgDefault.people.length === 4 && x.body.orgDefault.people[0].name === 'Aron Flood', JSON.stringify(x.body.orgDefault));
@@ -327,6 +378,10 @@ r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind
 check('a page picture comes as a short-lived URL', r.status === 200 && /^http/.test(r.body.url));
 const img = await fetch(r.body.url);
 check('…that serves a JPEG', img.status === 200 && /jpeg/.test(img.headers.get('content-type')));
+r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind=pdf');
+check('the plan set itself comes as a short-lived URL with the page number, for a sharp zoom', r.status === 200 && /^http/.test(r.body.url) && r.body.page === pg(4).page_no, JSON.stringify(r.body));
+r = await call(T2, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/image?kind=pdf');
+check('…never to another company', r.status === 404 || r.status === 403);
 r = await call(T1, 'GET', '/tender/' + TID + '/pages/' + pg(4).id + '/text?words=1');
 check('a page\'s text and words with positions', r.status === 200 && /PITCH 15 DEG/.test(r.body.text) && r.body.words && r.body.words.words.some(w => /ROOF/.test(w.s) && w.x > 0 && w.y > 0), JSON.stringify(r.body).slice(0, 200));
 r = await call(T1, 'PUT', '/tender/' + TID + '/pages/' + pg(5).id, { cls: 'section', title: 'SECTIONS A-A' });

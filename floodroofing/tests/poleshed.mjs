@@ -61,11 +61,11 @@ const shown = (pg, sel) => pg.evaluate(s => {
 // ── the account it belongs to keeps it ────────────────────────────
 let { ctx, pg } = await open('Flood Roofing LTD');
 check('the account whose product it is still gets the Pole Shed draft',
-  await shown(pg, '#qkDraftToggle'));
+  await shown(pg, '#qkBtn_poleshed'));
 check('…and can still pick it as a job type', await pg.evaluate(() => {
   try { openJobDetailsModal('new'); } catch(e){}
-  const e = document.getElementById('jtTypeToggle');
-  return !!e && getComputedStyle(e).display !== 'none';
+  const t = document.getElementById('jtTypeToggle'), e = document.getElementById('jtBtn_poleshed');
+  return !!t && getComputedStyle(t).display !== 'none' && !!e && getComputedStyle(e).display !== 'none';
 }));
 check('…and switching to it actually switches',
   (await pg.evaluate(() => { _setQuoteKind('poleshed'); return S.quote.quoteKind; })) === 'poleshed');
@@ -73,11 +73,13 @@ await ctx.close();
 
 // ── everybody else does not ───────────────────────────────────────
 ({ ctx, pg } = await open('Kauri Roofing Ltd'));
+// Since 2026-10-28 every account has a job-type choice (Gutters only), so the
+// switch itself shows; what must not show is the Pole Shed button in it.
 check('THE ASK: another roofing company is not offered a Pole Shed draft',
-  !(await shown(pg, '#qkDraftToggle')));
+  !(await shown(pg, '#qkBtn_poleshed')));
 check('…nor a Pole Shed job type', await pg.evaluate(() => {
   try { openJobDetailsModal('new'); } catch(e){}
-  const e = document.getElementById('jtTypeToggle');
+  const e = document.getElementById('jtBtn_poleshed');
   return !e || getComputedStyle(e).display === 'none';
 }));
 // A job saved while it WAS offered, or a template copied from one, must not

@@ -250,6 +250,49 @@ check('rewording the Scaffolding line keeps it the one scaffold line: the same c
 check('\u2026and a quote already carrying the pair heals: the reworded line is kept as the base line, the sync\u2019s own duplicate dropped, a custom "Scaffolding extra week" at its own price left alone',
   ren.healed.join('|') === 'scaffold:Scaffold hire - edge protection|materials:Materials|labour:Labour|-:Scaffolding extra week', JSON.stringify(ren.healed));
 
+// ── MATERIALS, THEN THE OTHER LINES (2026-10-27, Scott at
+// info@wellingtonroof.co.nz: "Include Address in CSV export … M1 … Total
+// Materials; C1 … Total Other Lines; 1. Scaffolding 2. Roofing labour +
+// materials 3. Other lines on the quote typed on the quote at cost 4. Total").
+const sheet3 = await pg.evaluate(async () => {
+  gotoTab('pricing'); await new Promise(r => setTimeout(r, 300));
+  _setPricingRoof(0); _setProfitView('total');
+  S.quote.addr = '12 Kauri Lane, Whangarei';
+  S.settings.price_book.custom_book = { editedAt: new Date().toISOString(), defaultMarkup: 0, items: [
+    { id:'pm1', code:'DFE3', desc:'Dektite No 3', unit:'ea', supplier:'Steel & Tube', cost: 40, markup: 25, replaces:'' },
+    { id:'po1', code:'SKIP', desc:'Skip bin hire', unit:'ea', supplier:'Waste Co', cost: 300, markup: 20, replaces:'', kind:'other' }] };
+  _cpbMatAdd(_cpbItem('pm1'), 0);
+  _qAddCustom('material', { desc:'SKIP Skip bin hire', qty:1, unit:360, uom:'ea', amount:360, cpbId:'po1' });
+  _qAddCustom('labour', { desc:'Crane hire', qty:1, unit:500, uom:'', amount:500 });
+  calcLabour(); renderMaterialPriceTable(); await new Promise(r => setTimeout(r, 500));
+  const rows = _scopePricingRows();
+  const sec = (s) => rows.filter(r => r[0] === s);
+  const row = (s, i) => rows.filter(r => r[0] === s && r[1] === i)[0] || [];
+  const mats = sec('Roof materials'), other = sec('Other lines on the quote');
+  const matRows = mats.filter(r => !/^(Materials at cost|Quantity buffer|Mark-up|Materials total)$/.test(r[1]));
+  const matSum = matRows.reduce((a, r) => a + (parseFloat(r[6]) || 0), 0);
+  const it = (_profitFigures('total').items || []).find(i => i.key === 'lines') || {};
+  const order = rows.map(r => r[0]).filter((s, i, a) => s && a.indexOf(s) === i);
+  return { addr: row('Job', 'Site address')[2], dfe: row('Roof materials', 'DFE3 Dektite No 3'),
+           atCost: parseFloat(row('Roof materials', 'Materials at cost')[6]), matSum,
+           typedInMats: mats.some(r => /Skip|Crane/.test(r[1])), typedInLabour: sec('Roof labour').some(r => /Crane/.test(r[1])),
+           other: other.map(r => r[1] + '|' + r[6] + '|' + r[7]), oTot: row('Other lines on the quote', 'Total other lines'),
+           panel: { r: it.revenue, c: it.cost }, order,
+           total: parseFloat(row('Totals', 'TOTAL')[6]), fig: _profitFigures('total').revenue };
+});
+check('the pricing CSV carries the site address', sheet3.addr === '12 Kauri Lane, Whangarei', JSON.stringify(sheet3.addr));
+check('…a Material price-book item is a row of the materials, at its cost, inside "Materials at cost"',
+  sheet3.dfe[3] === 1 && sheet3.dfe[5] === '40.00' && /price book, at cost/.test(sheet3.dfe[2]) && near2(sheet3.atCost, sheet3.matSum, 0.01) && !sheet3.typedInMats && !sheet3.typedInLabour,
+  JSON.stringify({ dfe: sheet3.dfe, atCost: sheet3.atCost, matSum: sheet3.matSum }));
+check('…every other line is listed apart, each at its charge and its cost, with its own total',
+  sheet3.other.indexOf('SKIP Skip bin hire|360.00|300.00') >= 0 && sheet3.other.indexOf('Crane hire|500.00|500.00') >= 0 &&
+  sheet3.oTot[6] === '860.00' && sheet3.oTot[7] === '800.00', JSON.stringify(sheet3.other));
+check('…and that total is the profitability list’s "Other lines on the quote", charge and cost alike',
+  near2(parseFloat(sheet3.oTot[6]), sheet3.panel.r, 0.01) && near2(parseFloat(sheet3.oTot[7]), sheet3.panel.c, 0.01), JSON.stringify({ oTot: sheet3.oTot, panel: sheet3.panel }));
+check('…laid out materials, other lines, then the numbered summary and the TOTAL, which is the quote’s',
+  sheet3.order.indexOf('Roof materials') < sheet3.order.indexOf('Other lines on the quote') && sheet3.order.indexOf('Other lines on the quote') < sheet3.order.indexOf('Job profitability') &&
+  near2(sheet3.total, sheet3.fig, 0.02), JSON.stringify(sheet3.order));
+
 check('nothing threw', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

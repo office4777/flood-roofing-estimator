@@ -26,11 +26,11 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (281 as of 2026-10-23 — 62 in its `API` list, 219 in `UI` — four at a time,
+  (292 as of 2026-10-29 — 66 in its `API` list, 226 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
-  `run.mjs api` is the exact command CI's Backend job runs, 62 suites in
-  about 38 seconds, and it is what to run before ANY server ship. A NEW
+  `run.mjs api` is the exact command CI's Backend job runs, 66 suites in
+  about 44 seconds, and it is what to run before ANY server ship. A NEW
   suite must be added to the `API` or `UI` list in `run.mjs` or it never
   runs — and every suite on disk is in one of them today, which is worth
   re-checking rather than assuming. Pipe the runner through `tail` and
@@ -1869,7 +1869,15 @@ not a saving, and 49 purple to 48 orange.
   roof is quoted at. Scaffolding earns its own line rather than being left
   out: a total that reads less than the roof is quoted at is worse than a
   third row. It follows the roof switch (`_renderPricingRoofSwitchBar`, which
-  every recalc reaches). `tests/roofcustom.mjs`.
+  every recalc reaches). `tests/roofcustom.mjs`. THE MAIN ROOF'S CARD CARRIES
+  ITS OPTIONS (2026-10-29, job 3306: it read $36,622.54 beside a quote of
+  $39,280.83, the gap the RI-925 / 0.55 row): `_pricingRoofParts(0).options`
+  lists every pick that is not another roof (`_profitSelectionItems`, key !==
+  'roof') as its own row and the total includes them. And the card is redrawn
+  (`_prMatChanged`) by a custom line added or taken off (`_qCustomChanged`, the
+  debounced live re-render), a material row's ✕ (`_deleteMatRow`,
+  `restoreDeletedMatRows`) and a quote pick (`_setProposalOption`) — it sat
+  still when a material line was removed. `tests/pricingcard.mjs` (21).
 - EACH PLAN OPTION IS PRICED ON ITS OWN (2026-10-13, the owner: "it won't let
   me price the two plans seperately, like i said it should act like the
   seperate roofs in a roofing job (remeber only change it for a pole shed job
@@ -2301,6 +2309,117 @@ not a saving, and 49 purple to 48 orange.
 - The phone's roof plan FOLLOWS the computer's and vice versa
   (`_QP_MAP_PARTNER`: desk↔book, desksum↔booksum) until each has been
   moved itself; only a frame's own `roofMapViews[key]` is ever written.
+- THE PRODUCT LIST SURVIVES A RELOAD, AND SO DOES THE EMAIL WORDING
+  (2026-10-28, the owner: "the gutter profile pictures i upload ... disappear
+  after an app reload" and "my custom email quote template keeps reverting
+  back to default after an update or reload"). `mergeSettings` had NEVER
+  carried `selectables`, so every load set `S.settings.selectables` to
+  nothing: the quote fell back to the shipped defaults, opening Settings
+  seeded those (`_selWorking`), and the next settings save from anywhere
+  wrote them over the stored list — gutter and profile pictures, own grades,
+  profile rates, own options. It is carried now (absent stays absent), the
+  setup wizard leaves it out when empty, and the server treats `null` like a
+  missing key. A list already overwritten is gone; the office re-uploads.
+  THE EMAIL WORDING: every settings save carries the whole email block, and
+  the standard wording is stored as `''` — so a tab or device that loaded
+  before a custom wording was written sent it back blank on its next save
+  (any of ~28 saves made off the Settings tab). The server now keeps a stored
+  `*_subject` / `*_body` over an incoming blank unless the save names it in
+  `email.__reset`, which the app sets only for a wording emptied or Reset on
+  a live screen (`window.__emxTouched`, `_emxTouch`); the mark is dropped
+  once a save lands. Returning to a tab re-reads the wording (not while on
+  the Settings tab), and a pending settings autosave is flushed on
+  `pagehide` / hidden. `tests/settingssave.mjs` (app), `tests/ferguskey.mjs`
+  (server).
+- A SENT QUOTE STAYS LOCKED (2026-10-28, job 3299: "this quote has been sent,
+  why is the quote not locked?"). Opening a sent job locks it, but choosing
+  the Draft from the Viewing menu after a send called `_qvBackToDraft()` with
+  no options, which unlocks. The menu item passes `{relock:true}`: a job whose
+  quote has been sent (`_quoteWasSent()`) keeps its lock and the first edit
+  asks. The Viewing menu reads "locked" or "editing" to match
+  (`_jobLockRender` re-renders the bar). New draft / Change template / Open
+  saved draft still unlock — they are the office asking to edit.
+  `tests/joblock.mjs`.
+- GUTTERS ONLY IS A THIRD JOB TYPE (2026-10-28, the owner: "add an job type
+  called 'Gutters only' and the canvas is very basic, only allows to draw the
+  gutter line, the quote gets changed to suit gutter ... no steel grade, no
+  profile, no thickness, no 'the old roofing', re-roof in the summary changes
+  to 'Gutters', the roofmap & aerial image just shows the aerial image and the
+  gutter lines, no basic map"). `S.quote.quoteKind === 'gutters'`
+  (`_isGutterJob`, `_gutterJobSync` puts `body.gutter-job` on), offered as
+  `#jtBtn_gutters` in the job details window and in the Quote tab's More menu
+  (`_setJobType`). THE CANVAS: Move, the Gutter line (`#btn-gjgutter`), the tape
+  and Custom Scale; no outline, no roof-lines menu, and a roof tool asked for
+  anyway becomes the gutter line; gutter lines need no outline to count.
+  THE QUOTE is the modern layout (`_gjSections`): cover, a Guttering Proposal,
+  the gutter (no "No new guttering"), its colour (`gcolour`), brackets and
+  downpipes, the quote's own options and the total — no grade, profile,
+  thickness, roof colour or old roofing. The summary's first line is "Gutters —
+  <the gutter>" with the scaffold beside it, the picks are `_gjPicksAuto`, the
+  map is the aerial and the gutter lines alone, and the Pricing drawer is the
+  scaffold and the gutter card with no platform uplift. THE GUTTER'S COLOUR
+  (`_gjPalette`): the Colorsteel chart for the box gutter, Marley Typhoon's own
+  eight (`MARLEY_TYPHOON_COLOURS` — White, then the Stratus range: Black, Grey
+  Friars, Ironsand, Gull Grey, FlaxBlack, Titanium, Copper — from the owner's
+  chart off marley.co.nz), White only and compulsory for Marley Classic; a
+  colour the new gutter does not come in is cleared on a change of gutter, one
+  both come in is kept. The SERVER keeps the customer's gutter colour, lists a
+  gutters job's own picks in the acceptance email and the Fergus text, and
+  follows it up as a guttering quote (`REMINDER_EMAIL_GUTTERS`). Roofing, pole
+  shed and tender are untouched. `tests/gutteronly.mjs` (26, UI list).
+- THE ROOF BUTTON OPENS THE ROOF'S WINDOW (2026-10-29, the owner: "add a rotate
+  90deg inside the pop-up roof type selector, also change the 'Roof settings'
+  window to be the pop-up selector ... just add the make main roof and delete
+  roof buttons in it too, also when that window opens and i click the different
+  roofs, change them live in the canvas"). `_roofSetupPopup(opts)` has two
+  modes: 'new' (the outline closing — pitch box, Skip for now, Draw the roof)
+  and 'settings' (`_toggleRoofMenu` → the roof bar's button). In both a shape
+  click BUILDS it on the canvas at once (`autoGenerateRoof`; the shape it
+  already is is not rebuilt, so a turn survives), a sheet click sets it, and
+  Rotate 90° / Snap square act at once; Make main roof / Delete roof sit at its
+  foot. Skip for now puts back the state from when the window opened
+  (`_captureSnapState`); a click outside or Esc keeps what is on the canvas. It
+  sits right on a wide screen over a light backdrop and drags by its title.
+  The picture of the shape the roof IS is drawn from its own lines
+  (`_roofPreviewSvg(..., own)`), so a turned roof shows turned. The settings
+  mode BORROWS `#roofPitchRow` and `#gableRidgeSlideRow` from the old panel
+  and puts them back on close, so every handler and sync is the one that always
+  ran (`#_rsLent` shares the panel's field CSS). The drop-down panel is retired
+  behind `_ROOF_PANEL_DROPDOWN` (false; true brings it and its slide-in back —
+  `tests/roofmenu.mjs` pins it with the switch on) and is still the phone's
+  site-mode sheet. THE SETTINGS MODE IS A DROP-DOWN AGAIN (2026-10-29 later,
+  "make the roof setting act as the old drop down window acted ... 15%
+  smaller ... drop down over 0.5sec then collapse over 0.5sec ... hard to the
+  left side of the canvas ... drag the canvas roofmap around without it
+  closing"): no backdrop — the wrap (`.rs-drop`) sits in the page just before
+  `#roofTypePanel`, absolute, flush with the canvas's left edge; the card is
+  `zoom:.85` (on the card, not the wrap, so the title drag moves the wrap in
+  screen pixels); `rtpDrop` in, `rtpLift` out, and a click on the canvas
+  never closes it (Done, Esc or the roof button). A closing window is renamed
+  `_rsModalClosing` with its ids stripped while it folds, the borrowed rows
+  already home. Focus uses `preventScroll`. The NEW-roof window is unchanged.
+  `tests/roofwindow.mjs` (23).
+- A QUOTE KEEPS THE PRODUCTS IT WAS BUILT WITH (2026-10-29, the owner on job
+  3306: Duplicate this quote off Sent quote 2 "deleted the custom roof profile
+  and changed the price total"). A draft read Settings' product list alone and
+  RI-925 was no longer in it (the list the reload bug of 2026-10-28 wrote
+  over); and `_qStampCustomerCopy`, on every Quote-tab autosave, stamped that
+  poorer list over the quote's own `selectablesSnapshot`. `_selMergeCarried`
+  now adds to Settings' grades / profiles / gutters / extras any row the
+  quote's own snapshot carries that Settings has NO row for, in `_selectables()`
+  and in the stamp; a product Settings REMOVED keeps its row there
+  (`removed:true`) and stays removed. AS SENT, AND AS WORKED OUT TODAY: a sent
+  quote's base lines are frozen, the Pricing drawer works the job out again
+  from today's roof, price book, products and typed prices — the owner saw the
+  two disagree by $4,723.06 on 3306 and read it as lost custom pricing (cause
+  NOT yet known: the drawer itself showed materials at cost, revenue = cost).
+  `#prAsSent` (`_asSentInfo` / `_asSentRender`, from `renderProfitability`) says
+  part by part (`_qBaseParts` of the frozen lines vs `_qBaseToday`) where they
+  differ, on the sent/accepted view and on a draft duplicated from one
+  (`S.quote.dupFrom`, in Q_FRESH_DROP); "Keep the sent prices on this draft"
+  (`_asSentCarry`) adds a visible "As sent …" custom line per card for the
+  difference. THE SAME NOTE IS ON THE QUOTE TAB (`#qAsSentBar` under the Viewing sentence, `_asSentBarRender`, 2026-10-29: he duplicated with the drawer shut and never saw it), and on a duplicate it names an "Options" difference too: `dupFrom.sub` is the version's EMAILED total ex GST (`_asSentVersionSub(S._qvViewing.total)` — never `_quoteMoney()` on the sent view, which reads live option prices), found by `dupFrom.at` for a draft duplicated before it was recorded; what the three base lines do not explain is `diffs.other`, carried as an "As sent — options" material line. `tests/dupcarry.mjs` (18). ASK THE OWNER what that box names on
+  job 3306 before guessing at the cause.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.
@@ -3307,6 +3426,41 @@ not a saving, and 49 purple to 48 orange.
   quote, allow me to delete the roof colour section"): `_qbColour` carries
   Delete this page (office only), `_qbSectionRemove('colour')` parks it and
   `_qbPicksAuto` already drops its pick. `tests/quoteeditor.mjs`.
+- A PRICE-BOOK MATERIAL IS A MATERIAL (2026-10-27, Scott at
+  info@wellingtonroof.co.nz, now a paying customer: "Include Address in CSV
+  export. For custom pricing suggest adding a tag if the item is a Materials
+  item. Then when the item is selected for a job or roof it can be listed and
+  directly included in the Materials list and total for Materials at Cost.
+  All other Custom Price Book items included in a job can then be listed with
+  separate total as … 3. Other lines on the quote"). He had found a real
+  contradiction: "📖 Add from price book" made a CUSTOM LINE at the item's
+  SELL price, outside the buffer and mark-up; the CSV printed it under Roof
+  materials while the profitability list counted it under "Other lines on the
+  quote · at cost" — so the item's own mark-up read as zero margin.
+  A Custom Price Book item has `kind` 'material' | 'other' (`_cpbKind`; NO
+  KIND = MATERIAL, the owner's call — a supplier list is almost all
+  materials), a Type select on Settings → Custom Price Book and a chip in the
+  price-book window. `_pbkAddToJob`: a MATERIAL goes to `S.quote.cpbMat[key]`
+  (`_cpbMatAdd`; keyed like customLines, 'material' / 'material#<idx>';
+  {id, cpbId, code, desc, unit, supplier, qty, cost}, the cost frozen at add)
+  whichever card's button was pressed, and `_cpbMatRows` makes each a row of
+  `_buildMaterialPriceRows` (`cpb:<id>`, priced at COST, `decimalQty`) — so the
+  qty/$ boxes, the buffer and the JOB's mark-up (the item's own mark-up is NOT
+  used, the owner's answer), S.materials, the profitability, the CSV's
+  Materials at cost and the Fergus push all take it for nothing; its ✕ removes
+  the entry (`_cpbMatRemove`), it follows `_qCustomRemap` / `_qCustomFoldInto`,
+  and a shed keeps the old custom line. An OTHER item stays a custom line at
+  its price; `_qCustomLineCost(row)` reads its real cost off the book by
+  `cpbId`, so "Other lines on the quote" carries price-book items at cost and
+  their mark-up shows as margin (hand-typed lines stay at cost). `cpbMat` is in
+  the server's CUSTOMER_HIDDEN_FIELDS — it carries supplier cost.
+  THE CSV (`_scopePricingRows`): Site address under Client; on the main roof's
+  and the Quote Total sheet the lines typed on the scaffold / labour /
+  material cards leave those sections for an "Other lines on the quote" block
+  (each at charge and cost, then Total other lines — the panel's own item to
+  the cent); an extra roof's sheet keeps them in its cards (it is priced as a
+  lump). Lines already on jobs did not move. `tests/pricebookpick.mjs`,
+  `custompb.mjs`, `profititems.mjs`.
 - The Job Pack cut list belongs to the office once touched. The first
   edit (quantity, length, hide, add row) freezes it in
   `DRAW.matSheetFrozen`; it is rebuilt only when the roof's groups change,
@@ -4068,6 +4222,33 @@ not a saving, and 49 purple to 48 orange.
   fighting it. Run against the old build it fails 10 of 16, every failure the
   same frozen 8,640 / 10,315.39 / 2,500 with rowsAdd true — his screenshot,
   reproduced.
+- A NEW PAYING SUBSCRIBER EMAILS THE OWNER (2026-10-28, the owner: "I'm not
+  getting any emails to say that somebody's started paying ... email me
+  congratulations, new paying subscriber ... give their details", and "in the
+  activity report ... also the date that they started paying"). A signup told
+  him (`_signupAlert`); the first payment told only the CUSTOMER (their tax
+  invoice). `_newPayerNotify` runs from the webhook on a PAID checkout
+  (`payment_status === 'paid'`, `amount_total > 0`) and on `invoice.paid` /
+  `invoice.payment_succeeded` (`amount_paid > 0`; the subscription id from
+  `inv.subscription` or `inv.parent.subscription_details`, Stripe's 2025+
+  shape): stamps `subscriptions.paid_since` (the earliest payment, never moved
+  later) and, once — claimed by `paid_alert_at`, written before the send —
+  emails `NEW_PAYER_ALERT_TO` (default = `SIGNUP_ALERT_TO` = support@) with the
+  business, name, email, phone, plan and price, the first payment, paying
+  since, signed up (and how many days before paying), and how many businesses
+  pay now; Reply-To is the customer. A $0 invoice is not paying. An invoice
+  that lands before the checkout has written the row is let go; the checkout
+  then sends it. THE BACKFILL (`_paidSinceBackfill`, 75 s after boot, and
+  `POST /admin/paid-since/run`) dates every paying row off Stripe — the
+  earliest paid invoice above $0 (`GET /v1/invoices?subscription=…&status=
+  paid`) — and sends the email they missed to one that started paying in the
+  last `NEW_PAYER_RECENT_DAYS` (14); older ones are marked told quietly. As of
+  the ship that is WLRR (~22 Oct) and TGM Roofing (~23 Oct), read off the
+  daily reports in his Gmail; Signature Roofing (~7–12 Oct) and Flood Roofing
+  are older. THE DAILY REPORT (daily.js) reads `paid_since`: each paying
+  business's line ends "paying since 23 Oct 2026" ("not recorded" where Stripe
+  had no paid invoice), and a "New paying subscribers yesterday" section leads
+  when there are any. `tests/newpayer.mjs` (17, API list).
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted
@@ -4147,6 +4328,34 @@ not a saving, and 49 purple to 48 orange.
   safety pins pass. Pin the gablet fraction before measuring a dutch sheet
   count in a suite: it is a per-roof field that outlives `clearAll`, so an
   earlier case that moved the slider otherwise decides the count.
+- A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH
+  (feedback reports 78 and 79, 2026-10-28, the owner on job 3302: "inside the
+  fine adjustments window ... show a button to convert this section/corner
+  from hip & valley to mono-extension" and "i pulled it too far and it
+  converted to a hip & valley (i also don't want it to auto change to a
+  mono-extension if i make it short)"). A BUMP (`_outlineBumps`) is a short
+  wall standing out from a straight one: A-B-C-D, B and C the outer corners,
+  A and D inside corners on one straight wall. On a hip roof the KIND of roof
+  over it was decided by its depth: under `_roofSquareUp`'s squaring tolerance
+  (5% of the shorter span, ≤24 px — about 0.5 m on his roof) it was squared
+  into the wall and got nothing, over it its own little hip end.
+  `DRAW.bumpModes[<index of B>] = 'hv' | 'mono'` per roof (ROOF_FIELDS, the
+  draw block, the undo snapshot, the feedback payload; a new outline clears
+  it). `_hipLinesWithBumps` is the hip builder in both `_roofLinesForType` and
+  `regenerateAutoRoofLines`: 'mono' builds the hips with B and C left out (the
+  main slope carried over the bump) and adds barges on its two sides; 'hv'
+  keeps its outer wall out of the squaring (`_SQ_KEEP`, read by `cluster` in
+  `_roofSquareUp`) so it gets its own hip end at any depth, with gutters on its
+  short sides. THE CORNER PAD carries the switch (`#cornerBumpRow`,
+  `_cornerBumpRowRender`, `_bumpSetMode`), shown only for a bump's corner on a
+  hip roof. GRABBING a bump's corner LOCKS the kind on screen
+  (`_bumpLockModes` in `_cornerRepoOpen`, `_bumpShownMode` = a hip or valley
+  ends at one of its corners), so a drag never changes the kind by itself.
+  With no choice made the hip roof is built exactly as before. Found with it:
+  a corner grab took the FIRST corner in reach, which on a shallow bump was
+  the inside corner below the one aimed at — it takes the nearest now. His
+  pictures: report 79's roof 56 sheets with five extras → 47 with none as a
+  mono extension. `tests/report78.mjs` (21, a real mouse drag).
 - A ROOF PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate
   and 5-rib share the same standard roofing sheet price, but then a profile
   like RI-925 has it's own more expensive price"). He had added RI-925 and
@@ -4884,6 +5093,44 @@ not a saving, and 49 purple to 48 orange.
   Communications" (shown with the job's other buttons by `_jobLockRender`,
   a count of the thread's messages once it has been read).
   `tests/jobhistory.mjs` pins the order and the window.
+- FILES & PHOTOS ON A JOB (2026-10-27, the owner: "add a 'Files & Photos'
+  button below the history and communications button, allow the user to add
+  in photo's or files from their computer ... actually open the files from
+  within roofmap ... everytime the user exports a pdf or anything, that file
+  should automatically also save in the files and photos on that job
+  (including a sent job pack, or sent quote ...) ... this button should also
+  load any files and photos from fergus if fergus is connnected. then change
+  the colour of this new button and the history button to be the same blue as
+  'change job' and then put the 'unlocked/locked' button at the bottom").
+  THE LEFT MENU: Save job, Change job, History & Communications, Files &
+  Photos (`#navJobFilesBtn`, a count once read), then the lock strip — the
+  all five the lock strip's grey (2026-10-28, "grey colour the save job and change job too"), class `.nav-job-btn`, words on the left, half-transparent blue under the pointer and solid blue pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
+  THE BYTES NEVER GO IN THE JOB ROW (that is how the database stalled in
+  September): a private Storage bucket 'job-files' (`_jfStorage()`, the
+  tender's `tender/storage.js` made generic: `create(supabase, {bucket,
+  seam})`, seam `__TEST_JOBFILES_STORAGE`), a `job_files` row each (boot DDL;
+  company_id, user_id, job_id = the version ROOT so every version shares its
+  files, name, mime, size, kind 'upload'|'export', source, author,
+  storage_path, status 'pending'|'ready'). Routes, each scoped with
+  `_scopeCompany` IN THE QUERY: GET /jobs/:id/files, POST …/files/sign (the
+  browser PUTs straight to Storage), POST …/files/:fid/landed, GET
+  …/files/:fid/url (15 min), DELETE …/files/:fid. A failed read is a 503.
+  THE APP: `_jobFilesOpen` — Exported & sent from RoofMap (with the note the
+  owner asked for: it only holds what RoofMap exported or sent), Your
+  uploads, Site photos on the quote and Kept on the job (`S.photos` /
+  `S.files`, the in-row store that predates this, unchanged), From Fergus
+  (`/fergus-files/list`, all files, opened through `_fergusDownloadBlob`).
+  A file OPENS INSIDE ROOFMAP (`_jfViewer`): picture, PDF in a frame, CSV /
+  text as text, else a download — fetched to a blob first, which always
+  frames. `_jfKeep(blob, name, source)` is the one call every export and
+  send makes (never throws, never asks; nothing for a job never saved, the
+  sample job or the customer): `_matDownloadBlob` (every Job Pack / pricing
+  / order / Fergus-push file, with a source), the modern quote's Print/PDF,
+  Save Job Pack as PDF, Print Job Pack, the pricing CSV, the order email and
+  share, and THE SENT QUOTE — `_jfKeepQuotePdf('sent-quote')` builds the
+  Sent version's PDF 1.2 s after the send has switched to it.
+  `tests/jobfilesapi.mjs` (API), `tests/jobfilesui.mjs` (UI); the older
+  `tests/jobfiles.mjs` is the in-row files and is untouched.
 - AN ACCEPTANCE REACHES THE FERGUS JOB (2026-10-19, the owner: "can it auto
   automatically upload the accepted quote as it's pdf to the job in fergus,
   can it also add the customers choices … as the job description in fergus
@@ -5214,7 +5461,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
+**Live now.** FRONTEND and BACKEND = `afe2348` (the left menu's job buttons all grey and centred; a duplicated draft says on the Quote tab how much less it comes to than the quote emailed, with Keep the sent prices; 2026-10-29 8:42 am NZ, promote run 40756495946: backend "Live after 40s"). Before it FRONTEND = `0223665` (the roof window replaces the roof settings drop-down, live shape changes; a duplicated quote keeps its products; As sent vs today in the Pricing drawer; 2026-10-29 7:41 am NZ, Tests run 40746568843 green, promote run 40747190582: "The site is serving 0223665", backend step red reading `c1e1ca4` — `git diff c1e1ca4..0223665 -- floodroofing/backend/` is EMPTY, so the API runs the same code under the older name). BACKEND = `c1e1ca4`. Before it FRONTEND and BACKEND = `c1e1ca4` (a new paying subscriber emails the owner, the daily report says when each started paying; 2026-10-29 6:14 am NZ, Tests run 40732295139 green, promote run 40733008859: site serving, backend "Live after 300s"). Before it FRONTEND and BACKEND = `bae28d6` (feedback reports 78/79: a bump on a hip roof is Hip & valley or Mono extension, switched on the corner pad, a drag never changes it; a corner grab takes the nearest corner; 2026-10-28 4:54 pm NZ, Tests run 40628178495 green on its second attempt after one `hubui` dark-theme-reload check flaked on shard 2 — the hub is untouched by it and the suite passes 104/104 locally — promote run 40629240702: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `e5f3aeb` (the Gutters only job type with Marley Typhoon's own colour chart; 2026-10-28 4:31 pm NZ, Tests run 40626663912 green, promote run 40627066699: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `c3e0ddb` (the product list — gutter and profile pictures, own grades, own options — and the custom email wording survive a reload and a stale tab's save; a sent job stays locked when the Draft is picked from the Viewing menu; 2026-10-28 1:47 pm NZ, promote run 40610866433: site serving, backend "Live after 40s". Its first ship `c189d61` was skipped on a `quotedrafts` timing pin, fixed in `c3e0ddb`). Before it FRONTEND and BACKEND = `bf97a41` (Files & Photos on every job: uploads and every RoofMap export or send kept in the private `job-files` bucket, Fergus files listed, opened inside RoofMap; the left menu Save, Change job, History & Communications, Files & Photos, then the lock; 2026-10-27 10:45 am NZ, Tests run 40588732990 green, promote run 40589303351: site serving, backend "Live after 40s"). Before it `d8a63be` (Scott's pricing CSV: the site address, Custom Price Book items tagged Material join the materials at cost with the job's buffer and mark-up, the rest an "Other lines on the quote" block with its own total; 2026-10-27 10:33 am NZ). Before it FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
 answered from Gmail and followed back onto the job, the History &
 Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
 run 39856153437: "The site is serving" and "Live after 40s" on the backend —
@@ -5380,8 +5627,9 @@ session, and none has been confirmed done since the date beside it.**
   become the shipped default; four aerial screenshots for the demo
   slideshow (Mapbox is unreachable from the build environment, so those
   slides are placeholders).
-- UNANSWERED: should a Custom Price Book line's mark-up REPLACE the job's
-  material mark-up for that item? And Nearmap stays OFF until privacy.html
+- ANSWERED 2026-10-27: a Custom Price Book item tagged Material, added to a
+  job, carries the JOB's buffer and material mark-up, not its own (see A
+  PRICE-BOOK MATERIAL IS A MATERIAL). Nearmap stays OFF until privacy.html
   v1.2 names it + 30 days' notice.
 - ASKED 2026-10-21, no answer yet — two questions already put to him, so do
   not ask again, just pick them up if he answers (the third, the step-down

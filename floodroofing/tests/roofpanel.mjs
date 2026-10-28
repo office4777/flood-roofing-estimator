@@ -32,6 +32,9 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => r
 await pg.addInitScript(() => { localStorage.setItem('fr_token','t'); localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://' + DIR + '/app.html');
 await pg.waitForTimeout(2600);
+// The drop-down panel pinned here is the retired roof-button answer (the roof
+// window took over on 2026-10-29, tests/roofwindow.mjs); kept behind its switch.
+await pg.evaluate(() => { _ROOF_PANEL_DROPDOWN = true; });
 const load = () => pg.evaluate((g) => {
   gotoTab('roof');
   DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;

@@ -37,7 +37,7 @@ await pg.evaluate(() => {
     { id:'i1', code:'DFE3', desc:'Dektite EPDM No 3', unit:'ea', supplier:'Steel & Tube', cost: 31.4, markup: 0, replaces:'' },
     { id:'i2', code:'RC055', desc:'Ridge capping 0.55', unit:'lm', supplier:'Steel & Tube', cost: 14.2, markup: 10, replaces:'' },
     { id:'i3', code:'SIL1', desc:'Silicone clear', unit:'ea', supplier:'Dimond', cost: 12.9, markup: 0, replaces:'' },
-    { id:'i4', code:'BUT50', desc:'Butyl tape 50mm', unit:'roll', supplier:'Dimond', cost: 22, markup: 0, replaces:'' }] };
+    { id:'i4', code:'SKIP', desc:'Skip bin hire', unit:'ea', supplier:'Waste Co', cost: 300, markup: 20, replaces:'', kind:'other' }] };
   gotoTab('roof'); clearAll(true);
   setTool('outline'); DRAW.currentPts = [[200,300],[800,300],[800,600],[200,600]]; finishCurrent(); DRAW.scaleMetresPerPx = 0.02;
 });
@@ -112,11 +112,54 @@ const pk = await pg.evaluate(async () => {
   document.querySelector('#pbkModal .pbk-item').click();
   await new Promise(r => setTimeout(r, 200));
   const lines = S.quote.customLines.material;
-  const last = lines[lines.length - 1];
-  return { opened: !!m, all, found, closed: !document.getElementById('pbkModal'), last };
+  const ent = ((S.quote.cpbMat || {}).material || [])[0];
+  const row = ent && document.querySelector('input[data-price-key="cpb:' + ent.id + '"]');
+  return { opened: !!m, all, found, closed: !document.getElementById('pbkModal'), lines: lines.length, ent,
+           rowPrice: row && row.value, rowText: row && row.closest('tr').textContent,
+           kinds: [...document.querySelectorAll('.pbk-kind')].length };
 });
 check('"Add from price book" opens the whole price book, and it searches', pk.opened && pk.all === 4 && JSON.stringify(pk.found) === '["DFE3"]', JSON.stringify(pk));
-check('…a click adds the item to the job as a line at its price, and closes', pk.closed && pk.last && /DFE3 Dektite/.test(pk.last.desc) && pk.last.unit === 31.4 && pk.last.qty === 1 && pk.last.uom === 'ea' && pk.last.amount === 31.4, JSON.stringify(pk.last));
+check('…a MATERIAL item clicked joins the roof\u2019s materials list at its cost — not a custom line — and closes',
+  pk.closed && pk.lines === 1 && pk.ent && pk.ent.cpbId === 'i1' && pk.ent.cost === 31.4 && pk.ent.qty === 1 &&
+  pk.rowPrice === '31.40' && /DFE3 Dektite EPDM No 3/.test(pk.rowText) && /from your price book, at cost/.test(pk.rowText), JSON.stringify(pk));
+
+// ── (2026-10-27, Scott) a Material item is a material: the job's buffer and
+// mark-up go on it, its qty and $/unit edit, the ✕ takes it off ──
+const mt = await pg.evaluate(async () => {
+  const ent = S.quote.cpbMat.material[0], key = _matOvKey('cpb:' + ent.id, 0);
+  _setRoofMatQtyBuffer(0); _setRoofMatMarkup(0);
+  const base0 = _materialsCostForRoofIdx(0);
+  _setRoofMatQtyBuffer(10); _setRoofMatMarkup(20);
+  const withPct = _materialsCostForRoofIdx(0);
+  const q = document.querySelector('input[data-qty-key="cpb:' + ent.id + '"]');
+  q.value = '3'; q.dispatchEvent(new Event('change'));
+  _setRoofMatQtyBuffer(0); _setRoofMatMarkup(0);
+  const base3 = _materialsCostForRoofIdx(0);
+  const shown = document.querySelector('input[data-qty-key="cpb:' + ent.id + '"]').value;
+  const rowBtn = document.querySelector('input[data-price-key="cpb:' + ent.id + '"]').closest('tr').querySelector('button[title="Delete this line"]');
+  rowBtn.click();
+  await new Promise(r => setTimeout(r, 60));
+  return { base0, withPct, base3, shown, gone: !document.querySelector('input[data-price-key="cpb:' + ent.id + '"]'),
+           store: JSON.stringify(S.quote.cpbMat || {}), deleted: !!MATERIAL_DELETED[key], after: _materialsCostForRoofIdx(0) };
+});
+check('…the job\u2019s buffer and mark-up go on it like every other material', Math.abs(mt.withPct - mt.base0 * 1.1 * 1.2) < 0.02, JSON.stringify(mt));
+check('…its quantity edits like any material row (3 × $31.40 more in the take-off)', mt.shown === '3' && Math.abs((mt.base3 - mt.base0) - 2 * 31.4) < 0.02, JSON.stringify(mt));
+check('…and its ✕ takes it off the job, not just out of sight', mt.gone && mt.store === '{}' && !mt.deleted && Math.abs(mt.after - (mt.base0 - 31.4)) < 0.02, JSON.stringify(mt));
+
+// ── an OTHER item stays a line of its own, and its real cost reaches the profit ──
+const ot = await pg.evaluate(async () => {
+  _pbPickOpen('material');
+  const kinds = [...document.querySelectorAll('#pbkModal .pbk-item')].map(x => x.getAttribute('data-item') + ':' + x.querySelector('.pbk-kind').textContent);
+  document.querySelector('#pbkModal .pbk-item[data-item="i4"]').click();
+  await new Promise(r => setTimeout(r, 100));
+  const lines = S.quote.customLines.material, last = lines[lines.length - 1];
+  const it = (_profitFigures('total').items || []).find(i => i.key === 'lines');
+  return { kinds, last, store: JSON.stringify(S.quote.cpbMat || {}), other: it && { r: it.revenue, c: it.cost, sub: it.sub } };
+});
+check('the price book window says which items are Materials and which are Other', JSON.stringify(ot.kinds) === '["i1:Material","i2:Material","i3:Material","i4:Other"]', JSON.stringify(ot.kinds));
+check('…an OTHER item goes on as a line at its price (cost + its mark-up)', ot.last && /SKIP Skip bin hire/.test(ot.last.desc) && ot.last.amount === 360 && ot.last.cpbId === 'i4' && ot.store === '{}', JSON.stringify(ot));
+check('…and "Other lines on the quote" carries what it cost us, so its mark-up is margin',
+  ot.other && Math.abs(ot.other.r - (37.5 + 360)) < 0.01 && Math.abs(ot.other.c - (37.5 + 300)) < 0.01 && /price-book items at their cost/.test(ot.other.sub), JSON.stringify(ot.other));
 
 // ── edit mode: folders, like File Explorer ──
 const nPuts = settingsPuts.length;

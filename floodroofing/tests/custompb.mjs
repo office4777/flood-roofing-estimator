@@ -119,6 +119,20 @@ await pg.waitForTimeout(1500);
 const saved1 = puts[puts.length - 1];
 check('the edit is saved, the book stamped with when', saved1.price_book.aquaseal.no3 === 37.68 && saved1.price_book.custom_book.items.find(i => i.code === 'DFE3').markup === 20 && !!saved1.price_book.custom_book.editedAt, JSON.stringify(saved1.price_book.aquaseal));
 
+// ── (2026-10-27, Scott) every item says whether it is a Material or Other ──
+const kd = await pg.evaluate(() => {
+  _cpbRenderTable();
+  const sels = [...document.querySelectorAll('#cpbTableWrap select.cpb-kind')];
+  const before = sels.map(x => x.value);
+  const sil = _cpbBook().items.find(i => i.code === 'SIL1');
+  const sel = document.querySelector('select.cpb-kind[data-cpb="' + sil.id + '"]');
+  sel.value = 'other'; sel.dispatchEvent(new Event('change'));
+  return { n: sels.length, before, kind: sil.kind, nokind: _cpbKind({}), head: [...document.querySelectorAll('.cpb-table th')].map(t => t.textContent.trim()).join('|') };
+});
+check('each price-book item has a Type, and one with none reads as a Material', kd.n === 4 && kd.before.every(v => v === 'material') && kd.nokind === 'material' && /Type/.test(kd.head), JSON.stringify(kd));
+await pg.waitForTimeout(1500);
+check('…set to Other, it is saved with the book', kd.kind === 'other' && puts[puts.length - 1].price_book.custom_book.items.find(i => i.code === 'SIL1').kind === 'other', kd.kind);
+
 // ── the job's material rows name the supplier's product ──
 const brand = await pg.evaluate(() => {
   const rows = [{ key:'aquaseal:80', label:'80mm pipe flashing', variants:[{ value:'no3', label:'Aquaseal No 3', price:37.68 }], defaultVariant:'no3' },

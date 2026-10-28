@@ -69,6 +69,26 @@ put = t.puts[t.puts.length - 1] || {}; em = ((put.quote_defaults || {}).email) |
 check('…and the Settings tab still saves what is changed on it', em.accept_office_on === false && (put.branding || {}).phone === '09 111 2222', JSON.stringify({ em, ph: (put.branding || {}).phone }).slice(0, 200));
 await t.ctx.close();
 
+// ── THE PRODUCTS AND THE EMAIL WORDING SURVIVE A RELOAD (2026-10-28) ──
+// "the gutter profile pictures i upload ... disappear after an app reload";
+// "my custom email quote template keeps reverting back to default".
+const PIC = 'data:image/png;base64,iVBORw0KGgo=';
+t = await boot(Object.assign({}, SET, { selectables: { grades: [], profiles: [], extras: [], gutters: [{ id:'box125', name:'125mm Colorsteel box gutter', img: PIC }] },
+  quote_defaults: { email: { accept_to: 'office@floodroofing.co.nz', quote_subject: 'Our quote {ref}', quote_body: 'Kia ora {client}, our own words.' } } }));
+r = await t.pg.evaluate(() => ({ sel: !!(S.settings.selectables && S.settings.selectables.gutters), img: (_selGutterOf('box125') || {}).img || null }));
+check('a reload keeps the products the server holds, the gutter picture with them', r.sel && r.img === 'data:image/png;base64,iVBORw0KGgo=', JSON.stringify(r).slice(0, 160));
+await t.pg.evaluate(() => saveSettings(true)); await t.pg.waitForTimeout(300);
+put = t.puts[t.puts.length - 1] || {}; em = ((put.quote_defaults || {}).email) || {};
+check('…and a save from elsewhere sends that list back, picture and all', ((put.selectables || {}).gutters || [])[0] && put.selectables.gutters[0].img === PIC, JSON.stringify(put.selectables || null).slice(0, 120));
+check('…with the custom quote email as typed, nothing marked for reset', em.quote_body === 'Kia ora {client}, our own words.' && !em.__reset, JSON.stringify({ b: em.quote_body, r: em.__reset }));
+await t.pg.evaluate(async () => { gotoTab('settings'); await new Promise(r => setTimeout(r, 300)); _emxReset('quote'); await saveSettings(true); });
+await t.pg.waitForTimeout(300);
+put = t.puts[t.puts.length - 1] || {}; em = ((put.quote_defaults || {}).email) || {};
+check('Reset to the standard wording names the quote email in __reset, so the server takes it', !em.quote_body && Array.isArray(em.__reset) && em.__reset.includes('quote_body'), JSON.stringify(em.__reset));
+r = await t.pg.evaluate(() => !!(S.settings.quote_defaults.email || {}).__reset);
+check('…and the mark goes once the save has landed', r === false);
+await t.ctx.close();
+
 // ── the acceptance's background PDF can never leave the customer stuck ──
 t = await boot(SET);
 const v = await t.pg.evaluate(async () => {

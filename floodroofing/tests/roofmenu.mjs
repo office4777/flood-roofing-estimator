@@ -8,7 +8,8 @@
 // whenever you are not doing something else. It also promised a drag that
 // never shipped.
 //
-// The panel is now what a roof's own button drops down, one button per roof.
+// The panel was what a roof's own button dropped down, one button per roof
+// (the roof window took that job on 2026-10-29; see the switch below).
 // What this must NOT become is the roof picker that was taken off this canvas
 // once before (see the note by _nthName): six chips crowded the toolbar and
 // picking one HID the other five, which is useless while you are measuring a
@@ -34,6 +35,10 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token','t');
   localStorage.setItem('fr_setup_done','1'); localStorage.setItem('fr_settings','null'); });
 await pg.goto('file://'+DIR+'/app.html');
 await pg.waitForTimeout(2600);
+// SINCE 2026-10-29 the roof button opens the roof WINDOW (tests/roofwindow.mjs).
+// The drop-down panel these pins describe is kept behind one switch — and is
+// still the phone's site-mode sheet — so it is pinned here with the switch on.
+await pg.evaluate(() => { _ROOF_PANEL_DROPDOWN = true; });
 await pg.evaluate((g) => {
   DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;
   DRAW.outline = g.outline.map(p => p.slice()); DRAW.outlineDone = true;

@@ -406,8 +406,13 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 @keyframes rtpDrop{ from{ opacity:0; transform:translateY(-14px); } to{ opacity:1; transform:translateY(0); } }
 @keyframes rtpLift{ from{ opacity:1; transform:translateY(0) scaleY(1); transform-origin:top; }
                     to{ opacity:0; transform:translateY(-10px) scaleY(.82); transform-origin:top; } }
+/* The roof window in its settings mode is the drop-down now (_roofSetupPopup):
+   the same half second in and the same fold out. */
+#_rsModal.rs-drop.rs-anim-in{ animation:rtpDrop .5s cubic-bezier(.22,1,.36,1); }
+.rs-drop.rs-anim-out{ animation:rtpLift .5s cubic-bezier(.4,0,.7,.2) forwards; }
 @media (prefers-reduced-motion:reduce){
   #roofTypePanel.rtp.rtp-anim, #roofTypePanel.rtp.rtp-anim-out{ animation:none; }
+  #_rsModal.rs-drop.rs-anim-in, .rs-drop.rs-anim-out{ animation:none; }
 }
 /* The way out, where the way in was: a full-width hit area with an up arrow,
    not a 9px glyph on a button somewhere else. */
@@ -417,7 +422,21 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 #roofTypePanel .rtp-close:hover{ background:#16314f; }
 #roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#3f5873; margin:0 0 8px; }
 #roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-#roofTypePanel .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
+#qAsSentBar{ flex:1 1 100%; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:4px; padding:8px 12px; background:#fffbeb; border:1px solid #fcd34d; border-left:4px solid #f59e0b; border-radius:9px; font-size:12.5px; color:#0a1628; line-height:1.45; }
+#qAsSentBar .qas-ico{ color:#b45309; font-size:15px; }
+#qAsSentBar .qas-txt{ flex:1 1 320px; }
+#qAsSentBar .qas-btn{ padding:7px 12px; border-radius:8px; border:none; background:#0a1628; color:#fff; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; }
+#qAsSentBar .qas-btn2{ padding:7px 12px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#0a1628; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; }
+#prAsSent{ margin:0 0 12px; padding:12px 14px; background:#fffbeb; border:1px solid #fcd34d; border-left:4px solid #f59e0b; border-radius:10px; font-size:12.5px; color:#0a1628; }
+#prAsSent .pas-hd{ font-weight:800; font-size:13px; margin-bottom:6px; }
+#prAsSent .pas-t{ border-collapse:collapse; width:100%; max-width:560px; margin:2px 0 6px; }
+#prAsSent .pas-t th, #prAsSent .pas-t td{ padding:3px 8px 3px 0; text-align:left; font-size:12px; }
+#prAsSent .pas-t th{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#78716c; }
+#prAsSent .n{ text-align:right; white-space:nowrap; }
+#prAsSent .pas-note{ font-size:11.5px; color:#57534e; line-height:1.45; margin-bottom:8px; }
+#prAsSent .pas-btn{ padding:7px 12px; font-size:12.5px; font-weight:800; background:#0a1628; color:#fff; border:none; border-radius:8px; cursor:pointer; margin-right:8px; }
+#prAsSent .pas-sub{ font-size:11px; color:#78716c; }
+#roofTypePanel .rtp-group, #_rsLent .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
 #roofTypePanel .rtp-sep{ width:1px; height:22px; background:#c3d0de; margin:0 2px; }
 #roofTypePanel .rtp-grow{ flex:1 1 auto; }
 #roofTypePanel .rtp-type{ background:#0099cc; color:#fff; border:1px solid #0099cc; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:7px; line-height:1.2; font-family:inherit; }
@@ -427,12 +446,12 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 #roofTypePanel .tool-btn.rtp-btn-blue{ color:#0077a3; border-color:#0099cc; }
 #roofTypePanel .tool-btn.rtp-btn-red{ color:#dc2626; border-color:#fca5a5; }
 #roofTypePanel .tool-btn.rtp-btn-red:hover{ background:#fef2f2; }
-#roofTypePanel .rtp-field{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#334155; margin:0; }
-#roofTypePanel .rtp-num{ width:58px; margin:0; padding:5px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; }
-#roofTypePanel .rtp-unit{ font-size:12px; color:#64748b; margin-left:-3px; }
+#roofTypePanel .rtp-field, #_rsLent .rtp-field{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#334155; margin:0; }
+#roofTypePanel .rtp-num, #_rsLent .rtp-num{ width:58px; margin:0; padding:5px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; }
+#roofTypePanel .rtp-unit, #_rsLent .rtp-unit{ font-size:12px; color:#64748b; margin-left:-3px; }
 #roofTypePanel .rtp-select{ margin:0; padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; color:#0a1628; width:auto; }
-#roofTypePanel .rtp-check{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#475569; cursor:pointer; margin:0; }
-#roofTypePanel .rtp-check input{ margin:0; }
+#roofTypePanel .rtp-check, #_rsLent .rtp-check{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#475569; cursor:pointer; margin:0; }
+#roofTypePanel .rtp-check input, #_rsLent .rtp-check input{ margin:0; }
 #roofTypePanel .rtp-tag{ font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0369a1; background:#e0f2fe; border-radius:999px; padding:4px 9px; }
 #roofTypePanel .rtp-tip{ font-size:10.5px; color:#94a3b8; margin-top:8px; }
 /* Rotate image: its own slider; the fine controls drop under it on demand. */
@@ -487,6 +506,11 @@ html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
+#cornerBumpRow{padding:0 9px 8px}
+#cornerBumpRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
+#cornerBumpRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+#cornerBumpRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
+#cornerBumpRow .crn-bump:hover:not(.on){background:rgba(255,255,255,.08)}
 html.site-mode #cornerRepoPopup{width:132px!important}   /* !important beats the inline width */
 html.site-mode #cornerRepoPopup .crn-btn{width:28px;height:28px;font-size:13px;border-radius:7px}
 html.site-mode #cornerRepoPopup .crn-grid{grid-template-columns:repeat(3,28px)!important;gap:4px!important;padding:7px!important}
@@ -1170,8 +1194,21 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   width:100%;
   font-family:inherit;
 }
-.nav-btn:hover{background:var(--surface-2);color:var(--text)}
+/* The tabs (2026-10-29, the owner: "the main tab buttons, do a 50/50
+   transparent navy colour, then solid when it's clicked (the existing navy
+   colour)"): half navy under the pointer, the full navy when pressed or open. */
+.nav-btn:hover{background:rgba(10,22,40,.5);color:#fff}
+.nav-btn:hover svg{stroke:#fff}
+.nav-btn:active,.nav-btn.active,.nav-btn.active:hover{background:var(--ink);color:#fff;font-weight:600}
 .nav-btn.active{background:var(--ink);color:#fff;font-weight:600}
+/* THE JOB'S BUTTONS IN THE LEFT MENU (the same message: "move the wording on
+   each button to the left side, then highlight the button in the 50/50
+   transparent blue colour then go solid blue when it's clicked"). Grey at
+   rest, the words on the left, half blue under the pointer, solid blue
+   pressed. A Save that has just answered keeps its green or red. */
+.nav-job-btn{transition:background .15s,color .15s,border-color .15s}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):hover{background:rgba(0,153,204,.5)!important;border-color:rgba(0,153,204,.6)!important;color:#0a1628!important}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):active{background:#0099cc!important;border-color:#0099cc!important;color:#fff!important}
 .nav-btn.active svg{stroke:var(--accent)}
 .nav-btn svg{
   width:16px;height:16px;flex-shrink:0;
@@ -1408,6 +1445,13 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
+/* GUTTERS ONLY (2026-10-28): the canvas draws gutter lines and nothing else,
+   and the Pricing drawer is the scaffold and the gutter card. */
+.gj-only{ display:none !important; }
+body.gutter-job .gj-only{ display:inline-flex !important; }
+body.gutter-job #btn-outline, body.gutter-job #rlDropWrap, body.gutter-job #btn-squarecorner,
+body.gutter-job #btn-calibrate, body.gutter-job #roofTypePanel,
+body.gutter-job #tab-scope #roofPriceTile{ display:none !important; }
 /* Action bar isn't a titled tile — keep it plain. */
 #tab-scope .card.mat-actions{ padding:12px 14px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
 #tab-scope .card.mat-actions .mat-btn{ font-size:12px;padding:7px 12px; }
@@ -4144,9 +4188,9 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .cpb-lo{ display:inline-flex; align-items:center; gap:5px; font-size:12.5px; color:#334155; }
 .cpb-status{ margin-left:auto; font-size:12px; color:#64748b; }
 .cpb-tablewrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:#fff; }
-.cpb-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:720px; table-layout:fixed; }
-.cpb-table th:nth-child(1){ width:92px; } .cpb-table th:nth-child(3){ width:58px; } .cpb-table th:nth-child(4){ width:118px; }
-.cpb-table th:nth-child(5), .cpb-table th:nth-child(6), .cpb-table th:nth-child(7){ width:78px; } .cpb-table th:nth-child(8){ width:34px; }
+.cpb-table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:810px; table-layout:fixed; }
+.cpb-table th:nth-child(1){ width:92px; } .cpb-table th:nth-child(3){ width:92px; } .cpb-table th:nth-child(4){ width:58px; } .cpb-table th:nth-child(5){ width:118px; }
+.cpb-table th:nth-child(6), .cpb-table th:nth-child(7), .cpb-table th:nth-child(8){ width:78px; } .cpb-table th:nth-child(9){ width:34px; }
 .cpb-th-sub{ font-weight:500; opacity:.75; text-transform:none; letter-spacing:0; }
 .cpb-desc-td .cpb-desc{ font-weight:600; }
 .cpb-desc-td .cpb-link{ margin-top:2px; font-size:11.5px; color:#64748b; }
@@ -4208,7 +4252,7 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-addf{ margin-top:8px; width:100%; padding:7px; border:1px dashed #94a3b8; border-radius:7px; background:#fff; font:600 12.5px inherit; color:#0a1628; cursor:pointer; }
 .pbk-right{ flex:1; min-width:0; overflow-y:auto; position:relative; }
 .pbk-list{ padding:6px 8px; }
-.pbk-item{ display:grid; grid-template-columns:96px minmax(0,1fr) 56px 84px; gap:8px; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; border-bottom:1px solid #f1f5f9; user-select:none; }
+.pbk-item{ display:grid; grid-template-columns:96px minmax(0,1fr) 62px 56px 84px; gap:8px; align-items:center; padding:8px 10px; border-radius:7px; cursor:pointer; font-size:12.5px; border-bottom:1px solid #f1f5f9; user-select:none; }
 .pbk-item:hover{ background:#f0f8fb; }
 .pbk-item.sel{ background:#dbeafe; }
 .pbk-code{ color:#64748b; font-size:11.5px; overflow:hidden; text-overflow:ellipsis; }
@@ -4216,6 +4260,43 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .pbk-desc small{ display:block; font-weight:400; color:#64748b; font-size:11px; }
 .pbk-unit{ color:#64748b; font-size:11.5px; }
 .pbk-price{ text-align:right; font-weight:700; color:#0a1628; }
+/* Files & Photos (2026-10-27) */
+#jobFilesModal{ position:fixed; inset:0; background:rgba(10,22,40,.5); z-index:10050; display:flex; align-items:center; justify-content:center; padding:16px; }
+.jf-box{ background:#fff; border-radius:14px; width:760px; max-width:100%; max-height:88vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.35); overflow:hidden; font-family:inherit; }
+.jf-hd{ display:flex; align-items:center; gap:10px; padding:12px 14px; background:#0a1628; color:#fff; flex-wrap:wrap; }
+.jf-hd b{ font-size:15px; } .jf-job{ font-size:12px; opacity:.75; flex:1; }
+.jf-up{ background:#0099cc; color:#fff; border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.jf-x{ border:none; background:rgba(255,255,255,.14); color:inherit; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:14px; }
+.jf-msg{ padding:8px 14px; font-size:12.5px; background:#e0f2fe; color:#075985; } .jf-msg-err{ background:#fee2e2; color:#991b1b; }
+.jf-body{ overflow-y:auto; padding:6px 14px 16px; }
+.jf-sec h4{ margin:14px 0 4px; font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:#0a1628; }
+.jf-note{ margin:0 0 6px; font-size:11.5px; color:#64748b; line-height:1.45; }
+.jf-row{ display:flex; align-items:center; gap:10px; padding:7px 0; border-bottom:1px solid #eef2f6; }
+.jf-ic{ width:44px; height:34px; flex:0 0 44px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+.jf-thumb{ width:44px; height:34px; object-fit:cover; border-radius:5px; background:#f1f5f9; }
+.jf-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+.jf-name{ font-size:13px; font-weight:600; color:#0a1628; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-meta{ font-size:11px; color:#64748b; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jf-acts{ display:flex; gap:5px; flex-shrink:0; }
+.jf-btn{ padding:5px 10px; background:#fff; color:#0a1628; border:1.5px solid #cbd5e1; border-radius:7px; font-size:11.5px; font-weight:700; cursor:pointer; font-family:inherit; }
+.jf-open{ background:#0099cc; border-color:#0099cc; color:#fff; } .jf-del{ color:#b91c1c; }
+.jf-empty{ font-size:12px; color:#64748b; padding:6px 0; }
+.jf-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:6px; }
+.jf-ph{ padding:0; border:1px solid #e2e8f0; border-radius:7px; overflow:hidden; cursor:pointer; background:#f8fafc; aspect-ratio:4/3; }
+.jf-ph img{ width:100%; height:100%; object-fit:cover; display:block; }
+#jobFileViewer{ position:fixed; inset:0; z-index:10060; background:rgba(10,22,40,.92); display:flex; flex-direction:column; }
+.jfv-hd{ display:flex; align-items:center; gap:10px; padding:10px 14px; color:#fff; }
+.jfv-hd b{ flex:1; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.jfv-body{ flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:0 14px 14px; }
+.jfv-img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; background:#fff; }
+.jfv-frame{ width:100%; height:100%; border:none; border-radius:6px; background:#fff; }
+.jfv-text{ width:100%; height:100%; margin:0; overflow:auto; background:#fff; color:#0a1628; border-radius:6px; padding:12px; font-size:12px; white-space:pre; }
+.jfv-none{ color:#fff; font-size:14px; }
+@media (max-width:640px){ .jf-acts .jf-btn:not(.jf-open){ display:none; } }
+.pbk-kind{ justify-self:start; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:999px; }
+.pbk-kind-material{ background:#e0f2fe; color:#075985; }
+.pbk-kind-other{ background:#f1f5f9; color:#475569; }
+.cpb-kind{ font-size:12px; padding:3px 4px; margin:0; width:auto; }
 .pbk-selbar{ position:sticky; bottom:0; background:#0a1628; color:#fff; padding:8px 12px; font-size:12.5px; display:flex; gap:8px; align-items:center; }
 .pbk-selbar select{ padding:4px 6px; border-radius:6px; font-size:12px; margin:0; width:auto; }
 .pbk-empty{ padding:24px; text-align:center; color:#64748b; font-size:13px; }
@@ -5115,7 +5196,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-27T00:40:53Z';
+  window.APP_BUILT_AT = '2026-10-28T23:20:29Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5676,29 +5757,40 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          never been saved, which is the job that needs it most; saveCurrentJob
          carries its own guards (a frozen version on screen, a locked job) and
          _saveClick says what happened either way. -->
-    <button type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
+    <button class="nav-job-btn" type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
             title="Save this job now"
-            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:var(--fr-dark,#0a1628);color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
+            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">💾 Save job</button>
     <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
          into the job details window on 2026-09-29 and swapping jobs is a thing
          you do from anywhere, not something to open a window to reach. -->
-    <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#0099cc;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+    <button class="nav-job-btn" type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">Change job</button>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
          a plain status strip, not a coloured button — the only colour on it is
          the green tick that says the quote has gone. The button in the job
          details window stays; both are drawn by _jobLockRender. -->
-    <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
     <!-- HISTORY & COMMUNICATIONS (2026-10-23, the owner: "put this button as a
          more accessible button in the left menu ... under the 'locked - quote
          sent' button, then move the 'change job' button up to just underneath
          the 'save job'"). The job's timeline and every email with the customer
          about it, one tap from any tab. Shown with the job's other buttons. -->
-    <button type="button" id="navJobHistBtn" class="lock-ok" onclick="_jobHistoryOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:none;border-radius:9px;background:#ea580c;color:#fff;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;float:right;background:rgba(255,255,255,.25);border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <button type="button" id="navJobHistBtn" class="nav-job-btn lock-ok" onclick="_jobHistoryOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <!-- FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
+         below the history and communications button ... change the colour of
+         this new button and the history button to be the same blue as 'change
+         job' and then put the 'unlocked/locked' button at the bottom of those
+         buttons"); 2026-10-28: "change the blue buttons to a grey button, same
+         as 'locked/unlocked' and center the words" — both are the lock strip's
+         grey now, words centred, the count a small blue chip). Everything exported or sent from the job, the office's own
+         uploads, and the Fergus job's files — _jobFilesOpen. -->
+    <button type="button" id="navJobFilesBtn" class="nav-job-btn lock-ok" onclick="_jobFilesOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <button class="nav-job-btn" type="button" id="navJobLockSide" onclick="_jobLockToggle()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
+
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
@@ -6202,6 +6294,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
              line editor's Delete button. The setTool('delete') path is
              kept in JS but no longer clutters the toolbar. -->
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
+        <!-- A Gutters only job's one drawing tool, out where it is seen. -->
+        <button onclick="setTool('gutter')" id="btn-gjgutter" class="tool-btn gj-only" style="color:#7c3aed;border-color:#7c3aed;font-weight:700">〰 Gutter line</button>
         <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
         <div id="rlDropWrap" style="position:relative;display:inline-block">
           <button type="button" id="rlDropBtn" onclick="toggleRoofLinesMenu(event)" style="background:#0a1628;color:#fff;border:1px solid #0a1628;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
@@ -6442,6 +6536,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button onclick="_cornerRepoNudge(-1,0)" class="crn-btn" title="Left 0.01m">◀</button><span style="display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.3);font-size:10px">•</span><button onclick="_cornerRepoNudge(1,0)" class="crn-btn" title="Right 0.01m">▶</button>
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
+        <div id="cornerBumpRow" style="display:none"></div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
       <!-- Ridge / valley junction nudge pad — the corner pad's twin, with one
@@ -6798,6 +6893,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
 <!-- TAB 2: SCOPE & LABOUR -->
 <div class="panel" id="tab-scope">
+  <div id="prAsSent" class="no-print" style="display:none"></div>
   <!-- MAIN SCOPE picker — defines the broad job type and pre-ticks
        the relevant tasks below. Hidden until a job is opened, so the
        user follows Select Job → Map Roof → Scope without picking a
@@ -8716,6 +8812,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
         <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
+        <button type="button" id="jtBtn_gutters" onclick="_setJobType('gutters')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">〰 Gutters only</button>
         <button type="button" id="jtBtn_tender" onclick="_setJobType('tender')" style="display:none;padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">📐 AI Tendering</button>
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:5px">Chooses which quote draft this job uses — you can switch it later on the Quote tab.</div>
@@ -13704,6 +13801,16 @@ try {
       if (!S.settings) S.settings = {};
       if (s.selectables && typeof s.selectables === 'object') S.settings.selectables = s.selectables;
       if (s.price_book && typeof s.price_book === 'object') S.settings.price_book = Object.assign({}, S.settings.price_book || {}, s.price_book);
+      // …and the email wordings, so a tab open since before they were written
+      // never sends the old ones back (2026-10-28). Not under the office's
+      // hands: the Settings tab on screen keeps what is being typed.
+      try {
+        if (s.quote_defaults && s.quote_defaults.email && typeof s.quote_defaults.email === 'object' && document.body.getAttribute('data-tab') !== 'settings'){
+          var _qd0 = S.settings.quote_defaults || {};
+          S.settings.quote_defaults = Object.assign({}, _qd0, { email: Object.assign({}, _qd0.email || {}, s.quote_defaults.email) });
+          window.__settingsUiFilled = false;
+        }
+      } catch(e){}
       try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
       try { _qbBindExtraSetters(); } catch(e){}
       try { if (document.body.getAttribute('data-tab') === 'quote') refreshQuoteProposal(); } catch(e){}
@@ -14206,7 +14313,15 @@ function mergeSettings(s){
       var lp = Object.assign({}, d.labour_pricing, s.labour_pricing || {});
       lp.per_item_hours = Object.assign({}, d.labour_pricing.per_item_hours, (s.labour_pricing && s.labour_pricing.per_item_hours) || {});
       return lp;
-    })()
+    })(),
+    // THE PRODUCTS THE BUSINESS SELLS (2026-10-28, the owner: "the gutter
+    // profile pictures i upload ... disappear after an app reload"). This
+    // function never carried them, so every load set S.settings.selectables
+    // to nothing: the quote fell back to the shipped defaults, opening
+    // Settings seeded those defaults, and the next save from anywhere wrote
+    // them over the stored list — pictures, rates, own grades and options.
+    // Absent stays absent: a save without the key keeps what is stored.
+    selectables: (s.selectables && typeof s.selectables === 'object' && !Array.isArray(s.selectables)) ? s.selectables : undefined
   };
 }
 
@@ -14264,8 +14379,19 @@ async function loadSettings(){
 var _settingsAutosaveTimer = null;
 function _scheduleSettingsAutosave(){
   clearTimeout(_settingsAutosaveTimer);
-  _settingsAutosaveTimer = setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 900);
+  _settingsAutosaveTimer = setTimeout(function(){ _settingsAutosaveTimer = null; try { saveSettings(true); } catch(e){} }, 900);
 }
+// A reload (an app update, a closed tab) inside that 900 ms used to lose what
+// was just typed. Leaving the page saves it now rather than after the beat.
+try {
+  var _settingsFlush = function(){
+    if (!_settingsAutosaveTimer) return;
+    clearTimeout(_settingsAutosaveTimer); _settingsAutosaveTimer = null;
+    try { saveSettings(true); } catch(e){}
+  };
+  window.addEventListener('pagehide', _settingsFlush);
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'hidden') _settingsFlush(); });
+} catch(e){}
 // A Save button that SHOWS it saved (2026-09-22): a spinner for at least a
 // second, then a green tick with the time, or a red "Not saved" — the
 // owner could not tell whether a click had done anything.
@@ -14332,6 +14458,8 @@ async function saveSettings(auto){
     // silent about keep what is already in memory.
     S.settings.branding = Object.assign({}, S.settings.branding || {}, saved.branding || {});
     S.settings.quote_defaults = Object.assign({}, S.settings.quote_defaults || {}, saved.quote_defaults || {});
+    // The reset marks have done their job once a save has landed.
+    try { window.__emxTouched = {}; if (S.settings.quote_defaults && S.settings.quote_defaults.email){ S.settings.quote_defaults.email = Object.assign({}, S.settings.quote_defaults.email); delete S.settings.quote_defaults.email.__reset; } } catch(e){}
     S.settings.jms_keys = saved.jms_keys || S.settings.jms_keys;
     if (saved.billing_email !== undefined) S.settings.billing_email = saved.billing_email;
     // …and put the menu back in step with whatever that merge settled on.
@@ -14454,6 +14582,13 @@ function collectSettingsFromUI(){
   q.email.accept_to = ((document.getElementById('emAcceptTo')||{}).value || '').trim();
   q.email.order_cc  = ((document.getElementById('emOrderCc') ||{}).value || '').trim();
   try { _emxCollect(q.email); } catch(e){}
+  // An email wording the office emptied or put back to the standard ON THIS
+  // SCREEN is a deliberate reset; the server keeps any stored wording over a
+  // blank otherwise (2026-10-28: a stale tab's save wiped a custom quote email).
+  try {
+    var _rs = Object.keys(window.__emxTouched || {}).filter(function(k){ return !q.email[k]; });
+    if (_rs.length) q.email.__reset = _rs; else delete q.email.__reset;
+  } catch(e){}
   q.email.reminder_enabled = !!((document.getElementById('emReminderOn')||{}).checked);
   var _rd = parseInt(((document.getElementById('emReminderDays')||{}).value || ''), 10);
   q.email.reminder_days = (isFinite(_rd) && _rd >= 1 && _rd <= 30) ? _rd : 3;
@@ -15577,6 +15712,25 @@ function _cpbBook(create){
 function _cpbId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 function _cpbNum(v){ var n = parseFloat(String(v == null ? '' : v).replace(/[$,\s]/g, '')); return isFinite(n) ? n : 0; }
 function _cpbSell(it){ var c = _cpbNum(it && it.cost), m = _cpbNum(it && it.markup); return Math.round(c * (1 + m / 100) * 100) / 100; }
+// MATERIAL OR OTHER (2026-10-27, Scott at info@wellingtonroof.co.nz: "For
+// custom pricing suggest adding a tag if the item is a Materials item. Then
+// when the item is selected for a job or roof it can be listed and directly
+// included in the Materials list and total for Materials at Cost"). A
+// Material item added to a job becomes a row of the material take-off at its
+// COST, under the job's own buffer and mark-up; an Other item (skip hire,
+// disposal, a crane) stays a line of its own. No tag means Material — a
+// supplier's list is almost all materials (the owner's call).
+function _cpbKind(it){ return (it && it.kind === 'other') ? 'other' : 'material'; }
+// What a price-book line on a job really cost us: the item's cost × the
+// line's quantity, read off the book by the line's cpbId. A line typed by hand
+// (or whose item has left the book) is at cost — nobody told us its margin.
+function _qCustomLineCost(row){
+  var amt = parseFloat(row && row.amount) || 0;
+  var it = (row && row.cpbId) ? _cpbItem(row.cpbId) : null;
+  if (!it || String(it.cost == null ? '' : it.cost).trim() === '') return amt;
+  var q = parseFloat(row.qty); if (!isFinite(q)) q = 1;
+  return Math.round(q * _cpbNum(it.cost) * 100) / 100;
+}
 // Every edit: stamp the book, re-price, save.
 function _cpbTouch(noSave){
   var cb = _cpbBook(true); if (!cb) return;
@@ -15706,7 +15860,8 @@ function _cpbRender(){
   };
   host.innerHTML =
     '<p class="cpb-intro"><b>This tab is your supplier’s own list</b>, kept as they wrote it — codes, descriptions and your real cost. <b>Default Items</b> is RoofMap’s own list of the things it measures off the roof; link a line here to one of those and it is priced from your supplier from then on.</p>' +
-    '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade. Every change saves by itself, and earlier versions are kept.</p>' +
+    '<p class="cpb-intro">Upload your supplier’s price list (CSV or PDF) and every line lands here to edit. Link a line to the RoofMap item it replaces — your branded 80mm Dektite in place of RoofMap’s ‘80mm pipe flashing’, say — and that item is priced from it on every job: <b>your cost + the mark-up on the line</b>. The job’s own material mark-up (Labour pricing) still goes on top, as it does for every price. Links price your standard steel grade.</p>' +
+    '<p class="cpb-intro"><b>Type</b> says what an item is when you add it to a job with “📖 Add from price book”: a <b>Material</b> joins that roof’s materials list at your <b>cost</b>, and the job’s quantity buffer and material mark-up go on it like every other material (the mark-up on the line here is not used); an <b>Other</b> item — skip hire, disposal, a crane — goes on as a line of its own at the price used. Every change saves by itself, and earlier versions are kept.</p>' +
     '<div class="cpb-bar">' +
       '<label class="qa-btn qa-btn-primary cpb-upload">⬆ Upload price list (CSV or PDF)<input type="file" id="cpbFile" accept=".csv,.txt,.pdf,text/csv,application/pdf" onchange="_cpbFile(this)" hidden></label>' +
       '<button type="button" class="qa-btn" onclick="_cpbAdd()">+ Add item</button>' +
@@ -15748,7 +15903,7 @@ function _cpbRenderTable(){
   }
   wrap.innerHTML =
     '<div class="cpb-tablewrap"><table class="cpb-table"><thead><tr>' +
-      '<th>Code</th><th>Description <span class="cpb-th-sub">\u00B7 replaces RoofMap item</span></th><th>Unit</th><th>Supplier</th><th class="r">Cost $</th><th class="r">Mark-up %</th><th class="r">Price used</th><th></th>' +
+      '<th>Code</th><th>Description <span class="cpb-th-sub">\u00B7 replaces RoofMap item</span></th><th title="Material: added to a job it joins the materials list at its cost, under the job\u2019s buffer and mark-up. Other: it stays a line of its own.">Type</th><th>Unit</th><th>Supplier</th><th class="r">Cost $</th><th class="r">Mark-up %</th><th class="r">Price used</th><th></th>' +
     '</tr></thead><tbody>' +
     slice.map(function(it){
       var id = esc2(it.id);
@@ -15756,6 +15911,9 @@ function _cpbRenderTable(){
       return '<tr data-cpb-row="' + id + '"' + (it.replaces ? ' class="cpb-on"' : '') + '>' +
         '<td>' + f('code', 'cpb-code') + '</td>' +
         '<td class="cpb-desc-td">' + f('desc', 'cpb-desc') + '<select class="cpb-link" data-cpb="' + id + '" data-f="replaces" onchange="_cpbLink(\'' + id + '\',this.value)" title="The RoofMap item this line prices">' + opts(it.replaces || '') + '</select></td>' +
+        '<td><select class="cpb-kind" data-cpb="' + id + '" data-f="kind" onchange="_cpbSet(\'' + id + '\',\'kind\',this.value)" title="Material: joins the job\u2019s materials at its cost. Other: a line of its own.">' +
+          '<option value="material"' + (_cpbKind(it) === 'material' ? ' selected' : '') + '>Material</option>' +
+          '<option value="other"' + (_cpbKind(it) === 'other' ? ' selected' : '') + '>Other</option></select></td>' +
         '<td>' + f('unit', 'cpb-unit') + '</td>' +
         '<td>' + f('supplier', 'cpb-sup', '', ' list="cpbSupList"') + '</td>' +
         '<td class="r">' + f('cost', 'cpb-num', 'number', ' step="0.01"') + '</td>' +
@@ -15815,8 +15973,8 @@ function _cpbSetDefaultMarkup(v){ var cb = _cpbBook(true); if (!cb) return; cb.d
 function _cpbExportCsv(){
   var cb = _cpbBook(); if (!cb || !cb.items.length){ try { _siteToast('Nothing to download yet'); } catch(e){} return; }
   var q = function(v){ v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-  var lines = ['Code,Description,Unit,Supplier,Cost,Markup %,Price used,Replaces RoofMap item'];
-  cb.items.forEach(function(it){ lines.push([it.code, it.desc, it.unit, it.supplier, it.cost, it.markup, _cpbSell(it) || '', it.replaces ? _cpbTargetLabel(it.replaces) : ''].map(q).join(',')); });
+  var lines = ['Code,Description,Type,Unit,Supplier,Cost,Markup %,Price used,Replaces RoofMap item'];
+  cb.items.forEach(function(it){ lines.push([it.code, it.desc, _cpbKind(it) === 'material' ? 'Material' : 'Other', it.unit, it.supplier, it.cost, it.markup, _cpbSell(it) || '', it.replaces ? _cpbTargetLabel(it.replaces) : ''].map(q).join(',')); });
   var blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Custom price book.csv';
   document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -16161,6 +16319,7 @@ function _pbkRender(){
             ' onclick="_pbkItemClick(event,\'' + esc2(it.id) + '\')">' +
             '<span class="pbk-code">' + esc2(it.code || '') + '</span>' +
             '<span class="pbk-desc">' + esc2(it.desc || '') + (it.supplier ? '<small>' + esc2(it.supplier) + '</small>' : '') + '</span>' +
+            '<span class="pbk-kind pbk-kind-' + _cpbKind(it) + '" title="' + (_cpbKind(it) === 'material' ? 'Joins the job\u2019s materials at its cost' : 'Added as a line of its own') + '">' + (_cpbKind(it) === 'material' ? 'Material' : 'Other') + '</span>' +
             '<span class="pbk-unit">' + esc2(it.unit || '') + '</span>' +
             '<span class="pbk-price">' + (_cpbSell(it) > 0 ? '$' + _cpbSell(it).toFixed(2) : '—') + '</span>' +
           '</div>';
@@ -16247,9 +16406,86 @@ function _pbkDeleteFolder(id){
 function _pbkAddToJob(id){
   var it = _cpbItem(id); if (!it) return;
   var area = _PBK.area || 'material';
+  // A MATERIAL goes into the roof's materials at its cost, whichever card's
+  // button was pressed — the job's buffer and mark-up go on it like every
+  // other material. A pole shed's take-off is its estimator's, so a shed
+  // keeps the line it always got.
+  if (_cpbKind(it) === 'material' && !_psIsShed()){
+    _cpbMatAdd(it);
+    _pbPickClose();
+    if (_qCustomBaseArea(area) !== 'material'){ try { _siteToast('Added to this roof\u2019s materials \u2014 it is a Material item in your price book'); } catch(e){} }
+    return;
+  }
   var unit = _cpbSell(it);
   _qAddCustom(area, { desc: ((it.code ? it.code + ' ' : '') + (it.desc || '')).trim(), qty: 1, unit: unit, uom: it.unit || '', amount: Math.round(unit * 100) / 100, cpbId: it.id });
   _pbPickClose();
+}
+// ── PRICE-BOOK MATERIALS ON A JOB ──
+// S.quote.cpbMat[key] = [{id, cpbId, code, desc, unit, supplier, qty, cost}],
+// keyed by the pricing tab exactly as the custom lines are ('material' for the
+// main roof, 'material#<idx>' for an extra roof's own tab). Each is one row of
+// that roof's material take-off (_cpbMatRows), so the qty and $/unit boxes,
+// the ✕, the buffer, the mark-up, the materials total, the profitability
+// panel, the pricing CSV and the Fergus push all take it as they take every
+// other material. The cost is the one the book held when it was added — a
+// price on a job does not move because the supplier list did.
+function _cpbMatAdd(it, idx){
+  if (!S.quote) return;
+  var key = _qCustomArea('material', idx);
+  if (!S.quote.cpbMat || typeof S.quote.cpbMat !== 'object') S.quote.cpbMat = {};
+  if (!Array.isArray(S.quote.cpbMat[key])) S.quote.cpbMat[key] = [];
+  S.quote.cpbMat[key].push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    cpbId: it.id, code: it.code || '', desc: it.desc || '', unit: it.unit || 'ea', supplier: it.supplier || '',
+    qty: 1, cost: _cpbNum(it.cost) });
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { resyncQuoteLines(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
+}
+// The tabs a take-off covers: one tab while the pricing drawer scopes it, every
+// tab on the selection (the Job Pack's all-roofs view). A folded roof is priced
+// on the main roof's tab, and that is where its lines live.
+function _cpbMatKeysInScope(){
+  var multi = !!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+  if (!multi) return ['material'];
+  var keys = [];
+  (_matSelectedRoofIndices() || [0]).forEach(function(i){
+    var tab = (i > 0) ? i : 0;
+    try { if (tab > 0 && _roofQuoteMode(tab) === 'folded') tab = 0; } catch(e){}
+    var k = _qCustomArea('material', tab);
+    if (keys.indexOf(k) < 0) keys.push(k);
+  });
+  return keys;
+}
+function _cpbMatRows(rows){
+  var store = (window.S && S.quote && S.quote.cpbMat) || null;
+  if (!store || typeof store !== 'object') return;
+  _cpbMatKeysInScope().forEach(function(k){
+    (Array.isArray(store[k]) ? store[k] : []).forEach(function(e){
+      if (!e || !e.id) return;
+      var u = e.unit || 'ea';
+      var lbl = ((e.code ? e.code + ' ' : '') + (e.desc || '')).trim() || 'Price book item';
+      rows.push({ key: 'cpb:' + e.id, label: lbl, autoQty: parseFloat(e.qty) || 0, autoUnit: u,
+                  variants: [{ value: 'cpb', label: e.supplier ? e.supplier : 'Your price book', price: parseFloat(e.cost) || 0, unit: u }],
+                  defaultVariant: 'cpb', singleVariant: true, decimalQty: true, isCpb: true,
+                  note: 'from your price book, at cost' });
+    });
+  });
+}
+// ✕ on a price-book material takes it off the job (it was added, not worked
+// out, so there is nothing to restore it to).
+function _cpbMatRemove(entryId){
+  var store = (window.S && S.quote && S.quote.cpbMat) || null;
+  if (!store) return false;
+  var hit = false;
+  Object.keys(store).forEach(function(k){
+    if (!Array.isArray(store[k])) return;
+    var n = store[k].length;
+    store[k] = store[k].filter(function(e){ return !(e && e.id === entryId); });
+    if (store[k].length !== n) hit = true;
+    if (!store[k].length) delete store[k];
+  });
+  return hit;
 }
 // ── the Defaults tab ──
 function _pbkDefaultsHtml(){
@@ -16888,16 +17124,20 @@ async function _matSaveAsDefault(path, n, label){
   }
 }
 function _deleteMatRow(key){
-  MATERIAL_DELETED[key] = true;
+  var _cm = /(?:^|:)cpb:(.+)$/.exec(String(key || ''));
+  if (_cm && _cpbMatRemove(_cm[1])) delete MATERIAL_OVERRIDES[key];
+  else MATERIAL_DELETED[key] = true;
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
 }
 function restoreDeletedMatRows(){
   MATERIAL_DELETED = {};
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
 }
 function openPriceSettings(){
   gotoTab('settings');
@@ -17079,6 +17319,53 @@ function _gutterOnJob(){
 // from the same estimate. Anything else in the labour group (the building
 // consent allowance) is a lot price and stays here as a row.
 function _psIsShed(){ return !!(window.S && S.quote && S.quote.quoteKind === 'poleshed'); }
+// ── GUTTERS ONLY (2026-10-28, the owner: "add an job type called 'Gutters
+// only' and the canvas is very basic, only allows to draw the gutter line,
+// the quote gets changed to suit gutter"). A job that is the spouting and
+// nothing else: the canvas draws gutter lines only, the quote offers the
+// gutter, its colour, brackets and downpipes, and the pricing is the scaffold
+// and the gutter card. Nothing of a re-roof is priced or shown.
+function _isGutterJob(){ try { return !!(window.S && S.quote && S.quote.quoteKind === 'gutters'); } catch(e){ return false; } }
+// The tools a gutters-only canvas offers.
+var GJ_TOOLS = { select:1, gutter:1, tape:1, customscale:1, calibrate:1 };
+// The body class the canvas and the Pricing drawer key on, and a gutter
+// always picked: a gutters-only quote with "No new guttering" is no quote.
+function _gutterJobSync(){
+  var on = _isGutterJob();
+  try { document.body.classList.toggle('gutter-job', on); } catch(e){}
+  if (!on || !S.quote) return;
+  try {
+    var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+    var gs = _selGutters();
+    if (gs.length && !gs.some(function(g){ return g && g.id === p.gutterType; })) p.gutterType = gs[0].id;
+    _gjColourFit(p);
+  } catch(e){}
+  try { if (DRAW && DRAW.tool && !GJ_TOOLS[DRAW.tool]) setTool('gutter'); } catch(e){}
+}
+// ── THE GUTTER'S OWN COLOURS ──
+// Colorsteel box gutter: the Colorsteel chart. Marley Typhoon: Marley's
+// Typhoon range. Marley Classic: white, and white only.
+function _gjPalette(id){
+  if (id == null) id = (((window.S && S.quote && S.quote.proposalOptions) || {}).gutterType) || '';
+  var g = null; try { g = _selGutterOf(id); } catch(e){}
+  var nm = String(id + ' ' + ((g && g.name) || '')).toLowerCase();
+  if (/classic/.test(nm)) return { kind:'classic', list:[{ name:'White', hex:'#f4f4ef' }] };
+  if (/typhoon|marley|pvc/.test(nm)) return { kind:'typhoon', list:MARLEY_TYPHOON_COLOURS };
+  return { kind:'colorsteel', list:MAXAM_COLOURS };
+}
+// A colour the new gutter does not come in is no pick; Classic is white.
+function _gjColourFit(p){
+  if (!p) return;
+  var P = _gjPalette(p.gutterType);
+  if (P.kind === 'classic'){ p.gutterColour = 'White'; return; }
+  var c = p.gutterColour || '';
+  if (c && c !== QB_COLOUR_UNDECIDED && !P.list.some(function(x){ return x.name === c; })) p.gutterColour = '';
+}
+function _setProposalOption_gutterColour(v){
+  var cur = ((window.S && S.quote && S.quote.proposalOptions) || {}).gutterColour || '';
+  if (v && cur === v) v = '';
+  _setProposalOption('gutterColour', v);
+}
 function _shedKeySlug(label){
   return 'shed_' + String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 }
@@ -17420,6 +17707,8 @@ function _buildMaterialPriceRows(){
   // The supplier's own product where the Custom Price Book links one: the
   // row reads "DFE80 Dektite EPDM 80mm — Steel & Tube", not RoofMap's name.
   try { _cpbBrandRows(rows); } catch(e){}
+  // Price-book items the office added as materials, at their cost.
+  try { _cpbMatRows(rows); } catch(e){}
   return rows;
 }
 function _cpbPathForVariant(row, v){
@@ -18583,7 +18872,22 @@ function _pricingRoofParts(ri){
   } else {
     mat += _roofCustomTotal('material', ri); sc += _roofCustomTotal('scaffold', ri);
   }
-  return { labour: lab, material: mat, scaffold: sc, total: lab + mat + sc };
+  // THE MAIN ROOF'S OPTIONS ARE PART OF WHAT IT COMES TO (2026-10-29, job
+  // 3306: the card read $36,622.54 beside a quote of $39,280.83 — the
+  // $2,658.29 between them the RI-925 profile row). The quote's picks that
+  // are not another roof (a profile, a gauge, a grade, a gutter) are priced on
+  // the main roof, exactly as the profitability panel's main-roof view counts
+  // them, so the card lists each and its total is that view's revenue.
+  var opts = [];
+  if (base){
+    try { (_profitSelectionItems() || []).forEach(function(it){
+      if (!it || it.key === 'roof') return;
+      var v = f(it.revenue); if (Math.abs(v) < 0.005) return;
+      opts.push({ label: String(it.label || 'Option').replace(/\s*\([^)]*\)\s*$/, ''), value: v });
+    }); } catch(e){}
+  }
+  var ot = opts.reduce(function(a, o){ return a + o.value; }, 0);
+  return { labour: lab, material: mat, scaffold: sc, options: opts, total: lab + mat + sc + ot };
 }
 // The shed's price is the figure the Shed estimator produces (psSubtotal) —
 // the roofing labour / material cards do not feed it — so the card says the
@@ -18618,6 +18922,7 @@ function _pricingRoofPriceHtml(ri){
     line('Labour', p.labour) +
     line('Material', p.material) +
     (p.scaffold > 0.005 ? line('Scaffolding', p.scaffold) : '') +
+    (p.options || []).map(function(o){ return line(o.label, o.value); }).join('') +
     '<div class="pr-price-tot"><span>Total</span><strong>' + money(p.total) + '</strong></div>' +
     '<div class="pr-price-gst">+ GST = ' + money(p.total * (1 + _pricingGstRate() / 100)) + '</div>' +
   '</div>';
@@ -18991,7 +19296,8 @@ async function _swSave(){
       labour_pricing: S.settings.labour_pricing || {},
       // The company's products. This was missing, so everything set up in
       // Settings → Products stayed in the browser it was typed into.
-      selectables: S.settings.selectables || null,
+      // Left out when this screen has none: null would erase the stored list.
+      selectables: S.settings.selectables || undefined,
     });
     try { localStorage.setItem('fr_settings', JSON.stringify(S.settings)); } catch(e){}
     try { applyBranding(); } catch(e){}
@@ -19490,7 +19796,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -19618,7 +19924,8 @@ function restoreFromJob(j){
     // job that HAS a quote; an older one carries no quoteKind at all and the
     // readers then fell through to window._pendingJobType, which is how the
     // last job's Pole Shed followed the office onto the next client's job.
-    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : 'roofing'; } catch(e){}
+    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : (S.quote.quoteKind === 'gutters') ? 'gutters' : 'roofing'; } catch(e){}
+    try { _gutterJobSync(); } catch(e){}
     try { _clearPendingJobType(); } catch(e){}
     try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
@@ -19693,6 +20000,7 @@ function restoreFromJob(j){
     DRAW.gableRidgeOffset = snap.draw.gableRidgeOffset || 0;
     DRAW.ridgeBreaks = Array.isArray(snap.draw.ridgeBreaks) ? snap.draw.ridgeBreaks : [];
     DRAW.hipEnds = (snap.draw.hipEnds && typeof snap.draw.hipEnds === 'object') ? snap.draw.hipEnds : null;
+    DRAW.bumpModes = (snap.draw.bumpModes && typeof snap.draw.bumpModes === 'object') ? snap.draw.bumpModes : null;
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -19836,6 +20144,12 @@ function _jobLockRender(){
   if (cb) cb.style.display = show ? 'block' : 'none';
   var hb = document.getElementById('navJobHistBtn');
   if (hb) hb.style.display = show ? 'block' : 'none';
+  var fb = document.getElementById('navJobFilesBtn');
+  if (fb) fb.style.display = show ? 'block' : 'none';
+  try {
+    if (show && _JF.jobId !== S.currentJobId && _JF.askedFor !== S.currentJobId){ _JF.askedFor = S.currentJobId; _jfLoad(true); }
+    _jfCountSet();
+  } catch(e){}
   var sb = document.getElementById('navJobLockSide');
   if (sb){
     sb.style.display = show ? 'block' : 'none';
@@ -19851,6 +20165,8 @@ function _jobLockRender(){
   // edit, so the chip says that instead of "more info".
   var more = document.getElementById('navJobMore');
   if (more) more.textContent = (show && sent) ? 'Click for new version or info' : 'Click for more info';
+  // The Viewing menu says "locked" or "editing" — keep it in step.
+  try { if (document.getElementById('qvViewingMenu') && typeof _qvRenderBar === 'function') _qvRenderBar(); } catch(e){}
 }
 async function _jobLockToggle(){
   if (!S.currentJobId) return;
@@ -19906,7 +20222,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|_jobFilesOpen|_jobFilesClose|_jf[A-Za-z]*|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -22495,6 +22811,7 @@ function _resetQuoteForFreshJob(seed){
   seed = seed || {};
   _clearPendingJobType();
   try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
+  try { _gutterJobSync(); } catch(e){}
   if (S.quote){
     if (seed.client != null) S.quote.client = seed.client;
     if (seed.addr   != null) S.quote.addr   = seed.addr;
@@ -22686,6 +23003,7 @@ else _installNextButtons();
 function _setJobType(k){
   window._pendingJobType = _quoteKindNorm(k);
   if (S.quote) S.quote.quoteKind = window._pendingJobType;
+  try { _gutterJobSync(); } catch(e){}
   _syncJobTypeToggle();
   try { _syncQuoteKindToggle(); } catch(e){}
 }
@@ -22694,6 +23012,7 @@ function _setJobType(k){
 // tender job on an account without the feature has no tab to open).
 function _quoteKindNorm(k){
   if (k === 'poleshed') return 'poleshed';
+  if (k === 'gutters') return 'gutters';
   if (k === 'tender' && _tenderingAvailable()) return 'tender';
   return 'roofing';
 }
@@ -22703,15 +23022,16 @@ function _syncJobTypeToggle(){
   var avail = _poleShedsAvailable();
   var wrap = document.getElementById('jtTypeToggle');
   var tnd = _tenderingAvailable();
-  if (wrap) wrap.style.display = (avail || tnd) ? '' : 'none';
+  // Gutters only is offered to every business, so the choice is always there.
+  if (wrap) wrap.style.display = '';
   // Only once we KNOW the account does not sell them.
   if (_poleShedsKnown() && !avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
   if (!tnd && window._pendingJobType === 'tender') window._pendingJobType = 'roofing';
   var ps = avail && (window._pendingJobType === 'poleshed');
-  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : 'roofing');
+  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : window._pendingJobType === 'gutters' ? 'gutters' : 'roofing');
   var psb = document.getElementById('jtBtn_poleshed'); if (psb) psb.style.display = avail ? '' : 'none';
   var tnb = document.getElementById('jtBtn_tender'); if (tnb) tnb.style.display = tnd ? '' : 'none';
-  ['roofing','poleshed','tender'].forEach(function(k){
+  ['roofing','poleshed','gutters','tender'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
     if (!b) return;
     var on = (k === cur);
@@ -26526,6 +26846,8 @@ function _gutterExcluded(){
   // A pole shed's guttering is in its take-off, so the roofing gutter is
   // never priced beside it and never offered as an optional extra.
   if (_psIsShed()) return true;
+  // A Gutters only job IS the gutter: it can never be excluded.
+  if (_isGutterJob()) return false;
   return !!(window.S && S.quote && S.quote.gutterExcluded);
 }
 // Is guttering actually ON the customer's quote (as opposed to merely priced)?
@@ -26570,7 +26892,7 @@ function _toggleGutterExcluded(on){
 // is stripped from the PDF, the printed quote and the customer view on top of
 // the __CUSTOMER_MODE guard.
 function _gutterExcludeRowHtml(){
-  if (window.__CUSTOMER_MODE) return '';
+  if (window.__CUSTOMER_MODE || _isGutterJob()) return '';
   return '<div class="no-print" style="padding:7px 11px;border-top:1px dashed var(--ed-line);background:#fbfaf7">'+
       '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;color:var(--ed-ink-2)">'+
         '<input type="checkbox" onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
@@ -26590,7 +26912,7 @@ function _gutterExcludedPanelBody(){
 // The office-only tick that turns gutter pricing off for this job. Rendered on
 // the Pricing card and on the Selections page; never shown on a customer link.
 function _gutterExcludeToggleHtml(style){
-  if (window.__CUSTOMER_MODE) return '';
+  if (window.__CUSTOMER_MODE || _isGutterJob()) return '';
   var ex = _gutterExcluded();
   return '<label style="'+(style||'')+'display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:'+(ex?'#b45309':'var(--text2)')+'">'+
       '<input type="checkbox" '+(ex?'checked':'')+' onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
@@ -26862,7 +27184,19 @@ function _profitFigures(view){
         if (li && (li._base || li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding')) return;
         other += (parseFloat(li && li.qty) || 0) * (parseFloat(li && li.unit) || 0);
       });
-      if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: other, hrs: 0, sub:'typed on the quote · at cost' });
+      // A line from the price book cost us the item's cost, not its price
+      // (2026-10-27): the margin its mark-up carries is real and shows here.
+      // Every line typed by hand stays at cost.
+      var otherCost = other;
+      try {
+        ['labour', 'material', 'scaffold'].forEach(function(area){
+          _qCustomBaseLines(area).forEach(function(row){
+            otherCost -= (parseFloat(row && row.amount) || 0) - _qCustomLineCost(row);
+          });
+        });
+      } catch(e){ otherCost = other; }
+      if (Math.abs(other) >= 0.005) items.push({ key:'lines', label:'Other lines on the quote', revenue: other, cost: otherCost, hrs: 0,
+        sub: (Math.abs(other - otherCost) >= 0.005) ? 'typed on the quote · price-book items at their cost' : 'typed on the quote · at cost' });
     } catch(e){}
   }
   out.items = items;
@@ -26983,7 +27317,163 @@ function _pxHeadTotals(){
     set('profitCard', 'GP ' + pct.toFixed(1) + '% \u00b7 ' + fmtMoney(gp), !(pf.revenue > 0));
   } catch(e){ set('profitCard', ''); }
 }
+// AS SENT, AND AS WORKED OUT TODAY (2026-10-29, the owner on job 3306: "when i
+// opened the sent quote, it shows a lower price in the pricing tab as it does
+// to the total price the customer was sent, it seems like some custom items or
+// custom pricing i entered didn't save"). A sent quote keeps its own Labour /
+// Materials / Scaffolding lines — that is what the customer holds — while the
+// Pricing drawer works the job out again from the roof, the price book, the
+// products and the typed prices AS THEY ARE NOW. When the two disagree the
+// drawer says so, part by part, instead of leaving two totals on screen and
+// the office to guess which one is real. A draft duplicated from a sent copy
+// remembers what it was duplicated from (`dupFrom`), says the same, and can
+// carry the sent figures across as a line on each card ("Keep the sent
+// prices") — an honest, visible, deletable line rather than a hidden fudge.
+function _qBaseParts(q){
+  var o = { labour: 0, materials: 0, scaffold: 0, found: false };
+  ((q && Array.isArray(q.lineItems)) ? q.lineItems : []).forEach(function(l){
+    if (!l || l._custom) return;
+    var d = String(l.desc || '').trim();
+    var k = l._base || (/^labou?r/i.test(d) ? 'labour' : /^material/i.test(d) ? 'materials' : /^scaffold/i.test(d) ? 'scaffold' : null);
+    if (!k || o[k] == null) return;
+    o[k] += (parseFloat(l.qty) || 0) * (parseFloat(l.unit) || 0);
+    o.found = true;
+  });
+  ['labour', 'materials', 'scaffold'].forEach(function(k){ o[k] = Math.round(o[k] * 100) / 100; });
+  return o;
+}
+// The same three figures _syncQuoteBaseLineItems writes, worked out now.
+function _qBaseToday(){
+  var o = { labour: 0, materials: 0, scaffold: 0 };
+  try {
+    o.scaffold = (S.quote && S.quote.scaffold) ? (_scaffoldEff(S.quote.scaffold).price || 0) : 0;
+    var multi = !_psIsShed() && (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+    var gf = (_psIsShed() || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
+    o.materials = (multi ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials) || 0)) * gf;
+    o.labour = multi ? _labourPriceForRoof(0) : (parseFloat(S.labour) || 0);
+    if (_isGutterJob()){ o.materials = 0; o.labour = 0; }
+    // The office's own lines are line items of their own on both sides
+    // (_qBaseParts leaves them out too), so they never read as a difference.
+  } catch(e){}
+  ['labour', 'materials', 'scaffold'].forEach(function(k){ o[k] = Math.round((o[k] || 0) * 100) / 100; });
+  return o;
+}
+// A version's stored total is incl GST; the comparison is ex GST.
+function _asSentVersionSub(totIncl){
+  var t = parseFloat(totIncl); if (!isFinite(t) || t <= 0) return null;
+  var r = ((S.quote && S.quote.gstRate) || 0) / 100;
+  return Math.round(t / (1 + r) * 100) / 100;
+}
+var _AS_SENT_LBL = { labour: 'Labour', materials: 'Materials', scaffold: 'Scaffolding', other: 'Options (profile, gauge, grade)' };
+var _AS_SENT_AREA = { labour: 'labour', materials: 'material', scaffold: 'scaffold', other: 'material' };
+function _asSentInfo(){
+  if (!window.S || !S.quote || window.__CUSTOMER_MODE || _psIsShed()) return null;
+  var v = S._qvViewing, src = null, sent = null, carried = false;
+  if (v && (v.kind === 'sent' || v.kind === 'accepted')){
+    sent = _qBaseParts(S.quote);
+    src = (v.kind === 'accepted' ? 'The accepted quote' : 'The sent quote') + (v.at ? ' (' + _qvWhen(v.at) + ')' : '');
+  } else if (S.quote.dupFrom && S.quote.dupFrom.parts){
+    sent = S.quote.dupFrom.parts; carried = !!S.quote.dupFrom.carried;
+    src = 'This draft was duplicated from ' + (S.quote.dupFrom.label || 'the sent quote') + (S.quote.dupFrom.at ? ' (' + _qvWhen(S.quote.dupFrom.at) + ')' : '') + ', which';
+  }
+  if (!sent || !sent.found) return null;
+  var today = _qBaseToday(), diffs = {}, tot = 0;
+  ['labour', 'materials', 'scaffold'].forEach(function(k){
+    var d = Math.round(((sent[k] || 0) - (today[k] || 0)) * 100) / 100;
+    if (Math.abs(d) >= 1){ diffs[k] = d; tot += d; }
+  });
+  // On a duplicated draft whose sent sub-total is known, whatever the three
+  // base lines do not explain is the options (a profile, a gauge, a grade
+  // priced differently today) — named, so the two totals add up.
+  var _dsub = null;
+  if (!v && S.quote.dupFrom){
+    _dsub = (S.quote.dupFrom.sub != null) ? parseFloat(S.quote.dupFrom.sub) : null;
+    // A draft duplicated before the sub-total was recorded: the send it came
+    // from is found by its time, and its stored total stands in.
+    if (_dsub == null && S.quote.dupFrom.at){
+      try { var _vs = _qvStore(); var _hit = _qvSends(_vs).concat(_vs.accepted ? [_vs.accepted] : []).filter(function(d){ return d && d.at === S.quote.dupFrom.at; })[0];
+            if (_hit) _dsub = _asSentVersionSub(_hit.total); } catch(e){}
+    }
+  }
+  if (_dsub != null && isFinite(_dsub)){
+    try {
+      var all = Math.round((_dsub - (_quoteMoney().sub || 0)) * 100) / 100;
+      var other = Math.round((all - tot) * 100) / 100;
+      if (Math.abs(other) >= 1){ diffs.other = other; tot += other; }
+    } catch(e){}
+  }
+  return { src: src, sent: sent, today: today, diffs: diffs, total: Math.round(tot * 100) / 100, draft: !v, carried: carried,
+           sentSub: _dsub };
+}
+function _asSentRender(){
+  var el = document.getElementById('prAsSent'); if (!el) return;
+  var i = null; try { i = _asSentInfo(); } catch(e){}
+  try { _asSentBarRender(i); } catch(e){}
+  if (!i || !Object.keys(i.diffs).length || i.carried){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  var m = function(n){ return '$' + (Math.round(n * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var rows = ['labour', 'materials', 'scaffold'].map(function(k){
+    var d = i.diffs[k];
+    return '<tr><td>' + _AS_SENT_LBL[k] + '</td><td class="n">' + m(i.sent[k] || 0) + '</td><td class="n">' + m(i.today[k] || 0) + '</td>' +
+      '<td class="n" style="font-weight:800;color:' + (d == null ? '#94a3b8' : (d > 0 ? '#b45309' : '#047857')) + '">' +
+      (d == null ? 'same' : (d > 0 ? m(d) + ' less today' : m(-d) + ' more today')) + '</td></tr>';
+  }).join('') + (i.diffs.other != null
+    ? '<tr><td>' + _AS_SENT_LBL.other + '</td><td class="n"></td><td class="n"></td><td class="n" style="font-weight:800;color:' + (i.diffs.other > 0 ? '#b45309' : '#047857') + '">' +
+      (i.diffs.other > 0 ? m(i.diffs.other) + ' less today' : m(-i.diffs.other) + ' more today') + '</td></tr>' : '');
+  el.style.display = 'block';
+  el.innerHTML =
+    '<div class="pas-hd">' + esc(i.src) + ' was priced differently from today’s working-out</div>' +
+    '<table class="pas-t"><thead><tr><th></th><th class="n">As sent</th><th class="n">Worked out today</th><th class="n"></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="pas-note">The sent quote keeps its own figures — that is what the customer holds. Today’s come from the roof, the price book, the products and the prices typed on this job as they are now, so one of those has changed since it was sent' +
+      (i.diffs.materials != null ? ' (a material’s price, its quantity, the buffer or the mark-up)' : '') + '.</div>' +
+    (i.draft
+      ? '<button type="button" class="pas-btn" onclick="_asSentCarry()">Keep the sent prices on this draft</button>' +
+        '<span class="pas-sub">adds a line for the difference on each card above, so this draft comes to what was sent — delete it any time</span>'
+      : '<div class="pas-sub">Create new draft → Duplicate this quote, and the draft can keep the sent prices.</div>');
+}
+// THE SAME COMPARISON ON THE QUOTE TAB (2026-10-29, job 3306: the owner
+// duplicated Sent quote 2 and saw a lower total with the Pricing drawer shut,
+// so the yellow box inside it was never seen). One line under the Viewing
+// sentence: how much less (or more) this draft comes to than what was sent,
+// part by part, with the same button.
+function _asSentBarRender(info){
+  var bar = document.getElementById('qaVersions'); if (!bar) return;
+  var el = document.getElementById('qAsSentBar');
+  var i = (info !== undefined) ? info : null;
+  if (info === undefined){ try { i = _asSentInfo(); } catch(e){ i = null; } }
+  if (!i || !i.draft || i.carried || !Object.keys(i.diffs).length){ if (el) el.remove(); return; }
+  if (!el){ el = document.createElement('div'); el.id = 'qAsSentBar'; el.className = 'no-print'; }
+  if (el.parentNode !== bar) bar.appendChild(el);
+  var m = function(n){ return '$' + (Math.round(Math.abs(n) * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var parts = ['materials', 'labour', 'scaffold', 'other'].filter(function(k){ return i.diffs[k] != null; }).map(function(k){
+    var d = i.diffs[k]; return '<b>' + _AS_SENT_LBL[k] + '</b> ' + m(d) + (d > 0 ? ' less' : ' more');
+  });
+  var t = i.total;
+  el.innerHTML = '<span class="qas-ico">⚠</span><span class="qas-txt">This draft comes to <b>' + m(t) + ' ' + (t > 0 ? 'less' : 'more') + '</b> (ex GST) than ' +
+    esc(String(i.src || 'the sent quote').replace(/^This draft was duplicated from /, '').replace(/, which$/, '')) + ' — ' + parts.join(' · ') +
+    '. Today’s figures come from the roof, the price book and the products as they are now.</span>' +
+    '<button type="button" class="qas-btn" onclick="_asSentCarry()">Keep the sent prices</button>' +
+    '<button type="button" class="qas-btn2" onclick="try{_openPricingPanel()}catch(e){}">See in Pricing</button>';
+}
+function _asSentCarry(){
+  var i = null; try { i = _asSentInfo(); } catch(e){}
+  if (!i || !i.draft) return;
+  var when = (S.quote.dupFrom && S.quote.dupFrom.at) ? ' ' + _qvWhen(S.quote.dupFrom.at) : '';
+  Object.keys(i.diffs).forEach(function(k){
+    var d = i.diffs[k];
+    _qAddCustom(_AS_SENT_AREA[k], { desc: 'As sent' + when + (k === 'other' ? ' — options' : '') + ' (difference from today’s working-out)', qty: 1, unit: d, uom: '', amount: d });
+  });
+  S.quote.dupFrom.carried = true;
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  _asSentRender();
+  try { _asSentBarRender(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast('The sent prices are carried onto this draft'); } catch(e){}
+}
 function renderProfitability(){
+  try { _asSentRender(); } catch(e){}
   var wrap = document.getElementById('profitWrap');
   // Always nudge the persistent top job bar so the cost row stays
   // in sync even when the profitability dashboard panel isn't open.
@@ -27570,6 +28060,288 @@ function _jobFileRemove(i){
   renderJobFiles();
   try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
 }
+// ── FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
+// below the history and communications button, allow the user to add in
+// photo's or files from their computer ... click into this new button to see
+// all the photo's and files and actually open the files from within
+// roofmap ... everytime the user exports a pdf or anything, that file should
+// automatically also save in the files and photos on that job (including a
+// sent job pack, or sent quote) ... this button should also load any files
+// and photos from fergus if fergus is connnected").
+// The bytes live in the server's private 'job-files' bucket (GET/POST
+// /jobs/:id/files…), NEVER in the job row: a row rewritten with megabytes on
+// every autosave is how the database stalled in September. A file goes
+// sign → PUT straight to storage → landed. `_jfKeep` is the one call every
+// export and send makes; it never throws and never asks anything.
+var _JF = { files: null, jobId: null, busy: 0, ferg: null, msg: '' };
+var JF_SOURCE_NAMES = {
+  'quote-pdf': 'Quote PDF', 'sent-quote': 'Sent quote', 'jobpack-pdf': 'Job Pack PDF', 'jobpack-print': 'Job Pack (printed)',
+  'jobpack-fergus': 'Job Pack sent to Fergus', 'quote-fergus': 'Quote sent to Fergus', 'pricing-csv': 'Pricing CSV',
+  'pricing-fergus': 'Pricing sent to Fergus', 'order-pdf': 'Material order', 'sent-order': 'Sent material order', 'export': 'Exported'
+};
+function _jfCanKeep(){
+  try {
+    if (window.__CUSTOMER_MODE || window.__PLAYGROUND) return false;
+    if (!window.S || !S.currentJobId || S.isSampleJob) return false;
+    return true;
+  } catch(e){ return false; }
+}
+function _jfBlobOf(x){
+  if (!x) return null;
+  if (typeof Blob !== 'undefined' && x instanceof Blob) return x;
+  if (typeof x === 'string' && /^data:/.test(x)){
+    var m = /^data:([^;,]*)(;base64)?,(.*)$/.exec(x); if (!m) return null;
+    var raw = m[2] ? atob(m[3]) : decodeURIComponent(m[3]);
+    var u8 = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) u8[i] = raw.charCodeAt(i);
+    return new Blob([u8], { type: m[1] || 'application/octet-stream' });
+  }
+  if (typeof x === 'string') return new Blob([x], { type: 'text/plain' });
+  return null;
+}
+// One file up: sign, PUT, landed. Answers the new file's id.
+async function _jfPut(jobId, blob, name, kind, source, onPct){
+  var sg = await api('POST', '/jobs/' + jobId + '/files/sign', { name: name, size: blob.size, mime: blob.type || 'application/octet-stream', kind: kind, source: source || '' });
+  await new Promise(function(res, rej){
+    var x = new XMLHttpRequest();
+    x.open('PUT', sg.signedUrl, true);
+    x.setRequestHeader('content-type', blob.type || 'application/octet-stream');
+    x.setRequestHeader('x-upsert', 'false');
+    if (onPct) x.upload.onprogress = function(e){ if (e.lengthComputable) onPct(100 * e.loaded / e.total); };
+    x.onload = function(){ (x.status >= 200 && x.status < 300) ? res() : rej(new Error('storage answered ' + x.status)); };
+    x.onerror = function(){ rej(new Error('the upload did not reach storage')); };
+    x.send(blob);
+  });
+  await api('POST', '/jobs/' + jobId + '/files/' + sg.fileId + '/landed', {});
+  return sg.fileId;
+}
+// Every export and send keeps a copy here, by itself. Fire and forget.
+function _jfKeep(data, name, source){
+  try {
+    if (!_jfCanKeep()) return Promise.resolve(null);
+    var blob = _jfBlobOf(data); if (!blob || !blob.size) return Promise.resolve(null);
+    var jobId = S.currentJobId;
+    return _jfPut(jobId, blob, String(name || 'file').slice(0, 160), 'export', source || 'export')
+      .then(function(id){ if (_JF.jobId === jobId) _jfLoad(true); _jfCountSet(); return id; })
+      .catch(function(e){ try { console.warn('Files & Photos: could not keep ' + name, e && e.message); } catch(_){} return null; });
+  } catch(e){ return Promise.resolve(null); }
+}
+// The quote as it went: built from what is on screen (the Sent version, once
+// the send has switched to it) and kept as a PDF.
+async function _jfKeepQuotePdf(source){
+  if (!_jfCanKeep()) return;
+  try {
+    try { _qaMsg('Keeping a copy of the sent quote in Files & Photos\u2026'); } catch(e){}
+    var pdf = await _buildQuotePdf({ scale: 1.5 });
+    if (!pdf) { try { _qaMsg(''); } catch(e){} return; }
+    var blob = (pdf instanceof Blob) ? pdf : (pdf.output ? pdf.output('blob') : null);
+    var id = blob ? await _jfKeep(blob, (source === 'sent-quote' ? 'Sent - ' : '') + _quotePdfFilename(), source) : null;
+    try { _qaMsg(id ? '\u2713 A copy of the sent quote is in Files & Photos.' : ''); } catch(e){}
+  } catch(e){ try { console.warn('Files & Photos: quote PDF', e && e.message); } catch(_){} }
+}
+function _jfCountSet(){
+  var c = document.getElementById('navJobFilesCount'); if (!c) return;
+  var n = (_JF.jobId === (window.S && S.currentJobId) && Array.isArray(_JF.files)) ? _JF.files.length : 0;
+  c.textContent = n ? String(n) : ''; c.style.display = n ? 'inline-block' : 'none';
+}
+async function _jfLoad(quiet){
+  var jobId = window.S && S.currentJobId;
+  if (!jobId){ _JF.files = []; _JF.jobId = null; _jfRender(); return; }
+  if (_JF.jobId !== jobId){ _JF.files = null; _JF.ferg = null; }
+  _JF.jobId = jobId;
+  if (!quiet) _jfRender();
+  try {
+    var r = await api('GET', '/jobs/' + jobId + '/files');
+    if (_JF.jobId !== jobId) return;
+    _JF.files = (r && r.files) || []; _JF.err = '';
+  } catch(e){ if (_JF.jobId === jobId){ _JF.err = 'Could not read this job’s files: ' + ((e && e.message) || e); if (!_JF.files) _JF.files = []; } }
+  _jfRender(); _jfCountSet();
+}
+async function _jfLoadFergus(){
+  if (!(window.S && S.linkedJobId)) { _JF.ferg = null; return; }
+  _JF.ferg = { loading: true, files: [] }; _jfRender();
+  try {
+    var token = localStorage.getItem('fr_token') || '';
+    var r = await fetch(PROXY + '/fergus-files/list?jobId=' + encodeURIComponent(String(S.linkedJobId)), { headers: { 'Authorization': 'Bearer ' + token } });
+    var data = await r.json().catch(function(){ return {}; });
+    _JF.ferg = { ok: !!(data && data.ok), files: ((data && data.files) || []).filter(function(f){ return f && f.url; }) };
+  } catch(e){ _JF.ferg = { ok: false, files: [], err: (e && e.message) || String(e) }; }
+  _jfRender();
+}
+function _jobFilesOpen(){
+  if (!(window.S && S.currentJobId)){ try { _siteToast('Save the job first — its files are kept with it.'); } catch(e){} return; }
+  var old = document.getElementById('jobFilesModal'); if (old) old.remove();
+  var host = document.createElement('div');
+  host.id = 'jobFilesModal'; host.className = 'no-print';
+  host.addEventListener('click', function(e){ if (e.target === host) _jobFilesClose(); });
+  document.body.appendChild(host);
+  _JF.msg = '';
+  _jfRender();
+  _jfLoad();
+  _jfLoadFergus();
+}
+function _jobFilesClose(){ var m = document.getElementById('jobFilesModal'); if (m) m.remove(); _jfViewerClose(); }
+function _jfIsImage(mime, name){ return /^image\//.test(mime || '') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(name || ''); }
+function _jfWhen(iso){ try { var d = new Date(iso); return d.toLocaleString('en-NZ', { day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' }); } catch(e){ return ''; } }
+function _jfRow(icon, name, meta, actions, attrs){
+  return '<div class="jf-row"' + (attrs || '') + '><span class="jf-ic">' + icon + '</span>' +
+    '<span class="jf-main"><span class="jf-name" title="' + esc2(name) + '">' + esc2(name) + '</span><span class="jf-meta">' + meta + '</span></span>' +
+    '<span class="jf-acts">' + actions + '</span></div>';
+}
+function _jfRender(){
+  var host = document.getElementById('jobFilesModal'); if (!host) return;
+  var files = _JF.files, loading = (files == null);
+  var mine = (files || []), exp = mine.filter(function(f){ return f.kind === 'export'; }), up = mine.filter(function(f){ return f.kind !== 'export'; });
+  var stored = function(f){
+    var ic = _jfIsImage(f.mime, f.name) ? '<img class="jf-thumb" data-jf-thumb="' + esc2(f.id) + '" alt="">' : _jobFileIcon(f.mime || '', f.name || '');
+    var meta = esc2(_jfWhen(f.at)) + ' · ' + esc2(_jobFileFmtSize(f.size)) +
+      (f.kind === 'export' && f.source ? ' · ' + esc2(JF_SOURCE_NAMES[f.source] || f.source) : '') +
+      (f.author ? ' · ' + esc2(f.author) : '');
+    return _jfRow(ic, f.name, meta,
+      '<button type="button" class="jf-btn jf-open" onclick="_jfOpenStored(\'' + esc2(f.id) + '\')">Open</button>' +
+      '<button type="button" class="jf-btn" title="Download" onclick="_jfDownloadStored(\'' + esc2(f.id) + '\')">⬇</button>' +
+      '<button type="button" class="jf-btn jf-del" title="Delete this file" onclick="_jfDelete(\'' + esc2(f.id) + '\')">✕</button>',
+      ' data-jf-file="' + esc2(f.id) + '"');
+  };
+  var sec = function(title, note, body){ return '<section class="jf-sec"><h4>' + title + '</h4>' + (note ? '<p class="jf-note">' + note + '</p>' : '') + body + '</section>'; };
+  var empty = function(t){ return '<div class="jf-empty">' + t + '</div>'; };
+  // What the job carried already: files kept on the job and its site photos.
+  var legacy = [];
+  ((S && S.files) || []).forEach(function(f, i){ legacy.push(_jfRow(_jobFileIcon(f.mime || '', f.name || ''), f.name || 'file', esc2(_jobFileFmtSize(f.size)),
+    '<button type="button" class="jf-btn jf-open" onclick="_jfOpenLegacy(' + i + ')">Open</button>')); });
+  var photos = ((S && S.photos) || []).filter(function(p){ return p && p.src; });
+  var ferg = _JF.ferg;
+  var fergHtml = '';
+  if (window.S && S.linkedJobId){
+    if (!ferg || ferg.loading) fergHtml = empty('Loading the files on Fergus job ' + esc2(_fergusDisplayNo ? _fergusDisplayNo() : S.linkedJobId) + '…');
+    else if (!ferg.files.length) fergHtml = empty(ferg.ok === false ? 'Could not read the Fergus job’s files' + (ferg.err ? ' (' + esc2(ferg.err) + ')' : '') + '.' : 'No files on the Fergus job.');
+    else fergHtml = ferg.files.map(function(f, i){
+      var nm = f.name || ('Fergus file ' + (i + 1));
+      var ic = _fergusIsImage(f) ? '<img class="jf-thumb" data-jf-fthumb="' + i + '" alt="">' : _jobFileIcon(f.contentType || '', nm);
+      return _jfRow(ic, nm, 'Fergus' + (f.createdAt || f.created_at ? ' · ' + esc2(_jfWhen(f.createdAt || f.created_at)) : ''),
+        '<button type="button" class="jf-btn jf-open" onclick="_jfOpenFergus(' + i + ')">Open</button>', ' data-jf-ferg="' + i + '"');
+    }).join('');
+  }
+  host.innerHTML = '<div class="jf-box" role="dialog" aria-label="Files and photos">' +
+    '<div class="jf-hd"><b>📁 Files &amp; Photos</b><span class="jf-job">' + esc2((S.quote && S.quote.ref) ? 'Job ' + S.quote.ref : '') + '</span>' +
+      '<label class="jf-up">⬆ Upload files or photos<input type="file" id="jfUploadInput" multiple hidden onchange="_jfUpload(this)"></label>' +
+      '<button type="button" class="jf-x" onclick="_jobFilesClose()" title="Close">✕</button></div>' +
+    (_JF.msg ? '<div class="jf-msg">' + _JF.msg + '</div>' : '') +
+    (_JF.err ? '<div class="jf-msg jf-msg-err">' + esc2(_JF.err) + '</div>' : '') +
+    '<div class="jf-body">' +
+      sec('Exported &amp; sent from RoofMap', 'This section only holds files RoofMap has exported or sent on this job — every quote and Job Pack PDF, sent quote, pricing sheet and material order is kept here automatically, newest first.',
+        loading ? empty('Loading…') : (exp.length ? exp.map(stored).join('') : empty('Nothing exported or sent from this job yet.'))) +
+      sec('Your uploads', '', loading ? empty('Loading…') : (up.length ? up.map(stored).join('') : empty('Plans, photos, documents — use “Upload files or photos” above.'))) +
+      (photos.length ? sec('Site photos on the quote', '', '<div class="jf-grid">' + photos.map(function(p, i){
+        return '<button type="button" class="jf-ph" onclick="_jfOpenPhoto(' + i + ')" title="' + esc2(p.caption || ('Photo ' + (i + 1))) + '"><img src="' + esc2(p.src) + '" alt=""></button>'; }).join('') + '</div>') : '') +
+      (legacy.length ? sec('Kept on the job', '', legacy.join('')) : '') +
+      ((window.S && S.linkedJobId) ? sec('From Fergus', '', fergHtml) : '') +
+    '</div></div>';
+  _jfThumbs();
+}
+// Thumbnails come through short-lived links, a few at a time.
+var _JF_THUMB = {};
+function _jfThumbs(){
+  document.querySelectorAll('#jobFilesModal img[data-jf-thumb]').forEach(function(img){
+    var id = img.getAttribute('data-jf-thumb');
+    if (_JF_THUMB[id]){ img.src = _JF_THUMB[id]; return; }
+    api('GET', '/jobs/' + S.currentJobId + '/files/' + id + '/url').then(function(r){ if (r && r.url){ _JF_THUMB[id] = r.url; img.src = r.url; } }).catch(function(){});
+  });
+  var ff = (_JF.ferg && _JF.ferg.files) || [];
+  document.querySelectorAll('#jobFilesModal img[data-jf-fthumb]').forEach(function(img){
+    var f = ff[+img.getAttribute('data-jf-fthumb')]; if (!f) return;
+    _fergusDownloadBlob(f.url).then(function(b){ img.src = URL.createObjectURL(b); }).catch(function(){});
+  });
+}
+async function _jfUpload(input){
+  var list = Array.from((input && input.files) || []); if (input) input.value = '';
+  if (!list.length) return;
+  var jobId = S.currentJobId; if (!jobId) return;
+  var ok = 0, bad = [];
+  for (var i = 0; i < list.length; i++){
+    var f = list[i];
+    _JF.msg = 'Uploading ' + esc2(f.name) + ' (' + (i + 1) + ' of ' + list.length + ')…'; _jfRender();
+    try { await _jfPut(jobId, f, f.name, 'upload', '', function(p){ var m = document.querySelector('#jobFilesModal .jf-msg'); if (m) m.textContent = 'Uploading ' + f.name + ' — ' + Math.round(p) + '%'; }); ok++; }
+    catch(e){ bad.push(f.name + ' (' + ((e && e.message) || e) + ')'); }
+  }
+  _JF.msg = (ok ? '✓ ' + ok + ' file' + (ok === 1 ? '' : 's') + ' uploaded.' : '') + (bad.length ? ' Not uploaded: ' + esc2(bad.join('; ')) : '');
+  await _jfLoad(true);
+}
+async function _jfUrl(id){ var r = await api('GET', '/jobs/' + S.currentJobId + '/files/' + id + '/url'); return r; }
+// Opened from a blob of its own bytes, not the storage link: a blob is the
+// page's own and always shows in a frame, whatever headers the store sends,
+// and a PDF never turns into a download instead of opening.
+var _JF_OBJ = [];
+async function _jfOpenStored(id){
+  try {
+    var r = await _jfUrl(id);
+    var url = r.url;
+    try {
+      var resp = await fetch(r.url);
+      if (resp.ok){ var b = await resp.blob(); if (r.mime && b.type !== r.mime) b = new Blob([b], { type: r.mime }); url = URL.createObjectURL(b); _JF_OBJ.push(url); }
+    } catch(e){}
+    _jfViewer(r.name, r.mime, url);
+  }
+  catch(e){ _JF.msg = 'Could not open it: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+async function _jfDownloadStored(id){
+  try {
+    var r = await _jfUrl(id);
+    var b = await (await fetch(r.url)).blob();
+    _jfSaveBlob(b, r.name);
+  } catch(e){ _JF.msg = 'Could not download it: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+function _jfSaveBlob(blob, name){
+  var u = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = u; a.download = name || 'file'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+}
+async function _jfDelete(id){
+  var f = (_JF.files || []).filter(function(x){ return x.id === id; })[0];
+  if (!confirm('Delete ' + ((f && f.name) || 'this file') + ' from the job?')) return;
+  try { await api('DELETE', '/jobs/' + S.currentJobId + '/files/' + id); _JF.msg = '✓ Deleted.'; }
+  catch(e){ _JF.msg = 'Could not delete it: ' + esc2((e && e.message) || e); }
+  await _jfLoad(true);
+}
+function _jfOpenLegacy(i){ var f = ((S && S.files) || [])[i]; if (f) _jfViewer(f.name, f.mime, f.data); }
+function _jfOpenPhoto(i){ var p = ((S && S.photos) || []).filter(function(x){ return x && x.src; })[i]; if (p) _jfViewer(p.caption || ('Photo ' + (i + 1)) + '.jpg', 'image/jpeg', p.src); }
+async function _jfOpenFergus(i){
+  var f = ((_JF.ferg && _JF.ferg.files) || [])[i]; if (!f) return;
+  try { var b = await _fergusDownloadBlob(f.url); var u = URL.createObjectURL(b); _jfViewer(f.name || 'Fergus file', b.type || f.contentType || '', u); _JF_OBJ.push(u); }
+  catch(e){ _JF.msg = 'Could not open it from Fergus: ' + esc2((e && e.message) || e); _jfRender(); }
+}
+// THE FILE OPENS INSIDE ROOFMAP: a picture as a picture, a PDF in the
+// browser's own viewer, a text or CSV file as text; anything else the browser
+// cannot show is offered as a download.
+async function _jfViewer(name, mime, url){
+  var _old = document.getElementById('jobFileViewer'); if (_old) _old.remove();
+  var v = document.createElement('div');
+  v.id = 'jobFileViewer'; v.className = 'no-print';
+  var isImg = _jfIsImage(mime, name), isPdf = /pdf/i.test(mime || '') || /\.pdf$/i.test(name || ''),
+      isText = /^text\/|csv|json/i.test(mime || '') || /\.(csv|txt|json)$/i.test(name || '');
+  v.innerHTML = '<div class="jfv-hd"><b>' + esc2(name || 'File') + '</b>' +
+    '<button type="button" class="jf-btn" id="jfvDownload">⬇ Download</button>' +
+    '<button type="button" class="jf-x" onclick="_jfViewerClose()" title="Close">✕</button></div>' +
+    '<div class="jfv-body">' +
+      (isImg ? '<img class="jfv-img" src="' + esc2(url) + '" alt="">' :
+       isPdf ? '<iframe class="jfv-frame" src="' + esc2(url) + '" title="' + esc2(name || 'PDF') + '"></iframe>' :
+       isText ? '<pre class="jfv-text">Loading…</pre>' :
+       '<div class="jfv-none">This kind of file can’t be shown here — download it to open it.</div>') +
+    '</div>';
+  document.body.appendChild(v);
+  document.getElementById('jfvDownload').onclick = async function(){
+    try { var b = await (await fetch(url)).blob(); _jfSaveBlob(b, name); } catch(e){ window.open(url, '_blank'); }
+  };
+  if (isText){
+    try { var t = await (await fetch(url)).text(); var pre = v.querySelector('.jfv-text'); if (pre) pre.textContent = t.slice(0, 400000); }
+    catch(e){ var pre2 = v.querySelector('.jfv-text'); if (pre2) pre2.textContent = 'Could not read it: ' + ((e && e.message) || e); }
+  }
+}
+function _jfViewerClose(){ var v = document.getElementById('jobFileViewer'); if (v) v.remove(); _JF_OBJ.splice(0).forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} }); }
+document.addEventListener('keydown', function(e){
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('jobFileViewer')){ _jfViewerClose(); e.stopPropagation(); return; }
+  if (document.getElementById('jobFilesModal')) _jobFilesClose();
+});
 // A site photo becomes the Map Roof canvas background — the no-JMS answer
 // to "Import from Fergus". Same pipeline as Upload from PC.
 function _jobPhotoUseAsBg(i){
@@ -29501,8 +30273,32 @@ function _selectables(){
   var frozen = !!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || (window.S && (S._qvViewing || (typeof _jobLockActive === 'function' && _jobLockActive()))));
   if (ok(snap) && (frozen || !(window.S && S.settings && ok(S.settings.selectables)))) return snap;
   var cfg = (window.S && S.settings && S.settings.selectables);
-  if (ok(cfg)) return cfg;
+  if (ok(cfg)) return _selMergeCarried(cfg, snap);
   return _defaultSelectables();
+}
+// A QUOTE KEEPS THE PRODUCTS IT WAS BUILT WITH (2026-10-29, the owner on job
+// 3306: "i created a new draft and clicked duplicate this quote, it deleted the
+// custom roof profile and changed the price total"). The draft read Settings'
+// list alone, and RI-925 was no longer in it (the list the reload bug of
+// 2026-10-28 wrote over), so the profile the quote was sent on — and its
+// price — fell away, and the next autosave stamped the poorer list over the
+// quote's own copy. Any product the quote's own snapshot carries that Settings
+// has no row for at all is offered beside Settings' list. A product Settings
+// REMOVED keeps its row there (removed:true), so it stays removed; one that
+// simply is not there any more is not the quote's to lose.
+function _selMergeCarried(cfg, snap){
+  if (!snap || typeof snap !== 'object' || !cfg) return cfg;
+  var out = null;
+  ['grades', 'profiles', 'gutters', 'extras'].forEach(function(k){
+    var live = Array.isArray(cfg[k]) ? cfg[k] : [], had = Array.isArray(snap[k]) ? snap[k] : [];
+    if (!had.length) return;
+    var seen = {}; live.forEach(function(x){ if (x && x.id != null) seen[x.id] = 1; });
+    var add = had.filter(function(x){ return x && x.id != null && !seen[x.id]; });
+    if (!add.length) return;
+    if (!out){ out = {}; Object.keys(cfg).forEach(function(kk){ out[kk] = cfg[kk]; }); }
+    out[k] = live.concat(add);
+  });
+  return out || cfg;
 }
 // *All() includes removed products, so a quote that already names one can
 // still resolve it. The plain list is what a NEW quote may choose from.
@@ -30363,6 +31159,8 @@ function _selScaffoldBasePrice(){
   // so there is nothing to upgrade and no 25% anywhere — the card, the
   // summary, the total, the priced snapshot and the profitability alike.
   if (q.gutterNoPlatform) return 0;
+  // A Gutters only job: the scaffold priced is the one the gutter needs.
+  if (q.quoteKind === 'gutters') return 0;
   // Priced on a platform scaffold already: choosing a gutter has nothing to
   // upgrade the site TO, so there is no base to charge the 25% on. This is
   // the one place the scaffold type changes the arithmetic — every uplift
@@ -30502,7 +31300,7 @@ function _qpSelectionChanges(){
     // add-on can never double-count.
     var gm = _selGutterOf(p.gutterType);
     if (gm) {
-      out.push({ label: gm.name || p.gutterType, delta: _selGutterDelta(p.gutterType) });
+      out.push({ label: gm.name || p.gutterType, delta: _selGutterDelta(p.gutterType), key: 'gutter' });
       // A gutter lifts the site from edge protection to a full working
       // platform — 25% on the scaffolding. Whether a given product does that
       // is now the product's own answer, so a roofer adding one is asked
@@ -30682,7 +31480,7 @@ function _qpSelectionChangesPriced(P){
   if (p.gutterType !== undefined && P.gutter[p.gutterType] != null) {
     // The override follows the selection, exactly as the live calc does.
     var gd = (P.gutterOverride != null && !P.gutterExcluded) ? P.gutterOverride : P.gutter[p.gutterType];
-    out.push({ label: P.gutterLabel[p.gutterType] || p.gutterType, delta: gd });
+    out.push({ label: P.gutterLabel[p.gutterType] || p.gutterType, delta: gd, key: 'gutter' });
     var up = (P.gutterUplift[p.gutterType] === false) ? 0 : P.scaffoldUplift;
     if (up > 0)
       out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: up });
@@ -30931,6 +31729,8 @@ function _setProposalOption(field, value){
   // The customer's own path is the debounced post above, and they have no job
   // to autosave, so this is office-only.
   if (!window.__CUSTOMER_MODE){ try { _scheduleAutosave(); } catch(e){} }
+  // A pick moves the main roof's card too (its options rows).
+  if (!window.__CUSTOMER_MODE){ try { _prMatChanged(); } catch(e){} }
 }
 function _setProposalOption_grade(v){     _setProposalOption('steelGrade', v); }
 function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v); }
@@ -31026,7 +31826,12 @@ function _selAddProfilePrompt(pick){
   try { refreshQuoteProposal(); } catch(e){}
   return id;
 }
-function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
+function _setProposalOption_gutter(v){
+  // On a Gutters only quote the colour follows the gutter: one the new gutter
+  // does not come in is cleared, and Marley Classic is white.
+  try { if (_isGutterJob() && S.quote){ var _p = S.quote.proposalOptions || (S.quote.proposalOptions = {}); var _o = _p.gutterType; _p.gutterType = v; _gjColourFit(_p); _p.gutterType = _o; } } catch(e){}
+  _setProposalOption('gutterType', v);
+}
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
 function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
 function _setProposalOption_disposal(v){  _setProposalOption('disposal', v); }
@@ -31770,7 +32575,12 @@ function _qvBackToDraft(opts){
   var keep = S.quote.versions;
   if (S._qvWork){ S.quote = JSON.parse(JSON.stringify(S._qvWork)); S.quote.versions = keep; }
   S._qvViewing = null; S._qvWork = null;
-  if (!(opts && opts.stayLocked)){ S.jobLocked = false; try { _jobLockRender(); } catch(e){} }
+  // A SENT QUOTE STAYS LOCKED (2026-10-28, the owner on job 3299: "this
+  // quote has been sent, why is the quote not locked?"). Choosing the draft
+  // from the Viewing menu unlocked the job silently; now a job whose quote
+  // has gone out keeps its lock there, and the first edit asks to unlock.
+  if (opts && opts.relock){ S.jobLocked = !!(S.currentJobId && _quoteWasSent()); try { _jobLockRender(); } catch(e){} }
+  else if (!(opts && opts.stayLocked)){ S.jobLocked = false; try { _jobLockRender(); } catch(e){} }
   try { buildQuote(); } catch(e){}
   try { refreshQuoteProposal(); } catch(e){}
   try { recalcQuoteTotals(); } catch(e){}
@@ -31840,8 +32650,25 @@ function _qvSaveDraft(work, label){
 // draft has changes nobody saved, ask: save it as a draft, or overwrite it.
 function _qvNewDraft(){
   if (!S.quote) return;
+  // Duplicating a frozen sent / accepted copy: remember what it was priced at,
+  // so the Pricing drawer can say what changed since (_asSentInfo).
+  var _dupFrom = null;
+  try {
+    if (S._qvViewing && (S._qvViewing.kind === 'sent' || S._qvViewing.kind === 'accepted')){
+      var _bp = _qBaseParts(S.quote);
+      if (_bp.found) _dupFrom = { label: S._qvViewing.kind === 'accepted' ? 'the accepted quote' : 'the sent quote', at: S._qvViewing.at || null, parts: _bp };
+      // The whole sub-total too (ex GST), so a difference in the options —
+      // a profile or a gauge priced differently today — is named as well as
+      // the three base lines (2026-10-29, job 3306).
+      // The figure EMAILED (the version's own stored total, as the Viewing
+      // menu shows it), not the copy worked out again on screen — the office
+      // reads live option prices even on a sent copy.
+      if (_dupFrom){ try { var _sv = _asSentVersionSub(S._qvViewing.total); if (_sv != null) _dupFrom.sub = _sv; } catch(e){} }
+    }
+  } catch(e){}
   var go = function(){
     var base = _qvFreshDraft(S.quote);                // what is on screen, minus any acceptance
+    if (_dupFrom) base.dupFrom = _dupFrom; else delete base.dupFrom;
     var keep = S.quote.versions;
     S.quote = base;
     S.quote.versions = keep;
@@ -31978,10 +32805,10 @@ function _qvRenderBar(){
   var viewingSend = (cur === 'sent') ? (sends.find(function(d){ return d.id === viewing.id; }) || v.sent) : null;
   var name = cur === 'sent' ? 'Sent quote' + (viewingSend ? sendNo(viewingSend) : '') : cur === 'accepted' ? 'Accepted quote' : workingName;
   var html = '<details class="qv-menu lock-ok" id="qvViewingMenu"><summary class="qv-btn qv-viewing">Viewing: <b>' + name + '</b>' +
-    (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">editing</span>') +
+    (viewing ? '<span class="qv-when">' + _qvWhen(viewing.at) + '</span>' : '<span class="qv-when">' + ((typeof _jobLockActive === 'function' && _jobLockActive()) ? 'locked' : 'editing') + '</span>') +
     ' <span class="qv-caret">&#9662;</span></summary><div class="qv-menu-list">' +
     '<div class="qv-menu-hd">Versions</div>' +
-    item(viewing ? '_qvBackToDraft()' : '', workingName, 'The editable quote', cur === 'draft') +
+    item(viewing ? '_qvBackToDraft({relock:true})' : '', workingName, 'The editable quote', cur === 'draft') +
     // Every send, newest first: "Sent quote 2 · latest", "Sent quote 1".
     sends.slice().reverse().map(function(d){
       var latest = d === v.sent;
@@ -32014,6 +32841,7 @@ function _qvRenderBar(){
   if (host){ host.innerHTML = html.slice(0, cut); bar.innerHTML = '<div class="qv-status">' + status + '</div>'; }
   else bar.innerHTML = html + '<div class="qv-status">' + status + '</div>';
   bar.style.display = 'flex';
+  try { _asSentBarRender(); } catch(e){}
 }
 // Undoing an acceptance has to REACH THE CUSTOMER'S LINK, which reads this
 // job's saved quote. It used to clear the flag in memory and call
@@ -32636,7 +33464,7 @@ function _qStampCustomerCopy(){
   if (S.quote.accepted) return;
   try {
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
-      (S.settings && S.settings.selectables) || _defaultSelectables()));
+      _selMergeCarried((S.settings && S.settings.selectables) || _defaultSelectables(), S.quote.selectablesSnapshot)));
   } catch (e) {}
   try {
     S.quote.share = S.quote.share || {};
@@ -33164,6 +33992,8 @@ function _qpBookActive(){
 // the summary rail on a computer and the book on a phone. Saved on the
 // quote, so the customer gets the style the office chose.
 function _quoteStyle(){
+  // A Gutters only quote has no A4 document of its own: always the modern one.
+  if (_isGutterJob()) return 'modern';
   var v = (window.S && S.quote && S.quote.style) || '';
   if (v !== 'classic' && v !== 'modern'){
     // No style on the quote: the company's default, else modern. The
@@ -33276,6 +34106,7 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 function _qbPages(){
   // The phone book turns the same shed sections as the computer layout.
   if (S.quote && S.quote.quoteKind === 'poleshed') return _qModernApply(_psModernSections());
+  if (_isGutterJob()) return _qModernApply(_gjSections(true));
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
     { key:'cover',     label:'Your quote',    html:_qbCover }
@@ -33974,6 +34805,16 @@ var CUST_DESC_DEFAULT = [
   'Install all associated Flashings',
   'Tidy site and issue Warranty sign-off'
 ];
+// What a Gutters only quote says it will do. "Supply & install new <the
+// gutter>" is added by the gutter pick itself (_qbOptionLines).
+var CUST_DESC_GUTTERS = [
+  'Edge-Protection / Scaffolding',
+  'Remove existing spouting and downpipes and take them away',
+  'Install new brackets at the spacing the gutter calls for',
+  'Seal all joints, outlets and stop ends',
+  'Tidy site and remove all debris'
+];
+function _custDescDefault(){ return _isGutterJob() ? CUST_DESC_GUTTERS : CUST_DESC_DEFAULT; }
 function _qbGradeName(){
   try {
     var p = (S.quote && S.quote.proposalOptions) || {};
@@ -33984,7 +34825,7 @@ function _qbGradeName(){
 }
 function _custDescLines(){
   var q = S.quote || {};
-  var lines = (Array.isArray(q.custDesc) && q.custDesc.length) ? q.custDesc : CUST_DESC_DEFAULT;
+  var lines = (Array.isArray(q.custDesc) && q.custDesc.length) ? q.custDesc : _custDescDefault();
   return lines.map(function(l){ return String(l || '').trim(); }).filter(Boolean);
 }
 function _qbInclusionLines(){
@@ -34087,9 +34928,11 @@ function _classicScopeDefaultLines(){
 // renames it in Edit description — a repair or a new-build is not a re-roof.
 // Saved as S.quote.proposalTitle; saving the default deletes it.
 var QB_PROPOSAL_TITLE = 'Re-Roof Proposal';
+var QB_PROPOSAL_TITLE_GUTTERS = 'Guttering Proposal';
+function _qbProposalTitleDefault(){ return _isGutterJob() ? QB_PROPOSAL_TITLE_GUTTERS : QB_PROPOSAL_TITLE; }
 function _qbProposalTitle(){
   var t = String((S.quote && S.quote.proposalTitle) || '').trim();
-  return t || QB_PROPOSAL_TITLE;
+  return t || _qbProposalTitleDefault();
 }
 function _qdescOpen(){
   if (!S.quote) return;
@@ -34106,7 +34949,7 @@ function _qdescOpen(){
         : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
       '<div class="qdesc-body">'+
       (classic ? '' : '<div class="qdesc-title"><label for="qdescTitle">Title</label>'+
-        '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(QB_PROPOSAL_TITLE)+'"></div>')+
+        '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(_qbProposalTitleDefault())+'"></div>')+
       '<div class="qdesc-grp">'+
         '<div class="qdesc-sub">'+(classic ? 'What\u2019s included and our process' : 'What\u2019s included')+
           '<span>'+(classic ? 'One line a bullet on the document.' : 'One line a step of the work. The customer sees these with a tick.')+'</span></div>'+
@@ -34184,8 +35027,8 @@ function _qdescAdd(k){
 }
 function _qdescReset(){
   var h = document.getElementById('qdescModal'); if (!h) return;
-  h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice();
-  var ti = document.getElementById('qdescTitle'); if (ti) ti.value = QB_PROPOSAL_TITLE;
+  h._lines = h._classic ? _classicScopeDefaultLines() : _custDescDefault().slice();
+  var ti = document.getElementById('qdescTitle'); if (ti) ti.value = _qbProposalTitleDefault();
   _qdescPaint();
 }
 function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
@@ -34202,7 +35045,8 @@ function _qdescSave(){
   }
   // Saved as the default means "use the default" — so a later change to the
   // default reaches quotes nobody customised.
-  var isDefault = lines.length === CUST_DESC_DEFAULT.length && lines.every(function(l, i){ return l === CUST_DESC_DEFAULT[i]; });
+  var _dd = _custDescDefault();
+  var isDefault = lines.length === _dd.length && lines.every(function(l, i){ return l === _dd[i]; });
   if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
   var excl = (h._excl || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
   if (excl.length) S.quote.custExcl = excl; else delete S.quote.custExcl;
@@ -34211,7 +35055,7 @@ function _qdescSave(){
   var ti = document.getElementById('qdescTitle');
   if (ti){
     var tv = String(ti.value || '').trim().slice(0, 60);
-    if (!tv || tv === QB_PROPOSAL_TITLE) delete S.quote.proposalTitle; else S.quote.proposalTitle = tv;
+    if (!tv || tv === _qbProposalTitleDefault()) delete S.quote.proposalTitle; else S.quote.proposalTitle = tv;
   }
   _qdescClose();
   try { refreshQuoteProposal(); } catch(e){}
@@ -35142,13 +35986,20 @@ function _qbColour(){
 function _qbGutter(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var CD = _qbDeltas();
-  var items = [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
+  var _gj = _isGutterJob();
+  var items = _gj ? [] : [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
   try {
     _selGutters().forEach(function(g){
       items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:(g.desc || '') + _qbGutterUpNote(CD, g.id) });
     });
   } catch(e){}
-  items = _qbRecMark(items, 'gutterType', 'none');
+  items = _qbRecMark(items, 'gutterType', _gj ? ((items[0] || {}).id || 'none') : 'none');
+  if (_gj) return _qpOptPageWrap('gutter', {
+    eyebrow:'Your new guttering', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
+    current:p.gutterType || ((items[0] || {}).id || ''), items:items, note:'',
+    figure:_qbGutterFigure(p.gutterType),
+    blurb:'Choose the spouting you would like. The price shown beside each one is the difference from the one we have recommended.'
+  });
   var note = '';
   try {
     if (_selScaffoldBasePrice() > 0)
@@ -35161,6 +36012,69 @@ function _qbGutter(){
     figure:_qbGutterFigure(p.gutterType),
     blurb:'The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call.'
   });
+}
+// ── A GUTTERS ONLY QUOTE'S SECTIONS (2026-10-28) ──
+// The cover, the gutter's condition page if the office filled one in, the
+// proposal, then the gutter, its colour, brackets and downpipes, the quote's
+// own options and the total. No steel grade, profile, thickness, roof colour
+// or old roofing: none of it is being done.
+function _gjSections(book){
+  var list = [{ key:'cover', label:'Your quote', html: book ? _qbCover : _qdCover }];
+  // The condition page is a roof's (its fixing buttons are nails and screws):
+  // on a gutters-only quote it shows only when the office put something on it.
+  if (_qbCondSectionOn() && _qbHasCondition()) list.push({ key:'condition', label:'Your gutters', html: book ? _qbCondition : function(){ return _qbCondition({ grid:true }); } });
+  list.push({ key:'proposal', label: book ? 'The proposal' : 'Proposal', html: book ? _qbProposal : _qdProposal });
+  list.push({ key:'gutter', label:'Guttering', html: book ? _qbGutter : _qdGutter });
+  list.push({ key:'gcolour', label:'Gutter colour', html:_qbGutterColour });
+  list.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
+  // Only the quote's own options: a Settings option (Paint Roof…) is a
+  // re-roof product, as on a pole shed.
+  try {
+    _selExtras().forEach(function(g, gi){
+      if (!_psOwnExtra(g)) return;
+      list.push({ key:'extra' + gi, label:g.title || 'Options', html:function(){ return _qbExtraGroup(g, gi); } });
+    });
+  } catch(e){}
+  list.push(book ? { key:'summary', label:'Your total', html:_qbSummary } : { key:'review', label:'Review', html:_qdReview });
+  return list;
+}
+// The colour of the new gutter: the Colorsteel chart for a Colorsteel box
+// gutter, Marley's Typhoon range for Typhoon, and white for Marley Classic.
+function _qbGutterColour(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var gt = p.gutterType || '';
+  var P = _gjPalette(gt);
+  var g = null; try { g = _selGutterOf(gt); } catch(e){}
+  var gname = (g && g.name) || 'gutter';
+  var head = '<span class="qb-eyebrow">The look of it</span><h2 class="qb-h2">Gutter colour</h2>';
+  var del = (!window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\'gcolour\')" title="Take this section out of this quote.">Delete this page</button>' : '';
+  if (P.kind === 'classic'){
+    return '<div class="qb-body">' + head +
+      _qSecPara('gcolour_classic', 'Marley Classic spouting comes in white only.') +
+      '<div class="qb-chosen">Chosen: <b>White</b></div>' +
+      '<div class="qb-swatches"><button type="button" class="qb-sw on" disabled title="White" data-qb-gcolour="White"><span style="background:#f4f4ef"></span><i>White</i></button></div>' +
+      del + '</div>';
+  }
+  var cur = p.gutterColour || '';
+  var undecided = (cur === QB_COLOUR_UNDECIDED);
+  var sw = (P.list || []).map(function(c){
+    var on = (c.name === cur);
+    return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-qb-gcolour="'+esc2(c.name)+'"'+
+      (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+esc2(String(c.name).replace(/'/g,"\\'"))+'\')"')+'>'+
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(c.name)+'</i></button>';
+  }).join('');
+  var range = P.kind === 'typhoon' ? 'the Marley Typhoon range' : 'the Colorsteel\u00ae range';
+  return '<div class="qb-body">' + head +
+    _qSecPara('gcolour', 'Your ' + gname + ' comes in ' + range + '. Every colour here is a standard colour, so none of them changes your price. Not sure yet? You can accept the quote undecided and choose before it is ordered.') +
+    '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-gcolour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
+      (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+QB_COLOUR_UNDECIDED+'\')"')+'>'+
+      '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
+      '<span class="qb-opt-txt"><b>Undecided \u2014 I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
+    '</button>'+
+    '<div class="qb-chosen">'+(undecided ? 'Chosen: <b>Undecided</b> \u2014 we will confirm it with you'
+       : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : '<em>No colour chosen yet \u2014 tap one below, or Undecided above.</em>')+'</div>'+
+    '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
+    del + '</div>';
 }
 // THE PICKED GUTTER, SHOWN (2026-10-18, the owner: "make sure the profile is
 // displayed for the gutter in the gutter section like the profile picture in
@@ -35713,6 +36627,7 @@ function _psPicksAuto(){
 }
 function _qbPicksAuto(){
   if (typeof _psIsShed === 'function' && _psIsShed()) { try { return _psPicksAuto(); } catch(e){} }
+  if (_isGutterJob()) { try { return _gjPicksAuto(); } catch(e){} }
   var p = (S.quote && S.quote.proposalOptions) || {};
   var out = [];
   var _gone = []; try { _gone = _qModernParkedKeys(); } catch(e){ _gone = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : []; }
@@ -35749,6 +36664,24 @@ function _qbPicksAuto(){
 // quote's reference and total, then the customer's choices in the same words
 // their own quote uses. The server appends it under whatever is already in
 // the job's description, in a block a later push replaces.
+function _gjPicksAuto(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var gone = []; try { gone = _qModernParkedKeys(); } catch(e){}
+  var out = [];
+  var gt = p.gutterType || '';
+  var g = null; try { g = _selGutterOf(gt); } catch(e){}
+  if (g) out.push(['Guttering', g.name || gt, 'gutter']);
+  if (gone.indexOf('gcolour') < 0){
+    var P = _gjPalette(gt);
+    var c = P.kind === 'classic' ? 'White' : (p.gutterColour === QB_COLOUR_UNDECIDED ? 'Undecided \u2014 to be confirmed' : (p.gutterColour || ''));
+    if (c) out.push(['Gutter colour', c, 'gcolour']);
+  }
+  if (gone.indexOf('gutterkit') < 0){
+    out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal', 'brackets']);
+    out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes', 'downpipes']);
+  }
+  return out.filter(function(r){ return r[1]; });
+}
 function _fergusJobSummary(){
   var q = (S && S.quote) || {}, lines = [];
   try { if (q.ref) lines.push('Quote ' + q.ref); } catch(e){}
@@ -35841,6 +36774,7 @@ function _qbCondSectionOn(){
 function _qdSections(){ return _qModernApply(_qdSectionsRaw()); }
 function _qdSectionsRaw(){
   if (S.quote && S.quote.quoteKind === 'poleshed') return _psModernSections();
+  if (_isGutterJob()) return _gjSections(false);
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
   if (_qbCondSectionOn()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
@@ -36438,6 +37372,33 @@ function _custBarRows(){
                     value:(c.delta > 0 ? '+' : '\u2212') + fmtMoney(Math.abs(c.delta) * (1 + M.rate)) });
       });
       rows.push({ kind:'total', label:'Your total', value: fmtMoney(M.tot) });
+      return rows;
+    } catch(e){ rows.length = 0; }
+  }
+  // A Gutters only quote: the gutter they picked is the main scope, so its
+  // price sits in the first line ("Gutters — 125mm box gutter") rather than
+  // as a change on top of a re-roof that is not happening.
+  if (_isGutterJob()){
+    try {
+      var _gb = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
+      var _grl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
+      var _gsub = _qpBaseSub(), _gsc = 0;
+      try { _gsc = _qpBaseScaffold(); } catch(e){ _gsc = 0; }
+      if (!(_gsc > 0) || _gsc > _gsub) _gsc = 0;
+      var _chg = _qpSelectionChanges();
+      var _gr = _chg.filter(function(c){ return c && c.key === 'gutter'; })[0] || null;
+      var _gpo = (S.quote.proposalOptions || {});
+      var _gnm = ''; try { _gnm = ((_selGutterOf(_gpo.gutterType) || {}).name) || ''; } catch(e){}
+      rows.push({ kind:'base', label: _gb || ('Gutters' + (_gnm ? ' \u2014 ' + _gnm : ' \u2014 main scope of work')), short: _gb || 'Gutters',
+                  value: fmtMoney((_gsub - _gsc + (_gr ? (+_gr.delta || 0) : 0)) * (1 + rate)) });
+      if (_gsc > 0) rows.push({ kind:'scaffold', label:_qpScaffoldLabel(), short:'Scaffolding', value: fmtMoney(_gsc * (1 + rate)) });
+      _chg.forEach(function(c){
+        if (!c || c === _gr || !c.delta) return;
+        var _own = String(_grl[String(c.label)] || '').trim();
+        rows.push({ kind:'change', key:String(c.label), label:_own || String(c.label),
+                    value:(c.delta > 0 ? '+' : '\u2212') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
+      });
+      rows.push({ kind:'total', label:'Your total', value: fmtMoney(_custBarTotalValue()) });
       return rows;
     } catch(e){ rows.length = 0; }
   }
@@ -38145,14 +39106,20 @@ function _qCustomLinesForCsv(area, idx){
 function _qCustomFoldInto(idx){
   if (!(idx >= 1)) return;
   var q = (window.S && S.quote) || null;
-  if (!q || !q.customLines) return;
+  if (!q) return;
   ['labour', 'material', 'scaffold'].forEach(function(area){
+    if (!q.customLines) return;
     var from = q.customLines[_qCustomArea(area, idx)];
     if (!Array.isArray(from) || !from.length) return;
     var to = _qCustom(area);
     from.forEach(function(r){ to.push(r); });
     delete q.customLines[_qCustomArea(area, idx)];
   });
+  var cm = q.cpbMat && q.cpbMat[_qCustomArea('material', idx)];
+  if (Array.isArray(cm) && cm.length){
+    q.cpbMat.material = (q.cpbMat.material || []).concat(cm);
+    delete q.cpbMat[_qCustomArea('material', idx)];
+  }
 }
 function _qCustomBaseLines(area){
   var cl = (window.S && S.quote && S.quote.customLines) || {}, out = [];
@@ -38166,9 +39133,9 @@ function _qCustomBaseLines(area){
 // '<area>' as roof 0. 'gutter' is the job's own trade and never moves.
 function _qCustomRemap(mapFn){
   var q = (window.S && S.quote) || null;
-  if (!q || !q.customLines || typeof q.customLines !== 'object') return;
+  if (!q) return;
   var AREAS = ['labour', 'material', 'scaffold'];
-  var src = q.customLines, out = {};
+  var src = (q.customLines && typeof q.customLines === 'object') ? q.customLines : {}, out = {};
   Object.keys(src).forEach(function(k){
     var h = k.indexOf('#');
     var area = (h < 0) ? k : k.slice(0, h);
@@ -38182,6 +39149,20 @@ function _qCustomRemap(mapFn){
     else out[key] = src[k];
   });
   q.customLines = out;
+  // The price-book materials are keyed the same way, so they move the same way.
+  if (q.cpbMat && typeof q.cpbMat === 'object'){
+    var cm = {};
+    Object.keys(q.cpbMat).forEach(function(k){
+      var h = k.indexOf('#');
+      var idx = (h < 0) ? 0 : parseInt(k.slice(h + 1), 10);
+      if (!isFinite(idx)){ cm[k] = q.cpbMat[k]; return; }
+      var m = mapFn(idx);
+      if (!(m >= 0)) return;
+      var key = (m > 0) ? ('material#' + m) : 'material';
+      cm[key] = (cm[key] || []).concat(q.cpbMat[k] || []);
+    });
+    q.cpbMat = cm;
+  }
 }
 // QUANTITY × UNIT PRICE (2026-09-25: a custom line "needs to have a quantity
 // and unit price just like the other set prices"). `amount` stays the line's
@@ -38220,6 +39201,9 @@ function _qCustomChanged(area, keepFocus){
   var _ba = _qCustomBaseArea(area);
   if (!keepFocus){
     try { _qCustomRenderArea(_ba); } catch(e){}
+    // The yellow card beside the roof map follows a line added or taken off
+    // (2026-10-29: removing a material line left it reading the old total).
+    try { _prMatChanged(); } catch(e){}
     return;
   }
   // Typing an amount: the green "Total materials" line moves with it at once,
@@ -38277,6 +39261,7 @@ function _qCustomLiveRerender(ba){
     } catch(e){}
     try { _qCustomRenderArea(ba); } catch(e){}
     try { renderProfitability(); } catch(e){}
+    try { _prMatChanged(); } catch(e){}
     if (!key) return;
     try {
       var el = document.querySelector('[' + key[0] + '="' + key[1].replace(/"/g, '\\"') + '"]');
@@ -38376,6 +39361,8 @@ function _syncQuoteBaseLineItems(){
   var _gf = (_psIsShed() || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
   var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
   var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
+  // A Gutters only job prices the scaffold and the gutter card, nothing else.
+  if (_isGutterJob()){ _baseMat = 0; _baseLab = 0; }
   // Roofs after the main one that AREN'T flagged "separate" are part of the
   // main structure, so their materials + labour + scaffold fold into the base
   // line items and the customer sees a single main price. Only roofs the
@@ -38705,6 +39692,7 @@ function _aerialRoofBlock(){
 // — click "Aerial background" to exclude it. (Explicit false = excluded.)
 function _qpRoofMapShowBg(){
   var q = (window.S && S.quote) || {};
+  if (q.quoteKind === 'gutters') return true;   // the aerial is the whole map
   return (q.roofMapShowBg == null) ? true : !!q.roofMapShowBg;
 }
 function _qpRoofBgSwitchHtml(){
@@ -39088,6 +40076,9 @@ function _qpBasicRoofMaps(showBg){
   var out = [];
   var bgOp = showBg ? 55 : 0;
   var haveLive = !!(window.DRAW && ((DRAW.roofs && DRAW.roofs.length) || (DRAW.outline && DRAW.outline.length >= 3)));
+  // A Gutters only job has gutter lines and no outline: the live map is the
+  // aerial and those lines (no basic map).
+  if (!haveLive && _isGutterJob()){ try { _qpStashRoofGeom(true); } catch(e){} return out; }
   if (haveLive) {
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
     try { _qpStashRoofGeom(showBg); } catch(e){}   // geometry for the live inline-SVG map
@@ -39129,6 +40120,27 @@ function _qpStashRoofGeom(showBg){
   if (!S.quote) return;
   if (S._qvViewing) return;                   // the frozen version keeps its own map
   var roofs = (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : [];
+  // A Gutters only job has no roof outline: its map is the aerial and the
+  // gutter lines, framed on the lines (2026-10-28).
+  var _gjMap = false;
+  if (_isGutterJob()){
+    var _gl = [];
+    try {
+      var _all = (DRAW.roofs && DRAW.roofs.length) ? [] : (DRAW.lines || []);
+      (DRAW.roofs || []).forEach(function(r){ (r && r.lines || []).forEach(function(l){ _all.push(l); }); });
+      if (DRAW.roofs && DRAW.roofs.length && DRAW.activeRoofIdx >= 0) _all = _all.concat(DRAW.lines || []);
+      var _seen = [];
+      _all.forEach(function(l){ if (l && l.type === 'gutter' && l.pts && l.pts.length === 2 && _seen.indexOf(l) < 0){ _seen.push(l); _gl.push(l); } });
+    } catch(e){}
+    if (!_gl.length){ S.quote.roofMapGeom = null; return; }
+    var _x0 = Infinity, _y0 = Infinity, _x1 = -Infinity, _y1 = -Infinity;
+    _gl.forEach(function(l){ l.pts.forEach(function(q){ _x0 = Math.min(_x0, q[0]); _y0 = Math.min(_y0, q[1]); _x1 = Math.max(_x1, q[0]); _y1 = Math.max(_y1, q[1]); }); });
+    var _pd = Math.max(30, (_x1 - _x0) * 0.12, (_y1 - _y0) * 0.12);
+    roofs = [{ idx:0, name:'Gutters', areaM2:0, lines:_gl,
+               outline:[[_x0 - _pd, _y0 - _pd], [_x1 + _pd, _y0 - _pd], [_x1 + _pd, _y1 + _pd], [_x0 - _pd, _y1 + _pd]] }];
+    _gjMap = true;
+    showBg = true;
+  }
   if (!roofs.length){ S.quote.roofMapGeom = null; return; }
   var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   roofs.forEach(function(r){ r.outline.forEach(function(p){ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; }); });
@@ -39265,7 +40277,7 @@ function _qpStashRoofGeom(showBg){
   } catch(e){ bgAdj = null; }
   S.quote.roofMapGeom = {
     bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
-    bgAdj: bgAdj,
+    bgAdj: bgAdj, gutterOnly: _gjMap || undefined,
     roofs: roofs.map(function(r){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
@@ -39386,7 +40398,7 @@ function _qpRoofMapSvg(opts){
   // pricing on that screen.
   var alsoHi = Array.isArray(opts.highlightAlso) ? opts.highlightAlso : [];
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
-  var showGutters = !!opts.showGutters;
+  var showGutters = !!opts.showGutters || !!g.gutterOnly;
   // Inside a cropping frame the SVG fills the box and the frame draws the
   // border; standing on its own (the Pricing tab's mini map) it still
   // shrink-wraps to its own aspect under a maximum height.
@@ -39421,7 +40433,19 @@ function _qpRoofMapSvg(opts){
     var _rcx = g.bgW / 2 + (_ba ? (+_ba.dx || 0) : 0);
     var _rcy = g.bgH / 2 + (_ba ? (+_ba.dy || 0) : 0);
     var _rt = _rot ? ' transform="rotate(' + _rot + ' ' + _rcx + ' ' + _rcy + ')"' : '';
-    svg+='<image x="'+_bx+'" y="'+_by+'" width="'+_bw+'" height="'+_bh+'" opacity="0.55" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+    svg+='<image x="'+_bx+'" y="'+_by+'" width="'+_bw+'" height="'+_bh+'" opacity="'+(g.gutterOnly ? '1' : '0.55')+'" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+  }
+  if (g.gutterOnly){
+    // The aerial and the gutter lines: no roof, no label, no tick.
+    var _gw = Math.max(4, Math.min(14, w / 120));
+    g.roofs.forEach(function(r){
+      (r.gutters || []).forEach(function(gp){
+        var a = 'x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'"';
+        svg+='<line '+a+' stroke="#fff" stroke-width="'+(_gw * 1.9).toFixed(1)+'" stroke-linecap="round" opacity="0.9"/>'+
+             '<line '+a+' stroke="#7c3aed" stroke-width="'+_gw.toFixed(1)+'" stroke-linecap="round"/>';
+      });
+    });
+    return svg + '</svg>';
   }
   g.roofs.forEach(function(r){
     // Included → blue + faint green tick. Not included (excluded, or a separate
@@ -39603,6 +40627,13 @@ function _qpInteractiveRoofBlock(opts){
                             readOnly: opts.readOnly === true });
   if (!svg) return '';
   svg = _qpRoofMapFrameHtml(svg, _mh, opts.mapKey);
+  if (g.gutterOnly){
+    return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><div class="ed-eyebrow" style="margin:0">Your new guttering</div></div>'+
+      svg + '<div style="display:flex;gap:6px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">'+
+        '<span style="width:18px;height:4px;background:#7c3aed;border-radius:2px;display:inline-block"></span> New guttering</div>'+
+    '</div>';
+  }
   // Read-only: the same picture with nothing to press. The summary page
   // shows what the quote COVERS; the choosing was done on page three and
   // offering it again at the point of acceptance only invites a change
@@ -40120,6 +41151,19 @@ var MARLEY_COLOURS = [
   { name:'Lichen®',        hex:'#8a8b6c' },
   { name:'Slate®',         hex:'#4a4f54' },
 ];
+// Marley Typhoon's own colour range, for a Gutters only quote (2026-10-28),
+// from marley.co.nz/products/rainwater/spouting/typhoon (the owner's chart):
+// White, then the Stratus design series.
+var MARLEY_TYPHOON_COLOURS = [
+  { name:'White',          hex:'#ffffff' },
+  { name:'Black',          hex:'#161616' },
+  { name:'Grey Friars®',   hex:'#50535a' },
+  { name:'Ironsand®',      hex:'#363334' },
+  { name:'Gull Grey',      hex:'#c8c8c5' },
+  { name:'FlaxBlack®',     hex:'#2b2725' },
+  { name:'Titanium',       hex:'#abaeb6' },
+  { name:'Copper',         hex:'#7c5026' },
+];
 var STEEL_GUTTER_PROFILES = [
   { key:'quad',       name:'Continuous Quad',     blurb:'Square-fronted, the New Zealand standard — bold lines, sharp edges.' },
   { key:'smoothline', name:'Smoothline',          blurb:'Internal bracketing for a fully concealed look — modern architectural choice.' },
@@ -40415,6 +41459,7 @@ function _psOptionsFollow(text){
 function _setQuoteKind(k){
   if (!S.quote) return;
   S.quote.quoteKind = _quoteKindNorm(k);
+  try { _gutterJobSync(); } catch(e){}
   _syncQuoteKindToggle();
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
@@ -40440,6 +41485,8 @@ function _qkMenuRender(){
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
   var tnd = _tenderingAvailable();
   var isT = tnd && S.quote && S.quote.quoteKind === 'tender';
+  var isG = !!(S.quote && S.quote.quoteKind === 'gutters');
+  try { document.body.classList.toggle('gutter-job', isG); } catch(e){}
   try { _tenderNavSync(); } catch(e){}
   var close = "this.closest('details').removeAttribute('open');";
   var item = function(call, label, sub, on, id){
@@ -40456,10 +41503,11 @@ function _qkMenuRender(){
         return item("setMainScope('" + k + "');_qkMenuRender()", esc2(pr.label || k), esc2(pr.subtitle || ''), curScope === k, 'qkScope_' + k);
       }).join('');
     } catch(e){}
-    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:' + ((avail || tnd) ? 'block' : 'none') + '">' +
+    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:block">' +
       '<div class="qa-more-lbl">Job type</div>' +
-      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT, 'qkBtn_roofing') +
+      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT && !isG, 'qkBtn_roofing') +
       (avail ? item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') : '') +
+      item("_setQuoteKind('gutters')", 'Gutters only', 'New spouting and downpipes, nothing else', isG, 'qkBtn_gutters') +
       (tnd ? item("_setQuoteKind('tender')", 'AI Tendering', 'Price a roof off a plan set', isT, 'qkBtn_tender') : '') +
       '</div>';
   }
@@ -45416,7 +46464,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
@@ -45522,6 +46570,16 @@ var QUOTE_EMAIL_DEFAULT = {
 // the standard wording and what the server's own copy is compared against.
 // This is the standard wording FOR A SHED, and an office that has written
 // their own still wins over both \u2014 `em.quote_subject` is read first either way.
+var GUTTERS_EMAIL_DEFAULT = {
+  subject: 'Your guttering quote {ref} \u2014 {company}',
+  body: 'Hi {client},\n\n' +
+    'Thanks for the opportunity to quote your new guttering{address}.\n\n' +
+    'Your quote is ready \u2014 view it online, choose your options, and accept it right from your phone:\n' +
+    '{link}\n' +
+    '{valid_until}\n' +
+    'Any questions, just reply to this email or give us a call.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
 var POLESHED_EMAIL_DEFAULT = {
   subject: 'Your pole shed quote {ref} \u2014 {company}',
   body: 'Hi {client},\n\n' +
@@ -45552,7 +46610,7 @@ function _quoteEmailTemplate(link){
     return String(t || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
       function(m, k){ return vars[k]; });
   };
-  var _d = (typeof _psIsShed === 'function' && _psIsShed()) ? POLESHED_EMAIL_DEFAULT : QUOTE_EMAIL_DEFAULT;
+  var _d = (typeof _psIsShed === 'function' && _psIsShed()) ? POLESHED_EMAIL_DEFAULT : _isGutterJob() ? GUTTERS_EMAIL_DEFAULT : QUOTE_EMAIL_DEFAULT;
   var subject = fill(em.quote_subject || _d.subject)
     .replace(/\s{2,}/g, ' ').trim();
   var body = fill(em.quote_body || _d.body)
@@ -45838,7 +46896,17 @@ function _emxTag(k, t){
   el.focus();
   try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e){}
 }
+// The email wordings typed on THIS screen since the last save, by stored key.
+window.__emxTouched = window.__emxTouched || {};
+function _emxTouch(k){ window.__emxTouched[k + '_subject'] = 1; window.__emxTouched[k + '_body'] = 1; }
+document.addEventListener('input', function(ev){
+  try {
+    var id = ev.target && ev.target.id; if (!id) return;
+    Object.keys(EMX_TPL).forEach(function(k){ if (EMX_TPL[k].indexOf(id) >= 0) _emxTouch(k); });
+  } catch(e){}
+}, true);
 function _emxReset(k){
+  _emxTouch(k);
   if (k === 'quote') return _resetQuoteEmailTemplate();
   var d = _emxDefault(k), ids = EMX_TPL[k] || [];
   var su = document.getElementById(ids[0]), bo = document.getElementById(ids[1]);
@@ -46779,7 +47847,9 @@ async function _quoteEmailSendNow(){
     // Only once the saves above have landed: a save is refused while a frozen
     // version is on screen, so switching first threw the last one away.
     (function(){ var tail = window.__qSendTail; window.__qSendTail = null;
-      var show = function(){ try { if (!S._qvViewing) _qvView('sent'); } catch(e){} };
+      var show = function(){ try { if (!S._qvViewing) _qvView('sent'); } catch(e){}
+        // The quote as it went, kept on the job's Files & Photos (2026-10-27).
+        try { if (!_isDemoJob()) setTimeout(function(){ _jfKeepQuotePdf('sent-quote'); }, 1200); } catch(e){} };
       if (tail && tail.then) Promise.race([tail, new Promise(function(r){ setTimeout(r, 30000); })]).then(show, show); else show(); })();
   } catch(err){
     var msg = String(err && err.message || err);
@@ -46850,6 +47920,7 @@ async function _printModernQuoteFile(){
     return;
   }
   try { pdf.save(_quotePdfFilename()); } catch(e){ console.error('quote PDF save:', e); }
+  try { _jfKeep(pdf.output('blob'), _quotePdfFilename(), 'quote-pdf'); } catch(e){}
   try { _qaMsg('Saved ' + _quotePdfFilename()); } catch(e){}
 }
 function printQuote(){
@@ -51695,6 +52766,11 @@ var STEP_INFO = {
 };
 
 function setTool(t) {
+  // A gutters-only job draws gutter lines and nothing else (2026-10-28).
+  if (_isGutterJob() && t && !GJ_TOOLS[t]){
+    try { _siteToast('A Gutters only job draws gutter lines only — switch the job type on the Quote tab to draw a roof.'); } catch(e){}
+    t = 'gutter';
+  }
   // While the picture is being relocated the drawing is LOCKED — that is the
   // whole bargain of the mode — so a drawing tool is refused and says why,
   // BEFORE finishCurrent() commits anything half-drawn.
@@ -51863,7 +52939,7 @@ function _roofGeometryPayload(){
       activeRoofIdx: DRAW.activeRoofIdx,
       // The builder's own inputs, so a report re-builds the same roof.
       roofType: DRAW.roofType || '', rotation: DRAW.rotation || 0, roofBaseHoriz: DRAW.roofBaseHoriz,
-      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null,
+      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null,
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
       // Everything the CUT LIST is built from besides the geometry — the
       // typed quantities and lengths, sheets deleted off the plan, measure
@@ -52002,7 +53078,12 @@ function _cornerRepoOpen(idx){
   if (idx == null || idx < 0 || !DRAW.outline || idx >= DRAW.outline.length) return;
   window._cornerRepo.idx = idx;
   var pop = document.getElementById('cornerRepoPopup'); if (!pop) return;
+  // Grabbing a bump's corner fixes the kind of roof over it as it stands, so
+  // the drag that follows can make it deeper or shallower but never turn it
+  // into the other kind (reports 78 and 79).
+  _bumpLockModes();
   pop.style.display = 'block';
+  try { _cornerBumpRowRender(); } catch(e){}
   // First open (or not yet user-moved this session): pin it to the top-left
   // corner of the canvas so it always lands in a predictable, out-of-the-way
   // spot. The moving corner itself is highlighted (yellow ring) on the canvas,
@@ -52678,6 +53759,139 @@ function _ridgeBreakBoxRender(l){
 // _gblPushRidge in buildGableRoofLines).
 var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg', 'hipEnd'];
 function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
+// ══ A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH ══
+// Feedback reports 78 and 79 (2026-10-28, the owner on job 3302): "inside the
+// fine adjustments window ... show a button to convert this section/corner
+// from hip & valley to mono-extension, because as you can see from the
+// background, the roof extends slightly but it doesn't have hip and valley
+// like what appears if i go too far", and "i also don't want it to auto change
+// to a mono-extension if i make it short". A BUMP is a short wall standing out
+// from a straight one (A-B-C-D below: B and C the outer corners, A and D on the
+// wall it stands out from). Built as a hip roof, a deep one got its own little
+// hip end (two hips, two valleys, a ridge) and a shallow one — under
+// _roofSquareUp's squaring tolerance, about half a metre here — was squared
+// into the wall and got nothing, so the KIND of roof over it was decided by
+// how far the corner happened to be dragged.
+// DRAW.bumpModes[<index of B>] = 'hv' | 'mono' is the choice, per roof. 'mono'
+// is the main slope carried out over the bump: the hips are built as if the
+// bump were not there, its outer wall is gutter and its two sides are barges.
+// 'hv' is its own little hip end at any depth (_SQ_KEEP keeps its outer wall
+// out of the squaring). Grabbing a corner of a bump LOCKS what is on screen
+// (_bumpLockModes), so a drag never changes the kind by itself; the pad's two
+// buttons are the only way to change it. Hip roofs only.
+var _SQ_KEEP = null;
+function _outlineBumps(ol){
+  var out = [];
+  if (!ol || ol.length < 8) return out;
+  var n = ol.length, area = 0, i;
+  for (i = 0; i < n; i++){ var p0 = ol[i], q0 = ol[(i + 1) % n]; area += p0[0] * q0[1] - q0[0] * p0[1]; }
+  var sg = area > 0 ? 1 : -1;
+  var P = function(k){ return ol[((k % n) + n) % n]; };
+  var turn = function(k){ var a = P(k - 1), b = P(k), c = P(k + 1);
+    return ((b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])) * sg; };
+  var unit = function(a, b){ var dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy);
+    return l < 1e-6 ? null : [dx / l, dy / l, l]; };
+  for (i = 0; i < n; i++){
+    var ia = i, ib = (i + 1) % n, ic = (i + 2) % n, id = (i + 3) % n;
+    if (!(turn(ib) > 0 && turn(ic) > 0 && turn(ia) < 0 && turn(id) < 0)) continue;   // B, C stand out; A, D are inside corners
+    var A = P(ia), B = P(ib), C = P(ic), D = P(id);
+    var uAB = unit(A, B), uBC = unit(B, C), uCD = unit(C, D), uPA = unit(P(i - 1), A), uDN = unit(D, P(i + 4));
+    if (!uAB || !uBC || !uCD || !uPA || !uDN) continue;
+    if (Math.abs(uAB[0] * uBC[0] + uAB[1] * uBC[1]) > 0.26) continue;
+    if (Math.abs(uBC[0] * uCD[0] + uBC[1] * uCD[1]) > 0.26) continue;
+    if (uPA[0] * uBC[0] + uPA[1] * uBC[1] < 0.96 || uDN[0] * uBC[0] + uDN[1] * uBC[1] < 0.96) continue;   // one straight wall either side
+    var off = (D[0] - A[0]) * -uBC[1] + (D[1] - A[1]) * uBC[0];
+    if (Math.abs(off) > Math.max(3, 0.25 * Math.min(uAB[2], uCD[2]))) continue;   // A and D on that one wall
+    out.push({ a: ia, b: ib, c: ic, d: id, key: String(ib), depth: (uAB[2] + uCD[2]) / 2, width: uBC[2],
+               axis: Math.abs(uBC[0]) >= Math.abs(uBC[1]) ? 1 : 0 });
+  }
+  return out;
+}
+function _bumpForCorner(idx){
+  var bs = _outlineBumps(DRAW.outline);
+  for (var i = 0; i < bs.length; i++){ var b = bs[i]; if (idx === b.a || idx === b.b || idx === b.c || idx === b.d) return b; }
+  return null;
+}
+// What the roof over a bump IS on screen: hip & valley when a hip or valley
+// ends at one of its corners, otherwise the main slope carried over it.
+function _bumpShownMode(b){
+  var cs = [b.a, b.b, b.c, b.d].map(function(k){ return DRAW.outline[k]; });
+  var hv = (DRAW.lines || []).some(function(l){
+    return l && (l.type === 'hip' || l.type === 'valley') && l.pts && l.pts.some(function(p){
+      return cs.some(function(c){ return Math.hypot(p[0] - c[0], p[1] - c[1]) < 4; });
+    });
+  });
+  return hv ? 'hv' : 'mono';
+}
+function _bumpLockModes(){
+  try {
+    if (_detectAutoRoofType() !== 'hip') return;
+    var bs = _outlineBumps(DRAW.outline); if (!bs.length) return;
+    var m = DRAW.bumpModes || {};
+    bs.forEach(function(b){ if (m[b.key] !== 'hv' && m[b.key] !== 'mono') m[b.key] = _bumpShownMode(b); });
+    DRAW.bumpModes = m;
+  } catch(e){}
+}
+function _hipLinesWithBumps(outline){
+  var modes = (window.DRAW && DRAW.bumpModes) || null;
+  // Keyed to the drawing's own corners: only that outline carries them.
+  if (!modes || !outline || !DRAW.outline || outline.length !== DRAW.outline.length ||
+      outline.some(function(p, k){ return p[0] !== DRAW.outline[k][0] || p[1] !== DRAW.outline[k][1]; })) return buildHipValleyLines(outline);
+  var bs = _outlineBumps(outline).filter(function(b){ return modes[b.key] === 'hv' || modes[b.key] === 'mono'; });
+  if (!bs.length) return buildHipValleyLines(outline);
+  var drop = {}, extra = [], keep = [];
+  bs.forEach(function(b){
+    var A = outline[b.a], B = outline[b.b], C = outline[b.c], D = outline[b.d];
+    if (modes[b.key] === 'mono'){
+      drop[b.b] = 1; drop[b.c] = 1;
+      extra.push({ type: 'barge', pts: [A.slice(), B.slice()], bumpSide: true },
+                 { type: 'barge', pts: [C.slice(), D.slice()], bumpSide: true });
+    } else {
+      keep.push({ axis: b.axis, vals: [B[b.axis], C[b.axis]] });
+      // Its own hip end has eaves all round, the short sides included (the
+      // outline pass only guttered a side over about 0.8 m of drawing).
+      extra.push({ type: 'gutter', pts: [A.slice(), B.slice()], bumpSide: true },
+                 { type: 'gutter', pts: [C.slice(), D.slice()], bumpSide: true });
+    }
+  });
+  var ol = outline.filter(function(_, k){ return !drop[k]; });
+  var lines;
+  _SQ_KEEP = keep.length ? keep : null;
+  try { lines = buildHipValleyLines(ol) || []; } finally { _SQ_KEEP = null; }
+  return lines.concat(extra);
+}
+// The pad's two buttons.
+function _cornerBumpRowRender(){
+  var row = document.getElementById('cornerBumpRow'); if (!row) return;
+  var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
+  var b = (idx >= 0 && _detectAutoRoofType() === 'hip') ? _bumpForCorner(idx) : null;
+  if (!b){ row.style.display = 'none'; row.innerHTML = ''; return; }
+  var cur = (DRAW.bumpModes && DRAW.bumpModes[b.key]) || _bumpShownMode(b);
+  var btn = function(mode, label, tip){
+    var on = cur === mode;
+    return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-bump="' + mode + '" title="' + tip + '" onclick="_bumpSetMode(\'' + mode + '\')">' + (on ? '✓ ' : '') + label + '</button>';
+  };
+  row.style.display = 'block';
+  row.innerHTML = '<div class="crn-bump-hd">This bump’s roof</div>' +
+    btn('hv', 'Hip &amp; valley', 'Its own small hip end: two hips, two valleys and a ridge') +
+    btn('mono', 'Mono extension', 'The main roof carried out over it: gutter on the end, barges on the sides');
+}
+function _bumpSetMode(mode){
+  if (mode !== 'hv' && mode !== 'mono') return;
+  var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
+  var b = idx >= 0 ? _bumpForCorner(idx) : null; if (!b) return;
+  saveSnapshot();
+  _bumpLockModes();
+  DRAW.bumpModes[b.key] = mode;
+  try { regenerateAutoRoofLines('hip'); } catch(e){}
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  redrawAll();
+  try { updateMeasTotals(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  _cornerBumpRowRender();
+}
+
 function regenerateAutoRoofLines(roofType){
   if (!roofType || !DRAW.outline || DRAW.outline.length < 3) return;
   _squareDrawnOutline();
@@ -52688,7 +53902,7 @@ function regenerateAutoRoofLines(roofType){
   }));
   try {
     var lines = null;
-    if      (roofType === 'hip')   lines = buildHipValleyLines(DRAW.outline);
+    if      (roofType === 'hip')   lines = _hipLinesWithBumps(DRAW.outline);
     // Straight gable keeps its ROTATED axis across corner drags — a
     // regen without the flip snapped the ridge back to the long axis.
     else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')
@@ -53511,7 +54725,16 @@ function onCanvasMouseDown(e) {
     var vxy = getXY(e);
     var tr = getImgTransform();
     var GRAB = tr ? OUTLINE_VERT_GRAB/tr.s : OUTLINE_VERT_GRAB;
-    for(var vi=0; vi<DRAW.outline.length; vi++){
+    // The NEAREST corner in reach, not the first one listed: a shallow bump's
+    // outer corner sits a few pixels from the inside corner below it, and the
+    // first-found rule grabbed the inside one and moved the whole wall
+    // (feedback reports 78 and 79).
+    var _vBest = -1, _vBestD = GRAB;
+    for (var _vk = 0; _vk < DRAW.outline.length; _vk++){
+      var _vd = Math.hypot(DRAW.outline[_vk][0]-vxy[0], DRAW.outline[_vk][1]-vxy[1]);
+      if (_vd < _vBestD){ _vBestD = _vd; _vBest = _vk; }
+    }
+    for(var vi=(_vBest >= 0 ? _vBest : DRAW.outline.length); vi<DRAW.outline.length; vi++){
       var v = DRAW.outline[vi];
       var vdx = v[0]-vxy[0], vdy = v[1]-vxy[1];
       if(Math.sqrt(vdx*vdx + vdy*vdy) < GRAB){
@@ -58418,6 +59641,7 @@ function finishCurrent() {
   if(t==='outline'&&pts.length>=3){
     DRAW.outline=_outlineDropRepeats(pts);
     DRAW.outlineDone=true;
+    DRAW.bumpModes=null;   // a new outline's bumps carry no choice yet
     DRAW.currentPts=[];
     // Lazily seed roofs[] for the very first outline so subsequent
     // outlines extend the multi-roof model.
@@ -59234,6 +60458,7 @@ function _captureSnapState() {
     sheetTextScale: DRAW.sheetTextScale || {},
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
     tapes: JSON.parse(JSON.stringify(DRAW.tapes || [])),
+    bumpModes: DRAW.bumpModes ? JSON.parse(JSON.stringify(DRAW.bumpModes)) : null,
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
     matSheetFrozen: DRAW.matSheetFrozen || null,
@@ -59315,6 +60540,7 @@ function _applySnapState(snapStr) {
   if ('calibratePixels' in s) DRAW.calibratePixels = s.calibratePixels || 0;
   if ('calPitch' in s)        DRAW.calPitch        = s.calPitch || 0;
   if ('lowPitch' in s)        DRAW.lowPitch        = s.lowPitch || 0;
+  if ('bumpModes' in s)       DRAW.bumpModes       = s.bumpModes ? JSON.parse(JSON.stringify(s.bumpModes)) : null;
   if ('calMeasType' in s)     DRAW.calMeasType     = s.calMeasType || 'flat';
   if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
   if ('calPitchAtCal' in s)   DRAW.calPitchAtCal   = s.calPitchAtCal || 0;
@@ -59474,7 +60700,7 @@ function clearAll(silent) {
   DRAW.editMode = 'scaled';
   DRAW.offScale = null;
   // A new job never inherits the last roof's broken ridge or hipped ends.
-  DRAW.ridgeBreaks = []; DRAW.hipEnds = null;
+  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -72703,10 +73929,21 @@ function _scopePricingRows(){
   }
   if (scope === 'total') idx = 0;
   var g = _profitFigures(scope);
+  // MATERIALS, THEN THE OTHER LINES, THEN THE SUMMARY (2026-10-27, Scott:
+  // "M1 … M5, Total Materials; C1 … C3, Total Other Lines; 1. Scaffolding,
+  // 2. Roofing labour + materials, 3. Other lines on the quote, 4. Total").
+  // The lines typed on the main roof's cards reach the quote as lines of
+  // their own, and the profitability list counts them as "Other lines on the
+  // quote" — so on the main roof's and the Quote Total sheet they are listed
+  // there, once, and not inside the card they were typed on. An extra roof is
+  // priced as a lump, so on its own sheet its lines stay in its cards.
+  var linesApart = (idx === 0);
   var scopeName = (scope === 'total') ? ((_tabN > 1) ? 'the whole quote \u2014 every roof; the cards below are the Main Roof\u2019s' : 'the whole quote') : _pricingRoofName(idx);
   try {
     put('Job', 'Quote', (S.quote && S.quote.ref) ? String(S.quote.ref) : '');
     put('Job', 'Client', (S.quote && S.quote.clientName) || '');
+    // (2026-10-27, Scott: "Include Address in CSV export".)
+    put('Job', 'Site address', (S.quote && S.quote.addr) || '');
     put('Job', 'This sheet covers', scopeName);
     put('Job', 'Roof area', (scope === 'total' && _tabN > 1) ? 'along the pitch, every roof on the quote' : 'along the pitch', num(g.area, 1), 'm²');
     put('Job', 'Pitch', '', num(DRAW && DRAW.calPitch, 1), '°');
@@ -72717,7 +73954,7 @@ function _scopePricingRows(){
     var sc = _scaffoldEff(_roofScaffold(idx));
     var scType = (_roofScaffold(idx).type === 'platform') ? 'full working platform' : 'edge protection';
     gap(); put('Scaffolding', 'Scaffolding', scType, null, null, null, sc.price, sc.cost);
-    _qCustomLinesForCsv('scaffold', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('scaffold', idx).forEach(function(cl){
       put('Scaffolding', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
   } catch(e){}
@@ -72746,7 +73983,7 @@ function _scopePricingRows(){
       put('Roof labour', (x && x.name) || 'Labourer', byArea ? 'hours (cost only)' : '', h, 'hrs',
           pr, byArea ? null : h * pr, h * co, h);
     });
-    _qCustomLinesForCsv('labour', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('labour', idx).forEach(function(cl){
       put('Roof labour', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
     put('Roof labour', 'Labour total', '', null, null, null,
@@ -72768,13 +74005,14 @@ function _scopePricingRows(){
       var price = _matOvPrice(ov, picked ? picked.price : 0);
       var line = (qty || 0) * (price || 0);
       matBase += line;
-      var detail = (picked && picked.label && picked.label !== row.label) ? picked.label : '';
+      var detail = row.isCpb ? ('from your price book, at cost' + (picked && picked.label && picked.label !== 'Your price book' ? ' \u00b7 ' + picked.label : ''))
+                 : ((picked && picked.label && picked.label !== row.label) ? picked.label : '');
       put('Roof materials', row.label || row.key, detail, qty, unit, price, line);
     });
     // The lines typed on this tab sit where the table puts them: under the
     // items, OUTSIDE the buffer and the mark-up (a typed figure is the price).
     var _mCustom = 0;
-    _qCustomLinesForCsv('material', idx).forEach(function(cl){
+    if (!linesApart) _qCustomLinesForCsv('material', idx).forEach(function(cl){
       _mCustom += cl.amount;
       put('Roof materials', cl.desc, 'line you typed', cl.qty, cl.uom, cl.unit, cl.amount, cl.amount);
     });
@@ -72844,6 +74082,40 @@ function _scopePricingRows(){
     }
   } catch(e){ try { console.warn('pricing csv gutter', e); } catch(_){} }
 
+  // ── OTHER LINES ON THE QUOTE, one by one ──────────────────────
+  // Exactly what the profitability list's "Other lines on the quote" adds
+  // up: every line typed on the main roof's cards (price-book items at their
+  // cost), then any other line on the quote.
+  if (linesApart){
+    try {
+      var oRows = [], oRev = 0, oCost = 0;
+      var AREA_NM = { labour: 'on the labour card', material: 'on the materials card', scaffold: 'on the scaffolding card' };
+      ['labour', 'material', 'scaffold'].forEach(function(area){
+        _qCustomBaseLines(area).forEach(function(row){
+          _qCustomNorm(row);
+          var amt = parseFloat(row && row.amount) || 0, desc = ((row && row.desc) || '').trim();
+          if (!amt && !desc) return;
+          var c = _qCustomLineCost(row);
+          oRows.push([desc || ('Custom ' + area + ' line'), (row.cpbId ? 'price-book item ' : 'line you typed ') + AREA_NM[area],
+                      row.qty, row.uom || '', row.unit, amt, c]);
+          oRev += amt; oCost += c;
+        });
+      });
+      (S.quote.lineItems || []).forEach(function(li){
+        if (!li || li._custom || li._base || li.desc === 'Labour' || li.desc === 'Materials' || li.desc === 'Scaffolding') return;
+        var q = parseFloat(li.qty) || 0, u = parseFloat(li.unit) || 0, a = q * u;
+        if (!a && !String(li.desc || '').trim()) return;
+        oRows.push([String(li.desc || '').trim() || 'Quote line', 'line on the quote', q, '', u, a, a]);
+        oRev += a; oCost += a;
+      });
+      if (oRows.length){
+        gap();
+        oRows.forEach(function(r){ put('Other lines on the quote', r[0], r[1], r[2], r[3], r[4], r[5], r[6]); });
+        put('Other lines on the quote', 'Total other lines', '', null, null, null, oRev, oCost);
+      }
+    } catch(e){ try { console.warn('pricing csv other lines', e); } catch(_){} }
+  }
+
   // ── JOB PROFITABILITY, the panel's own list ───────────────────
   gap();
   (g.items || []).forEach(function(it, i){
@@ -72894,6 +74166,7 @@ function saveScopePricingAsCsv(){
     var blob = new Blob([out.join('\n')], { type: 'text/csv' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = 'RoofMap pricing' + (ref ? ' ' + ref : '') + '.csv';
+    try { _jfKeep(blob, a.download, 'pricing-csv'); } catch(e){}
     document.body.appendChild(a); a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
     _scopeMsg('Pricing downloaded as CSV.');
@@ -72940,7 +74213,7 @@ async function pushScopePricingToFergus(){
     var client = ((document.getElementById('jobClient')||{}).value || 'Pricing').trim();
     var jobNum = (_fergusDisplayNo() || '').toString().trim();
     var filename = ('Pricing_'+(jobNum||client)).replace(/[^A-Za-z0-9_.-]+/g,'_').slice(0,80)+'.pdf';
-    _matDownloadBlob(blob, filename);
+    _matDownloadBlob(blob, filename, 'pricing-fergus');
     _scopeMsg('Saved locally — uploading to Fergus job '+_fergusDisplayNo()+'…');
     var token = localStorage.getItem('fr_token')||'';
     _fpcForgetList();
@@ -73982,7 +75255,7 @@ function _quotePdfFilename(){
   var q = (window.S && S.quote) || {};
   var clean = function(t){ return String(t == null ? '' : t).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); };
   var ref    = clean(q.ref);
-  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : 'Roofing';
+  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : (q.quoteKind === 'gutters') ? 'Gutters' : 'Roofing';
   var client = clean(q.client);
   return [ ref ? ('Quote ' + ref) : 'Quote', kind, client ]
     .filter(Boolean).join(' - ').slice(0, 100) + '.pdf';
@@ -74552,7 +75825,7 @@ async function pushQuotePdfToFergus(btn){
     if (!pdf){ _qaMsg('Quote PDF build failed.', false); alert('Sorry — the quote PDF couldn\'t be built. Please try again.'); return; }
     var blob = pdf.output('blob');
     var filename = _quotePdfFilename();
-    try { _matDownloadBlob(blob, filename); } catch(e){}
+    try { _matDownloadBlob(blob, filename, 'quote-fergus'); } catch(e){}
     _qaMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -74607,6 +75880,7 @@ async function saveMaterialsAsPdf() {
     return _legacyPrintFlow();
   }
   pdf.save(filename);
+  try { _jfKeep(pdf.output('blob'), filename, 'jobpack-pdf'); } catch(e){}
   _matMsg('✓ PDF saved: ' + filename, true);
 }
 
@@ -74627,7 +75901,7 @@ async function pushJobPackToFergus(btn) {
     var pdf = await _buildJobPackPdf();
     if (!pdf) { _matMsg('PDF build failed.', false); alert('Sorry — the Job Pack PDF couldn\'t be built. Please try again.'); return; }
     var blob = pdf.output('blob');
-    try { _matDownloadBlob(blob, filename); } catch(e){}
+    try { _matDownloadBlob(blob, filename, 'jobpack-fergus'); } catch(e){}
     _matMsg('Uploading ' + filename + ' to Fergus job ' + _fergusDisplayNo() + '…');
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -74674,6 +75948,7 @@ async function printJobPack() {
     _matMsg('PDF build failed — opening browser print instead', false);
     return _legacyPrintFlow();
   }
+  try { _jfKeep(pdf.output('blob'), 'Job Pack' + ((S.quote && S.quote.ref) ? ' ' + S.quote.ref : '') + ' (printed).pdf', 'jobpack-print'); } catch(e){}
   try { pdf.autoPrint(); } catch(e){ /* older jsPDF without autoPrint */ }
   var blobUrl;
   try {
@@ -75564,7 +76839,10 @@ async function _matBuildPdfBlob() {
 // Trigger a browser "save as" for a generated Blob — used so the user
 // always gets a local copy of the order PDF before we hand it off to
 // Fergus. Cleans up the temporary object URL after the download fires.
-function _matDownloadBlob(blob, filename) {
+function _matDownloadBlob(blob, filename, source) {
+  // Every file the Job Pack and the Pricing tab hand the office is also kept
+  // on the job's Files & Photos (2026-10-27).
+  try { _jfKeep(blob, filename, source || 'export'); } catch(e){}
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url; a.download = filename;
@@ -75593,7 +76871,7 @@ async function pushMaterialsToFergus() {
       .replace(/[^A-Za-z0-9_.-]+/g, '_').slice(0, 80) + '.pdf';
     // 1. Save a local copy first so the user has the file even if Fergus
     //    upload fails or the network drops.
-    _matDownloadBlob(blob, filename);
+    _matDownloadBlob(blob, filename, 'order-pdf');
     // 2. Base64-encode and ship to Fergus via our backend.
     var b64 = await new Promise(function(ok, fail){
       var r = new FileReader();
@@ -77045,7 +78323,7 @@ async function _orderEmailOpen(mode){
     var blob;
     try { blob = await _orderEmailBuildBlob(); }
     catch (e){ if (popup) try{popup.close();}catch(e2){} _orderEmailStatus('PDF build failed: ' + (e.message || e), 'err'); _matMsg('PDF build failed: ' + (e.message || e), false); return; }
-    _matDownloadBlob(blob, o.filename);
+    _matDownloadBlob(blob, o.filename, 'order-pdf');
     _orderEmailStatus('');
 
     if (mode === 'gmail'){
@@ -77154,6 +78432,7 @@ async function _orderEmailSendNow(){
     // A demo order is never stamped: the stamp saves the job, and the sample
     // or practice job must not become a row in their account behind their back.
     if (!o.test) _stampOrderSent(o);
+    if (!o.test){ try { _jfKeep(blob, 'Sent - ' + o.filename, 'sent-order'); } catch(e){} }
     setTimeout(function(){ _closeOrderEmail(); _orderEmailStatus(''); }, 1600);
   } catch(err) {
     var msg = String(err && err.message || err);
@@ -77289,6 +78568,7 @@ async function _orderRoofLegacyUnused() {
           text:  body + '\n\nSend to: ' + email,
           files: [file],
         });
+        try { _jfKeep(blob, filename, 'sent-order'); } catch(e){}
         _matMsg('✓ Order sent — PDF attached to the share.', true);
         return;
       } catch (shareErr) {
@@ -77300,7 +78580,7 @@ async function _orderRoofLegacyUnused() {
 
   // Fallback: download the PDF locally + open a pre-composed mailto.
   // The user attaches the just-saved file manually before sending.
-  _matDownloadBlob(blob, filename);
+  _matDownloadBlob(blob, filename, 'order-pdf');
   var href = 'mailto:' + encodeURIComponent(email) +
              '?subject=' + encodeURIComponent(subj) +
              '&body='    + encodeURIComponent(body + '\n\n[Attach ' + filename + ' before sending]');
@@ -79250,10 +80530,22 @@ function _roofSquareUp(outline){
     return false;
   };
   if (moves(xs) || moves(ys)) needs = true;
+  // A bump the office has said is HIP & VALLEY (_hipLinesWithBumps) keeps its
+  // outer wall however shallow it is: its two corners square to each other
+  // and never into the wall it stands out from.
+  var _keep = (typeof _SQ_KEEP !== 'undefined' && _SQ_KEEP) ? _SQ_KEEP : null;
+  if (_keep && _keep.length) needs = true;
   // Square to the pixel already: nothing to do.
   if (!needs) return null;
-  function cluster(vals){
-    var s2 = vals.slice().sort(function(p, q){ return p - q; }), map = {}, k = 0;
+  function cluster(vals, axis){
+    var map = {};
+    (_keep || []).forEach(function(g){
+      if (g.axis !== axis) return;
+      var m0 = (g.vals[0] + g.vals[1]) / 2;
+      g.vals.forEach(function(v){ map[v] = m0; });
+    });
+    vals = vals.filter(function(v){ return !(v in map); });
+    var s2 = vals.slice().sort(function(p, q){ return p - q; }), k = 0;
     while (k < s2.length){
       var e = k;
       while (e + 1 < s2.length && s2[e + 1] - s2[k] <= tol) e++;
@@ -79264,7 +80556,7 @@ function _roofSquareUp(outline){
     }
     return map;
   }
-  var mx = cluster(xs), my = cluster(ys);
+  var mx = cluster(xs, 0), my = cluster(ys, 1);
   var ol = outline.map(function(p){ return [mx[p[0]], my[p[1]]]; });
   var clean = [];
   for (i = 0; i < ol.length; i++){
@@ -81306,15 +82598,40 @@ var ROOF_TYPE_CHOICES = [
   { type:'dutch',    label:'Dutch Gable',   hint:'hip with a small gablet at each end' },
   { type:'mono',     label:'Mono-Pitch',    hint:'single slope — lean-to, skillion' },
 ];
+// ONE WINDOW FOR A ROOF'S SHAPE AND SETTINGS (2026-10-29, the owner: "add a
+// rotate 90deg inside the pop-up roof type selector ... change the 'Roof
+// settings' window to be the pop-up selector as it pretty much works the same
+// way but looks better, just add the make main roof and delete roof buttons in
+// it too, also when that window opens and i click the different roofs, change
+// them live in the canvas"). Two ways in, one window:
+//   mode 'new'      — the outline has just closed (finishCurrent). The pitch
+//                     box, Skip for now (which takes back anything built while
+//                     it was open) and "Draw the roof".
+//   mode 'settings' — the roof button on the roof bar (_toggleRoofMenu). The
+//                     roof panel's own pitch row and ridge slide are lent to it
+//                     while it is open, so every handler and sync behind them
+//                     is the one that always ran; "Done" closes it.
+// In both, a click on a shape BUILDS that shape on the canvas there and then
+// (autoGenerateRoof, the same call the button always made), a click on a sheet
+// sets it, and Rotate 90° / Snap square act at once — the window sits to the
+// right on a wide screen over a light backdrop, and drags by its title, so the
+// roof can be watched changing. The shape the roof IS is drawn from its own
+// lines (so a turned roof shows turned); the others are the builders' pictures.
 function _roofSetupPopup(opts){
   opts = opts || {};
-  var prev = document.getElementById('_rsModal'); if (prev) prev.remove();
+  var settings = opts.mode === 'settings';
+  var prev = document.getElementById('_rsModal'); if (prev){ try { prev._rsClose && prev._rsClose(); } catch(e){} try { prev.remove(); } catch(e){} }
   var sug = null;
   try { sug = (typeof suggestRoofType === 'function') ? suggestRoofType() : null; } catch(e){}
-  var pickedType = (opts.type || (sug && sug.type) || 'hip');
+  var builtType = settings ? (DRAW.roofType || null) : null;
+  var pickedType = settings ? (DRAW.roofType || (sug && sug.type) || 'hip')
+                            : (opts.type || (sug && sug.type) || 'hip');
   var pickedSheet = opts.sheetType || (function(){
     try { return (_roofSheetType() || {}).key || 'steel-corrugate'; } catch(e){ return 'steel-corrugate'; }
   })();
+  // What "Skip for now" puts back if a shape was tried while the window was up.
+  var snap0 = null;
+  if (!settings){ try { snap0 = _captureSnapState(); } catch(e){} }
 
   // Seed the pitch box: this roof's own if it has one, otherwise the last roof
   // that was given one — on a house the second roof is usually the same pitch
@@ -81325,25 +82642,54 @@ function _roofSetupPopup(opts){
     else (DRAW.roofs || []).forEach(function(r){ if (r && +r.calPitch > 0) _rsPitch0 = +r.calPitch; });
   } catch(e){}
 
+  var wide = (window.innerWidth || 0) >= 1100;
   var wrap = document.createElement('div');
   wrap.id = '_rsModal';
-  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);' +
-    'display:flex;align-items:center;justify-content:center;padding:16px';
+  wrap.setAttribute('data-mode', settings ? 'settings' : 'new');
+  // THE ROOF'S SETTINGS DROP DOWN WHERE THE OLD PANEL DID (2026-10-29, the
+  // owner: "make the roof setting act as the old drop down window acted, make
+  // the whole window size 15% smaller, and make it drop down over 0.5sec then
+  // collapse over 0.5sec and move to hard to the left size of the canvas and
+  // allow the user to drag the canvas roofmap around without it closing the
+  // window"). In settings mode there is no backdrop: the window is a panel in
+  // the page under the roof bar, at the canvas's left edge, so a press or a
+  // drag on the canvas goes to the canvas and the window stays. It drops in
+  // and folds away over half a second each way (rtpDrop / rtpLift, the old
+  // panel's own), and the card is drawn at 85% (`zoom`, on the card and not
+  // on the wrap, so dragging the wrap by its title stays in screen pixels).
+  // A NEW roof's window is unchanged: it still asks before anything is drawn.
+  var _rsHome = settings ? document.getElementById('roofTypePanel') : null;
+  if (_rsHome && _rsHome.parentNode){
+    wrap.className = 'rs-drop rs-anim-in';
+    wrap.style.cssText = 'position:absolute;z-index:60;left:.75rem;margin:0;padding:0;width:max-content;max-width:calc(100% - 1.5rem)';
+  } else {
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.16);' +
+      'display:flex;align-items:center;justify-content:' + (wide ? 'flex-end' : 'center') + ';padding:16px ' + (wide ? '28px' : '16px');
+  }
   var card = document.createElement('div');
+  card.id = '_rsCard';
   card.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.32);' +
-    'max-width:640px;width:100%;max-height:92vh;overflow:auto;padding:20px 20px 16px;' +
-    'font-family:Inter,-apple-system,sans-serif';
+    'max-width:600px;width:100%;max-height:92vh;overflow:auto;padding:0 20px 16px;' +
+    'font-family:Inter,-apple-system,sans-serif' +
+    (_rsHome ? ';width:600px;zoom:.85;border-top:3px solid #0099cc;box-shadow:0 18px 40px rgba(10,22,40,.26)' : '');
 
   // EACH SHAPE IS A PICTURE OF THIS ROOF (2026-10-22, feedback report 67:
   // "show all possible roof types as boxed pictures with the roof type name
   // under so the user can easily and quickly see which type to select, each
   // boxed roof picture should show the roof map as the outline is drawn but
-  // with roof type lines drawn in"). A name and a line of words is a guess
-  // on an L with a step and a valley; the footprint with the lines on it is
-  // the answer. Drawn once when the popup opens (the pictures do not change
-  // with the pick), the pick only moves the ring.
+  // with roof type lines drawn in"). The shape the roof already is comes off
+  // its own lines; the rest are what each builder would draw.
   var _pics = {};
-  try { ROOF_TYPE_CHOICES.forEach(function(c){ _pics[c.type] = _roofPreviewSvg(c.type, DRAW.outline, 180, 118); }); } catch(e){}
+  function drawPics(){
+    _pics = {};
+    var own = null;
+    try {
+      if (builtType && builtType === DRAW.roofType)
+        own = (DRAW.lines || []).filter(function(l){ return l && l.pts && l.pts.length === 2 && l.type !== 'gutter' && l.type !== 'outline'; });
+    } catch(e){}
+    try { ROOF_TYPE_CHOICES.forEach(function(c){ _pics[c.type] = _roofPreviewSvg(c.type, DRAW.outline, 180, 118, c.type === builtType ? own : null); }); } catch(e){}
+  }
+  drawPics();
   function typeBtn(c){
     var on = (c.type === pickedType);
     return '<button type="button" data-rstype="' + c.type + '" title="' + esc(c.hint) + '" ' +
@@ -81364,27 +82710,92 @@ function _roofSetupPopup(opts){
       'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:9px;' +
       'background:' + (on ? '#f0f9ff' : '#fff') + ';color:#0a1628">' + esc(t.label) + '</button>';
   }
+  function roofName(){
+    var i = DRAW.activeRoofIdx, r = (DRAW.roofs || [])[i];
+    return (r && r.name) || (i === 0 || i == null || i < 0 ? 'Main Roof' : _nthName((i || 0) + 1));
+  }
+  function footLeft(){
+    var n = (DRAW.roofs || []).length, i = DRAW.activeRoofIdx;
+    var s = '';
+    if (n > 1 && i > 0) s += '<button type="button" id="_rsMakeMain" style="padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#0369a1;border:1.5px solid #0099cc;border-radius:9px;cursor:pointer" title="Make this the main roof — the one the quote always includes. The current main roof becomes an extra.">★ Make main roof</button>';
+    else if (n > 1 && i === 0) s += '<span id="_rsIsMain" style="padding:6px 10px;font-size:11.5px;font-weight:800;color:#0369a1;background:#e0f2fe;border-radius:20px" title="The main roof is always part of the quote">Main roof</span>';
+    if (n > 0 && i >= 0) s += '<button type="button" id="_rsDelete" style="padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:9px;cursor:pointer" title="Delete this roof — its outline, lines and measurements (Undo brings it back)">Delete roof</button>';
+    return s;
+  }
   function paint(){
+    var hd = card.querySelector('#_rsTitle');
+    if (hd) hd.textContent = settings ? (roofName() + ' — roof settings') : (opts.title || 'What kind of roof is this?');
     card.querySelector('#_rsTypes').innerHTML = ROOF_TYPE_CHOICES.map(typeBtn).join('');
     card.querySelector('#_rsSheets').innerHTML = SHEET_TYPES.map(sheetBtn).join('');
+    card.querySelector('#_rsFootL').innerHTML = footLeft();
     wire();
+  }
+  function after(){
+    try { _syncRoofTypeDropLabel(); } catch(e){}
+    try { _syncGableRidgeUI(); } catch(e){}
+    try { _roofPanelSync(); } catch(e){}
+    try { _renderRoofMenuBar(); } catch(e){}
+  }
+  // Build a shape on the canvas NOW. The pitch box goes in first on a new
+  // roof, so the lines are measured at the slope the roofer has typed.
+  function build(t){
+    if (!DRAW.outline || DRAW.outline.length < 3) return false;
+    try { if (DRAW.scaleMetresPerPx > 0 && _trialRoofsBlocked()){ close(); _trialRoofsUsedOpen(); return false; } } catch(e){}
+    if (!settings){
+      var _pEl = card.querySelector('#_rsPitch'); var _p = _pEl ? parseFloat(_pEl.value) : NaN;
+      try { if (isFinite(_p) && _p >= 0 && _p !== DRAW.calPitch) setRoofPitch(_p, null); } catch(e){}
+    }
+    try { autoGenerateRoof(t); } catch(e){}
+    if (DRAW.roofType === t) builtType = t;
+    after();
+    return builtType === t;
   }
   function wire(){
     card.querySelectorAll('[data-rstype]').forEach(function(b){
-      b.onclick = function(){ pickedType = b.getAttribute('data-rstype'); paint(); };
+      b.onclick = function(){
+        var t = b.getAttribute('data-rstype');
+        pickedType = t;
+        // The shape the roof already is: picking it again would throw away a
+        // turn, a ridge break or a slide for nothing.
+        if (t !== builtType) build(t);
+        drawPics(); paint();
+      };
     });
     card.querySelectorAll('[data-rssheet]').forEach(function(b){
-      b.onclick = function(){ pickedSheet = b.getAttribute('data-rssheet'); paint(); };
+      b.onclick = function(){
+        pickedSheet = b.getAttribute('data-rssheet');
+        try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
+        after(); paint();
+      };
     });
+    var mm = card.querySelector('#_rsMakeMain');
+    if (mm) mm.onclick = function(){ try { makeMainRoof(DRAW.activeRoofIdx); } catch(e){} after(); paint(); };
+    var dl = card.querySelector('#_rsDelete');
+    if (dl) dl.onclick = function(){
+      var n0 = (DRAW.roofs || []).length;
+      try { deleteRoof(DRAW.activeRoofIdx); } catch(e){}
+      if ((DRAW.roofs || []).length !== n0){ builtType = null; close(); after(); }
+    };
   }
+  var bar = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+  var btnS = 'padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer';
   card.innerHTML =
-    '<div style="font-size:16px;font-weight:800;color:#0a1628">' + esc(opts.title || 'What kind of roof is this?') + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin:3px 0 12px;line-height:1.45">' +
-      esc(opts.message || 'Pick the shape and the roof lines are drawn for you. You can change both later.') +
-      (sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
+    '<div id="_rsHead" title="Drag to move this window" style="position:sticky;top:0;z-index:2;background:#fff;padding:16px 0 8px;margin-bottom:2px;cursor:move;user-select:none">' +
+      '<div id="_rsTitle" style="font-size:16px;font-weight:800;color:#0a1628"></div>' +
+      '<div style="font-size:12px;color:#64748b;margin-top:3px;line-height:1.45">' +
+        esc(opts.message || (settings
+          ? 'Click a shape and the roof changes on the canvas straight away.'
+          : 'Pick the shape and the roof lines are drawn for you as you click. You can change both later.')) +
+        (!settings && sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
+      '</div>' +
     '</div>' +
-    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape \u2014 each box is this outline with that shape\u2019s lines</div>' +
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape — each box is this outline with that shape’s lines</div>' +
     '<div id="_rsTypes" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"></div>' +
+    '<div style="' + bar + ';margin-top:10px">' +
+      '<button type="button" id="_rsRotate" style="' + btnS + '" title="Turn this roof’s lines 90° around the outline — the ridge direction on a gable or dutch gable, the fall on a mono-pitch.">⟳ Rotate 90°</button>' +
+      '<button type="button" id="_rsSnap" style="' + btnS + '" title="Square up every corner of this outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap square</button>' +
+    '</div>' +
+    '<div id="_rsLent"></div>' +
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Main sheet material</div>' +
     '<div id="_rsSheets" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
     '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
@@ -81394,7 +82805,9 @@ function _roofSetupPopup(opts){
     // whose wall was clicked during calibration got a pitch; every other roof
     // stayed at 0 and its sheet lengths came out as plan lengths. Asking here,
     // while the roof is the thing in hand, is the moment it is cheapest to
-    // answer.
+    // answer. (On the settings window the roof panel's own pitch row is lent
+    // in its place, lower pitch and "Show on roof" with it.)
+    (settings ? '' :
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Pitch of this roof</div>' +
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
       '<input id="_rsPitch" type="number" min="0" max="60" step="0.5" value="' +
@@ -81403,17 +82816,75 @@ function _roofSetupPopup(opts){
       '<span style="font-size:13px;font-weight:700;color:#334155">&deg;</span>' +
       '<span style="font-size:11px;color:#64748b;flex:1;min-width:150px">Leave at 0 for a flat roof. ' +
         'Sheet lengths are plan lengths until this is set.</span>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">' +
-      '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>' +
-      '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || 'Draw the roof') + '</button>' +
+    '</div>') +
+    '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:16px;border-top:1px solid #eef1f5;padding-top:12px">' +
+      '<div id="_rsFootL" style="' + bar + '"></div>' +
+      '<div style="' + bar + ';margin-left:auto">' +
+        (settings ? '' : '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>') +
+        '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || (settings ? 'Done' : 'Draw the roof')) + '</button>' +
+      '</div>' +
     '</div>';
   wrap.appendChild(card);
-  document.body.appendChild(wrap);
+  if (_rsHome && _rsHome.parentNode){
+    _rsHome.parentNode.insertBefore(wrap, _rsHome);
+    // Flush with the canvas's own left edge, wherever the page puts it.
+    try {
+      var _cv = document.getElementById('roofCanvas'), _pr = wrap.offsetParent;
+      if (_cv && _pr && _cv.getBoundingClientRect().width > 0)
+        wrap.style.left = Math.max(0, Math.round(_cv.getBoundingClientRect().left - _pr.getBoundingClientRect().left - _pr.clientLeft)) + 'px';
+    } catch(e){}
+  }
+  else document.body.appendChild(wrap);
+
+  // The roof panel's own controls, lent for as long as the window is open and
+  // put back where they came from when it closes.
+  var lent = [];
+  if (settings){
+    var host = card.querySelector('#_rsLent');
+    ['roofPitchRow', 'gableRidgeSlideRow'].forEach(function(id){
+      var el = document.getElementById(id); if (!el) return;
+      lent.push({ el: el, parent: el.parentNode, next: el.nextSibling });
+      var box = document.createElement('div');
+      box.style.cssText = 'margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center';
+      box.appendChild(el);
+      host.appendChild(box);
+    });
+    try { syncPitchInputs(); } catch(e){}
+    try { _syncLowPitchRow(); } catch(e){}
+    try { _syncGableRidgeUI(); } catch(e){}
+  }
   paint();
 
-  function close(){ wrap.remove(); }
+  var closed = false;
+  function close(){
+    if (closed) return; closed = true;
+    // The drop-down folds away over half a second. It stops being THE window
+    // at once (its id and mode go, so a reopen or a check sees it closed), and
+    // the borrowed rows go home at once too — a copy without ids stands in for
+    // them while it folds, so it does not change shape on the way out.
+    var fold = !!_rsHome && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    lent.forEach(function(x){
+      if (fold){
+        try {
+          var cp = x.el.cloneNode(true);
+          [cp].concat([].slice.call(cp.querySelectorAll('[id]'))).forEach(function(n){ n.removeAttribute('id'); });
+          x.el.parentNode.insertBefore(cp, x.el);
+        } catch(e){}
+      }
+      try { if (x.next && x.next.parentNode === x.parent) x.parent.insertBefore(x.el, x.next); else x.parent.appendChild(x.el); } catch(e){}
+    });
+    if (fold){
+      wrap.id = '_rsModalClosing'; wrap.removeAttribute('data-mode');
+      [].slice.call(wrap.querySelectorAll('[id]')).forEach(function(n){ n.removeAttribute('id'); });
+      wrap.style.pointerEvents = 'none';
+      wrap.classList.remove('rs-anim-in'); wrap.classList.add('rs-anim-out');
+      setTimeout(function(){ try { wrap.remove(); } catch(e){} }, 520);
+    } else { try { wrap.remove(); } catch(e){} }
+    try { _renderRoofMenuBar(); } catch(e){}
+  }
+  wrap._rsClose = close;
   function apply(){
+    if (settings){ close(); return; }
     // Read the pitch BEFORE the card is torn out of the document.
     var _pEl = card.querySelector('#_rsPitch');
     var _p = _pEl ? parseFloat(_pEl.value) : NaN;
@@ -81423,23 +82894,68 @@ function _roofSetupPopup(opts){
     // ends up with its cut list one recalculation behind its own slope.
     try { if (isFinite(_p) && _p >= 0) setRoofPitch(_p, null); } catch(e){}
     try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
-    try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){}
-    try { if (typeof _syncRoofTypeDropLabel === 'function') _syncRoofTypeDropLabel(); } catch(e){}
-    // A second after the roof lands, its settings slide down over the page.
-    // The roofer has just chosen a shape and a pitch; what they reach for
-    // next is Rotate 90°, and on roof 7 there was no way to tell where that
-    // lived. One second so the roof is on screen first and the panel is
-    // plainly a second event, not part of the window that just closed.
+    // Already on the canvas — tried, turned and left as it is. Building it
+    // again would undo the turn.
+    if (builtType !== pickedType){ try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){} }
+    after();
+    // The retired drop-down's slide-in (it does nothing while the window is
+    // the roof button's answer — _ROOF_PANEL_DROPDOWN false).
     try { setTimeout(function(){ _roofPanelReveal(); }, 1000); } catch(e){}
   }
+  function skip(){
+    // Anything tried while the window was up comes off again: "Skip" leaves
+    // the outline as it was drawn.
+    if (builtType && snap0){ try { _applySnapState(snap0); } catch(e){} try { redrawAll(); } catch(e){} }
+    builtType = null;
+    close(); after();
+  }
   card.querySelector('#_rsOk').onclick = apply;
-  card.querySelector('#_rsSkip').onclick = close;
-  wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
+  var _sk = card.querySelector('#_rsSkip'); if (_sk) _sk.onclick = skip;
+  card.querySelector('#_rsRotate').onclick = function(){
+    if (!builtType || DRAW.roofType !== builtType){ if (!build(pickedType)) return; }
+    try { rotateActiveRoof(); } catch(e){}
+    after(); drawPics(); paint();
+  };
+  card.querySelector('#_rsSnap').onclick = function(){
+    try { snapOutlineToSquare(); } catch(e){}
+    after(); drawPics(); paint();
+  };
+  var _pIn = card.querySelector('#_rsPitch');
+  if (_pIn) _pIn.addEventListener('change', function(){
+    var v = parseFloat(_pIn.value);
+    if (builtType && isFinite(v) && v >= 0){ try { setRoofPitch(v, null); } catch(e){} }
+  });
+  // Clicking away keeps what is on the canvas; only Skip takes it back.
+  // (The settings drop-down has no "away": it sits in the page and the canvas
+  // beside it is for working on, so only Done, Esc or the roof button close it.)
+  if (!_rsHome) wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
   wrap.addEventListener('keydown', function(ev){
     if (ev.key === 'Escape'){ ev.preventDefault(); close(); }
-    else if (ev.key === 'Enter'){ ev.preventDefault(); apply(); }
+    else if (ev.key === 'Enter' && !(ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) && settings)){ ev.preventDefault(); apply(); }
   });
-  setTimeout(function(){ try { card.querySelector('#_rsOk').focus(); } catch(e){} }, 30);
+  // Drag it by its title, so it can be parked off whatever part of the roof
+  // is being watched.
+  (function(){
+    var hd = card.querySelector('#_rsHead'); if (!hd) return;
+    hd.addEventListener('pointerdown', function(ev){
+      if (ev.button !== 0) return;
+      // The drop-down moves as a whole (its card is zoomed, the wrap is not).
+      var mover = _rsHome ? wrap : card;
+      var r = mover.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+      mover.style.position = 'fixed'; mover.style.left = r.left + 'px'; mover.style.top = r.top + 'px'; mover.style.margin = '0';
+      function mv(e){
+        mover.style.left = Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx)) + 'px';
+        mover.style.top = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dy)) + 'px';
+      }
+      function up(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); }
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+      ev.preventDefault();
+    });
+  })();
+  try { _renderRoofMenuBar(); } catch(e){}
+  // Focus without scrolling: the drop-down hangs from the roof bar, and pulling
+  // the page down to its Done button would take the roof bar off the top.
+  setTimeout(function(){ try { card.querySelector('#_rsOk').focus({ preventScroll: true }); } catch(e){} }, 30);
 }
 
 // WHICH WAY THE ROOF FACES, decided from the outline alone — once, the
@@ -81489,7 +83005,7 @@ function _roofOrientForOutline(outline){
 // through-ridge and longer sheets across the corner.)
 function _roofLinesForType(type, outline, rot){
   var rotSteps = Math.round(((rot || 0) % 360 + 360) % 360 / 90) % 4;
-  if (type === 'hip')       return buildHipValleyLines(outline);
+  if (type === 'hip')       return _hipLinesWithBumps(outline);
   if (type === 'gable')     return buildGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'stepgable') return buildStepGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'gable-hv')  return buildGableRoofLines_legacy(outline);
@@ -81530,10 +83046,10 @@ function _roofPreviewLines(type, outline){
 // The outline in grey and the shape's lines in the map's own colours, fitted
 // into a small box. The outline's edges stand in for the gutters the build
 // lays on them afterwards.
-function _roofPreviewSvg(type, outline, w, h){
+function _roofPreviewSvg(type, outline, w, h, own){
   outline = outline || DRAW.outline; w = w || 180; h = h || 118;
   if (!outline || outline.length < 3) return '';
-  var lines = _roofPreviewLines(type, outline);
+  var lines = own || _roofPreviewLines(type, outline);
   var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
   outline.forEach(function(p){ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; });
   var pad = 10, sc = Math.min((w - 2*pad) / Math.max(1, x1 - x0), (h - 2*pad) / Math.max(1, y1 - y0));
@@ -81696,7 +83212,7 @@ function _clearBuiltRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -81713,7 +83229,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null,
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -81725,7 +83241,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, lowPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }
@@ -81784,6 +83300,8 @@ function _addAndSwitchToNewRoof(){
 // tapping the open one closes it again. Every roof stays on the canvas
 // throughout — see the note by _nthName for why that matters.
 function _roofMenuOpenFor(){
+  var rs = document.getElementById('_rsModal');
+  if (rs && rs.getAttribute('data-mode') === 'settings') return DRAW.activeRoofIdx;
   var rtp = document.getElementById('roofTypePanel');
   if (!rtp || rtp.style.display === 'none') return -1;
   return DRAW.activeRoofIdx;
@@ -81826,7 +83344,11 @@ function _renderRoofMenuBar(){
 // where it can be seen, instead of waiting behind a small arrow on a button.
 // NEVER over a walkthrough: the tour, the coach and the onboarding each put
 // their own card on this screen and two things cannot both be the next step.
+// The drop-down roof panel is retired as the roof button's window (2026-10-29);
+// true brings it back exactly as it was.
+var _ROOF_PANEL_DROPDOWN = false;
 function _roofPanelReveal(){
+  if (!_ROOF_PANEL_DROPDOWN) return;
   // ONE guard covers all three walkthroughs: the 29-step tour, the
   // first-roof walkthrough and the getting-started coach all run through the
   // same tour engine, so TOUR.open is true for every one of them. (TOUR.open,
@@ -81945,6 +83467,20 @@ function _roofPanelAutoHide(rtp, ms){
   }, (ms || RTP_HIDE_MS));
 }
 function _toggleRoofMenu(idx){
+  // THE ROOF BUTTON OPENS THE ROOF'S WINDOW (2026-10-29): the same picture
+  // window the outline closes into, in its settings mode — see
+  // _roofSetupPopup. The old drop-down panel stays in the page for site mode
+  // (_phoneRoofSheet) and for the controls the window borrows from it.
+  if (!_ROOF_PANEL_DROPDOWN){
+    var rs = document.getElementById('_rsModal');
+    var openFor = (rs && rs.getAttribute('data-mode') === 'settings') ? DRAW.activeRoofIdx : -1;
+    if (rs){ try { rs._rsClose ? rs._rsClose() : rs.remove(); } catch(e){} }
+    if (openFor === idx) { _renderRoofMenuBar(); return; }
+    if (idx !== DRAW.activeRoofIdx) switchToRoof(idx);
+    var _p0 = document.getElementById('roofTypePanel'); if (_p0) _p0.style.display = 'none';
+    _roofSetupPopup({ mode: 'settings' });
+    return;
+  }
   var rtp = document.getElementById('roofTypePanel');
   if (!rtp) return;
   var wasOpen = (rtp.style.display !== 'none');
