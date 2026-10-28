@@ -5093,7 +5093,7 @@ not a saving, and 49 purple to 48 orange.
   'change job' and then put the 'unlocked/locked' button at the bottom").
   THE LEFT MENU: Save job, Change job, History & Communications, Files &
   Photos (`#navJobFilesBtn`, a count once read), then the lock strip — the
-  all five the lock strip's grey with their words centred (2026-10-28, the owner: "change the blue buttons to a grey button, same as 'locked/unlocked' and center the words", then "grey colour the save job and change job too"). `tests/jobhistory.mjs` pins the order.
+  all five the lock strip's grey (2026-10-28, "grey colour the save job and change job too"), class `.nav-job-btn`, words on the left, half-transparent blue under the pointer and solid blue pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
   THE BYTES NEVER GO IN THE JOB ROW (that is how the database stalled in
   September): a private Storage bucket 'job-files' (`_jfStorage()`, the
   tender's `tender/storage.js` made generic: `create(supabase, {bucket,

@@ -1189,8 +1189,21 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
   width:100%;
   font-family:inherit;
 }
-.nav-btn:hover{background:var(--surface-2);color:var(--text)}
+/* The tabs (2026-10-29, the owner: "the main tab buttons, do a 50/50
+   transparent navy colour, then solid when it's clicked (the existing navy
+   colour)"): half navy under the pointer, the full navy when pressed or open. */
+.nav-btn:hover{background:rgba(10,22,40,.5);color:#fff}
+.nav-btn:hover svg{stroke:#fff}
+.nav-btn:active,.nav-btn.active,.nav-btn.active:hover{background:var(--ink);color:#fff;font-weight:600}
 .nav-btn.active{background:var(--ink);color:#fff;font-weight:600}
+/* THE JOB'S BUTTONS IN THE LEFT MENU (the same message: "move the wording on
+   each button to the left side, then highlight the button in the 50/50
+   transparent blue colour then go solid blue when it's clicked"). Grey at
+   rest, the words on the left, half blue under the pointer, solid blue
+   pressed. A Save that has just answered keeps its green or red. */
+.nav-job-btn{transition:background .15s,color .15s,border-color .15s}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):hover{background:rgba(0,153,204,.5)!important;border-color:rgba(0,153,204,.6)!important;color:#0a1628!important}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):active{background:#0099cc!important;border-color:#0099cc!important;color:#fff!important}
 .nav-btn.active svg{stroke:var(--accent)}
 .nav-btn svg{
   width:16px;height:16px;flex-shrink:0;
@@ -5178,7 +5191,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T19:53:28Z';
+  window.APP_BUILT_AT = '2026-10-28T20:20:26Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5739,14 +5752,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          never been saved, which is the job that needs it most; saveCurrentJob
          carries its own guards (a frozen version on screen, a locked job) and
          _saveClick says what happened either way. -->
-    <button type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
+    <button class="nav-job-btn" type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
             title="Save this job now"
-            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">💾 Save job</button>
+            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">💾 Save job</button>
     <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
          into the job details window on 2026-09-29 and swapping jobs is a thing
          you do from anywhere, not something to open a window to reach. -->
-    <button type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer">Change job</button>
+    <button class="nav-job-btn" type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">Change job</button>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
@@ -5758,8 +5771,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          sent' button, then move the 'change job' button up to just underneath
          the 'save job'"). The job's timeline and every email with the customer
          about it, one tap from any tab. Shown with the job's other buttons. -->
-    <button type="button" id="navJobHistBtn" class="lock-ok" onclick="_jobHistoryOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <button type="button" id="navJobHistBtn" class="nav-job-btn lock-ok" onclick="_jobHistoryOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
     <!-- FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
          below the history and communications button ... change the colour of
          this new button and the history button to be the same blue as 'change
@@ -5768,10 +5781,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
          as 'locked/unlocked' and center the words" — both are the lock strip's
          grey now, words centred, the count a small blue chip). Everything exported or sent from the job, the office's own
          uploads, and the Fergus job's files — _jobFilesOpen. -->
-    <button type="button" id="navJobFilesBtn" class="lock-ok" onclick="_jobFilesOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
-    <button type="button" id="navJobLockSide" onclick="_jobLockToggle()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:center"></button>
+    <button type="button" id="navJobFilesBtn" class="nav-job-btn lock-ok" onclick="_jobFilesOpen()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <button class="nav-job-btn" type="button" id="navJobLockSide" onclick="_jobLockToggle()"
+            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
 
     <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
