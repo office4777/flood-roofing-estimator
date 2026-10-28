@@ -73,6 +73,26 @@ check('the roof button opens the roof window — not the drop-down panel', v.ope
 check('…titled for that roof, the shape it is ringed', /Roof 2 — roof settings/.test(v.title) && v.ringed === 'gable', v.title + ' / ' + v.ringed);
 check('…with Make main roof, Delete roof, Snap square, the pitch and Done', v.make && v.del && v.snap && v.pitchIn && v.ok === 'Done', JSON.stringify(v));
 check('…and the roof button’s arrow says it is open', v.arrow === '▴', v.arrow);
+// THE DROP-DOWN (2026-10-29): no backdrop, hard left on the canvas, 85%,
+// a half-second drop, and a drag on the canvas leaves it open.
+v = await pg.evaluate(() => {
+  const m = document.getElementById('_rsModal'), c = document.getElementById('_rsCard'), cv = document.getElementById('roofCanvas');
+  const mr = m.getBoundingClientRect(), cr = cv.getBoundingClientRect();
+  return { pos: getComputedStyle(m).position, bg: getComputedStyle(m).backgroundColor, inBody: m.parentNode === document.body,
+           zoom: getComputedStyle(c).zoom, anim: getComputedStyle(m).animationName, dur: getComputedStyle(m).animationDuration,
+           left: Math.round(mr.left - cr.left), w: Math.round(mr.width), coversCanvas: mr.width >= cr.width * 0.95 };
+});
+check('it drops down in the page — no backdrop over the canvas', v.pos === 'absolute' && !v.inBody && /rgba\(0, 0, 0, 0\)|transparent/.test(v.bg) && !v.coversCanvas, JSON.stringify(v));
+check('…hard against the canvas’s left edge', Math.abs(v.left) <= 2, JSON.stringify(v));
+check('…15% smaller (the card at 85%, about 510 px)', +v.zoom === 0.85 && v.w > 470 && v.w < 540, JSON.stringify(v));
+check('…dropping in over half a second', v.anim === 'rtpDrop' && v.dur === '0.5s', JSON.stringify(v));
+{
+  const cb = await pg.evaluate(() => { const r = document.getElementById('roofCanvas').getBoundingClientRect(); return { x: r.right - 120, y: r.bottom - 120 }; });
+  await pg.mouse.move(cb.x, cb.y); await pg.mouse.down(); await pg.mouse.move(cb.x - 60, cb.y - 40, { steps: 6 }); await pg.mouse.up();
+  await pg.waitForTimeout(250);
+}
+v = await pg.evaluate(() => !!document.getElementById('_rsModal'));
+check('dragging the roof map around leaves it open', v === true, String(v));
 await pg.click('#_rsModal [data-rstype="mono"]'); await pg.waitForTimeout(250);
 v = await pg.evaluate(() => ({ type: DRAW.roofType, open: !!document.getElementById('_rsModal'), main: DRAW.roofs[0].roofType }));
 check('a shape clicked in it changes THAT roof live, and only that roof', v.type === 'mono' && v.open && v.main === 'hip', JSON.stringify(v));
@@ -82,6 +102,11 @@ check('the pitch typed in it is the roof’s pitch', v === 25, String(v));
 await pg.click('#_rsOk'); await pg.waitForTimeout(200);
 v = await pg.evaluate(() => ({ open: !!document.getElementById('_rsModal'), home: !!document.querySelector('#roofTypePanel #roofPitchInput'), arrow: (document.querySelector('#roofMenuBar button:nth-child(2) span') || {}).textContent }));
 check('Done closes it and the borrowed pitch row goes back to the roof panel', !v.open && v.home && v.arrow === '▾', JSON.stringify(v));
+v = await pg.evaluate(() => { const f = document.getElementById('_rsModalClosing'); return { folding: !!f && /rs-anim-out/.test(f.className), anim: f && getComputedStyle(f).animationName, ids: f ? f.querySelectorAll('[id]').length : -1 }; });
+check('…folding away over half a second, a copy without ids standing in', v.folding && v.anim === 'rtpLift' && v.ids === 0, JSON.stringify(v));
+await pg.waitForTimeout(450);
+v = await pg.evaluate(() => !!document.getElementById('_rsModalClosing'));
+check('…and gone once it has folded', v === false, String(v));
 await pg.evaluate(() => _toggleRoofMenu(1)); await pg.waitForTimeout(250);
 await pg.evaluate(() => _toggleRoofMenu(1)); await pg.waitForTimeout(200);
 v = await pg.evaluate(() => !!document.getElementById('_rsModal'));

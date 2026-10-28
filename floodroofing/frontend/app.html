@@ -406,8 +406,13 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 @keyframes rtpDrop{ from{ opacity:0; transform:translateY(-14px); } to{ opacity:1; transform:translateY(0); } }
 @keyframes rtpLift{ from{ opacity:1; transform:translateY(0) scaleY(1); transform-origin:top; }
                     to{ opacity:0; transform:translateY(-10px) scaleY(.82); transform-origin:top; } }
+/* The roof window in its settings mode is the drop-down now (_roofSetupPopup):
+   the same half second in and the same fold out. */
+#_rsModal.rs-drop.rs-anim-in{ animation:rtpDrop .5s cubic-bezier(.22,1,.36,1); }
+.rs-drop.rs-anim-out{ animation:rtpLift .5s cubic-bezier(.4,0,.7,.2) forwards; }
 @media (prefers-reduced-motion:reduce){
   #roofTypePanel.rtp.rtp-anim, #roofTypePanel.rtp.rtp-anim-out{ animation:none; }
+  #_rsModal.rs-drop.rs-anim-in, .rs-drop.rs-anim-out{ animation:none; }
 }
 /* The way out, where the way in was: a full-width hit area with an up arrow,
    not a 9px glyph on a button somewhere else. */
@@ -5191,7 +5196,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T20:20:26Z';
+  window.APP_BUILT_AT = '2026-10-28T23:20:29Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -82641,13 +82646,32 @@ function _roofSetupPopup(opts){
   var wrap = document.createElement('div');
   wrap.id = '_rsModal';
   wrap.setAttribute('data-mode', settings ? 'settings' : 'new');
-  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.16);' +
-    'display:flex;align-items:center;justify-content:' + (wide ? 'flex-end' : 'center') + ';padding:16px ' + (wide ? '28px' : '16px');
+  // THE ROOF'S SETTINGS DROP DOWN WHERE THE OLD PANEL DID (2026-10-29, the
+  // owner: "make the roof setting act as the old drop down window acted, make
+  // the whole window size 15% smaller, and make it drop down over 0.5sec then
+  // collapse over 0.5sec and move to hard to the left size of the canvas and
+  // allow the user to drag the canvas roofmap around without it closing the
+  // window"). In settings mode there is no backdrop: the window is a panel in
+  // the page under the roof bar, at the canvas's left edge, so a press or a
+  // drag on the canvas goes to the canvas and the window stays. It drops in
+  // and folds away over half a second each way (rtpDrop / rtpLift, the old
+  // panel's own), and the card is drawn at 85% (`zoom`, on the card and not
+  // on the wrap, so dragging the wrap by its title stays in screen pixels).
+  // A NEW roof's window is unchanged: it still asks before anything is drawn.
+  var _rsHome = settings ? document.getElementById('roofTypePanel') : null;
+  if (_rsHome && _rsHome.parentNode){
+    wrap.className = 'rs-drop rs-anim-in';
+    wrap.style.cssText = 'position:absolute;z-index:60;left:.75rem;margin:0;padding:0;width:max-content;max-width:calc(100% - 1.5rem)';
+  } else {
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.16);' +
+      'display:flex;align-items:center;justify-content:' + (wide ? 'flex-end' : 'center') + ';padding:16px ' + (wide ? '28px' : '16px');
+  }
   var card = document.createElement('div');
   card.id = '_rsCard';
   card.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.32);' +
     'max-width:600px;width:100%;max-height:92vh;overflow:auto;padding:0 20px 16px;' +
-    'font-family:Inter,-apple-system,sans-serif';
+    'font-family:Inter,-apple-system,sans-serif' +
+    (_rsHome ? ';width:600px;zoom:.85;border-top:3px solid #0099cc;box-shadow:0 18px 40px rgba(10,22,40,.26)' : '');
 
   // EACH SHAPE IS A PICTURE OF THIS ROOF (2026-10-22, feedback report 67:
   // "show all possible roof types as boxed pictures with the roof type name
@@ -82801,7 +82825,16 @@ function _roofSetupPopup(opts){
       '</div>' +
     '</div>';
   wrap.appendChild(card);
-  document.body.appendChild(wrap);
+  if (_rsHome && _rsHome.parentNode){
+    _rsHome.parentNode.insertBefore(wrap, _rsHome);
+    // Flush with the canvas's own left edge, wherever the page puts it.
+    try {
+      var _cv = document.getElementById('roofCanvas'), _pr = wrap.offsetParent;
+      if (_cv && _pr && _cv.getBoundingClientRect().width > 0)
+        wrap.style.left = Math.max(0, Math.round(_cv.getBoundingClientRect().left - _pr.getBoundingClientRect().left - _pr.clientLeft)) + 'px';
+    } catch(e){}
+  }
+  else document.body.appendChild(wrap);
 
   // The roof panel's own controls, lent for as long as the window is open and
   // put back where they came from when it closes.
@@ -82825,10 +82858,28 @@ function _roofSetupPopup(opts){
   var closed = false;
   function close(){
     if (closed) return; closed = true;
+    // The drop-down folds away over half a second. It stops being THE window
+    // at once (its id and mode go, so a reopen or a check sees it closed), and
+    // the borrowed rows go home at once too — a copy without ids stands in for
+    // them while it folds, so it does not change shape on the way out.
+    var fold = !!_rsHome && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     lent.forEach(function(x){
+      if (fold){
+        try {
+          var cp = x.el.cloneNode(true);
+          [cp].concat([].slice.call(cp.querySelectorAll('[id]'))).forEach(function(n){ n.removeAttribute('id'); });
+          x.el.parentNode.insertBefore(cp, x.el);
+        } catch(e){}
+      }
       try { if (x.next && x.next.parentNode === x.parent) x.parent.insertBefore(x.el, x.next); else x.parent.appendChild(x.el); } catch(e){}
     });
-    try { wrap.remove(); } catch(e){}
+    if (fold){
+      wrap.id = '_rsModalClosing'; wrap.removeAttribute('data-mode');
+      [].slice.call(wrap.querySelectorAll('[id]')).forEach(function(n){ n.removeAttribute('id'); });
+      wrap.style.pointerEvents = 'none';
+      wrap.classList.remove('rs-anim-in'); wrap.classList.add('rs-anim-out');
+      setTimeout(function(){ try { wrap.remove(); } catch(e){} }, 520);
+    } else { try { wrap.remove(); } catch(e){} }
     try { _renderRoofMenuBar(); } catch(e){}
   }
   wrap._rsClose = close;
@@ -82875,7 +82926,9 @@ function _roofSetupPopup(opts){
     if (builtType && isFinite(v) && v >= 0){ try { setRoofPitch(v, null); } catch(e){} }
   });
   // Clicking away keeps what is on the canvas; only Skip takes it back.
-  wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
+  // (The settings drop-down has no "away": it sits in the page and the canvas
+  // beside it is for working on, so only Done, Esc or the roof button close it.)
+  if (!_rsHome) wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
   wrap.addEventListener('keydown', function(ev){
     if (ev.key === 'Escape'){ ev.preventDefault(); close(); }
     else if (ev.key === 'Enter' && !(ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) && settings)){ ev.preventDefault(); apply(); }
@@ -82886,11 +82939,13 @@ function _roofSetupPopup(opts){
     var hd = card.querySelector('#_rsHead'); if (!hd) return;
     hd.addEventListener('pointerdown', function(ev){
       if (ev.button !== 0) return;
-      var r = card.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
-      card.style.position = 'fixed'; card.style.left = r.left + 'px'; card.style.top = r.top + 'px'; card.style.margin = '0';
+      // The drop-down moves as a whole (its card is zoomed, the wrap is not).
+      var mover = _rsHome ? wrap : card;
+      var r = mover.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+      mover.style.position = 'fixed'; mover.style.left = r.left + 'px'; mover.style.top = r.top + 'px'; mover.style.margin = '0';
       function mv(e){
-        card.style.left = Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx)) + 'px';
-        card.style.top = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dy)) + 'px';
+        mover.style.left = Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx)) + 'px';
+        mover.style.top = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dy)) + 'px';
       }
       function up(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); }
       document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
@@ -82898,7 +82953,9 @@ function _roofSetupPopup(opts){
     });
   })();
   try { _renderRoofMenuBar(); } catch(e){}
-  setTimeout(function(){ try { card.querySelector('#_rsOk').focus(); } catch(e){} }, 30);
+  // Focus without scrolling: the drop-down hangs from the roof bar, and pulling
+  // the page down to its Done button would take the roof bar off the top.
+  setTimeout(function(){ try { card.querySelector('#_rsOk').focus({ preventScroll: true }); } catch(e){} }, 30);
 }
 
 // WHICH WAY THE ROOF FACES, decided from the outline alone — once, the

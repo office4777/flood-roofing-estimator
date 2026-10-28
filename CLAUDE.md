@@ -2387,7 +2387,18 @@ not a saving, and 49 purple to 48 orange.
   ran (`#_rsLent` shares the panel's field CSS). The drop-down panel is retired
   behind `_ROOF_PANEL_DROPDOWN` (false; true brings it and its slide-in back —
   `tests/roofmenu.mjs` pins it with the switch on) and is still the phone's
-  site-mode sheet. `tests/roofwindow.mjs` (16).
+  site-mode sheet. THE SETTINGS MODE IS A DROP-DOWN AGAIN (2026-10-29 later,
+  "make the roof setting act as the old drop down window acted ... 15%
+  smaller ... drop down over 0.5sec then collapse over 0.5sec ... hard to the
+  left side of the canvas ... drag the canvas roofmap around without it
+  closing"): no backdrop — the wrap (`.rs-drop`) sits in the page just before
+  `#roofTypePanel`, absolute, flush with the canvas's left edge; the card is
+  `zoom:.85` (on the card, not the wrap, so the title drag moves the wrap in
+  screen pixels); `rtpDrop` in, `rtpLift` out, and a click on the canvas
+  never closes it (Done, Esc or the roof button). A closing window is renamed
+  `_rsModalClosing` with its ids stripped while it folds, the borrowed rows
+  already home. Focus uses `preventScroll`. The NEW-roof window is unchanged.
+  `tests/roofwindow.mjs` (23).
 - A QUOTE KEEPS THE PRODUCTS IT WAS BUILT WITH (2026-10-29, the owner on job
   3306: Duplicate this quote off Sent quote 2 "deleted the custom roof profile
   and changed the price total"). A draft read Settings' product list alone and
