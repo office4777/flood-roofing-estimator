@@ -1,0 +1,36 @@
+name: Hub back-costing CSV
+
+# On demand: every back-costed job in the hub's shared state over the last N months that carries actual
+# labour, as a CSV — printed into the run's log and uploaded as an artifact. Read with the nightly sync's login.
+
+on:
+  workflow_dispatch:
+    inputs:
+      months:
+        description: 'Calendar months back from this one, inclusive'
+        default: '20'
+        type: string
+
+jobs:
+  csv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Back-costing CSV
+        working-directory: floodroofing/hub-api
+        env:
+          HUB_API_URL: ${{ secrets.HUB_API_URL }}
+          HUB_USER: ${{ secrets.HUB_SYNC_USER }}
+          HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
+          WINDOW_MONTHS: ${{ github.event.inputs.months || '20' }}
+        run: node scripts/backcost-csv.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backcost-csv
+          path: floodroofing/hub-api/backcost.csv
+          if-no-files-found: ignore
