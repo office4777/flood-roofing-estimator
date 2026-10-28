@@ -31,6 +31,11 @@ function nzNice(dateStr){
     .format(new Date(nzMidnightUtc(dateStr) + 12 * 3600e3));
 }
 function money(n){ return '$' + Number(n || 0).toLocaleString('en-NZ', { minimumFractionDigits: 0, maximumFractionDigits: 0 }); }
+function nzShort(iso){
+  const t = Date.parse(iso || '');
+  if (!isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(t));
+}
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]); }
 
 function createDaily(deps){
@@ -70,7 +75,7 @@ function createDaily(deps){
       rows('companies', 'id, name, plan, created_at'),
       rows('profiles', 'id, email, name, phone, company_id, verify_pending'),
       rows('company_users', 'company_id, user_id, role'),
-      rows('subscriptions', 'company_id, user_id, status, trial_ends_at, stripe_customer_id, plan'),
+      rows('subscriptions', 'company_id, user_id, status, trial_ends_at, stripe_customer_id, plan, paid_since'),
       rows('usage_events', 'name, company_id, user_id, props, at', q => q.gte('at', new Date(from).toISOString()).lt('at', new Date(to).toISOString())),
       // Everything up to the end of the day, for each person's all-time line.
       rows('usage_events', 'name, user_id, props, at', q => q.lt('at', new Date(to).toISOString()).limit(200000)),
@@ -100,6 +105,8 @@ function createDaily(deps){
         status: paying ? 'paying' : (onTrial ? 'trial' : (expired ? 'expired' : 'trial')),
         trial_days_left: onTrial ? Math.ceil((trialEnds - now) / DAY) : null,
         mrr: paying ? PLAN_PRICE[paidPlan] : 0,
+        // When they started paying (the first paid invoice; kept since 2026-10-28).
+        paid_since: paying && sub.paid_since ? sub.paid_since : null,
         owner: ownerProf ? { name: ownerProf.name || '', email: ownerProf.email || '', phone: ownerProf.phone || '' } : null,
         people: members.length,
         members: members.map(m => m.user_id),
@@ -111,6 +118,8 @@ function createDaily(deps){
     const paid = {};
     Object.keys(PLAN_PRICE).forEach(k => { paid[k] = companies.filter(c => c.status === 'paying' && c.plan === k); });
     const mrr = companies.reduce((s, c) => s + (c.mrr || 0), 0);
+    // Started paying yesterday.
+    const newPaying = companies.filter(c => { const t = Date.parse(c.paid_since || ''); return c.status === 'paying' && isFinite(t) && t >= from && t < to; });
 
     // A line per person: what they did yesterday.
     const count = (uid, name) => evs.filter(e => e.user_id === uid && e.name === name).length;
@@ -213,7 +222,7 @@ function createDaily(deps){
     evs.filter(e => e.name === 'walkthrough' && (e.props || {}).action === 'shown').forEach(e => { const st = (e.props || {}).step || '?'; wsteps[st] = (wsteps[st] || 0) + 1; });
 
     return { date, nice: nzNice(date), stops, walkthrough_steps: wsteps, range: { from: new Date(from).toISOString(), to: new Date(to).toISOString() },
-      new_trials: newTrials, trials, paid, mrr, users, active_count: active.length, events: evs.length, businesses: cos.length, build: buildSha };
+      new_trials: newTrials, new_paying: newPaying, trials, paid, mrr, users, active_count: active.length, events: evs.length, businesses: cos.length, build: buildSha };
   }
 
   const SCREEN_LABEL = { home: 'Home', roof: 'Map Roof', jobpack: 'Job Pack', quote: 'Quote', settings: 'Settings', feedback: 'Feedback', inbox: 'Inbox', schedule: 'Schedule',
@@ -240,6 +249,7 @@ function createDaily(deps){
     return 'trial ended';
   }
   function who(c){ return c.name + (c.owner ? ' — ' + [c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(', ') : ''); }
+  function sinceWord(c){ return c.paid_since ? 'paying since ' + nzShort(c.paid_since) : 'paying since — not recorded'; }
 
   // All-time score: minutes plus five a login, the same weighting as the day.
   function totalScore(u){ const t = u.total || {}; return (t.minutes || 0) + (t.logins || 0) * 5 + (t.quotes || 0) * 10; }
@@ -252,6 +262,9 @@ function createDaily(deps){
     const L = [];
     L.push('RoofMap — activity for ' + rep.nice);
     L.push('');
+    L.push('NEW PAYING SUBSCRIBERS YESTERDAY: ' + (rep.new_paying || []).length);
+    (rep.new_paying || []).forEach(c => L.push('  • ' + who(c) + ' (' + (PLAN_LABEL[c.plan] || c.plan) + ')'));
+    L.push('');
     L.push('NEW TRIALS YESTERDAY: ' + rep.new_trials.length);
     rep.new_trials.forEach(c => L.push('  • ' + who(c)));
     L.push('');
@@ -260,7 +273,7 @@ function createDaily(deps){
     L.push('');
     Object.keys(PLAN_PRICE).forEach(k => {
       L.push((PLAN_LABEL[k] || k).toUpperCase() + ' (' + money(PLAN_PRICE[k]) + '/mo): ' + rep.paid[k].length);
-      rep.paid[k].forEach(c => L.push('  • ' + who(c)));
+      rep.paid[k].forEach(c => L.push('  • ' + who(c) + ' — ' + sinceWord(c)));
     });
     L.push('');
     L.push('MRR, paying businesses combined: ' + money(rep.mrr) + ' + GST a month');
@@ -289,6 +302,8 @@ function createDaily(deps){
     const li = c => '<li><b>' + h(c.name) + '</b>' + (c.owner ? ' — ' + h([c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(' · ')) : '') + '</li>';
     const sec = (title, body) => '<div class="c"><h2>' + h(title) + '</h2>' + body + '</div>';
     const list = arr => arr.length ? '<ul>' + arr.map(li).join('') + '</ul>' : '<p class="m">None.</p>';
+    const liPaid = c => '<li><b>' + h(c.name) + '</b>' + (c.owner ? ' — ' + h([c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(' · ')) : '') + ' <span class="p">' + h(sinceWord(c)) + '</span></li>';
+    const listPaid = arr => arr.length ? '<ul>' + arr.map(liPaid).join('') + '</ul>' : '<p class="m">None.</p>';
     const rowsHtml = rep.users.map(u => {
       const quiet = !(u.logins || u.canvas || u.quotes || u.orders || u.feedback || u.minutes);
       const plan = u.company_status === 'paying' ? '<span class="p">' + h(PLAN_LABEL[u.plan] || u.plan) + '</span>' : h(planWord({ status: u.company_status, plan: u.plan, trial_days_left: u.trial_days_left }));
@@ -316,9 +331,10 @@ function createDaily(deps){
       'td.n{text-align:right;white-space:nowrap}td.s{font-size:12px;color:#334155;max-width:180px}tr.q td{color:#9aa5b1}.p{color:#15803d;font-weight:700}.ft{color:#7b8a99;font-size:12px;text-align:center;padding:6px 0 18px}' +
       '</style></head><body><div class="w">' +
       '<div class="hd"><h1>RoofMap — activity for ' + h(rep.nice) + '</h1><p>Who started, who is trialling, who pays, and what everyone did.</p></div>' +
+      ((rep.new_paying || []).length ? sec('🎉 New paying subscribers yesterday — ' + rep.new_paying.length, '<ul>' + rep.new_paying.map(c => '<li><b>' + h(c.name) + '</b> <span class="p">' + h(PLAN_LABEL[c.plan] || c.plan) + '</span>' + (c.owner ? ' — ' + h([c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(' · ')) : '') + '</li>').join('') + '</ul>') : '') +
       sec('New trials yesterday — ' + rep.new_trials.length, list(rep.new_trials)) +
       sec('On a trial now — ' + rep.trials.length, rep.trials.length ? '<ul>' + rep.trials.map(c => '<li><b>' + h(c.name) + '</b> <span class="m">' + h(planWord(c)) + '</span>' + (c.owner ? ' — ' + h([c.owner.name, c.owner.email, c.owner.phone].filter(Boolean).join(' · ')) : '') + '</li>').join('') + '</ul>' : '<p class="m">None.</p>') +
-      Object.keys(PLAN_PRICE).map(k => sec((PLAN_LABEL[k] || k) + ' · ' + money(PLAN_PRICE[k]) + '/mo — ' + rep.paid[k].length, list(rep.paid[k]))).join('') +
+      Object.keys(PLAN_PRICE).map(k => sec((PLAN_LABEL[k] || k) + ' · ' + money(PLAN_PRICE[k]) + '/mo — ' + rep.paid[k].length, listPaid(rep.paid[k]))).join('') +
       sec('MRR, paying businesses combined', '<p class="big">' + h(money(rep.mrr)) + ' <span class="m" style="font-size:13px;font-weight:400">+ GST a month</span></p>') +
       sec('Activity yesterday — ' + rep.active_count + ' of ' + rep.users.length + ' people did something',
         '<table><thead><tr><th>Person</th><th>Business</th><th>Plan</th><th>Logins</th><th>Canvas</th><th>Quotes</th><th>Orders</th><th>Feedback</th><th>Minutes</th><th>Where the minutes went</th><th>Left at</th><th>Practice job</th></tr></thead><tbody>' + rowsHtml + '</tbody></table>') +

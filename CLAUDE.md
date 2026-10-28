@@ -26,11 +26,11 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (281 as of 2026-10-23 — 62 in its `API` list, 219 in `UI` — four at a time,
+  (290 as of 2026-10-28 — 66 in its `API` list, 224 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
-  `run.mjs api` is the exact command CI's Backend job runs, 62 suites in
-  about 38 seconds, and it is what to run before ANY server ship. A NEW
+  `run.mjs api` is the exact command CI's Backend job runs, 66 suites in
+  about 44 seconds, and it is what to run before ANY server ship. A NEW
   suite must be added to the `API` or `UI` list in `run.mjs` or it never
   runs — and every suite on disk is in one of them today, which is worth
   re-checking rather than assuming. Pipe the runner through `tail` and
@@ -4161,6 +4161,33 @@ not a saving, and 49 purple to 48 orange.
   fighting it. Run against the old build it fails 10 of 16, every failure the
   same frozen 8,640 / 10,315.39 / 2,500 with rowsAdd true — his screenshot,
   reproduced.
+- A NEW PAYING SUBSCRIBER EMAILS THE OWNER (2026-10-28, the owner: "I'm not
+  getting any emails to say that somebody's started paying ... email me
+  congratulations, new paying subscriber ... give their details", and "in the
+  activity report ... also the date that they started paying"). A signup told
+  him (`_signupAlert`); the first payment told only the CUSTOMER (their tax
+  invoice). `_newPayerNotify` runs from the webhook on a PAID checkout
+  (`payment_status === 'paid'`, `amount_total > 0`) and on `invoice.paid` /
+  `invoice.payment_succeeded` (`amount_paid > 0`; the subscription id from
+  `inv.subscription` or `inv.parent.subscription_details`, Stripe's 2025+
+  shape): stamps `subscriptions.paid_since` (the earliest payment, never moved
+  later) and, once — claimed by `paid_alert_at`, written before the send —
+  emails `NEW_PAYER_ALERT_TO` (default = `SIGNUP_ALERT_TO` = support@) with the
+  business, name, email, phone, plan and price, the first payment, paying
+  since, signed up (and how many days before paying), and how many businesses
+  pay now; Reply-To is the customer. A $0 invoice is not paying. An invoice
+  that lands before the checkout has written the row is let go; the checkout
+  then sends it. THE BACKFILL (`_paidSinceBackfill`, 75 s after boot, and
+  `POST /admin/paid-since/run`) dates every paying row off Stripe — the
+  earliest paid invoice above $0 (`GET /v1/invoices?subscription=…&status=
+  paid`) — and sends the email they missed to one that started paying in the
+  last `NEW_PAYER_RECENT_DAYS` (14); older ones are marked told quietly. As of
+  the ship that is WLRR (~22 Oct) and TGM Roofing (~23 Oct), read off the
+  daily reports in his Gmail; Signature Roofing (~7–12 Oct) and Flood Roofing
+  are older. THE DAILY REPORT (daily.js) reads `paid_since`: each paying
+  business's line ends "paying since 23 Oct 2026" ("not recorded" where Stripe
+  had no paid invoice), and a "New paying subscribers yesterday" section leads
+  when there are any. `tests/newpayer.mjs` (17, API list).
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted

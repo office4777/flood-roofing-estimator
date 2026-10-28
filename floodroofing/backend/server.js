@@ -6637,6 +6637,176 @@ async function _sendSubscriptionMail(inv, build){
   } catch (e) { console.error('[stripe] subscription mail failed:', e.message); return false; }
 }
 
+// ── A NEW PAYING SUBSCRIBER (2026-10-28) ─────────────────────────
+// The owner: "I'm not getting any emails to say that somebody's started
+// paying ... email me congratulations, new paying subscriber ... give their
+// details". A signup told him (_signupAlert); the first payment told only the
+// CUSTOMER (their tax invoice from accounts@). Now the first paid invoice, or
+// a completed checkout that was paid, stamps `paid_since` on the subscription
+// row and — once, claimed by `paid_alert_at` — emails the owner who it is.
+// A $0 invoice (a 100% coupon) is not paying and is left alone.
+const NEW_PAYER_ALERT_TO = process.env.NEW_PAYER_ALERT_TO == null ? SIGNUP_ALERT_TO : String(process.env.NEW_PAYER_ALERT_TO).trim();
+const NEW_PAYER_PLAN_PRICE = { measure: 79, solo: 149, team: 299, business: 549, monthly: 149 };
+const NEW_PAYER_PLAN_LABEL = { measure: 'Measure', solo: 'Trade', team: 'Team', business: 'Business', monthly: 'Trade (legacy)' };
+function _nzDateWords(iso){
+  const t = Date.parse(iso || '');
+  if (!isFinite(t)) return '';
+  return new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(t));
+}
+// The subscription the invoice belongs to: Stripe's 2025+ invoices carry it
+// under parent.subscription_details, older ones at the top level.
+function _invoiceSubId(inv){
+  return (inv && (inv.subscription || (inv.parent && inv.parent.subscription_details && inv.parent.subscription_details.subscription))) || null;
+}
+async function _subRowForStripe(subId, custId){
+  const cols = 'user_id, company_id, plan, status, stripe_customer_id, stripe_subscription_id, paid_since, paid_alert_at';
+  if (subId){
+    const r = await supabase.from('subscriptions').select(cols).eq('stripe_subscription_id', subId).limit(1);
+    if (r.error) throw new Error(r.error.message);
+    if (r.data && r.data[0]) return r.data[0];
+  }
+  if (custId){
+    const r = await supabase.from('subscriptions').select(cols).eq('stripe_customer_id', custId).limit(1);
+    if (r.error) throw new Error(r.error.message);
+    if (r.data && r.data[0]) return r.data[0];
+  }
+  return null;
+}
+// Who the business is, for the email: its name, the owner's name, email and
+// phone, when it signed up, and what the paying businesses now come to.
+async function _newPayerDetails(row){
+  const out = { company: '', name: '', email: '', phone: '', signedUp: '', payingCount: 0, mrr: 0 };
+  try {
+    if (row.company_id){
+      const { data: co } = await supabase.from('companies').select('name, created_at').eq('id', row.company_id).maybeSingle();
+      if (co){ out.company = co.name || ''; out.signedUp = co.created_at || ''; }
+    }
+    let uid = row.user_id;
+    if (row.company_id){
+      const { data: cu } = await supabase.from('company_users').select('user_id, role').eq('company_id', row.company_id);
+      const owner = (cu || []).find(r => r.role === 'owner');
+      if (owner) uid = owner.user_id;
+    }
+    if (uid){
+      const { data: p } = await supabase.from('profiles').select('name, email, phone, company').eq('id', uid).maybeSingle();
+      if (p){ out.name = p.name || ''; out.email = p.email || ''; out.phone = p.phone || ''; if (!out.company) out.company = p.company || ''; }
+    }
+    const { data: subs } = await supabase.from('subscriptions').select('company_id, status, stripe_customer_id, plan');
+    const paying = (subs || []).filter(s => s.stripe_customer_id && /^(active|past_due)$/.test(String(s.status || '')));
+    out.payingCount = paying.length;
+    out.mrr = paying.reduce((s, x) => s + (NEW_PAYER_PLAN_PRICE[x.plan] || 0), 0);
+  } catch (e) { /* the email still goes with what is known */ }
+  return out;
+}
+function _newPayerEmail(row, d, o){
+  const plan = NEW_PAYER_PLAN_LABEL[row.plan] || row.plan || 'a plan';
+  const price = NEW_PAYER_PLAN_PRICE[row.plan];
+  const who = d.company || d.name || d.email || 'A business';
+  const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
+  const days = (isFinite(Date.parse(d.signedUp)) && isFinite(Date.parse(o.paidAt)))
+    ? Math.max(0, Math.round((Date.parse(o.paidAt) - Date.parse(d.signedUp)) / 864e5)) : null;
+  const paidLine = o.amount > 0 ? ('$' + o.amount.toFixed(2) + ' ' + String(o.currency || 'nzd').toUpperCase() + ' incl. GST') : '';
+  const text = 'Congratulations — ' + who + ' has started paying for RoofMap.\n\n' +
+    nice('Business', d.company) + nice('Name', d.name) + nice('Email', d.email) + nice('Phone', d.phone) +
+    'Plan: ' + plan + (price ? ' ($' + price + ' + GST a month)' : '') + '\n' +
+    nice('First payment', paidLine) +
+    'Paying since: ' + _nzDateWords(o.paidAt) + '\n' +
+    nice('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' — ' + days + ' day' + (days === 1 ? '' : 's') + ' before paying' : '')) : '') +
+    (o.backfilled ? '\nThis payment was made before RoofMap sent these emails; it was found when the paid dates were filled in.\n' : '') +
+    '\nPaying businesses now: ' + d.payingCount + (d.mrr ? ' — $' + d.mrr + ' + GST a month between them' : '') + '\n' +
+    '\nReply to this email and it goes straight to them.';
+  const h = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+  const row2 = (k, v) => v ? '<tr><td style="padding:4px 14px 4px 0;color:#5f6b7a">' + h(k) + '</td><td style="padding:4px 0"><b>' + h(v) + '</b></td></tr>' : '';
+  const html = '<div style="font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#0a1628;max-width:560px">' +
+    '<div style="background:#0a1628;color:#fff;border-radius:12px;padding:18px 20px"><div style="font-size:13px;color:#9fb3c8">RoofMap</div>' +
+    '<div style="font-size:21px;font-weight:800;margin-top:2px">🎉 New paying subscriber</div>' +
+    '<div style="margin-top:4px;color:#cfe3f5">' + h(who) + ' has started paying on ' + h(plan) + '.</div></div>' +
+    '<table style="margin:14px 0;border-collapse:collapse;font-size:14px">' +
+    row2('Business', d.company) + row2('Name', d.name) + row2('Email', d.email) + row2('Phone', d.phone) +
+    row2('Plan', plan + (price ? ' — $' + price + ' + GST a month' : '')) + row2('First payment', paidLine) +
+    row2('Paying since', _nzDateWords(o.paidAt)) +
+    row2('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' (' + days + ' day' + (days === 1 ? '' : 's') + ' before paying)' : '')) : '') +
+    '</table>' +
+    (o.backfilled ? '<p style="color:#7b8a99;font-size:13px">This payment was made before RoofMap sent these emails; it was found when the paid dates were filled in.</p>' : '') +
+    '<p>Paying businesses now: <b>' + d.payingCount + '</b>' + (d.mrr ? ' — <b>$' + d.mrr + '</b> + GST a month between them' : '') + '.</p>' +
+    '<p style="color:#7b8a99;font-size:13px">Reply to this email and it goes straight to them.</p></div>';
+  return { subject: 'Congratulations — new paying subscriber: ' + who + ' (' + plan + ')', text: text, html: html };
+}
+// Called from the webhook with what Stripe said was paid. Never throws.
+async function _newPayerNotify(o){
+  try {
+    if (!(o.amount > 0)) return { skipped: 'nothing paid' };
+    const row = await _subRowForStripe(o.subId, o.custId);
+    if (!row) return { skipped: 'no subscription row yet' };
+    const paidAt = o.paidAt || new Date().toISOString();
+    // The date they started paying: the earliest we hear of, never moved later.
+    if (!row.paid_since || Date.parse(paidAt) < Date.parse(row.paid_since)){
+      const q = row.stripe_subscription_id ? supabase.from('subscriptions').update({ paid_since: paidAt }).eq('stripe_subscription_id', row.stripe_subscription_id)
+                                           : supabase.from('subscriptions').update({ paid_since: paidAt }).eq('user_id', row.user_id);
+      const r = await q; if (r.error) throw new Error(r.error.message);
+    }
+    if (row.paid_alert_at) return { skipped: 'already told' };
+    if (!NEW_PAYER_ALERT_TO || !EMAIL_ENABLED) return { skipped: 'no alert address' };
+    // Claim it first, so a Stripe retry or the second of its two events can
+    // never send it twice.
+    const claim = await supabase.from('subscriptions').update({ paid_alert_at: new Date().toISOString() })
+      .eq('user_id', row.user_id).is('paid_alert_at', null).select('user_id');
+    if (claim.error) throw new Error(claim.error.message);
+    if (!claim.data || !claim.data.length) return { skipped: 'already told' };
+    const d = await _newPayerDetails(row);
+    const mail = _newPayerEmail(row, d, { paidAt: row.paid_since && Date.parse(row.paid_since) < Date.parse(paidAt) ? row.paid_since : paidAt,
+      amount: o.amount, currency: o.currency, backfilled: !!o.backfilled });
+    await _dispatchMail({ to: NEW_PAYER_ALERT_TO, fromName: 'RoofMap', replyTo: d.email || undefined,
+      subject: mail.subject, text: mail.text, html: mail.html });
+    console.log('[stripe] new paying subscriber — ' + (d.company || row.company_id) + ' on ' + row.plan);
+    return { sent: true, to: NEW_PAYER_ALERT_TO };
+  } catch (e) {
+    recordError('new-payer', e, { route: 'stripe-webhook' });
+    return { error: e.message };
+  }
+}
+// Businesses that were paying before paid_since existed: their date comes off
+// Stripe (the earliest paid invoice above $0, else the subscription's own start).
+// One that started paying in the last NEW_PAYER_RECENT_DAYS days and was never
+// told about gets its congratulations now; older ones are marked told quietly.
+const NEW_PAYER_RECENT_DAYS = Math.max(0, parseInt(process.env.NEW_PAYER_RECENT_DAYS || '14', 10) || 14);
+async function _paidSinceBackfill(){
+  const out = { filled: 0, told: 0, quiet: 0, errors: 0 };
+  if (!process.env.STRIPE_SECRET_KEY) return Object.assign(out, { skipped: 'billing off' });
+  const { data: subs, error } = await supabase.from('subscriptions')
+    .select('user_id, company_id, plan, status, stripe_customer_id, stripe_subscription_id, paid_since, paid_alert_at');
+  if (error) throw new Error(error.message);
+  for (const s of (subs || [])){
+    if (!s.stripe_subscription_id || !/^(active|past_due|canceled)$/.test(String(s.status || ''))) continue;
+    if (s.paid_since && s.paid_alert_at) continue;
+    try {
+      let paidAt = s.paid_since || null, amount = 0, currency = 'nzd';
+      if (!paidAt){
+        const inv = await _stripeGet('/v1/invoices?subscription=' + encodeURIComponent(s.stripe_subscription_id) + '&status=paid&limit=100');
+        const paid = (inv.data || []).filter(i => Number(i.amount_paid) > 0)
+          .map(i => ({ t: (i.status_transitions && i.status_transitions.paid_at) || i.created, a: Number(i.amount_paid) / 100, c: i.currency }))
+          .sort((a, b) => a.t - b.t);
+        if (paid.length){ paidAt = new Date(paid[0].t * 1000).toISOString(); amount = paid[0].a; currency = paid[0].c || currency; }
+        else continue;                             // never paid anything: not a payer
+        const r = await supabase.from('subscriptions').update({ paid_since: paidAt }).eq('user_id', s.user_id);
+        if (r.error) throw new Error(r.error.message);
+        out.filled++;
+      }
+      if (s.paid_alert_at) continue;
+      const recent = Date.now() - Date.parse(paidAt) <= NEW_PAYER_RECENT_DAYS * 864e5;
+      if (recent && s.status !== 'canceled'){
+        const r = await _newPayerNotify({ subId: s.stripe_subscription_id, custId: s.stripe_customer_id, amount: amount || 1, currency: currency, paidAt: paidAt, backfilled: true });
+        if (r && r.sent) out.told++;
+      } else {
+        await supabase.from('subscriptions').update({ paid_alert_at: new Date().toISOString() }).eq('user_id', s.user_id).is('paid_alert_at', null);
+        out.quiet++;
+      }
+    } catch (e) { out.errors++; recordError('paid-since-backfill', e, { route: 'boot' }); }
+  }
+  console.log('[stripe] paid-since backfill: filled ' + out.filled + ', told ' + out.told + ', marked ' + out.quiet + ', errors ' + out.errors);
+  return out;
+}
+
 // Stripe's word on what happened, verified by signature over the raw bytes.
 // v1 = HMAC-SHA256(secret, "<timestamp>.<payload>") per their scheme.
 //
@@ -6703,6 +6873,9 @@ async function _stripeWebhook(req, res){
         _planCache.delete(companyId);
       }
       console.log('[stripe] checkout completed — company ' + companyId + ' on ' + plan);
+      if (obj.payment_status === 'paid' && Number(obj.amount_total) > 0)
+        await _newPayerNotify({ subId: obj.subscription, custId: obj.customer, amount: Number(obj.amount_total) / 100,
+          currency: obj.currency, paidAt: new Date(((obj.created || 0) * 1000) || Date.now()).toISOString() });
     }
 
     if (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted'){
@@ -6736,6 +6909,9 @@ async function _stripeWebhook(req, res){
     // different event ids, and nobody wants the same invoice twice.
     if (event.type === 'invoice.payment_succeeded' || event.type === 'invoice.paid'){
       if (!_stripeEventSeen('paid:' + (obj.id || event.id))) await _sendSubscriptionMail(obj, _subInvoiceEmail);
+      const _pt = obj.status_transitions && obj.status_transitions.paid_at;
+      await _newPayerNotify({ subId: _invoiceSubId(obj), custId: obj.customer, amount: Number(obj.amount_paid) / 100,
+        currency: obj.currency, paidAt: new Date(((_pt || obj.created || 0) * 1000) || Date.now()).toISOString() });
     }
     if (event.type === 'invoice.payment_failed'){
       if (!_stripeEventSeen('failed:' + (obj.id || event.id) + ':' + (obj.attempt_count || 0)))
@@ -7975,6 +8151,11 @@ async function _officeOwedTick(){
       ', skipped ' + r.skipped + ', errors ' + r.errors);
   } catch (e) { console.error('[office-owed] tick failed: ' + (e && e.message)); }
 }
+app.post('/admin/paid-since/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _paidSinceBackfill()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/email-switch-repair/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _emailSwitchRepairOnce()); }
@@ -13349,6 +13530,10 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions add column if not exists trial_ended_mail_at timestamptz",
   "alter table public.subscriptions add column if not exists trial_drip jsonb",
   "alter table public.subscriptions add column if not exists quiet_alert_at timestamptz",
+  // A NEW PAYING SUBSCRIBER (2026-10-28): when they started paying, and the
+  // claim that the owner has been told.
+  "alter table public.subscriptions add column if not exists paid_since timestamptz",
+  "alter table public.subscriptions add column if not exists paid_alert_at timestamptz",
   // THE ROOF TRIAL (2026-10-23): a trial started from today is 3 real roofs
   // or 30 days, whichever comes first. A null limit is a 14-day trial from
   // before, and runs out exactly as it was promised.
@@ -14796,6 +14981,9 @@ app.listen(PORT, () => {
     _emailSwitchRepairOnce().then(function(r){ if (r && r.repaired) _officeOwedTick(); }).catch(function(){});
   }, 45e3);
   if (_esKick.unref) _esKick.unref();
+  // The paid-since dates of businesses that were paying before they were kept.
+  const _psKick = setTimeout(function(){ _paidSinceBackfill().catch(function(e){ console.warn('[stripe] paid-since backfill: ' + e.message); }); }, 75e3);
+  if (_psKick.unref) _psKick.unref();
   // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
   const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
   if (_atKick.unref) _atKick.unref();
