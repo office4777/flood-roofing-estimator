@@ -417,7 +417,16 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 #roofTypePanel .rtp-close:hover{ background:#16314f; }
 #roofTypePanel .rtp-hd{ font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#3f5873; margin:0 0 8px; }
 #roofTypePanel .rtp-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-#roofTypePanel .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
+#prAsSent{ margin:0 0 12px; padding:12px 14px; background:#fffbeb; border:1px solid #fcd34d; border-left:4px solid #f59e0b; border-radius:10px; font-size:12.5px; color:#0a1628; }
+#prAsSent .pas-hd{ font-weight:800; font-size:13px; margin-bottom:6px; }
+#prAsSent .pas-t{ border-collapse:collapse; width:100%; max-width:560px; margin:2px 0 6px; }
+#prAsSent .pas-t th, #prAsSent .pas-t td{ padding:3px 8px 3px 0; text-align:left; font-size:12px; }
+#prAsSent .pas-t th{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:#78716c; }
+#prAsSent .n{ text-align:right; white-space:nowrap; }
+#prAsSent .pas-note{ font-size:11.5px; color:#57534e; line-height:1.45; margin-bottom:8px; }
+#prAsSent .pas-btn{ padding:7px 12px; font-size:12.5px; font-weight:800; background:#0a1628; color:#fff; border:none; border-radius:8px; cursor:pointer; margin-right:8px; }
+#prAsSent .pas-sub{ font-size:11px; color:#78716c; }
+#roofTypePanel .rtp-group, #_rsLent .rtp-group{ display:inline-flex; align-items:center; gap:8px; }
 #roofTypePanel .rtp-sep{ width:1px; height:22px; background:#c3d0de; margin:0 2px; }
 #roofTypePanel .rtp-grow{ flex:1 1 auto; }
 #roofTypePanel .rtp-type{ background:#0099cc; color:#fff; border:1px solid #0099cc; border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:7px; line-height:1.2; font-family:inherit; }
@@ -427,12 +436,12 @@ html.site-mode #phoneClearBtn{color:#fca5a5!important}
 #roofTypePanel .tool-btn.rtp-btn-blue{ color:#0077a3; border-color:#0099cc; }
 #roofTypePanel .tool-btn.rtp-btn-red{ color:#dc2626; border-color:#fca5a5; }
 #roofTypePanel .tool-btn.rtp-btn-red:hover{ background:#fef2f2; }
-#roofTypePanel .rtp-field{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#334155; margin:0; }
-#roofTypePanel .rtp-num{ width:58px; margin:0; padding:5px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; }
-#roofTypePanel .rtp-unit{ font-size:12px; color:#64748b; margin-left:-3px; }
+#roofTypePanel .rtp-field, #_rsLent .rtp-field{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700; color:#334155; margin:0; }
+#roofTypePanel .rtp-num, #_rsLent .rtp-num{ width:58px; margin:0; padding:5px 6px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; }
+#roofTypePanel .rtp-unit, #_rsLent .rtp-unit{ font-size:12px; color:#64748b; margin-left:-3px; }
 #roofTypePanel .rtp-select{ margin:0; padding:5px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:7px; background:#fff; color:#0a1628; width:auto; }
-#roofTypePanel .rtp-check{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#475569; cursor:pointer; margin:0; }
-#roofTypePanel .rtp-check input{ margin:0; }
+#roofTypePanel .rtp-check, #_rsLent .rtp-check{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:#475569; cursor:pointer; margin:0; }
+#roofTypePanel .rtp-check input, #_rsLent .rtp-check input{ margin:0; }
 #roofTypePanel .rtp-tag{ font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:#0369a1; background:#e0f2fe; border-radius:999px; padding:4px 9px; }
 #roofTypePanel .rtp-tip{ font-size:10.5px; color:#94a3b8; margin-top:8px; }
 /* Rotate image: its own slider; the fine controls drop under it on demand. */
@@ -5164,7 +5173,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T03:41:23Z';
+  window.APP_BUILT_AT = '2026-10-28T18:22:28Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6859,6 +6868,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
 <!-- TAB 2: SCOPE & LABOUR -->
 <div class="panel" id="tab-scope">
+  <div id="prAsSent" class="no-print" style="display:none"></div>
   <!-- MAIN SCOPE picker — defines the broad job type and pre-ticks
        the relevant tasks below. Hidden until a job is opened, so the
        user follows Select Job → Map Roof → Scope without picking a
@@ -27264,7 +27274,108 @@ function _pxHeadTotals(){
     set('profitCard', 'GP ' + pct.toFixed(1) + '% \u00b7 ' + fmtMoney(gp), !(pf.revenue > 0));
   } catch(e){ set('profitCard', ''); }
 }
+// AS SENT, AND AS WORKED OUT TODAY (2026-10-29, the owner on job 3306: "when i
+// opened the sent quote, it shows a lower price in the pricing tab as it does
+// to the total price the customer was sent, it seems like some custom items or
+// custom pricing i entered didn't save"). A sent quote keeps its own Labour /
+// Materials / Scaffolding lines — that is what the customer holds — while the
+// Pricing drawer works the job out again from the roof, the price book, the
+// products and the typed prices AS THEY ARE NOW. When the two disagree the
+// drawer says so, part by part, instead of leaving two totals on screen and
+// the office to guess which one is real. A draft duplicated from a sent copy
+// remembers what it was duplicated from (`dupFrom`), says the same, and can
+// carry the sent figures across as a line on each card ("Keep the sent
+// prices") — an honest, visible, deletable line rather than a hidden fudge.
+function _qBaseParts(q){
+  var o = { labour: 0, materials: 0, scaffold: 0, found: false };
+  ((q && Array.isArray(q.lineItems)) ? q.lineItems : []).forEach(function(l){
+    if (!l || l._custom) return;
+    var d = String(l.desc || '').trim();
+    var k = l._base || (/^labou?r/i.test(d) ? 'labour' : /^material/i.test(d) ? 'materials' : /^scaffold/i.test(d) ? 'scaffold' : null);
+    if (!k || o[k] == null) return;
+    o[k] += (parseFloat(l.qty) || 0) * (parseFloat(l.unit) || 0);
+    o.found = true;
+  });
+  ['labour', 'materials', 'scaffold'].forEach(function(k){ o[k] = Math.round(o[k] * 100) / 100; });
+  return o;
+}
+// The same three figures _syncQuoteBaseLineItems writes, worked out now.
+function _qBaseToday(){
+  var o = { labour: 0, materials: 0, scaffold: 0 };
+  try {
+    o.scaffold = (S.quote && S.quote.scaffold) ? (_scaffoldEff(S.quote.scaffold).price || 0) : 0;
+    var multi = !_psIsShed() && (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
+    var gf = (_psIsShed() || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
+    o.materials = (multi ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials) || 0)) * gf;
+    o.labour = multi ? _labourPriceForRoof(0) : (parseFloat(S.labour) || 0);
+    if (_isGutterJob()){ o.materials = 0; o.labour = 0; }
+    // The office's own lines are line items of their own on both sides
+    // (_qBaseParts leaves them out too), so they never read as a difference.
+  } catch(e){}
+  ['labour', 'materials', 'scaffold'].forEach(function(k){ o[k] = Math.round((o[k] || 0) * 100) / 100; });
+  return o;
+}
+var _AS_SENT_LBL = { labour: 'Labour', materials: 'Materials', scaffold: 'Scaffolding' };
+var _AS_SENT_AREA = { labour: 'labour', materials: 'material', scaffold: 'scaffold' };
+function _asSentInfo(){
+  if (!window.S || !S.quote || window.__CUSTOMER_MODE || _psIsShed()) return null;
+  var v = S._qvViewing, src = null, sent = null, carried = false;
+  if (v && (v.kind === 'sent' || v.kind === 'accepted')){
+    sent = _qBaseParts(S.quote);
+    src = (v.kind === 'accepted' ? 'The accepted quote' : 'The sent quote') + (v.at ? ' (' + _qvWhen(v.at) + ')' : '');
+  } else if (S.quote.dupFrom && S.quote.dupFrom.parts){
+    sent = S.quote.dupFrom.parts; carried = !!S.quote.dupFrom.carried;
+    src = 'This draft was duplicated from ' + (S.quote.dupFrom.label || 'the sent quote') + (S.quote.dupFrom.at ? ' (' + _qvWhen(S.quote.dupFrom.at) + ')' : '') + ', which';
+  }
+  if (!sent || !sent.found) return null;
+  var today = _qBaseToday(), diffs = {}, tot = 0;
+  ['labour', 'materials', 'scaffold'].forEach(function(k){
+    var d = Math.round(((sent[k] || 0) - (today[k] || 0)) * 100) / 100;
+    if (Math.abs(d) >= 1){ diffs[k] = d; tot += d; }
+  });
+  return { src: src, sent: sent, today: today, diffs: diffs, total: Math.round(tot * 100) / 100, draft: !v, carried: carried };
+}
+function _asSentRender(){
+  var el = document.getElementById('prAsSent'); if (!el) return;
+  var i = null; try { i = _asSentInfo(); } catch(e){}
+  if (!i || !Object.keys(i.diffs).length || i.carried){ el.style.display = 'none'; el.innerHTML = ''; return; }
+  var m = function(n){ return '$' + (Math.round(n * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var rows = ['labour', 'materials', 'scaffold'].map(function(k){
+    var d = i.diffs[k];
+    return '<tr><td>' + _AS_SENT_LBL[k] + '</td><td class="n">' + m(i.sent[k] || 0) + '</td><td class="n">' + m(i.today[k] || 0) + '</td>' +
+      '<td class="n" style="font-weight:800;color:' + (d == null ? '#94a3b8' : (d > 0 ? '#b45309' : '#047857')) + '">' +
+      (d == null ? 'same' : (d > 0 ? m(d) + ' less today' : m(-d) + ' more today')) + '</td></tr>';
+  }).join('');
+  el.style.display = 'block';
+  el.innerHTML =
+    '<div class="pas-hd">' + esc(i.src) + ' was priced differently from today’s working-out</div>' +
+    '<table class="pas-t"><thead><tr><th></th><th class="n">As sent</th><th class="n">Worked out today</th><th class="n"></th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '<div class="pas-note">The sent quote keeps its own figures — that is what the customer holds. Today’s come from the roof, the price book, the products and the prices typed on this job as they are now, so one of those has changed since it was sent' +
+      (i.diffs.materials != null ? ' (a material’s price, its quantity, the buffer or the mark-up)' : '') + '.</div>' +
+    (i.draft
+      ? '<button type="button" class="pas-btn" onclick="_asSentCarry()">Keep the sent prices on this draft</button>' +
+        '<span class="pas-sub">adds a line for the difference on each card above, so this draft comes to what was sent — delete it any time</span>'
+      : '<div class="pas-sub">Create new draft → Duplicate this quote, and the draft can keep the sent prices.</div>');
+}
+function _asSentCarry(){
+  var i = null; try { i = _asSentInfo(); } catch(e){}
+  if (!i || !i.draft) return;
+  var when = (S.quote.dupFrom && S.quote.dupFrom.at) ? ' ' + _qvWhen(S.quote.dupFrom.at) : '';
+  Object.keys(i.diffs).forEach(function(k){
+    var d = i.diffs[k];
+    _qAddCustom(_AS_SENT_AREA[k], { desc: 'As sent' + when + ' (difference from today’s working-out)', qty: 1, unit: d, uom: '', amount: d });
+  });
+  S.quote.dupFrom.carried = true;
+  try { calcLabour(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { recalcQuoteTotals(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  _asSentRender();
+  try { _scheduleAutosave(); } catch(e){}
+  try { _siteToast('The sent prices are carried onto this draft'); } catch(e){}
+}
 function renderProfitability(){
+  try { _asSentRender(); } catch(e){}
   var wrap = document.getElementById('profitWrap');
   // Always nudge the persistent top job bar so the cost row stays
   // in sync even when the profitability dashboard panel isn't open.
@@ -30064,8 +30175,32 @@ function _selectables(){
   var frozen = !!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || (window.S && (S._qvViewing || (typeof _jobLockActive === 'function' && _jobLockActive()))));
   if (ok(snap) && (frozen || !(window.S && S.settings && ok(S.settings.selectables)))) return snap;
   var cfg = (window.S && S.settings && S.settings.selectables);
-  if (ok(cfg)) return cfg;
+  if (ok(cfg)) return _selMergeCarried(cfg, snap);
   return _defaultSelectables();
+}
+// A QUOTE KEEPS THE PRODUCTS IT WAS BUILT WITH (2026-10-29, the owner on job
+// 3306: "i created a new draft and clicked duplicate this quote, it deleted the
+// custom roof profile and changed the price total"). The draft read Settings'
+// list alone, and RI-925 was no longer in it (the list the reload bug of
+// 2026-10-28 wrote over), so the profile the quote was sent on — and its
+// price — fell away, and the next autosave stamped the poorer list over the
+// quote's own copy. Any product the quote's own snapshot carries that Settings
+// has no row for at all is offered beside Settings' list. A product Settings
+// REMOVED keeps its row there (removed:true), so it stays removed; one that
+// simply is not there any more is not the quote's to lose.
+function _selMergeCarried(cfg, snap){
+  if (!snap || typeof snap !== 'object' || !cfg) return cfg;
+  var out = null;
+  ['grades', 'profiles', 'gutters', 'extras'].forEach(function(k){
+    var live = Array.isArray(cfg[k]) ? cfg[k] : [], had = Array.isArray(snap[k]) ? snap[k] : [];
+    if (!had.length) return;
+    var seen = {}; live.forEach(function(x){ if (x && x.id != null) seen[x.id] = 1; });
+    var add = had.filter(function(x){ return x && x.id != null && !seen[x.id]; });
+    if (!add.length) return;
+    if (!out){ out = {}; Object.keys(cfg).forEach(function(kk){ out[kk] = cfg[kk]; }); }
+    out[k] = live.concat(add);
+  });
+  return out || cfg;
 }
 // *All() includes removed products, so a quote that already names one can
 // still resolve it. The plain list is what a NEW quote may choose from.
@@ -32415,8 +32550,18 @@ function _qvSaveDraft(work, label){
 // draft has changes nobody saved, ask: save it as a draft, or overwrite it.
 function _qvNewDraft(){
   if (!S.quote) return;
+  // Duplicating a frozen sent / accepted copy: remember what it was priced at,
+  // so the Pricing drawer can say what changed since (_asSentInfo).
+  var _dupFrom = null;
+  try {
+    if (S._qvViewing && (S._qvViewing.kind === 'sent' || S._qvViewing.kind === 'accepted')){
+      var _bp = _qBaseParts(S.quote);
+      if (_bp.found) _dupFrom = { label: S._qvViewing.kind === 'accepted' ? 'the accepted quote' : 'the sent quote', at: S._qvViewing.at || null, parts: _bp };
+    }
+  } catch(e){}
   var go = function(){
     var base = _qvFreshDraft(S.quote);                // what is on screen, minus any acceptance
+    if (_dupFrom) base.dupFrom = _dupFrom; else delete base.dupFrom;
     var keep = S.quote.versions;
     S.quote = base;
     S.quote.versions = keep;
@@ -33211,7 +33356,7 @@ function _qStampCustomerCopy(){
   if (S.quote.accepted) return;
   try {
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
-      (S.settings && S.settings.selectables) || _defaultSelectables()));
+      _selMergeCarried((S.settings && S.settings.selectables) || _defaultSelectables(), S.quote.selectablesSnapshot)));
   } catch (e) {}
   try {
     S.quote.share = S.quote.share || {};
@@ -46207,7 +46352,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
@@ -82341,15 +82486,40 @@ var ROOF_TYPE_CHOICES = [
   { type:'dutch',    label:'Dutch Gable',   hint:'hip with a small gablet at each end' },
   { type:'mono',     label:'Mono-Pitch',    hint:'single slope — lean-to, skillion' },
 ];
+// ONE WINDOW FOR A ROOF'S SHAPE AND SETTINGS (2026-10-29, the owner: "add a
+// rotate 90deg inside the pop-up roof type selector ... change the 'Roof
+// settings' window to be the pop-up selector as it pretty much works the same
+// way but looks better, just add the make main roof and delete roof buttons in
+// it too, also when that window opens and i click the different roofs, change
+// them live in the canvas"). Two ways in, one window:
+//   mode 'new'      — the outline has just closed (finishCurrent). The pitch
+//                     box, Skip for now (which takes back anything built while
+//                     it was open) and "Draw the roof".
+//   mode 'settings' — the roof button on the roof bar (_toggleRoofMenu). The
+//                     roof panel's own pitch row and ridge slide are lent to it
+//                     while it is open, so every handler and sync behind them
+//                     is the one that always ran; "Done" closes it.
+// In both, a click on a shape BUILDS that shape on the canvas there and then
+// (autoGenerateRoof, the same call the button always made), a click on a sheet
+// sets it, and Rotate 90° / Snap square act at once — the window sits to the
+// right on a wide screen over a light backdrop, and drags by its title, so the
+// roof can be watched changing. The shape the roof IS is drawn from its own
+// lines (so a turned roof shows turned); the others are the builders' pictures.
 function _roofSetupPopup(opts){
   opts = opts || {};
-  var prev = document.getElementById('_rsModal'); if (prev) prev.remove();
+  var settings = opts.mode === 'settings';
+  var prev = document.getElementById('_rsModal'); if (prev){ try { prev._rsClose && prev._rsClose(); } catch(e){} try { prev.remove(); } catch(e){} }
   var sug = null;
   try { sug = (typeof suggestRoofType === 'function') ? suggestRoofType() : null; } catch(e){}
-  var pickedType = (opts.type || (sug && sug.type) || 'hip');
+  var builtType = settings ? (DRAW.roofType || null) : null;
+  var pickedType = settings ? (DRAW.roofType || (sug && sug.type) || 'hip')
+                            : (opts.type || (sug && sug.type) || 'hip');
   var pickedSheet = opts.sheetType || (function(){
     try { return (_roofSheetType() || {}).key || 'steel-corrugate'; } catch(e){ return 'steel-corrugate'; }
   })();
+  // What "Skip for now" puts back if a shape was tried while the window was up.
+  var snap0 = null;
+  if (!settings){ try { snap0 = _captureSnapState(); } catch(e){} }
 
   // Seed the pitch box: this roof's own if it has one, otherwise the last roof
   // that was given one — on a house the second roof is usually the same pitch
@@ -82360,25 +82530,35 @@ function _roofSetupPopup(opts){
     else (DRAW.roofs || []).forEach(function(r){ if (r && +r.calPitch > 0) _rsPitch0 = +r.calPitch; });
   } catch(e){}
 
+  var wide = (window.innerWidth || 0) >= 1100;
   var wrap = document.createElement('div');
   wrap.id = '_rsModal';
-  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);' +
-    'display:flex;align-items:center;justify-content:center;padding:16px';
+  wrap.setAttribute('data-mode', settings ? 'settings' : 'new');
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.16);' +
+    'display:flex;align-items:center;justify-content:' + (wide ? 'flex-end' : 'center') + ';padding:16px ' + (wide ? '28px' : '16px');
   var card = document.createElement('div');
+  card.id = '_rsCard';
   card.style.cssText = 'background:#fff;border-radius:14px;box-shadow:0 16px 48px rgba(0,0,0,.32);' +
-    'max-width:640px;width:100%;max-height:92vh;overflow:auto;padding:20px 20px 16px;' +
+    'max-width:600px;width:100%;max-height:92vh;overflow:auto;padding:0 20px 16px;' +
     'font-family:Inter,-apple-system,sans-serif';
 
   // EACH SHAPE IS A PICTURE OF THIS ROOF (2026-10-22, feedback report 67:
   // "show all possible roof types as boxed pictures with the roof type name
   // under so the user can easily and quickly see which type to select, each
   // boxed roof picture should show the roof map as the outline is drawn but
-  // with roof type lines drawn in"). A name and a line of words is a guess
-  // on an L with a step and a valley; the footprint with the lines on it is
-  // the answer. Drawn once when the popup opens (the pictures do not change
-  // with the pick), the pick only moves the ring.
+  // with roof type lines drawn in"). The shape the roof already is comes off
+  // its own lines; the rest are what each builder would draw.
   var _pics = {};
-  try { ROOF_TYPE_CHOICES.forEach(function(c){ _pics[c.type] = _roofPreviewSvg(c.type, DRAW.outline, 180, 118); }); } catch(e){}
+  function drawPics(){
+    _pics = {};
+    var own = null;
+    try {
+      if (builtType && builtType === DRAW.roofType)
+        own = (DRAW.lines || []).filter(function(l){ return l && l.pts && l.pts.length === 2 && l.type !== 'gutter' && l.type !== 'outline'; });
+    } catch(e){}
+    try { ROOF_TYPE_CHOICES.forEach(function(c){ _pics[c.type] = _roofPreviewSvg(c.type, DRAW.outline, 180, 118, c.type === builtType ? own : null); }); } catch(e){}
+  }
+  drawPics();
   function typeBtn(c){
     var on = (c.type === pickedType);
     return '<button type="button" data-rstype="' + c.type + '" title="' + esc(c.hint) + '" ' +
@@ -82399,27 +82579,92 @@ function _roofSetupPopup(opts){
       'border:1.5px solid ' + (on ? '#0099cc' : '#dde3ea') + ';border-radius:9px;' +
       'background:' + (on ? '#f0f9ff' : '#fff') + ';color:#0a1628">' + esc(t.label) + '</button>';
   }
+  function roofName(){
+    var i = DRAW.activeRoofIdx, r = (DRAW.roofs || [])[i];
+    return (r && r.name) || (i === 0 || i == null || i < 0 ? 'Main Roof' : _nthName((i || 0) + 1));
+  }
+  function footLeft(){
+    var n = (DRAW.roofs || []).length, i = DRAW.activeRoofIdx;
+    var s = '';
+    if (n > 1 && i > 0) s += '<button type="button" id="_rsMakeMain" style="padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#0369a1;border:1.5px solid #0099cc;border-radius:9px;cursor:pointer" title="Make this the main roof — the one the quote always includes. The current main roof becomes an extra.">★ Make main roof</button>';
+    else if (n > 1 && i === 0) s += '<span id="_rsIsMain" style="padding:6px 10px;font-size:11.5px;font-weight:800;color:#0369a1;background:#e0f2fe;border-radius:20px" title="The main roof is always part of the quote">Main roof</span>';
+    if (n > 0 && i >= 0) s += '<button type="button" id="_rsDelete" style="padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#dc2626;border:1.5px solid #fca5a5;border-radius:9px;cursor:pointer" title="Delete this roof — its outline, lines and measurements (Undo brings it back)">Delete roof</button>';
+    return s;
+  }
   function paint(){
+    var hd = card.querySelector('#_rsTitle');
+    if (hd) hd.textContent = settings ? (roofName() + ' — roof settings') : (opts.title || 'What kind of roof is this?');
     card.querySelector('#_rsTypes').innerHTML = ROOF_TYPE_CHOICES.map(typeBtn).join('');
     card.querySelector('#_rsSheets').innerHTML = SHEET_TYPES.map(sheetBtn).join('');
+    card.querySelector('#_rsFootL').innerHTML = footLeft();
     wire();
+  }
+  function after(){
+    try { _syncRoofTypeDropLabel(); } catch(e){}
+    try { _syncGableRidgeUI(); } catch(e){}
+    try { _roofPanelSync(); } catch(e){}
+    try { _renderRoofMenuBar(); } catch(e){}
+  }
+  // Build a shape on the canvas NOW. The pitch box goes in first on a new
+  // roof, so the lines are measured at the slope the roofer has typed.
+  function build(t){
+    if (!DRAW.outline || DRAW.outline.length < 3) return false;
+    try { if (DRAW.scaleMetresPerPx > 0 && _trialRoofsBlocked()){ close(); _trialRoofsUsedOpen(); return false; } } catch(e){}
+    if (!settings){
+      var _pEl = card.querySelector('#_rsPitch'); var _p = _pEl ? parseFloat(_pEl.value) : NaN;
+      try { if (isFinite(_p) && _p >= 0 && _p !== DRAW.calPitch) setRoofPitch(_p, null); } catch(e){}
+    }
+    try { autoGenerateRoof(t); } catch(e){}
+    if (DRAW.roofType === t) builtType = t;
+    after();
+    return builtType === t;
   }
   function wire(){
     card.querySelectorAll('[data-rstype]').forEach(function(b){
-      b.onclick = function(){ pickedType = b.getAttribute('data-rstype'); paint(); };
+      b.onclick = function(){
+        var t = b.getAttribute('data-rstype');
+        pickedType = t;
+        // The shape the roof already is: picking it again would throw away a
+        // turn, a ridge break or a slide for nothing.
+        if (t !== builtType) build(t);
+        drawPics(); paint();
+      };
     });
     card.querySelectorAll('[data-rssheet]').forEach(function(b){
-      b.onclick = function(){ pickedSheet = b.getAttribute('data-rssheet'); paint(); };
+      b.onclick = function(){
+        pickedSheet = b.getAttribute('data-rssheet');
+        try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
+        after(); paint();
+      };
     });
+    var mm = card.querySelector('#_rsMakeMain');
+    if (mm) mm.onclick = function(){ try { makeMainRoof(DRAW.activeRoofIdx); } catch(e){} after(); paint(); };
+    var dl = card.querySelector('#_rsDelete');
+    if (dl) dl.onclick = function(){
+      var n0 = (DRAW.roofs || []).length;
+      try { deleteRoof(DRAW.activeRoofIdx); } catch(e){}
+      if ((DRAW.roofs || []).length !== n0){ builtType = null; close(); after(); }
+    };
   }
+  var bar = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center';
+  var btnS = 'padding:8px 12px;font-size:12.5px;font-weight:700;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;cursor:pointer';
   card.innerHTML =
-    '<div style="font-size:16px;font-weight:800;color:#0a1628">' + esc(opts.title || 'What kind of roof is this?') + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin:3px 0 12px;line-height:1.45">' +
-      esc(opts.message || 'Pick the shape and the roof lines are drawn for you. You can change both later.') +
-      (sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
+    '<div id="_rsHead" title="Drag to move this window" style="position:sticky;top:0;z-index:2;background:#fff;padding:16px 0 8px;margin-bottom:2px;cursor:move;user-select:none">' +
+      '<div id="_rsTitle" style="font-size:16px;font-weight:800;color:#0a1628"></div>' +
+      '<div style="font-size:12px;color:#64748b;margin-top:3px;line-height:1.45">' +
+        esc(opts.message || (settings
+          ? 'Click a shape and the roof changes on the canvas straight away.'
+          : 'Pick the shape and the roof lines are drawn for you as you click. You can change both later.')) +
+        (!settings && sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
+      '</div>' +
     '</div>' +
-    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape \u2014 each box is this outline with that shape\u2019s lines</div>' +
+    '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape — each box is this outline with that shape’s lines</div>' +
     '<div id="_rsTypes" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"></div>' +
+    '<div style="' + bar + ';margin-top:10px">' +
+      '<button type="button" id="_rsRotate" style="' + btnS + '" title="Turn this roof’s lines 90° around the outline — the ridge direction on a gable or dutch gable, the fall on a mono-pitch.">⟳ Rotate 90°</button>' +
+      '<button type="button" id="_rsSnap" style="' + btnS + '" title="Square up every corner of this outline (makes all angles 90°). Edges may get longer or shorter — nudge any corner afterwards if needed.">📐 Snap square</button>' +
+    '</div>' +
+    '<div id="_rsLent"></div>' +
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Main sheet material</div>' +
     '<div id="_rsSheets" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
     '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
@@ -82429,7 +82674,9 @@ function _roofSetupPopup(opts){
     // whose wall was clicked during calibration got a pitch; every other roof
     // stayed at 0 and its sheet lengths came out as plan lengths. Asking here,
     // while the roof is the thing in hand, is the moment it is cheapest to
-    // answer.
+    // answer. (On the settings window the roof panel's own pitch row is lent
+    // in its place, lower pitch and "Show on roof" with it.)
+    (settings ? '' :
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Pitch of this roof</div>' +
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
       '<input id="_rsPitch" type="number" min="0" max="60" step="0.5" value="' +
@@ -82438,17 +82685,48 @@ function _roofSetupPopup(opts){
       '<span style="font-size:13px;font-weight:700;color:#334155">&deg;</span>' +
       '<span style="font-size:11px;color:#64748b;flex:1;min-width:150px">Leave at 0 for a flat roof. ' +
         'Sheet lengths are plan lengths until this is set.</span>' +
-    '</div>' +
-    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">' +
-      '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>' +
-      '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || 'Draw the roof') + '</button>' +
+    '</div>') +
+    '<div style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:16px;border-top:1px solid #eef1f5;padding-top:12px">' +
+      '<div id="_rsFootL" style="' + bar + '"></div>' +
+      '<div style="' + bar + ';margin-left:auto">' +
+        (settings ? '' : '<button id="_rsSkip" style="padding:9px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:9px;cursor:pointer">Skip for now</button>') +
+        '<button id="_rsOk" style="padding:9px 20px;font-size:13px;font-weight:800;background:#0099cc;color:#fff;border:none;border-radius:9px;cursor:pointer">' + esc(opts.okLabel || (settings ? 'Done' : 'Draw the roof')) + '</button>' +
+      '</div>' +
     '</div>';
   wrap.appendChild(card);
   document.body.appendChild(wrap);
+
+  // The roof panel's own controls, lent for as long as the window is open and
+  // put back where they came from when it closes.
+  var lent = [];
+  if (settings){
+    var host = card.querySelector('#_rsLent');
+    ['roofPitchRow', 'gableRidgeSlideRow'].forEach(function(id){
+      var el = document.getElementById(id); if (!el) return;
+      lent.push({ el: el, parent: el.parentNode, next: el.nextSibling });
+      var box = document.createElement('div');
+      box.style.cssText = 'margin-top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center';
+      box.appendChild(el);
+      host.appendChild(box);
+    });
+    try { syncPitchInputs(); } catch(e){}
+    try { _syncLowPitchRow(); } catch(e){}
+    try { _syncGableRidgeUI(); } catch(e){}
+  }
   paint();
 
-  function close(){ wrap.remove(); }
+  var closed = false;
+  function close(){
+    if (closed) return; closed = true;
+    lent.forEach(function(x){
+      try { if (x.next && x.next.parentNode === x.parent) x.parent.insertBefore(x.el, x.next); else x.parent.appendChild(x.el); } catch(e){}
+    });
+    try { wrap.remove(); } catch(e){}
+    try { _renderRoofMenuBar(); } catch(e){}
+  }
+  wrap._rsClose = close;
   function apply(){
+    if (settings){ close(); return; }
     // Read the pitch BEFORE the card is torn out of the document.
     var _pEl = card.querySelector('#_rsPitch');
     var _p = _pEl ? parseFloat(_pEl.value) : NaN;
@@ -82458,22 +82736,58 @@ function _roofSetupPopup(opts){
     // ends up with its cut list one recalculation behind its own slope.
     try { if (isFinite(_p) && _p >= 0) setRoofPitch(_p, null); } catch(e){}
     try { if (typeof setRoofSheetType === 'function') setRoofSheetType(pickedSheet); } catch(e){}
-    try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){}
-    try { if (typeof _syncRoofTypeDropLabel === 'function') _syncRoofTypeDropLabel(); } catch(e){}
-    // A second after the roof lands, its settings slide down over the page.
-    // The roofer has just chosen a shape and a pitch; what they reach for
-    // next is Rotate 90°, and on roof 7 there was no way to tell where that
-    // lived. One second so the roof is on screen first and the panel is
-    // plainly a second event, not part of the window that just closed.
-    try { setTimeout(function(){ _roofPanelReveal(); }, 1000); } catch(e){}
+    // Already on the canvas — tried, turned and left as it is. Building it
+    // again would undo the turn.
+    if (builtType !== pickedType){ try { if (typeof autoGenerateRoof === 'function') autoGenerateRoof(pickedType); } catch(e){} }
+    after();
+  }
+  function skip(){
+    // Anything tried while the window was up comes off again: "Skip" leaves
+    // the outline as it was drawn.
+    if (builtType && snap0){ try { _applySnapState(snap0); } catch(e){} try { redrawAll(); } catch(e){} }
+    builtType = null;
+    close(); after();
   }
   card.querySelector('#_rsOk').onclick = apply;
-  card.querySelector('#_rsSkip').onclick = close;
+  var _sk = card.querySelector('#_rsSkip'); if (_sk) _sk.onclick = skip;
+  card.querySelector('#_rsRotate').onclick = function(){
+    if (!builtType || DRAW.roofType !== builtType){ if (!build(pickedType)) return; }
+    try { rotateActiveRoof(); } catch(e){}
+    after(); drawPics(); paint();
+  };
+  card.querySelector('#_rsSnap').onclick = function(){
+    try { snapOutlineToSquare(); } catch(e){}
+    after(); drawPics(); paint();
+  };
+  var _pIn = card.querySelector('#_rsPitch');
+  if (_pIn) _pIn.addEventListener('change', function(){
+    var v = parseFloat(_pIn.value);
+    if (builtType && isFinite(v) && v >= 0){ try { setRoofPitch(v, null); } catch(e){} }
+  });
+  // Clicking away keeps what is on the canvas; only Skip takes it back.
   wrap.addEventListener('mousedown', function(ev){ if (ev.target === wrap) close(); });
   wrap.addEventListener('keydown', function(ev){
     if (ev.key === 'Escape'){ ev.preventDefault(); close(); }
-    else if (ev.key === 'Enter'){ ev.preventDefault(); apply(); }
+    else if (ev.key === 'Enter' && !(ev.target && /^(INPUT|SELECT|TEXTAREA)$/.test(ev.target.tagName) && settings)){ ev.preventDefault(); apply(); }
   });
+  // Drag it by its title, so it can be parked off whatever part of the roof
+  // is being watched.
+  (function(){
+    var hd = card.querySelector('#_rsHead'); if (!hd) return;
+    hd.addEventListener('pointerdown', function(ev){
+      if (ev.button !== 0) return;
+      var r = card.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+      card.style.position = 'fixed'; card.style.left = r.left + 'px'; card.style.top = r.top + 'px'; card.style.margin = '0';
+      function mv(e){
+        card.style.left = Math.max(0, Math.min(window.innerWidth - 80, e.clientX - dx)) + 'px';
+        card.style.top = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dy)) + 'px';
+      }
+      function up(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); }
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+      ev.preventDefault();
+    });
+  })();
+  try { _renderRoofMenuBar(); } catch(e){}
   setTimeout(function(){ try { card.querySelector('#_rsOk').focus(); } catch(e){} }, 30);
 }
 
@@ -82565,10 +82879,10 @@ function _roofPreviewLines(type, outline){
 // The outline in grey and the shape's lines in the map's own colours, fitted
 // into a small box. The outline's edges stand in for the gutters the build
 // lays on them afterwards.
-function _roofPreviewSvg(type, outline, w, h){
+function _roofPreviewSvg(type, outline, w, h, own){
   outline = outline || DRAW.outline; w = w || 180; h = h || 118;
   if (!outline || outline.length < 3) return '';
-  var lines = _roofPreviewLines(type, outline);
+  var lines = own || _roofPreviewLines(type, outline);
   var x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;
   outline.forEach(function(p){ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; });
   var pad = 10, sc = Math.min((w - 2*pad) / Math.max(1, x1 - x0), (h - 2*pad) / Math.max(1, y1 - y0));
@@ -82819,6 +83133,8 @@ function _addAndSwitchToNewRoof(){
 // tapping the open one closes it again. Every roof stays on the canvas
 // throughout — see the note by _nthName for why that matters.
 function _roofMenuOpenFor(){
+  var rs = document.getElementById('_rsModal');
+  if (rs && rs.getAttribute('data-mode') === 'settings') return DRAW.activeRoofIdx;
   var rtp = document.getElementById('roofTypePanel');
   if (!rtp || rtp.style.display === 'none') return -1;
   return DRAW.activeRoofIdx;
@@ -82861,7 +83177,11 @@ function _renderRoofMenuBar(){
 // where it can be seen, instead of waiting behind a small arrow on a button.
 // NEVER over a walkthrough: the tour, the coach and the onboarding each put
 // their own card on this screen and two things cannot both be the next step.
+// The drop-down roof panel is retired as the roof button's window (2026-10-29);
+// true brings it back exactly as it was.
+var _ROOF_PANEL_DROPDOWN = false;
 function _roofPanelReveal(){
+  if (!_ROOF_PANEL_DROPDOWN) return;
   // ONE guard covers all three walkthroughs: the 29-step tour, the
   // first-roof walkthrough and the getting-started coach all run through the
   // same tour engine, so TOUR.open is true for every one of them. (TOUR.open,
@@ -82980,6 +83300,20 @@ function _roofPanelAutoHide(rtp, ms){
   }, (ms || RTP_HIDE_MS));
 }
 function _toggleRoofMenu(idx){
+  // THE ROOF BUTTON OPENS THE ROOF'S WINDOW (2026-10-29): the same picture
+  // window the outline closes into, in its settings mode — see
+  // _roofSetupPopup. The old drop-down panel stays in the page for site mode
+  // (_phoneRoofSheet) and for the controls the window borrows from it.
+  if (!_ROOF_PANEL_DROPDOWN){
+    var rs = document.getElementById('_rsModal');
+    var openFor = (rs && rs.getAttribute('data-mode') === 'settings') ? DRAW.activeRoofIdx : -1;
+    if (rs){ try { rs._rsClose ? rs._rsClose() : rs.remove(); } catch(e){} }
+    if (openFor === idx) { _renderRoofMenuBar(); return; }
+    if (idx !== DRAW.activeRoofIdx) switchToRoof(idx);
+    var _p0 = document.getElementById('roofTypePanel'); if (_p0) _p0.style.display = 'none';
+    _roofSetupPopup({ mode: 'settings' });
+    return;
+  }
   var rtp = document.getElementById('roofTypePanel');
   if (!rtp) return;
   var wasOpen = (rtp.style.display !== 'none');
