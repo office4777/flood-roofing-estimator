@@ -26,7 +26,7 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (290 as of 2026-10-28 — 66 in its `API` list, 224 in `UI` — four at a time,
+  (292 as of 2026-10-29 — 66 in its `API` list, 226 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
   `run.mjs api` is the exact command CI's Backend job runs, 66 suites in
@@ -2359,6 +2359,48 @@ not a saving, and 49 purple to 48 orange.
   gutters job's own picks in the acceptance email and the Fergus text, and
   follows it up as a guttering quote (`REMINDER_EMAIL_GUTTERS`). Roofing, pole
   shed and tender are untouched. `tests/gutteronly.mjs` (26, UI list).
+- THE ROOF BUTTON OPENS THE ROOF'S WINDOW (2026-10-29, the owner: "add a rotate
+  90deg inside the pop-up roof type selector, also change the 'Roof settings'
+  window to be the pop-up selector ... just add the make main roof and delete
+  roof buttons in it too, also when that window opens and i click the different
+  roofs, change them live in the canvas"). `_roofSetupPopup(opts)` has two
+  modes: 'new' (the outline closing — pitch box, Skip for now, Draw the roof)
+  and 'settings' (`_toggleRoofMenu` → the roof bar's button). In both a shape
+  click BUILDS it on the canvas at once (`autoGenerateRoof`; the shape it
+  already is is not rebuilt, so a turn survives), a sheet click sets it, and
+  Rotate 90° / Snap square act at once; Make main roof / Delete roof sit at its
+  foot. Skip for now puts back the state from when the window opened
+  (`_captureSnapState`); a click outside or Esc keeps what is on the canvas. It
+  sits right on a wide screen over a light backdrop and drags by its title.
+  The picture of the shape the roof IS is drawn from its own lines
+  (`_roofPreviewSvg(..., own)`), so a turned roof shows turned. The settings
+  mode BORROWS `#roofPitchRow` and `#gableRidgeSlideRow` from the old panel
+  and puts them back on close, so every handler and sync is the one that always
+  ran (`#_rsLent` shares the panel's field CSS). The drop-down panel is retired
+  behind `_ROOF_PANEL_DROPDOWN` (false; true brings it and its slide-in back —
+  `tests/roofmenu.mjs` pins it with the switch on) and is still the phone's
+  site-mode sheet. `tests/roofwindow.mjs` (16).
+- A QUOTE KEEPS THE PRODUCTS IT WAS BUILT WITH (2026-10-29, the owner on job
+  3306: Duplicate this quote off Sent quote 2 "deleted the custom roof profile
+  and changed the price total"). A draft read Settings' product list alone and
+  RI-925 was no longer in it (the list the reload bug of 2026-10-28 wrote
+  over); and `_qStampCustomerCopy`, on every Quote-tab autosave, stamped that
+  poorer list over the quote's own `selectablesSnapshot`. `_selMergeCarried`
+  now adds to Settings' grades / profiles / gutters / extras any row the
+  quote's own snapshot carries that Settings has NO row for, in `_selectables()`
+  and in the stamp; a product Settings REMOVED keeps its row there
+  (`removed:true`) and stays removed. AS SENT, AND AS WORKED OUT TODAY: a sent
+  quote's base lines are frozen, the Pricing drawer works the job out again
+  from today's roof, price book, products and typed prices — the owner saw the
+  two disagree by $4,723.06 on 3306 and read it as lost custom pricing (cause
+  NOT yet known: the drawer itself showed materials at cost, revenue = cost).
+  `#prAsSent` (`_asSentInfo` / `_asSentRender`, from `renderProfitability`) says
+  part by part (`_qBaseParts` of the frozen lines vs `_qBaseToday`) where they
+  differ, on the sent/accepted view and on a draft duplicated from one
+  (`S.quote.dupFrom`, in Q_FRESH_DROP); "Keep the sent prices on this draft"
+  (`_asSentCarry`) adds a visible "As sent …" custom line per card for the
+  difference. `tests/dupcarry.mjs` (14). ASK THE OWNER what that box names on
+  job 3306 before guessing at the cause.
 - A settings PUT echoes the row back. MERGE that echo into `S.settings`,
   never replace with it: a backend that predates a field echoes the row
   without it and silently undoes what was just saved.
