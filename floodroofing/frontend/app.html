@@ -1408,6 +1408,13 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
 #tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
+/* GUTTERS ONLY (2026-10-28): the canvas draws gutter lines and nothing else,
+   and the Pricing drawer is the scaffold and the gutter card. */
+.gj-only{ display:none !important; }
+body.gutter-job .gj-only{ display:inline-flex !important; }
+body.gutter-job #btn-outline, body.gutter-job #rlDropWrap, body.gutter-job #btn-squarecorner,
+body.gutter-job #btn-calibrate, body.gutter-job #roofTypePanel,
+body.gutter-job #tab-scope #roofPriceTile{ display:none !important; }
 /* Action bar isn't a titled tile — keep it plain. */
 #tab-scope .card.mat-actions{ padding:12px 14px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
 #tab-scope .card.mat-actions .mat-btn{ font-size:12px;padding:7px 12px; }
@@ -5152,7 +5159,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T00:19:54Z';
+  window.APP_BUILT_AT = '2026-10-28T00:27:21Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6248,6 +6255,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
              line editor's Delete button. The setTool('delete') path is
              kept in JS but no longer clutters the toolbar. -->
         <button onclick="setTool('outline')" id="btn-outline" onmouseenter="showTip('btn-outline',event)" onmouseleave="hideTip()" class="tool-btn tool-dark">🏠 Building outline</button>
+        <!-- A Gutters only job's one drawing tool, out where it is seen. -->
+        <button onclick="setTool('gutter')" id="btn-gjgutter" class="tool-btn gj-only" style="color:#7c3aed;border-color:#7c3aed;font-weight:700">〰 Gutter line</button>
         <!-- Roof lines + details collapsed into one menu to keep the toolbar tidy -->
         <div id="rlDropWrap" style="position:relative;display:inline-block">
           <button type="button" id="rlDropBtn" onclick="toggleRoofLinesMenu(event)" style="background:#0a1628;color:#fff;border:1px solid #0a1628;border-radius:6px;padding:6px 13px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;line-height:1.2">
@@ -8762,6 +8771,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
         <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
+        <button type="button" id="jtBtn_gutters" onclick="_setJobType('gutters')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">〰 Gutters only</button>
         <button type="button" id="jtBtn_tender" onclick="_setJobType('tender')" style="display:none;padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">📐 AI Tendering</button>
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:5px">Chooses which quote draft this job uses — you can switch it later on the Quote tab.</div>
@@ -17266,6 +17276,53 @@ function _gutterOnJob(){
 // from the same estimate. Anything else in the labour group (the building
 // consent allowance) is a lot price and stays here as a row.
 function _psIsShed(){ return !!(window.S && S.quote && S.quote.quoteKind === 'poleshed'); }
+// ── GUTTERS ONLY (2026-10-28, the owner: "add an job type called 'Gutters
+// only' and the canvas is very basic, only allows to draw the gutter line,
+// the quote gets changed to suit gutter"). A job that is the spouting and
+// nothing else: the canvas draws gutter lines only, the quote offers the
+// gutter, its colour, brackets and downpipes, and the pricing is the scaffold
+// and the gutter card. Nothing of a re-roof is priced or shown.
+function _isGutterJob(){ try { return !!(window.S && S.quote && S.quote.quoteKind === 'gutters'); } catch(e){ return false; } }
+// The tools a gutters-only canvas offers.
+var GJ_TOOLS = { select:1, gutter:1, tape:1, customscale:1, calibrate:1 };
+// The body class the canvas and the Pricing drawer key on, and a gutter
+// always picked: a gutters-only quote with "No new guttering" is no quote.
+function _gutterJobSync(){
+  var on = _isGutterJob();
+  try { document.body.classList.toggle('gutter-job', on); } catch(e){}
+  if (!on || !S.quote) return;
+  try {
+    var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+    var gs = _selGutters();
+    if (gs.length && !gs.some(function(g){ return g && g.id === p.gutterType; })) p.gutterType = gs[0].id;
+    _gjColourFit(p);
+  } catch(e){}
+  try { if (DRAW && DRAW.tool && !GJ_TOOLS[DRAW.tool]) setTool('gutter'); } catch(e){}
+}
+// ── THE GUTTER'S OWN COLOURS ──
+// Colorsteel box gutter: the Colorsteel chart. Marley Typhoon: Marley's
+// Typhoon range. Marley Classic: white, and white only.
+function _gjPalette(id){
+  if (id == null) id = (((window.S && S.quote && S.quote.proposalOptions) || {}).gutterType) || '';
+  var g = null; try { g = _selGutterOf(id); } catch(e){}
+  var nm = String(id + ' ' + ((g && g.name) || '')).toLowerCase();
+  if (/classic/.test(nm)) return { kind:'classic', list:[{ name:'White', hex:'#f4f4ef' }] };
+  if (/typhoon|marley|pvc/.test(nm)) return { kind:'typhoon', list:MARLEY_TYPHOON_COLOURS };
+  return { kind:'colorsteel', list:MAXAM_COLOURS };
+}
+// A colour the new gutter does not come in is no pick; Classic is white.
+function _gjColourFit(p){
+  if (!p) return;
+  var P = _gjPalette(p.gutterType);
+  if (P.kind === 'classic'){ p.gutterColour = 'White'; return; }
+  var c = p.gutterColour || '';
+  if (c && c !== QB_COLOUR_UNDECIDED && !P.list.some(function(x){ return x.name === c; })) p.gutterColour = '';
+}
+function _setProposalOption_gutterColour(v){
+  var cur = ((window.S && S.quote && S.quote.proposalOptions) || {}).gutterColour || '';
+  if (v && cur === v) v = '';
+  _setProposalOption('gutterColour', v);
+}
 function _shedKeySlug(label){
   return 'shed_' + String(label || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 }
@@ -19808,7 +19865,8 @@ function restoreFromJob(j){
     // job that HAS a quote; an older one carries no quoteKind at all and the
     // readers then fell through to window._pendingJobType, which is how the
     // last job's Pole Shed followed the office onto the next client's job.
-    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : 'roofing'; } catch(e){}
+    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : (S.quote.quoteKind === 'gutters') ? 'gutters' : 'roofing'; } catch(e){}
+    try { _gutterJobSync(); } catch(e){}
     try { _clearPendingJobType(); } catch(e){}
     try { _renderFergusSent(); } catch(e){}
     S._qvViewing = null; S._qvWork = null;   // a job opens on its draft, never on a view left from the last one
@@ -22693,6 +22751,7 @@ function _resetQuoteForFreshJob(seed){
   seed = seed || {};
   _clearPendingJobType();
   try { S.quote = (typeof defaultQuote === 'function') ? defaultQuote() : {}; } catch(e){ S.quote = {}; }
+  try { _gutterJobSync(); } catch(e){}
   if (S.quote){
     if (seed.client != null) S.quote.client = seed.client;
     if (seed.addr   != null) S.quote.addr   = seed.addr;
@@ -22884,6 +22943,7 @@ else _installNextButtons();
 function _setJobType(k){
   window._pendingJobType = _quoteKindNorm(k);
   if (S.quote) S.quote.quoteKind = window._pendingJobType;
+  try { _gutterJobSync(); } catch(e){}
   _syncJobTypeToggle();
   try { _syncQuoteKindToggle(); } catch(e){}
 }
@@ -22892,6 +22952,7 @@ function _setJobType(k){
 // tender job on an account without the feature has no tab to open).
 function _quoteKindNorm(k){
   if (k === 'poleshed') return 'poleshed';
+  if (k === 'gutters') return 'gutters';
   if (k === 'tender' && _tenderingAvailable()) return 'tender';
   return 'roofing';
 }
@@ -22901,15 +22962,16 @@ function _syncJobTypeToggle(){
   var avail = _poleShedsAvailable();
   var wrap = document.getElementById('jtTypeToggle');
   var tnd = _tenderingAvailable();
-  if (wrap) wrap.style.display = (avail || tnd) ? '' : 'none';
+  // Gutters only is offered to every business, so the choice is always there.
+  if (wrap) wrap.style.display = '';
   // Only once we KNOW the account does not sell them.
   if (_poleShedsKnown() && !avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
   if (!tnd && window._pendingJobType === 'tender') window._pendingJobType = 'roofing';
   var ps = avail && (window._pendingJobType === 'poleshed');
-  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : 'roofing');
+  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : window._pendingJobType === 'gutters' ? 'gutters' : 'roofing');
   var psb = document.getElementById('jtBtn_poleshed'); if (psb) psb.style.display = avail ? '' : 'none';
   var tnb = document.getElementById('jtBtn_tender'); if (tnb) tnb.style.display = tnd ? '' : 'none';
-  ['roofing','poleshed','tender'].forEach(function(k){
+  ['roofing','poleshed','gutters','tender'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
     if (!b) return;
     var on = (k === cur);
@@ -26724,6 +26786,8 @@ function _gutterExcluded(){
   // A pole shed's guttering is in its take-off, so the roofing gutter is
   // never priced beside it and never offered as an optional extra.
   if (_psIsShed()) return true;
+  // A Gutters only job IS the gutter: it can never be excluded.
+  if (_isGutterJob()) return false;
   return !!(window.S && S.quote && S.quote.gutterExcluded);
 }
 // Is guttering actually ON the customer's quote (as opposed to merely priced)?
@@ -26768,7 +26832,7 @@ function _toggleGutterExcluded(on){
 // is stripped from the PDF, the printed quote and the customer view on top of
 // the __CUSTOMER_MODE guard.
 function _gutterExcludeRowHtml(){
-  if (window.__CUSTOMER_MODE) return '';
+  if (window.__CUSTOMER_MODE || _isGutterJob()) return '';
   return '<div class="no-print" style="padding:7px 11px;border-top:1px dashed var(--ed-line);background:#fbfaf7">'+
       '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-family:var(--ed-sans);font-size:10.5px;font-weight:700;color:var(--ed-ink-2)">'+
         '<input type="checkbox" onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
@@ -26788,7 +26852,7 @@ function _gutterExcludedPanelBody(){
 // The office-only tick that turns gutter pricing off for this job. Rendered on
 // the Pricing card and on the Selections page; never shown on a customer link.
 function _gutterExcludeToggleHtml(style){
-  if (window.__CUSTOMER_MODE) return '';
+  if (window.__CUSTOMER_MODE || _isGutterJob()) return '';
   var ex = _gutterExcluded();
   return '<label style="'+(style||'')+'display:inline-flex;align-items:center;gap:7px;cursor:pointer;font-size:11px;font-weight:700;color:'+(ex?'#b45309':'var(--text2)')+'">'+
       '<input type="checkbox" '+(ex?'checked':'')+' onchange="_toggleGutterExcluded(this.checked)" style="width:auto;margin:0"> Exclude gutter pricing'+
@@ -30855,6 +30919,8 @@ function _selScaffoldBasePrice(){
   // so there is nothing to upgrade and no 25% anywhere — the card, the
   // summary, the total, the priced snapshot and the profitability alike.
   if (q.gutterNoPlatform) return 0;
+  // A Gutters only job: the scaffold priced is the one the gutter needs.
+  if (q.quoteKind === 'gutters') return 0;
   // Priced on a platform scaffold already: choosing a gutter has nothing to
   // upgrade the site TO, so there is no base to charge the 25% on. This is
   // the one place the scaffold type changes the arithmetic — every uplift
@@ -30994,7 +31060,7 @@ function _qpSelectionChanges(){
     // add-on can never double-count.
     var gm = _selGutterOf(p.gutterType);
     if (gm) {
-      out.push({ label: gm.name || p.gutterType, delta: _selGutterDelta(p.gutterType) });
+      out.push({ label: gm.name || p.gutterType, delta: _selGutterDelta(p.gutterType), key: 'gutter' });
       // A gutter lifts the site from edge protection to a full working
       // platform — 25% on the scaffolding. Whether a given product does that
       // is now the product's own answer, so a roofer adding one is asked
@@ -31174,7 +31240,7 @@ function _qpSelectionChangesPriced(P){
   if (p.gutterType !== undefined && P.gutter[p.gutterType] != null) {
     // The override follows the selection, exactly as the live calc does.
     var gd = (P.gutterOverride != null && !P.gutterExcluded) ? P.gutterOverride : P.gutter[p.gutterType];
-    out.push({ label: P.gutterLabel[p.gutterType] || p.gutterType, delta: gd });
+    out.push({ label: P.gutterLabel[p.gutterType] || p.gutterType, delta: gd, key: 'gutter' });
     var up = (P.gutterUplift[p.gutterType] === false) ? 0 : P.scaffoldUplift;
     if (up > 0)
       out.push({ label: 'Platform scaffolding upgrade (from edge protection — required to install guttering safely)', delta: up });
@@ -31518,7 +31584,12 @@ function _selAddProfilePrompt(pick){
   try { refreshQuoteProposal(); } catch(e){}
   return id;
 }
-function _setProposalOption_gutter(v){    _setProposalOption('gutterType', v); }
+function _setProposalOption_gutter(v){
+  // On a Gutters only quote the colour follows the gutter: one the new gutter
+  // does not come in is cleared, and Marley Classic is white.
+  try { if (_isGutterJob() && S.quote){ var _p = S.quote.proposalOptions || (S.quote.proposalOptions = {}); var _o = _p.gutterType; _p.gutterType = v; _gjColourFit(_p); _p.gutterType = _o; } } catch(e){}
+  _setProposalOption('gutterType', v);
+}
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
 function _setProposalOption_downpipes(v){ _setProposalOption('downpipes', v); }
 function _setProposalOption_disposal(v){  _setProposalOption('disposal', v); }
@@ -33661,6 +33732,8 @@ function _qpBookActive(){
 // the summary rail on a computer and the book on a phone. Saved on the
 // quote, so the customer gets the style the office chose.
 function _quoteStyle(){
+  // A Gutters only quote has no A4 document of its own: always the modern one.
+  if (_isGutterJob()) return 'modern';
   var v = (window.S && S.quote && S.quote.style) || '';
   if (v !== 'classic' && v !== 'modern'){
     // No style on the quote: the company's default, else modern. The
@@ -33773,6 +33846,7 @@ function _qbLocked(){ try { return _qpAcceptedLock(); } catch(e){ return false; 
 function _qbPages(){
   // The phone book turns the same shed sections as the computer layout.
   if (S.quote && S.quote.quoteKind === 'poleshed') return _qModernApply(_psModernSections());
+  if (_isGutterJob()) return _qModernApply(_gjSections(true));
   var p = (S.quote && S.quote.proposalOptions) || {};
   var pages = [
     { key:'cover',     label:'Your quote',    html:_qbCover }
@@ -34471,6 +34545,16 @@ var CUST_DESC_DEFAULT = [
   'Install all associated Flashings',
   'Tidy site and issue Warranty sign-off'
 ];
+// What a Gutters only quote says it will do. "Supply & install new <the
+// gutter>" is added by the gutter pick itself (_qbOptionLines).
+var CUST_DESC_GUTTERS = [
+  'Edge-Protection / Scaffolding',
+  'Remove existing spouting and downpipes and take them away',
+  'Install new brackets at the spacing the gutter calls for',
+  'Seal all joints, outlets and stop ends',
+  'Tidy site and remove all debris'
+];
+function _custDescDefault(){ return _isGutterJob() ? CUST_DESC_GUTTERS : CUST_DESC_DEFAULT; }
 function _qbGradeName(){
   try {
     var p = (S.quote && S.quote.proposalOptions) || {};
@@ -34481,7 +34565,7 @@ function _qbGradeName(){
 }
 function _custDescLines(){
   var q = S.quote || {};
-  var lines = (Array.isArray(q.custDesc) && q.custDesc.length) ? q.custDesc : CUST_DESC_DEFAULT;
+  var lines = (Array.isArray(q.custDesc) && q.custDesc.length) ? q.custDesc : _custDescDefault();
   return lines.map(function(l){ return String(l || '').trim(); }).filter(Boolean);
 }
 function _qbInclusionLines(){
@@ -34584,9 +34668,11 @@ function _classicScopeDefaultLines(){
 // renames it in Edit description — a repair or a new-build is not a re-roof.
 // Saved as S.quote.proposalTitle; saving the default deletes it.
 var QB_PROPOSAL_TITLE = 'Re-Roof Proposal';
+var QB_PROPOSAL_TITLE_GUTTERS = 'Guttering Proposal';
+function _qbProposalTitleDefault(){ return _isGutterJob() ? QB_PROPOSAL_TITLE_GUTTERS : QB_PROPOSAL_TITLE; }
 function _qbProposalTitle(){
   var t = String((S.quote && S.quote.proposalTitle) || '').trim();
-  return t || QB_PROPOSAL_TITLE;
+  return t || _qbProposalTitleDefault();
 }
 function _qdescOpen(){
   if (!S.quote) return;
@@ -34603,7 +34689,7 @@ function _qdescOpen(){
         : 'What the customer reads on the Re-Roof Proposal page, on their phone and their computer. <code>{grade}</code> becomes the steel grade they choose. For this quote only.')+'</span></div>'+
       '<div class="qdesc-body">'+
       (classic ? '' : '<div class="qdesc-title"><label for="qdescTitle">Title</label>'+
-        '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(QB_PROPOSAL_TITLE)+'"></div>')+
+        '<input type="text" id="qdescTitle" maxlength="60" value="'+esc2(_qbProposalTitle())+'" placeholder="'+esc2(_qbProposalTitleDefault())+'"></div>')+
       '<div class="qdesc-grp">'+
         '<div class="qdesc-sub">'+(classic ? 'What\u2019s included and our process' : 'What\u2019s included')+
           '<span>'+(classic ? 'One line a bullet on the document.' : 'One line a step of the work. The customer sees these with a tick.')+'</span></div>'+
@@ -34681,8 +34767,8 @@ function _qdescAdd(k){
 }
 function _qdescReset(){
   var h = document.getElementById('qdescModal'); if (!h) return;
-  h._lines = h._classic ? _classicScopeDefaultLines() : CUST_DESC_DEFAULT.slice();
-  var ti = document.getElementById('qdescTitle'); if (ti) ti.value = QB_PROPOSAL_TITLE;
+  h._lines = h._classic ? _classicScopeDefaultLines() : _custDescDefault().slice();
+  var ti = document.getElementById('qdescTitle'); if (ti) ti.value = _qbProposalTitleDefault();
   _qdescPaint();
 }
 function _qdescClose(){ var h = document.getElementById('qdescModal'); if (h) h.remove(); }
@@ -34699,7 +34785,8 @@ function _qdescSave(){
   }
   // Saved as the default means "use the default" — so a later change to the
   // default reaches quotes nobody customised.
-  var isDefault = lines.length === CUST_DESC_DEFAULT.length && lines.every(function(l, i){ return l === CUST_DESC_DEFAULT[i]; });
+  var _dd = _custDescDefault();
+  var isDefault = lines.length === _dd.length && lines.every(function(l, i){ return l === _dd[i]; });
   if (isDefault) delete S.quote.custDesc; else S.quote.custDesc = lines;
   var excl = (h._excl || []).map(function(l){ return String(l || '').trim(); }).filter(Boolean);
   if (excl.length) S.quote.custExcl = excl; else delete S.quote.custExcl;
@@ -34708,7 +34795,7 @@ function _qdescSave(){
   var ti = document.getElementById('qdescTitle');
   if (ti){
     var tv = String(ti.value || '').trim().slice(0, 60);
-    if (!tv || tv === QB_PROPOSAL_TITLE) delete S.quote.proposalTitle; else S.quote.proposalTitle = tv;
+    if (!tv || tv === _qbProposalTitleDefault()) delete S.quote.proposalTitle; else S.quote.proposalTitle = tv;
   }
   _qdescClose();
   try { refreshQuoteProposal(); } catch(e){}
@@ -35639,13 +35726,20 @@ function _qbColour(){
 function _qbGutter(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var CD = _qbDeltas();
-  var items = [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
+  var _gj = _isGutterJob();
+  var items = _gj ? [] : [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
   try {
     _selGutters().forEach(function(g){
       items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:(g.desc || '') + _qbGutterUpNote(CD, g.id) });
     });
   } catch(e){}
-  items = _qbRecMark(items, 'gutterType', 'none');
+  items = _qbRecMark(items, 'gutterType', _gj ? ((items[0] || {}).id || 'none') : 'none');
+  if (_gj) return _qpOptPageWrap('gutter', {
+    eyebrow:'Your new guttering', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
+    current:p.gutterType || ((items[0] || {}).id || ''), items:items, note:'',
+    figure:_qbGutterFigure(p.gutterType),
+    blurb:'Choose the spouting you would like. The price shown beside each one is the difference from the one we have recommended.'
+  });
   var note = '';
   try {
     if (_selScaffoldBasePrice() > 0)
@@ -35658,6 +35752,69 @@ function _qbGutter(){
     figure:_qbGutterFigure(p.gutterType),
     blurb:'The scaffold is already going up for the roof, so new spouting is far cheaper done now than as its own job later. It is entirely your call.'
   });
+}
+// ── A GUTTERS ONLY QUOTE'S SECTIONS (2026-10-28) ──
+// The cover, the gutter's condition page if the office filled one in, the
+// proposal, then the gutter, its colour, brackets and downpipes, the quote's
+// own options and the total. No steel grade, profile, thickness, roof colour
+// or old roofing: none of it is being done.
+function _gjSections(book){
+  var list = [{ key:'cover', label:'Your quote', html: book ? _qbCover : _qdCover }];
+  // The condition page is a roof's (its fixing buttons are nails and screws):
+  // on a gutters-only quote it shows only when the office put something on it.
+  if (_qbCondSectionOn() && _qbHasCondition()) list.push({ key:'condition', label:'Your gutters', html: book ? _qbCondition : function(){ return _qbCondition({ grid:true }); } });
+  list.push({ key:'proposal', label: book ? 'The proposal' : 'Proposal', html: book ? _qbProposal : _qdProposal });
+  list.push({ key:'gutter', label:'Guttering', html: book ? _qbGutter : _qdGutter });
+  list.push({ key:'gcolour', label:'Gutter colour', html:_qbGutterColour });
+  list.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
+  // Only the quote's own options: a Settings option (Paint Roof…) is a
+  // re-roof product, as on a pole shed.
+  try {
+    _selExtras().forEach(function(g, gi){
+      if (!_psOwnExtra(g)) return;
+      list.push({ key:'extra' + gi, label:g.title || 'Options', html:function(){ return _qbExtraGroup(g, gi); } });
+    });
+  } catch(e){}
+  list.push(book ? { key:'summary', label:'Your total', html:_qbSummary } : { key:'review', label:'Review', html:_qdReview });
+  return list;
+}
+// The colour of the new gutter: the Colorsteel chart for a Colorsteel box
+// gutter, Marley's Typhoon range for Typhoon, and white for Marley Classic.
+function _qbGutterColour(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var gt = p.gutterType || '';
+  var P = _gjPalette(gt);
+  var g = null; try { g = _selGutterOf(gt); } catch(e){}
+  var gname = (g && g.name) || 'gutter';
+  var head = '<span class="qb-eyebrow">The look of it</span><h2 class="qb-h2">Gutter colour</h2>';
+  var del = (!window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\'gcolour\')" title="Take this section out of this quote.">Delete this page</button>' : '';
+  if (P.kind === 'classic'){
+    return '<div class="qb-body">' + head +
+      _qSecPara('gcolour_classic', 'Marley Classic spouting comes in white only.') +
+      '<div class="qb-chosen">Chosen: <b>White</b></div>' +
+      '<div class="qb-swatches"><button type="button" class="qb-sw on" disabled title="White" data-qb-gcolour="White"><span style="background:#f4f4ef"></span><i>White</i></button></div>' +
+      del + '</div>';
+  }
+  var cur = p.gutterColour || '';
+  var undecided = (cur === QB_COLOUR_UNDECIDED);
+  var sw = (P.list || []).map(function(c){
+    var on = (c.name === cur);
+    return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-qb-gcolour="'+esc2(c.name)+'"'+
+      (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+esc2(String(c.name).replace(/'/g,"\\'"))+'\')"')+'>'+
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(c.name)+'</i></button>';
+  }).join('');
+  var range = P.kind === 'typhoon' ? 'the Marley Typhoon range' : 'the Colorsteel\u00ae range';
+  return '<div class="qb-body">' + head +
+    _qSecPara('gcolour', 'Your ' + gname + ' comes in ' + range + '. Every colour here is a standard colour, so none of them changes your price. Not sure yet? You can accept the quote undecided and choose before it is ordered.') +
+    '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-gcolour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
+      (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+QB_COLOUR_UNDECIDED+'\')"')+'>'+
+      '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
+      '<span class="qb-opt-txt"><b>Undecided \u2014 I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
+    '</button>'+
+    '<div class="qb-chosen">'+(undecided ? 'Chosen: <b>Undecided</b> \u2014 we will confirm it with you'
+       : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : '<em>No colour chosen yet \u2014 tap one below, or Undecided above.</em>')+'</div>'+
+    '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
+    del + '</div>';
 }
 // THE PICKED GUTTER, SHOWN (2026-10-18, the owner: "make sure the profile is
 // displayed for the gutter in the gutter section like the profile picture in
@@ -36210,6 +36367,7 @@ function _psPicksAuto(){
 }
 function _qbPicksAuto(){
   if (typeof _psIsShed === 'function' && _psIsShed()) { try { return _psPicksAuto(); } catch(e){} }
+  if (_isGutterJob()) { try { return _gjPicksAuto(); } catch(e){} }
   var p = (S.quote && S.quote.proposalOptions) || {};
   var out = [];
   var _gone = []; try { _gone = _qModernParkedKeys(); } catch(e){ _gone = (S.quote && Array.isArray(S.quote.modernParked)) ? S.quote.modernParked : []; }
@@ -36246,6 +36404,24 @@ function _qbPicksAuto(){
 // quote's reference and total, then the customer's choices in the same words
 // their own quote uses. The server appends it under whatever is already in
 // the job's description, in a block a later push replaces.
+function _gjPicksAuto(){
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var gone = []; try { gone = _qModernParkedKeys(); } catch(e){}
+  var out = [];
+  var gt = p.gutterType || '';
+  var g = null; try { g = _selGutterOf(gt); } catch(e){}
+  if (g) out.push(['Guttering', g.name || gt, 'gutter']);
+  if (gone.indexOf('gcolour') < 0){
+    var P = _gjPalette(gt);
+    var c = P.kind === 'classic' ? 'White' : (p.gutterColour === QB_COLOUR_UNDECIDED ? 'Undecided \u2014 to be confirmed' : (p.gutterColour || ''));
+    if (c) out.push(['Gutter colour', c, 'gcolour']);
+  }
+  if (gone.indexOf('gutterkit') < 0){
+    out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal', 'brackets']);
+    out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes', 'downpipes']);
+  }
+  return out.filter(function(r){ return r[1]; });
+}
 function _fergusJobSummary(){
   var q = (S && S.quote) || {}, lines = [];
   try { if (q.ref) lines.push('Quote ' + q.ref); } catch(e){}
@@ -36338,6 +36514,7 @@ function _qbCondSectionOn(){
 function _qdSections(){ return _qModernApply(_qdSectionsRaw()); }
 function _qdSectionsRaw(){
   if (S.quote && S.quote.quoteKind === 'poleshed') return _psModernSections();
+  if (_isGutterJob()) return _gjSections(false);
   var p = (S.quote && S.quote.proposalOptions) || {};
   var list = [{ key:'cover', label:'Your quote', html:_qdCover }];
   if (_qbCondSectionOn()) list.push({ key:'condition', label:'Your roof', html:function(){ return _qbCondition({ grid:true }); } });
@@ -36935,6 +37112,33 @@ function _custBarRows(){
                     value:(c.delta > 0 ? '+' : '\u2212') + fmtMoney(Math.abs(c.delta) * (1 + M.rate)) });
       });
       rows.push({ kind:'total', label:'Your total', value: fmtMoney(M.tot) });
+      return rows;
+    } catch(e){ rows.length = 0; }
+  }
+  // A Gutters only quote: the gutter they picked is the main scope, so its
+  // price sits in the first line ("Gutters — 125mm box gutter") rather than
+  // as a change on top of a re-roof that is not happening.
+  if (_isGutterJob()){
+    try {
+      var _gb = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
+      var _grl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
+      var _gsub = _qpBaseSub(), _gsc = 0;
+      try { _gsc = _qpBaseScaffold(); } catch(e){ _gsc = 0; }
+      if (!(_gsc > 0) || _gsc > _gsub) _gsc = 0;
+      var _chg = _qpSelectionChanges();
+      var _gr = _chg.filter(function(c){ return c && c.key === 'gutter'; })[0] || null;
+      var _gpo = (S.quote.proposalOptions || {});
+      var _gnm = ''; try { _gnm = ((_selGutterOf(_gpo.gutterType) || {}).name) || ''; } catch(e){}
+      rows.push({ kind:'base', label: _gb || ('Gutters' + (_gnm ? ' \u2014 ' + _gnm : ' \u2014 main scope of work')), short: _gb || 'Gutters',
+                  value: fmtMoney((_gsub - _gsc + (_gr ? (+_gr.delta || 0) : 0)) * (1 + rate)) });
+      if (_gsc > 0) rows.push({ kind:'scaffold', label:_qpScaffoldLabel(), short:'Scaffolding', value: fmtMoney(_gsc * (1 + rate)) });
+      _chg.forEach(function(c){
+        if (!c || c === _gr || !c.delta) return;
+        var _own = String(_grl[String(c.label)] || '').trim();
+        rows.push({ kind:'change', key:String(c.label), label:_own || String(c.label),
+                    value:(c.delta > 0 ? '+' : '\u2212') + fmtMoney(Math.abs(c.delta) * (1 + rate)) });
+      });
+      rows.push({ kind:'total', label:'Your total', value: fmtMoney(_custBarTotalValue()) });
       return rows;
     } catch(e){ rows.length = 0; }
   }
@@ -38893,6 +39097,8 @@ function _syncQuoteBaseLineItems(){
   var _gf = (_psIsShed() || typeof _gradeFactor !== 'function') ? 1 : _gradeFactor((S.quote && S.quote.baseGrade) || 'maxam');
   var _baseMat = (_multiRoof ? _materialsCostForRoofIdx(0) : (parseFloat(S.materials)||0)) * _gf;
   var _baseLab = (_multiRoof ? _labourPriceForRoof(0) : (parseFloat(S.labour)||0));
+  // A Gutters only job prices the scaffold and the gutter card, nothing else.
+  if (_isGutterJob()){ _baseMat = 0; _baseLab = 0; }
   // Roofs after the main one that AREN'T flagged "separate" are part of the
   // main structure, so their materials + labour + scaffold fold into the base
   // line items and the customer sees a single main price. Only roofs the
@@ -39222,6 +39428,7 @@ function _aerialRoofBlock(){
 // — click "Aerial background" to exclude it. (Explicit false = excluded.)
 function _qpRoofMapShowBg(){
   var q = (window.S && S.quote) || {};
+  if (q.quoteKind === 'gutters') return true;   // the aerial is the whole map
   return (q.roofMapShowBg == null) ? true : !!q.roofMapShowBg;
 }
 function _qpRoofBgSwitchHtml(){
@@ -39605,6 +39812,9 @@ function _qpBasicRoofMaps(showBg){
   var out = [];
   var bgOp = showBg ? 55 : 0;
   var haveLive = !!(window.DRAW && ((DRAW.roofs && DRAW.roofs.length) || (DRAW.outline && DRAW.outline.length >= 3)));
+  // A Gutters only job has gutter lines and no outline: the live map is the
+  // aerial and those lines (no basic map).
+  if (!haveLive && _isGutterJob()){ try { _qpStashRoofGeom(true); } catch(e){} return out; }
   if (haveLive) {
     try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
     try { _qpStashRoofGeom(showBg); } catch(e){}   // geometry for the live inline-SVG map
@@ -39646,6 +39856,27 @@ function _qpStashRoofGeom(showBg){
   if (!S.quote) return;
   if (S._qvViewing) return;                   // the frozen version keeps its own map
   var roofs = (typeof _matBasicCollectRoofs === 'function') ? _matBasicCollectRoofs() : [];
+  // A Gutters only job has no roof outline: its map is the aerial and the
+  // gutter lines, framed on the lines (2026-10-28).
+  var _gjMap = false;
+  if (_isGutterJob()){
+    var _gl = [];
+    try {
+      var _all = (DRAW.roofs && DRAW.roofs.length) ? [] : (DRAW.lines || []);
+      (DRAW.roofs || []).forEach(function(r){ (r && r.lines || []).forEach(function(l){ _all.push(l); }); });
+      if (DRAW.roofs && DRAW.roofs.length && DRAW.activeRoofIdx >= 0) _all = _all.concat(DRAW.lines || []);
+      var _seen = [];
+      _all.forEach(function(l){ if (l && l.type === 'gutter' && l.pts && l.pts.length === 2 && _seen.indexOf(l) < 0){ _seen.push(l); _gl.push(l); } });
+    } catch(e){}
+    if (!_gl.length){ S.quote.roofMapGeom = null; return; }
+    var _x0 = Infinity, _y0 = Infinity, _x1 = -Infinity, _y1 = -Infinity;
+    _gl.forEach(function(l){ l.pts.forEach(function(q){ _x0 = Math.min(_x0, q[0]); _y0 = Math.min(_y0, q[1]); _x1 = Math.max(_x1, q[0]); _y1 = Math.max(_y1, q[1]); }); });
+    var _pd = Math.max(30, (_x1 - _x0) * 0.12, (_y1 - _y0) * 0.12);
+    roofs = [{ idx:0, name:'Gutters', areaM2:0, lines:_gl,
+               outline:[[_x0 - _pd, _y0 - _pd], [_x1 + _pd, _y0 - _pd], [_x1 + _pd, _y1 + _pd], [_x0 - _pd, _y1 + _pd]] }];
+    _gjMap = true;
+    showBg = true;
+  }
   if (!roofs.length){ S.quote.roofMapGeom = null; return; }
   var minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
   roofs.forEach(function(r){ r.outline.forEach(function(p){ if(p[0]<minX)minX=p[0]; if(p[0]>maxX)maxX=p[0]; if(p[1]<minY)minY=p[1]; if(p[1]>maxY)maxY=p[1]; }); });
@@ -39782,7 +40013,7 @@ function _qpStashRoofGeom(showBg){
   } catch(e){ bgAdj = null; }
   S.quote.roofMapGeom = {
     bbox: { minX:minX, minY:minY, maxX:maxX, maxY:maxY }, bg:bg, bgW:bgW, bgH:bgH, view:view, rot:rot,
-    bgAdj: bgAdj,
+    bgAdj: bgAdj, gutterOnly: _gjMap || undefined,
     roofs: roofs.map(function(r){
       return {
         idx: r.idx, name: r.name, area: +(r.areaM2||0), mode: _roofQuoteMode(r.idx),
@@ -39903,7 +40134,7 @@ function _qpRoofMapSvg(opts){
   // pricing on that screen.
   var alsoHi = Array.isArray(opts.highlightAlso) ? opts.highlightAlso : [];
   var fontSize=Math.max(11,Math.min(28,h/22)), subSize=Math.max(9,Math.min(18,h/32));
-  var showGutters = !!opts.showGutters;
+  var showGutters = !!opts.showGutters || !!g.gutterOnly;
   // Inside a cropping frame the SVG fills the box and the frame draws the
   // border; standing on its own (the Pricing tab's mini map) it still
   // shrink-wraps to its own aspect under a maximum height.
@@ -39938,7 +40169,19 @@ function _qpRoofMapSvg(opts){
     var _rcx = g.bgW / 2 + (_ba ? (+_ba.dx || 0) : 0);
     var _rcy = g.bgH / 2 + (_ba ? (+_ba.dy || 0) : 0);
     var _rt = _rot ? ' transform="rotate(' + _rot + ' ' + _rcx + ' ' + _rcy + ')"' : '';
-    svg+='<image x="'+_bx+'" y="'+_by+'" width="'+_bw+'" height="'+_bh+'" opacity="0.55" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+    svg+='<image x="'+_bx+'" y="'+_by+'" width="'+_bw+'" height="'+_bh+'" opacity="'+(g.gutterOnly ? '1' : '0.55')+'" preserveAspectRatio="none"'+_rt+' href="'+g.bg+'"/>';
+  }
+  if (g.gutterOnly){
+    // The aerial and the gutter lines: no roof, no label, no tick.
+    var _gw = Math.max(4, Math.min(14, w / 120));
+    g.roofs.forEach(function(r){
+      (r.gutters || []).forEach(function(gp){
+        var a = 'x1="'+gp[0][0]+'" y1="'+gp[0][1]+'" x2="'+gp[1][0]+'" y2="'+gp[1][1]+'"';
+        svg+='<line '+a+' stroke="#fff" stroke-width="'+(_gw * 1.9).toFixed(1)+'" stroke-linecap="round" opacity="0.9"/>'+
+             '<line '+a+' stroke="#7c3aed" stroke-width="'+_gw.toFixed(1)+'" stroke-linecap="round"/>';
+      });
+    });
+    return svg + '</svg>';
   }
   g.roofs.forEach(function(r){
     // Included → blue + faint green tick. Not included (excluded, or a separate
@@ -40120,6 +40363,13 @@ function _qpInteractiveRoofBlock(opts){
                             readOnly: opts.readOnly === true });
   if (!svg) return '';
   svg = _qpRoofMapFrameHtml(svg, _mh, opts.mapKey);
+  if (g.gutterOnly){
+    return '<div class="qp-roofmap" style="border:1px solid var(--ed-line);background:#fff;padding:12px 14px">'+
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><div class="ed-eyebrow" style="margin:0">Your new guttering</div></div>'+
+      svg + '<div style="display:flex;gap:6px;align-items:center;margin-top:8px;font-family:var(--ed-sans);font-size:10.5px;color:var(--ed-text2)">'+
+        '<span style="width:18px;height:4px;background:#7c3aed;border-radius:2px;display:inline-block"></span> New guttering</div>'+
+    '</div>';
+  }
   // Read-only: the same picture with nothing to press. The summary page
   // shows what the quote COVERS; the choosing was done on page three and
   // offering it again at the point of acceptance only invites a change
@@ -40637,6 +40887,9 @@ var MARLEY_COLOURS = [
   { name:'Lichen®',        hex:'#8a8b6c' },
   { name:'Slate®',         hex:'#4a4f54' },
 ];
+// Marley Typhoon's own colour range, for a Gutters only quote (2026-10-28).
+// PENDING THE OWNER'S CHART: until it is copied in, the Marley swatches above.
+var MARLEY_TYPHOON_COLOURS = MARLEY_COLOURS.slice();
 var STEEL_GUTTER_PROFILES = [
   { key:'quad',       name:'Continuous Quad',     blurb:'Square-fronted, the New Zealand standard — bold lines, sharp edges.' },
   { key:'smoothline', name:'Smoothline',          blurb:'Internal bracketing for a fully concealed look — modern architectural choice.' },
@@ -40932,6 +41185,7 @@ function _psOptionsFollow(text){
 function _setQuoteKind(k){
   if (!S.quote) return;
   S.quote.quoteKind = _quoteKindNorm(k);
+  try { _gutterJobSync(); } catch(e){}
   _syncQuoteKindToggle();
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
 }
@@ -40957,6 +41211,8 @@ function _qkMenuRender(){
   var ps = avail && S.quote && S.quote.quoteKind === 'poleshed';
   var tnd = _tenderingAvailable();
   var isT = tnd && S.quote && S.quote.quoteKind === 'tender';
+  var isG = !!(S.quote && S.quote.quoteKind === 'gutters');
+  try { document.body.classList.toggle('gutter-job', isG); } catch(e){}
   try { _tenderNavSync(); } catch(e){}
   var close = "this.closest('details').removeAttribute('open');";
   var item = function(call, label, sub, on, id){
@@ -40973,10 +41229,11 @@ function _qkMenuRender(){
         return item("setMainScope('" + k + "');_qkMenuRender()", esc2(pr.label || k), esc2(pr.subtitle || ''), curScope === k, 'qkScope_' + k);
       }).join('');
     } catch(e){}
-    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:' + ((avail || tnd) ? 'block' : 'none') + '">' +
+    list.innerHTML = scope + '<div id="qkDraftToggle" style="display:block">' +
       '<div class="qa-more-lbl">Job type</div>' +
-      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT, 'qkBtn_roofing') +
+      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT && !isG, 'qkBtn_roofing') +
       (avail ? item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') : '') +
+      item("_setQuoteKind('gutters')", 'Gutters only', 'New spouting and downpipes, nothing else', isG, 'qkBtn_gutters') +
       (tnd ? item("_setQuoteKind('tender')", 'AI Tendering', 'Price a roof off a plan set', isT, 'qkBtn_tender') : '') +
       '</div>';
   }
@@ -46039,6 +46296,16 @@ var QUOTE_EMAIL_DEFAULT = {
 // the standard wording and what the server's own copy is compared against.
 // This is the standard wording FOR A SHED, and an office that has written
 // their own still wins over both \u2014 `em.quote_subject` is read first either way.
+var GUTTERS_EMAIL_DEFAULT = {
+  subject: 'Your guttering quote {ref} \u2014 {company}',
+  body: 'Hi {client},\n\n' +
+    'Thanks for the opportunity to quote your new guttering{address}.\n\n' +
+    'Your quote is ready \u2014 view it online, choose your options, and accept it right from your phone:\n' +
+    '{link}\n' +
+    '{valid_until}\n' +
+    'Any questions, just reply to this email or give us a call.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
 var POLESHED_EMAIL_DEFAULT = {
   subject: 'Your pole shed quote {ref} \u2014 {company}',
   body: 'Hi {client},\n\n' +
@@ -46069,7 +46336,7 @@ function _quoteEmailTemplate(link){
     return String(t || '').replace(/\{(client|address|link|ref|company|valid_until|phone|email|website)\}/g,
       function(m, k){ return vars[k]; });
   };
-  var _d = (typeof _psIsShed === 'function' && _psIsShed()) ? POLESHED_EMAIL_DEFAULT : QUOTE_EMAIL_DEFAULT;
+  var _d = (typeof _psIsShed === 'function' && _psIsShed()) ? POLESHED_EMAIL_DEFAULT : _isGutterJob() ? GUTTERS_EMAIL_DEFAULT : QUOTE_EMAIL_DEFAULT;
   var subject = fill(em.quote_subject || _d.subject)
     .replace(/\s{2,}/g, ' ').trim();
   var body = fill(em.quote_body || _d.body)
@@ -52225,6 +52492,11 @@ var STEP_INFO = {
 };
 
 function setTool(t) {
+  // A gutters-only job draws gutter lines and nothing else (2026-10-28).
+  if (_isGutterJob() && t && !GJ_TOOLS[t]){
+    try { _siteToast('A Gutters only job draws gutter lines only — switch the job type on the Quote tab to draw a roof.'); } catch(e){}
+    t = 'gutter';
+  }
   // While the picture is being relocated the drawing is LOCKED — that is the
   // whole bargain of the mode — so a drawing tool is refused and says why,
   // BEFORE finishCurrent() commits anything half-drawn.
@@ -74559,7 +74831,7 @@ function _quotePdfFilename(){
   var q = (window.S && S.quote) || {};
   var clean = function(t){ return String(t == null ? '' : t).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); };
   var ref    = clean(q.ref);
-  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : 'Roofing';
+  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : (q.quoteKind === 'gutters') ? 'Gutters' : 'Roofing';
   var client = clean(q.client);
   return [ ref ? ('Quote ' + ref) : 'Quote', kind, client ]
     .filter(Boolean).join(' - ').slice(0, 100) + '.pdf';

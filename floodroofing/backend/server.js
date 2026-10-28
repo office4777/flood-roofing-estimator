@@ -932,13 +932,23 @@ const QUOTE_SELECTION_LABELS = {
 function _quoteSelectionLines(quote){
   const po = (quote && quote.proposalOptions) || {};
   const out = [];
+  // A Gutters only quote (2026-10-28) chose a gutter and its colour; the
+  // roofing picks it never offered are not listed.
+  const gj = quote && quote.quoteKind === 'gutters';
+  const GJ = { gutterType: 1, gutterBracket: 1, downpipes: 1 };
   for (const k of Object.keys(QUOTE_SELECTION_LABELS)) {
+    if (gj && !GJ[k]) continue;
     const v = po[k];
     if (v == null || v === '') continue;
     const L = QUOTE_SELECTION_LABELS[k];
     out.push(L._t + ': ' + (L[String(v)] || String(v)));
   }
-  if (po.colour) out.push('Colour: ' + String(po.colour).slice(0, 60));
+  if (po.colour && !gj) out.push('Colour: ' + String(po.colour).slice(0, 60));
+  if (gj) {
+    const gt = String(po.gutterType || '');
+    const gc = /classic/i.test(gt) ? 'White' : String(po.gutterColour || '').slice(0, 60);
+    if (gc) out.push('Gutter colour: ' + gc);
+  }
   return out;
 }
 function _money(n) {
@@ -5586,6 +5596,11 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
           const c = String(po.colour).slice(0, 60);
           if (c) quote.proposalOptions.colour = c;
         }
+        // A Gutters only quote's gutter colour (2026-10-28): a name, as the colour is.
+        if (po.gutterColour != null) {
+          const gc = String(po.gutterColour).slice(0, 60);
+          quote.proposalOptions.gutterColour = gc;
+        }
         // The company's own priced options. There is no fixed allow-list to
         // check these against — the groups are whatever the roofer made — so
         // the guard is the SHAPE and the quote's own snapshot: a group id and
@@ -7441,6 +7456,18 @@ const REMINDER_EMAIL_POLESHED = {
     'to this email or give us a call — happy to help.\n\n' +
     'Kind regards,\n{company}\n{phone}{email}{website}',
 };
+// A Gutters only quote's follow-up talks about the guttering (2026-10-28).
+const REMINDER_EMAIL_GUTTERS = {
+  subject: 'Following up on your guttering quote {ref} — {company}',
+  body: 'Hi {client},\n\n' +
+    'Just checking in on the guttering quote we sent{address}.\n\n' +
+    'You can view it, pick your options and accept online any time:\n' +
+    '{link}\n' +
+    '{valid_until}' +
+    'If anything is unclear, or you would like to talk it through, just reply ' +
+    'to this email or give us a call — happy to help.\n\n' +
+    'Kind regards,\n{company}\n{phone}{email}{website}',
+};
 const REMINDER_EMAIL_DEFAULT = {
   subject: 'Following up on your roofing quote {ref} — {company}',
   body: 'Hi {client},\n\n' +
@@ -7756,7 +7783,7 @@ async function _reminderSweep(){
         email: br.email ? (br.email + '\n') : '',
         website: br.website || '',
       };
-      const _rd = (quote.quoteKind === 'poleshed') ? REMINDER_EMAIL_POLESHED : REMINDER_EMAIL_DEFAULT;
+      const _rd = (quote.quoteKind === 'poleshed') ? REMINDER_EMAIL_POLESHED : (quote.quoteKind === 'gutters') ? REMINDER_EMAIL_GUTTERS : REMINDER_EMAIL_DEFAULT;
       const subject = _fillEmailTemplate(em.reminder_subject || _rd.subject, vars)
         .replace(/\s{2,}/g, ' ').trim();
       const body = _fillEmailTemplate(em.reminder_body || _rd.body, vars)
