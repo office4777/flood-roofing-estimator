@@ -300,6 +300,17 @@ check('a name typed on the chart saves into the structure', putOrg && putOrg.bod
 r = await pg.evaluate(() => { _tnPdf(); const f = [...document.querySelectorAll('iframe')].pop(); const dd = f.contentDocument; const css = [...dd.querySelectorAll('style')].map(x => x.textContent).join(''); return { exact: /print-color-adjust:exact!important/.test(css), phoneOnScreen: !/@media\(max-width:760px\)/.test(css) && /@media screen and \(max-width:760px\)/.test(css), org: dd.querySelectorAll('.tq-ob').length, ask: dd.querySelectorAll('.tq-orgask').length, edits: dd.querySelectorAll('.tq-edit').length }; });
 check('the PDF prints the bands and bars (backgrounds kept) and never the phone layout', r.exact && r.phoneOnScreen, JSON.stringify(r));
 check('…with the org chart on it and none of the office\'s buttons or prompts', r.org === 3 && r.ask === 0 && r.edits === 0, JSON.stringify(r));
+// the owner's own chart (2026-10-28): three managers in one tight row under him, five crews under Ethan, fitted to the page with no sideways scroll
+r = await pg.evaluate(async () => {
+  window.__tnRerender(doc => { doc.org = { described: true, people: [{ id: 'o', role: 'Owner', name: 'Aron', reports_to: '' }, { id: 'pa', role: 'Office Manager', name: 'Paula', reports_to: 'o' }, { id: 'e', role: 'Operations Manager', name: 'Ethan', reports_to: 'o' }, { id: 's', role: 'Sales / Quoting', name: 'Aron', reports_to: 'o' }]
+    .concat([1, 2, 3, 4, 5, 6, 7].map(n => ({ id: 'c' + n, role: 'Roofing crew ' + n, name: '', note: 'Lead roofer + apprentice', reports_to: 'e' }))) }; });
+  await new Promise(res => setTimeout(res, 200));
+  const o = document.querySelector('#tqPage .tq-org'), rows = [...o.querySelectorAll('.tq-org-row')].map(rw => [...rw.querySelectorAll('.tq-ob')].map(b => b.getBoundingClientRect()));
+  const mg = rows[1] || [], gaps = mg.slice(1).map((b, i) => Math.round(b.left - mg[i].right)), R = o.getBoundingClientRect();
+  return { rows: rows.map(x => x.length), gaps, fits: o.scrollWidth <= o.clientWidth + 1, inside: rows.flat().every(b => b.left >= R.left - 1 && b.right <= R.right + 1), lines: (o.querySelector('.tq-org-ln path').getAttribute('d').match(/M/g) || []).length, ethanMid: Math.round(mg[1] && (mg[1].left + mg[1].right) / 2 - (R.left + R.right) / 2) };
+});
+check('the org chart is one row a level, the managers packed close beside each other, and it always fits the page — no sideways scroll', r.rows.join() === '1,3,7' && r.gaps.every(g => g >= 0 && g <= 20) && r.fits && r.inside && r.lines === 14 && Math.abs(r.ethanMid) <= 2, JSON.stringify(r));
+if (process.env.SHOTS) { await pg.evaluate(() => document.querySelector('#tqPage .tq-org').scrollIntoView({ block: 'center' })); await pg.waitForTimeout(300); await (await pg.$('#tqPage .tq-org')).screenshot({ path: process.env.SHOTS + '/org.png' }); }
 // the section boxes: one height, scrolling inside; Expand, back to 8 lines, Minimise
 r = await pg.evaluate(() => {
   const h = id => { const b = document.querySelector('.tn-box[data-box="' + id + '"]'); return b ? Math.round(b.getBoundingClientRect().height) : -1; };

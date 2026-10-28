@@ -949,18 +949,29 @@
     var ids = {}; ppl.forEach(function(p){ ids[p.id] = p; });
     var kids = {}; var roots = [];
     ppl.forEach(function(p){ if (p.reports_to && ids[p.reports_to] && p.reports_to !== p.id) (kids[p.reports_to] = kids[p.reports_to] || []).push(p); else roots.push(p); });
-    var seen = {};
-    var li = function(p){
-      if (seen[p.id]) return ''; seen[p.id] = 1;
+    // ROW BY ROW, NOT A NESTED TREE (2026-10-28, the owner: "i still want
+    // Paula and Aron brought in closer ... don't allow a scroll left/right
+    // function, the org structure must fit to size"). A nested tree spreads
+    // a manager's siblings out to the edges of the widest team under them;
+    // here each level is one centred row, packed close, and every box shrinks
+    // to fit the page. The lines are drawn after layout (orgLines).
+    var seen = {}, rows = [];
+    var box = function(p){
       var e = function(f, v, tag, ph){ return '<' + tag + ' class="tq-ed" contenteditable="true" data-oid="' + esc(p.id) + '" data-of="' + f + '" data-ph="' + ph + '">' + esc(v || '') + '</' + tag + '>'; };
-      var ch = (kids[p.id] || []).map(li).join('');
-      return '<li><div class="tq-ob">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
-        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>' + (ch ? '<ul>' + ch + '</ul>' : '') + '</li>';
+      return '<div class="tq-ob" data-oid="' + esc(p.id) + '" data-up="' + esc(p.reports_to && ids[p.reports_to] && p.reports_to !== p.id ? p.reports_to : '') + '">' + e('role', p.role, 'b', 'Role') + e('name', p.name, 'span', 'Name') + e('note', p.note, 'small', '') +
+        '<button type="button" class="tq-ox no-print" title="Remove" onclick="_tnOrgDel(\'' + esc(p.id) + '\')">✕</button></div>';
     };
+    var level = roots.filter(function(p){ return !seen[p.id] && (seen[p.id] = 1); });
+    while (level.length) {
+      rows.push(level);
+      var next = [];
+      level.forEach(function(p){ (kids[p.id] || []).forEach(function(c){ if (!seen[c.id]) { seen[c.id] = 1; next.push(c); } }); });
+      level = next;
+    }
     var h = '';
     if (!org.described) h += '<div class="tq-orgask no-print">This is a standard structure. Press <b>✎ Edit Organisation structure</b> and describe yours (who does what, and how many crews) — it is kept for your next tenders.</div>';
     h += ce('orgNote', qText(d.doc, 'orgNote', '<p>Our team for this project:</p>'));
-    h += '<div class="tq-org"><ul>' + roots.map(li).join('') + '</ul></div>';
+    h += '<div class="tq-org"><svg class="tq-org-ln" aria-hidden="true"></svg>' + rows.map(function(r){ return '<div class="tq-org-row">' + r.map(box).join('') + '</div>'; }).join('') + '</div>';
     h += '<div class="no-print" style="margin-top:6px"><button type="button" class="tn-btn sec tn-add" onclick="_tnOrgAdd()">+ Add a role</button></div>';
     return h;
   }
@@ -1205,8 +1216,30 @@
   // narrow-screen rules), so the sheets are measured again once it settles
   var _pgRsT = null;
   window.addEventListener('resize', function(){ pageFit(); clearTimeout(_pgRsT); _pgRsT = setTimeout(function(){ if (document.getElementById('tqPage')) pageBreaks(); }, 350); });
+  // The org chart's lines: from each box down to a bar over its team, and a
+  // drop to every box in it. Worked from where the boxes landed, so they are
+  // right at any width; redrawn whenever the chart changes size.
+  function orgLines(root){
+    (root || document).querySelectorAll('.tq-org').forEach(function(o){
+      var svg = o.querySelector('.tq-org-ln'); if (!svg) return;
+      var R = o.getBoundingClientRect(), k = o.offsetWidth ? R.width / o.offsetWidth : 1, at = {}, out = '';
+      if (!R.width) return;
+      o.querySelectorAll('.tq-ob[data-oid]').forEach(function(b){ var r = b.getBoundingClientRect(); at[b.getAttribute('data-oid')] = { x: (r.left + r.width / 2 - R.left) / k, top: (r.top - R.top) / k, bot: (r.bottom - R.top) / k }; });
+      var team = {};
+      o.querySelectorAll('.tq-ob[data-up]').forEach(function(b){ var u = b.getAttribute('data-up'); if (u && at[u]) (team[u] = team[u] || []).push(at[b.getAttribute('data-oid')]); });
+      Object.keys(team).forEach(function(u){
+        var P = at[u], C = team[u], top = Math.min.apply(null, C.map(function(c){ return c.top; })), y = Math.max(P.bot + 4, top - 13);
+        var xs = C.map(function(c){ return c.x; }).concat([P.x]), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+        out += 'M' + P.x + ' ' + P.bot + 'V' + y + 'M' + x0 + ' ' + y + 'H' + x1;
+        C.forEach(function(c){ out += 'M' + c.x + ' ' + y + 'V' + c.top; });
+      });
+      svg.innerHTML = '<path d="' + out + '" fill="none" stroke="#94a3b8" stroke-width="1.5"/>';
+      if (!root && !o._ro && window.ResizeObserver) { o._ro = new ResizeObserver(function(){ orgLines(); }); o._ro.observe(o); }
+    });
+  }
   function afterDocRender(){
     var pg = document.getElementById('tqPage'); if (!pg) return;
+    orgLines();
     pageFit(); pageFitWatch();
     pg.querySelectorAll('[contenteditable]').forEach(function(el){
       el.addEventListener('blur', function(){
@@ -1400,7 +1433,7 @@
     // the stylesheets first, then every weight the tender uses, so nothing
     // prints in a stand-in face
     var whenFonts = function(cb){ try { if (dd.fonts && dd.fonts.load) { var t = setTimeout(cb, 4000), fin = function(){ clearTimeout(t); cb(); }; var links = [].slice.call(dd.querySelectorAll('link[rel=stylesheet]')), n = links.length; var loadAll = function(){ Promise.all(['400', '500', '600', '700', '800'].map(function(wt){ return dd.fonts.load(wt + ' 12.5px Inter').catch(function(){}); })).then(function(){ return dd.fonts.ready; }).then(fin, fin); }; if (!n) { loadAll(); return; } links.forEach(function(l){ if (l.sheet) { if (--n === 0) loadAll(); } else l.onload = l.onerror = function(){ if (--n === 0) loadAll(); }; }); return; } } catch (e) {} cb(); };
-    var go0 = go; go = function(){ whenFonts(function(){ go0(); }); };
+    var go0 = go; go = function(){ whenFonts(function(){ try { orgLines(dd); } catch (e) {} go0(); }); };
     var imgs = dd.images; var left = imgs.length;
     if (!left) setTimeout(go1, 150);
     else Array.prototype.forEach.call(imgs, function(im){ if (im.complete) { if (--left === 0) setTimeout(go1, 150); } else im.onload = im.onerror = function(){ if (--left === 0) setTimeout(go1, 150); }; });
@@ -1537,16 +1570,9 @@
       '.tn-flash{animation:tnFlash 1.8s ease}@keyframes tnFlash{0%,40%{box-shadow:0 0 0 3px #0099cc;border-radius:8px}100%{box-shadow:0 0 0 0 transparent}}',
       // the organisation structure
       '.tq-orgask{margin:0 0 8px;padding:8px 10px;border-radius:8px;background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;font-size:12px}',
-      '.tq-org{overflow-x:auto;padding:4px 0 2px}.tq-org ul{display:flex;justify-content:center;margin:0;padding:16px 0 0;position:relative}.tq-org>ul{padding-top:0}',
-      '.tq-org li{list-style:none;text-align:center;position:relative;padding:16px 5px 0;flex:0 1 auto}',
-      '.tq-org li::before,.tq-org li::after{content:"";position:absolute;top:0;right:50%;width:50%;height:16px;border-top:1.5px solid #94a3b8}',
-      '.tq-org li::after{right:auto;left:50%;border-left:1.5px solid #94a3b8}',
-      '.tq-org li:only-child::before,.tq-org li:only-child::after{display:none}.tq-org li:only-child{padding-top:0}',
-      '.tq-org li:first-child::before,.tq-org li:last-child::after{border:0 none}',
-      '.tq-org li:last-child::before{border-right:1.5px solid #94a3b8;border-radius:0 5px 0 0}.tq-org li:first-child::after{border-radius:5px 0 0 0}',
-      '.tq-org ul ul::before{content:"";position:absolute;top:0;left:50%;height:16px;border-left:1.5px solid #94a3b8}',
-      '.tq-org>ul>li::before,.tq-org>ul>li::after{display:none}.tq-org>ul>li{padding-top:0}',
-      '.tq-ob{display:inline-flex;flex-direction:column;min-width:104px;max-width:150px;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
+      '.tq-org{position:relative;padding:2px 0;overflow:hidden}.tq-org-row{display:flex;justify-content:center;align-items:flex-start;gap:12px;margin-top:26px;position:relative;z-index:1}.tq-org-row:first-of-type{margin-top:0}',
+      '.tq-org-row .tq-ob{flex:0 1 150px;min-width:0;max-width:150px}.tq-org-ln{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;overflow:visible;z-index:0}',
+      '.tq-ob{display:inline-flex;flex-direction:column;min-width:0;max-width:150px;overflow-wrap:anywhere;border:1.5px solid #0a1628;border-radius:7px;overflow:hidden;background:#fff;position:relative;vertical-align:top}',
       '.tq-ob b{display:block;background:#0a1628;color:#fff;font-size:10.5px;line-height:1.3;padding:5px 7px;letter-spacing:.02em}',
       '.tq-ob span{display:block;font-size:11.5px;font-weight:600;color:#0f172a;padding:4px 7px 0;min-height:15px}.tq-ob small{display:block;font-size:10px;color:#64748b;padding:1px 7px 5px;min-height:6px}',
       '@media screen{.tq-ob [contenteditable]:empty::before{content:attr(data-ph);color:#94a3b8;font-weight:400}}',
