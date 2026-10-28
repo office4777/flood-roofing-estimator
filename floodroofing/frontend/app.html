@@ -5178,7 +5178,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T19:36:05Z';
+  window.APP_BUILT_AT = '2026-10-28T19:53:28Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -17112,12 +17112,14 @@ function _deleteMatRow(key){
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
 }
 function restoreDeletedMatRows(){
   MATERIAL_DELETED = {};
   renderMaterialPriceTable();
   try { resyncQuoteLines(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
+  try { _prMatChanged(); } catch(e){}
 }
 function openPriceSettings(){
   gotoTab('settings');
@@ -18852,7 +18854,22 @@ function _pricingRoofParts(ri){
   } else {
     mat += _roofCustomTotal('material', ri); sc += _roofCustomTotal('scaffold', ri);
   }
-  return { labour: lab, material: mat, scaffold: sc, total: lab + mat + sc };
+  // THE MAIN ROOF'S OPTIONS ARE PART OF WHAT IT COMES TO (2026-10-29, job
+  // 3306: the card read $36,622.54 beside a quote of $39,280.83 — the
+  // $2,658.29 between them the RI-925 profile row). The quote's picks that
+  // are not another roof (a profile, a gauge, a grade, a gutter) are priced on
+  // the main roof, exactly as the profitability panel's main-roof view counts
+  // them, so the card lists each and its total is that view's revenue.
+  var opts = [];
+  if (base){
+    try { (_profitSelectionItems() || []).forEach(function(it){
+      if (!it || it.key === 'roof') return;
+      var v = f(it.revenue); if (Math.abs(v) < 0.005) return;
+      opts.push({ label: String(it.label || 'Option').replace(/\s*\([^)]*\)\s*$/, ''), value: v });
+    }); } catch(e){}
+  }
+  var ot = opts.reduce(function(a, o){ return a + o.value; }, 0);
+  return { labour: lab, material: mat, scaffold: sc, options: opts, total: lab + mat + sc + ot };
 }
 // The shed's price is the figure the Shed estimator produces (psSubtotal) —
 // the roofing labour / material cards do not feed it — so the card says the
@@ -18887,6 +18904,7 @@ function _pricingRoofPriceHtml(ri){
     line('Labour', p.labour) +
     line('Material', p.material) +
     (p.scaffold > 0.005 ? line('Scaffolding', p.scaffold) : '') +
+    (p.options || []).map(function(o){ return line(o.label, o.value); }).join('') +
     '<div class="pr-price-tot"><span>Total</span><strong>' + money(p.total) + '</strong></div>' +
     '<div class="pr-price-gst">+ GST = ' + money(p.total * (1 + _pricingGstRate() / 100)) + '</div>' +
   '</div>';
@@ -31693,6 +31711,8 @@ function _setProposalOption(field, value){
   // The customer's own path is the debounced post above, and they have no job
   // to autosave, so this is office-only.
   if (!window.__CUSTOMER_MODE){ try { _scheduleAutosave(); } catch(e){} }
+  // A pick moves the main roof's card too (its options rows).
+  if (!window.__CUSTOMER_MODE){ try { _prMatChanged(); } catch(e){} }
 }
 function _setProposalOption_grade(v){     _setProposalOption('steelGrade', v); }
 function _setProposalOption_thickness(v){ _setProposalOption('steelThickness', v); }
@@ -39163,6 +39183,9 @@ function _qCustomChanged(area, keepFocus){
   var _ba = _qCustomBaseArea(area);
   if (!keepFocus){
     try { _qCustomRenderArea(_ba); } catch(e){}
+    // The yellow card beside the roof map follows a line added or taken off
+    // (2026-10-29: removing a material line left it reading the old total).
+    try { _prMatChanged(); } catch(e){}
     return;
   }
   // Typing an amount: the green "Total materials" line moves with it at once,
@@ -39220,6 +39243,7 @@ function _qCustomLiveRerender(ba){
     } catch(e){}
     try { _qCustomRenderArea(ba); } catch(e){}
     try { renderProfitability(); } catch(e){}
+    try { _prMatChanged(); } catch(e){}
     if (!key) return;
     try {
       var el = document.querySelector('[' + key[0] + '="' + key[1].replace(/"/g, '\\"') + '"]');

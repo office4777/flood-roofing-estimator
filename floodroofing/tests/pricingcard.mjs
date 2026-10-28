@@ -56,7 +56,9 @@ await pg.evaluate(() => {
       return r ? money(r.querySelector('strong').textContent) : 0;
     };
     const tot = el.querySelector('.pr-price-tot strong');
-    return { labour: row('Labour'), material: row('Material'), scaffold: row('Scaffolding'),
+    const all = Array.from(el.querySelectorAll('.pr-price-row')).map(x => money((x.querySelector('strong') || {}).textContent) || 0)
+      .reduce((a, v) => a + v, 0);
+    return { labour: row('Labour'), material: row('Material'), scaffold: row('Scaffolding'), rows: all,
              total: tot ? money(tot.textContent) : null };
   };
   window.__live = function(ri){ const p = _pricingRoofParts(ri);
@@ -65,7 +67,7 @@ await pg.evaluate(() => {
     const c = __card(); if (!c) return { ok:false, why:'no card on screen' };
     const l = __live(ri == null ? _pricingRoofIdx() : ri);
     const near = (a, b2) => Math.abs((a || 0) - (b2 || 0)) < 0.005;
-    const rowsAdd = near(c.labour + c.material + c.scaffold, c.total);
+    const rowsAdd = Math.abs(c.rows - c.total) < 0.015;
     const matches = near(c.labour, l.labour) && near(c.material, l.material) &&
                     near(c.scaffold, l.scaffold) && near(c.total, l.total);
     return { ok: rowsAdd && matches, rowsAdd, matches, card: c, live: l };
@@ -128,6 +130,28 @@ for (const [name, code] of [
   const a = await agrees();
   check('the card follows ' + name, a.ok, JSON.stringify(a));
 }
+
+// ── job 3306 (2026-10-29): a custom line taken off, and the options ──
+// "the yellow pricing main roof summary ... still isn't accurate ... and it
+// doesn't change if i remove a custom material line". The card read $36,622.54
+// beside a quote of $39,280.83 — the difference the RI-925 / 0.55 row — and a
+// material line taken off left it where it was.
+await step(`_qAddCustom('material', { desc:'Extra flashing', qty:1, unit:900, uom:'', amount:900 })`, 600);
+const withLine = await agrees();
+check('a custom material line added moves the card', withLine.ok && withLine.card.material > afterMk.card.material - 1e9, JSON.stringify(withLine));
+const lineMat = withLine.card.material;
+await step(`_qDelCustom('material', (S.quote.customLines.material || []).length - 1)`, 600);
+const noLine = await agrees();
+check('…and taking it off moves the card back by the line', noLine.ok && Math.abs((lineMat - noLine.card.material) - 900) < 0.02,
+  lineMat + ' -> ' + noLine.card.material);
+await step(`_setProposalOption('steelThickness', '55')`, 600);
+const withOpt = await pg.evaluate(() => ({ a: __agrees(), sub: _quoteMoney().sub, deltas: _quoteMoney().deltaSum,
+  rows: Array.from(document.querySelectorAll('.pr-price .pr-price-row span')).map(s => s.textContent) }));
+check('(set-up) the 0.55 pick adds to the quote', withOpt.deltas > 1, JSON.stringify(withOpt));
+check('the main roof card lists the option and comes to the quote\'s own sub-total', withOpt.a.ok &&
+  Math.abs(withOpt.a.card.total - withOpt.sub) < 0.02 && withOpt.rows.some(r => /0\.55/.test(r)), JSON.stringify(withOpt));
+await step(`_setProposalOption('steelThickness', '40')`, 600);
+check('…and leaves it off again when it is taken off', (await agrees()).ok);
 
 // ── a plain SINGLE-ROOF job ──────────────────────────────────────
 // It shows NO band at all today: the band needs the multi-roof mini map, and

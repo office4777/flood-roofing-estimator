@@ -1869,7 +1869,15 @@ not a saving, and 49 purple to 48 orange.
   roof is quoted at. Scaffolding earns its own line rather than being left
   out: a total that reads less than the roof is quoted at is worse than a
   third row. It follows the roof switch (`_renderPricingRoofSwitchBar`, which
-  every recalc reaches). `tests/roofcustom.mjs`.
+  every recalc reaches). `tests/roofcustom.mjs`. THE MAIN ROOF'S CARD CARRIES
+  ITS OPTIONS (2026-10-29, job 3306: it read $36,622.54 beside a quote of
+  $39,280.83, the gap the RI-925 / 0.55 row): `_pricingRoofParts(0).options`
+  lists every pick that is not another roof (`_profitSelectionItems`, key !==
+  'roof') as its own row and the total includes them. And the card is redrawn
+  (`_prMatChanged`) by a custom line added or taken off (`_qCustomChanged`, the
+  debounced live re-render), a material row's ✕ (`_deleteMatRow`,
+  `restoreDeletedMatRows`) and a quote pick (`_setProposalOption`) — it sat
+  still when a material line was removed. `tests/pricingcard.mjs` (21).
 - EACH PLAN OPTION IS PRICED ON ITS OWN (2026-10-13, the owner: "it won't let
   me price the two plans seperately, like i said it should act like the
   seperate roofs in a roofing job (remeber only change it for a pole shed job
