@@ -1158,7 +1158,7 @@
     var h = '<div class="tn-card"><div class="tn-card-hd">Programme' + editBtn('programme') + boxCtl('w-programme') + '<span class="tn-r">' + (Math.ceil(end) || 0) + ' working days</span></div><div class="tn-card-bd">' + boxOpen('w-programme') + '';
     h += '<div class="tn-gantt">' + tl.map(function(t, i){
       var l = 100 * num(t.start_day) / end, w = Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end);
-      return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
+      return '<div class="tn-g-row"><div class="tn-g-lbl"><textarea class="tn-g-ph" rows="2" title="' + esc(t.phase || '') + '" onchange="_tnSet(\'timeline\',' + i + ',\'phase\',this.value)">' + esc(t.phase == null ? '' : t.phase) + '</textarea></div>' +
         '<div class="tn-g-num">Day ' + inp('timeline', i, 'start_day', t.start_day, 'xs r', 'n') + ' for ' + inp('timeline', i, 'days', t.days, 'xs r', 'n') + '</div>' +
         '<div class="tn-g-track"><i style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%"></i></div>' + rowTools('timeline', i) + '</div>';
     }).join('') + (tl.length ? '<div class="tn-g-row tn-g-totrow"><div></div><div></div>' + ganttArrow(end) + '<span class="tn-tools" style="visibility:hidden" aria-hidden="true"><span class="tn-x">↑</span><span class="tn-x">↓</span><span class="tn-x">✕</span></span></div>' : '') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
@@ -1337,7 +1337,7 @@
   }
   function pbLeaves(el, out){
     var kids = el.children;
-    if (el.matches('li,tr,p,h1,h2,h3,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
+    if (el.matches('li,tr,p,h1,h2,h3,.tq-price,.tq-g,.tq-org,.tq-orgask,.tq-head,.tq-foot,.tq-title') || !kids.length) { out.push(el); return; }
     for (var i = 0; i < kids.length; i++) pbLeaves(kids[i], out);
   }
   // every element of the page the PDF keeps, in order: the same list in the
@@ -1467,7 +1467,7 @@
     dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
       PDF_FONTS + '<style>' + (css ? css.textContent : '') + '.tq-page{width:794px!important;zoom:' + PB_K.toFixed(5) + '}' +
       '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
-      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
+      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
     var go = function(){ var was = document.title; document.title = title; try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ document.title = was; }, 1500); setTimeout(function(){ f.remove(); }, 60000); };
     var started = false; var go1 = function(){ if (started) return; started = true; go(); };
@@ -1526,7 +1526,7 @@
       '.tn-totals tr.b td{font-weight:800;border-top:1px solid #e2e8f0}.tn-totals tr.gp td{color:#166534;font-weight:700;font-size:12.5px}',
       '.tn-gantt{display:flex;flex-direction:column;gap:6px}',
       '.tq-g-arr{position:relative;height:24px;margin-top:2px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tq-g-arr i{position:absolute;left:0;right:7px;top:11px;border-top:2px solid #0a1628}.tq-g-arr i:before{content:"";position:absolute;left:0;top:-7px;height:12px;border-left:2px solid #0a1628}.tq-g-arr i:after{content:"";position:absolute;right:-8px;top:-7px;border-left:9px solid #0a1628;border-top:6px solid transparent;border-bottom:6px solid transparent}.tq-g-arr b{position:relative;display:inline-block;background:#fff;padding:0 8px;font-size:12px;line-height:24px;color:#0a1628;font-weight:700}',
-      '.tn-g-row{display:grid;grid-template-columns:minmax(150px,240px) 170px 1fr auto;gap:8px;align-items:center}',
+      '.tn-g-row{display:grid;grid-template-columns:minmax(180px,1.15fr) 170px 1fr auto;gap:8px;align-items:center}.tn-g-row+.tn-g-row:not(.tn-g-totrow){padding-top:6px;border-top:1px solid #eef2f6}.tn-g-ph{display:block;width:100%;box-sizing:border-box;font:inherit;font-size:13px;line-height:18px;height:46px;padding:4px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;resize:none;overflow-y:auto;color:#0a1628}.tn-g-ph:focus{background:#fff;outline:2px solid #0099cc33;border-color:#0099cc}',
       '.tn-g-row input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box}.tn-g-row input.wide{width:100%}.tn-g-row input.xs{width:46px;text-align:right}',
       '.tn-g-num{font-size:12px;color:#64748b;white-space:nowrap}',
       '.tn-g-track,.tq-g-t{position:relative;height:16px;background:#f1f5f9;border-radius:5px}.tn-g-track i,.tq-g-t i{position:absolute;top:0;bottom:0;background:#0099cc;border-radius:5px}',
@@ -1548,9 +1548,9 @@
       '.tq-tbl td{padding:5px 6px;border-bottom:1px solid #e2e8f0;vertical-align:top}.tq-tbl td:first-child{white-space:nowrap;color:#475569;font-weight:600;width:110px}',
       '.tq-tbl .r{text-align:right}.tq-sub{color:#64748b;font-size:11px}',
       '.tq-ul{margin:0;padding-left:18px}.tq-ul li{margin:2px 0}',
-      '.tq-price{border-collapse:collapse;margin:0 0 8px auto;min-width:320px}.tq-price td{padding:4px 8px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
+      '.tq-price{border-collapse:collapse;margin:0 0 10px auto;min-width:480px;font-size:25px;line-height:1.35}.tq-price td{padding:6px 10px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
       '.tq-price tr.b td{font-weight:800;border-top:1.5px solid #0a1628}',
-      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:3px 0}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
+      '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:0;padding:5px 0;border-bottom:1px solid #e2e8f0}.tq-gantt .tq-g:first-child{border-top:1px solid #e2e8f0}.tq-g.tq-g-tot{border-bottom:0;padding-top:6px}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
       '.tq-ed{outline:none;border-radius:3px}.tq-ed:hover{box-shadow:0 0 0 1px #93c5fd}.tq-ed:focus{box-shadow:0 0 0 2px #0099cc;background:#f0f9ff}',
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
