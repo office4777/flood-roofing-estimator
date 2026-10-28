@@ -295,10 +295,22 @@
     var pitch = s0.offsetHeight + 12;
     return Math.max(0, Math.min(PV.list.length - 1, Math.round(list.scrollTop / pitch)));
   }
+  // ONE ZOOM FOR THE SET (2026-10-28, the owner: "i zoom into one page to
+  // 150%, then i go to the next page it jumps back to 100% but i want it to
+  // keep the zoom i set"): the zoom and its place carry to the pages either
+  // side, so the next page arrives as zoomed as the last.
+  function plansCarry(i){
+    var k = PV.keep; if (!k || !plansSlot(i)) return;
+    var z = PV.z[i] || { s: 1, x: 0, y: 0 };
+    if (z.s === k.s && z.x === k.x && z.y === k.y) return;
+    PV.z[i] = { s: k.s, x: k.x, y: k.y }; plansClamp(i); plansApply(i);
+  }
+  function plansKeep(i){ if (i === PV.at) { var z = PV.z[i] || { s: 1, x: 0, y: 0 }; PV.keep = { s: z.s, x: z.x, y: z.y }; } }
   function plansLoadNear(){
     if (!PV.open) return;
     for (var i = PV.at - 1; i <= PV.at + 2; i++) {
       var p = PV.list[i]; if (!p) continue;
+      plansCarry(i);
       (function(p, i){
         var slot = plansSlot(i); if (!slot) return;
         var img = slot.querySelector('img'); if (img.getAttribute('src')) return;
@@ -382,7 +394,7 @@
     if (px == null) { px = slot.clientWidth / 2; py = slot.clientHeight / 2; }
     var s2 = f === 0 ? 1 : Math.max(1, Math.min(PV_ZMAX, z.s * f));
     z.x = px - (px - z.x) * (s2 / z.s); z.y = py - (py - z.y) * (s2 / z.s); z.s = s2;
-    PV.z[i] = z; plansClamp(i); plansApply(i);
+    PV.z[i] = z; plansClamp(i); plansKeep(i); plansApply(i);
   }
   window._tnPlansZoom = function(f){ plansZoomAt(PV.at, f); };
   window._tnPlansStep = function(dir){
@@ -426,7 +438,7 @@
   function plansMove(e){
     var g = PV.drag; if (!g) return;
     var z = PV.z[g.i]; z.x = g.zx + (e.clientX - g.x0); z.y = g.zy + (e.clientY - g.y0);
-    plansClamp(g.i); plansApply(g.i);
+    plansClamp(g.i); plansKeep(g.i); plansApply(g.i);
   }
   function plansUp(){ if (PV.drag) { PV.drag.slot.classList.remove('grabbing'); PV.drag = null; } }
   function plansResizeStart(e){
@@ -1134,6 +1146,12 @@
     return h + '</div></div></div>';
   }
 
+  // THE TOTAL UNDER THE GANTT (2026-10-28, the owner: "an arrow points from
+  // the start (left) of gantt start to the end (right) with the total days").
+  function ganttArrow(end){
+    var n = Math.ceil(end) || 0;
+    return '<div class="tq-g-arr" title="Day 0 to day ' + n + '"><i></i><b>' + n + ' working day' + (n === 1 ? '' : 's') + ' in total</b></div>';
+  }
   function programmeCard(doc){
     var tl = doc.timeline || [];
     var end = tl.reduce(function(m, t){ return Math.max(m, num(t.start_day) + Math.max(0.5, num(t.days))); }, 0) || 1;
@@ -1143,7 +1161,7 @@
       return '<div class="tn-g-row"><div class="tn-g-lbl">' + inp('timeline', i, 'phase', t.phase, 'wide') + '</div>' +
         '<div class="tn-g-num">Day ' + inp('timeline', i, 'start_day', t.start_day, 'xs r', 'n') + ' for ' + inp('timeline', i, 'days', t.days, 'xs r', 'n') + '</div>' +
         '<div class="tn-g-track"><i style="left:' + l.toFixed(2) + '%;width:' + w.toFixed(2) + '%"></i></div>' + rowTools('timeline', i) + '</div>';
-    }).join('') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
+    }).join('') + (tl.length ? '<div class="tn-g-row tn-g-totrow"><div></div><div></div>' + ganttArrow(end) + '<span class="tn-tools" style="visibility:hidden" aria-hidden="true"><span class="tn-x">↑</span><span class="tn-x">↓</span><span class="tn-x">✕</span></span></div>' : '') + '</div><button type="button" class="tn-btn sec tn-add" onclick="_tnAdd(\'timeline\')">+ Add phase</button>';
     return h + '</div></div></div>';
   }
 
@@ -1198,7 +1216,7 @@
         body = ce('progNote', qText(doc, 'progNote', '<p>Our programme for the roofing works, in working days from our start on site (weather permitting):</p>')) +
           '<div class="tq-gantt">' + tl.map(function(t){
             return '<div class="tq-g"><span>' + esc(t.phase) + '</span><span class="tq-g-d">' + (num(t.days) ? num(t.days) + (num(t.days) === 1 ? ' day' : ' days') : '') + '</span><span class="tq-g-t"><i style="left:' + (100 * num(t.start_day) / end).toFixed(2) + '%;width:' + Math.max(1.5, 100 * Math.max(0.5, num(t.days)) / end).toFixed(2) + '%"></i></span></div>';
-          }).join('') + '</div><p class="tq-sub">Total: ' + Math.ceil(end) + ' working days on site.</p>';
+          }).join('') + (tl.length ? '<div class="tq-g tq-g-tot"><span></span><span></span>' + ganttArrow(end) + '</div>' : '') + '</div>';
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
@@ -1507,6 +1525,7 @@
       '.tn-totals{margin:16px 0 0 auto;border-collapse:collapse;font-size:13.5px;min-width:300px}.tn-totals td{padding:5px 8px}.tn-totals td:last-child{text-align:right;white-space:nowrap}',
       '.tn-totals tr.b td{font-weight:800;border-top:1px solid #e2e8f0}.tn-totals tr.gp td{color:#166534;font-weight:700;font-size:12.5px}',
       '.tn-gantt{display:flex;flex-direction:column;gap:6px}',
+      '.tq-g-arr{position:relative;height:24px;margin-top:2px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact}.tq-g-arr i{position:absolute;left:0;right:7px;top:11px;border-top:2px solid #0a1628}.tq-g-arr i:before{content:"";position:absolute;left:0;top:-7px;height:12px;border-left:2px solid #0a1628}.tq-g-arr i:after{content:"";position:absolute;right:-8px;top:-7px;border-left:9px solid #0a1628;border-top:6px solid transparent;border-bottom:6px solid transparent}.tq-g-arr b{position:relative;display:inline-block;background:#fff;padding:0 8px;font-size:12px;line-height:24px;color:#0a1628;font-weight:700}',
       '.tn-g-row{display:grid;grid-template-columns:minmax(150px,240px) 170px 1fr auto;gap:8px;align-items:center}',
       '.tn-g-row input{font:inherit;font-size:13px;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;box-sizing:border-box}.tn-g-row input.wide{width:100%}.tn-g-row input.xs{width:46px;text-align:right}',
       '.tn-g-num{font-size:12px;color:#64748b;white-space:nowrap}',
@@ -1535,7 +1554,7 @@
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
       '.tq-ed{outline:none;border-radius:3px}.tq-ed:hover{box-shadow:0 0 0 1px #93c5fd}.tq-ed:focus{box-shadow:0 0 0 2px #0099cc;background:#f0f9ff}',
       '.tq-sec h2 .tq-ed:focus{background:transparent}.tq-ed p{margin:0 0 6px}.tq-ed ul{margin:0;padding-left:18px}',
-      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t{grid-column:1/-1}.tq-wrap{padding:6px}}',
+      '@media screen and (max-width:760px){.tn-sum{grid-template-columns:1fr 1fr}.tn-g-row{grid-template-columns:1fr auto}.tn-g-track{grid-column:1/-1}.tq-page{padding:22px 18px;width:auto}.tq-g{grid-template-columns:1fr 50px}.tq-g-t,.tq-g-arr{grid-column:1/-1}.tq-g-tot>span{display:none}.tn-g-totrow>:not(.tq-g-arr){display:none}.tn-g-totrow .tq-g-arr{grid-column:1/-1}.tq-wrap{padding:6px}}',
       // the menu down the left
       // The page uses the screen (2026-10-28, the owner: "there's plenty of
       // screen to use, but it's only sort of in the middle").

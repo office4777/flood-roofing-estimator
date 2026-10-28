@@ -212,7 +212,7 @@ r = await pg.evaluate(() => {
   const root = document.getElementById('tenderRoot');
   const tot = [...root.querySelectorAll('.tn-totals tr')].map(tr => tr.innerText.replace(/\s+/g, ' '));
   return { pill: (root.querySelector('.tn-pill') || {}).textContent, tot, badges: [...root.querySelectorAll('.tn-badge')].map(b => b.textContent), fold: !!root.querySelector('details.tn-fold tr[data-page]'), foldOpen: (root.querySelector('details.tn-fold') || {}).open,
-    spec: [...root.querySelectorAll('.tn-spec tbody tr')].length, page: (document.getElementById('tqPage') || {}).innerText || '', gantt: root.querySelectorAll('.tn-g-row').length };
+    spec: [...root.querySelectorAll('.tn-spec tbody tr')].length, page: (document.getElementById('tqPage') || {}).innerText || '', gantt: root.querySelectorAll('.tn-g-row:not(.tn-g-totrow)').length };
 });
 check('the drafted tender shows: pill, spec rows, programme', /drafted/i.test(r.pill) && r.spec === 2 && r.gantt === 2, JSON.stringify([r.pill, r.spec, r.gantt]));
 check('the sheet index is folded away under the tender', r.fold && !r.foldOpen);
@@ -457,10 +457,28 @@ check('the zoom slider zooms the page (half way is 3.5×) and the sharp drawing 
 await pg.evaluate(() => _tnPlansZoomTo(0)); await pg.waitForTimeout(300);
 r = await pg.evaluate(() => { const st = window.__tnPlansState(), slot = document.querySelector('#tnpvList .tnpv-slot[data-i="' + st.at + '"]'), cv = slot.querySelector('canvas.tnpv-hi'); return { s: st.z.s, shown: cv && getComputedStyle(cv).display, pct: document.getElementById('tnpvPct').textContent }; });
 check('…and back to the left fits the page again, the picture alone', r.s === 1 && r.shown === 'none' && r.pct === '100%', JSON.stringify(r));
+// the zoom you set carries to the next page (2026-10-28)
+await pg.evaluate(() => _tnPlansZoom(1.5)); await pg.waitForTimeout(200);
+const zk = await pg.evaluate(() => window.__tnPlansState());
+await pg.evaluate(() => _tnPlansStep(1)); await pg.waitForTimeout(700);
+r = await pg.evaluate(() => ({ st: window.__tnPlansState(), pct: document.getElementById('tnpvPct').textContent, img: (document.querySelector('#tnpvList .tnpv-slot[data-i="' + window.__tnPlansState().at + '"] img') || {}).style.transform }));
+check('a page zoomed to 150% keeps that zoom on the next page', zk.z.s === 1.5 && r.st.at === zk.at + 1 && r.st.z.s === 1.5 && r.st.z.x === zk.z.x && r.st.z.y === zk.z.y && r.pct === '150%' && /scale\(1\.5\)/.test(r.img), JSON.stringify([zk, r]));
+await pg.evaluate(() => _tnPlansZoom(0)); await pg.evaluate(() => _tnPlansStep(-1)); await pg.waitForTimeout(700);
+r = await pg.evaluate(() => window.__tnPlansState());
+check('…and fitting it again fits the pages either side too', r.at === zk.at && r.z.s === 1, JSON.stringify(r));
 await pg.evaluate(() => _tnPlans(false));
+// the total days under the Gantt chart, an arrow from its start to its end (2026-10-28)
+r = await pg.evaluate(() => [['#tqPage', '.tq-g-t'], ['.tn-gantt', '.tn-g-track']].map(([root, tr]) => {
+  const R = document.querySelector(root), a = R && R.querySelector('.tq-g-arr'), t = R && R.querySelector(tr);
+  if (!a || !t) return null;
+  const ab = a.getBoundingClientRect(), tb = t.getBoundingClientRect();
+  return { text: a.textContent, l: Math.round(ab.left - tb.left), r: Math.round(ab.right - tb.right), after: a.closest('.tq-g-tot, .tn-g-totrow') === R.querySelector('.tq-g-tot, .tn-g-totrow:last-child') };
+}));
+check('under each Gantt chart an arrow runs from its start to its end with the total days', r.every(x => x && /^\d+ working days? in total$/.test(x.text) && Math.abs(x.l) <= 1 && Math.abs(x.r) <= 1), JSON.stringify(r));
 
 if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and the PDF as Chrome prints it
   const dir = process.env.SHOTS;
+  for (const [sel, name] of [['#tq-sec-programme', 'gantt-doc.png'], ['.tn-gantt', 'gantt-card.png']]) { try { await pg.locator(sel).first().scrollIntoViewIfNeeded(); await pg.locator(sel).first().screenshot({ path: dir + '/' + name }); } catch (e) {} }
   await pg.evaluate(() => { document.querySelectorAll('iframe').forEach(f => f.remove()); _tnQSection('assumptions', 'hide'); window.scrollTo(0, 0); });
   await pg.setViewportSize({ width: 1400, height: 900 });
   await pg.evaluate(() => _tnNavGo('tn-a-overview')); await pg.waitForTimeout(900);
