@@ -713,6 +713,7 @@
     var order = qOrder(d);
     var i = order.indexOf(sec);
     if (what === 'hide') q.hide[sec] = !q.hide[sec];
+    else if (what === 'page') { q.newPage = q.newPage || {}; if (q.newPage[sec]) delete q.newPage[sec]; else q.newPage[sec] = true; }
     else if (what === 'up' && i > 0) { order.splice(i, 1); order.splice(i - 1, 0, sec); q.order = order; }
     else if (what === 'down' && i >= 0 && i < order.length - 1) { order.splice(i, 1); order.splice(i + 1, 0, sec); q.order = order; }
     saveSoon(); docRerender();
@@ -1197,6 +1198,10 @@
       var label = (QSECTIONS.find(function(s){ return s[0] === sec; }) || [sec, sec])[1];
       var tools = '<span class="tq-tools no-print"><button type="button" class="tq-edit" title="Edit ' + esc(label) + ' with A.I." onclick="_tnEdit(\'' + sec + '\')">✨ Edit with A.I.</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'up\')" title="Move up">↑</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'down\')" title="Move down">↓</button><button type="button" onclick="_tnQSection(\'' + sec + '\',\'hide\')">' + (hide[sec] ? 'Show on the tender' : 'Hide') + '</button></span>';
       if (hide[sec]) { page += '<div class="tq-sec tq-hidden no-print" id="tq-sec-' + sec + '"><h2>' + esc(label) + ' <i>(hidden)</i>' + tools + '</h2></div>'; return; }
+      // Move to next page (2026-10-29, the owner): the section starts a new
+      // sheet, in the app's page lines and in the PDF alike
+      var np = !!(q.newPage && q.newPage[sec]);
+      var mv = '<span class="tq-mv no-print"><button type="button" class="' + (np ? 'on' : '') + '" onclick="_tnQSection(\'' + sec + '\',\'page\')" title="' + (np ? 'Let this section follow on from the one before it' : 'Start this section at the top of the next page') + '">' + (np ? 'Back to previous page ↑' : 'Move to next page ↓') + '</button></span>';
       var body = '';
       if (sec === 'intro') body = ce('intro', qText(doc, 'intro', '<p>Thank you for the opportunity to tender for the roofing on this project. We are pleased to submit our price below for the supply and installation of the roofing as described, based on the documents listed above.</p>'));
       else if (sec === 'scope') body = '<ul class="tq-ul">' + (doc.scope || []).map(function(s, i){ return '<li>' + ceList('scope', i, '', s) + '</li>'; }).join('') + '</ul>';
@@ -1220,7 +1225,7 @@
       }
       else if (sec === 'terms') body = ce('terms', qText(doc, 'terms', '<ul><li>Payment: ' + dep + '% deposit on acceptance where materials are ordered for this project; progress claims monthly; balance on completion.</li><li>Variations are charged at our standard rates and agreed before the work is done.</li><li>Our work is guaranteed for workmanship, with manufacturer warranties on materials as issued.</li><li>A Producer Statement (PS3) and the manufacturer’s warranty are issued on completion and final payment.</li></ul>'));
       else if (sec === 'accept') body = ce('accept', qText(doc, 'accept', '<p>To accept this tender please sign and return, or reply by email.</p><p>Name: ______________________ &nbsp; Signed: ______________________ &nbsp; Date: __________</p>'));
-      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' ? ' tq-keep' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + tools + '</h2><div class="tq-body">' + body + '</div></div>';
+      page += '<div class="tq-sec' + (sec === 'org' || sec === 'programme' || sec === 'price' || sec === 'accept' ? ' tq-keep' : '') + (np ? ' tq-newpage' : '') + '" id="tq-sec-' + sec + '"><h2>' + ce('h_' + sec, esc(qText(doc, 'h_' + sec, label)), 'span') + mv + tools + '</h2><div class="tq-body">' + body + '</div></div>';
     });
     page += '<div class="tq-foot">' + esc(b.company_name || '') + (b.website ? ' · ' + esc(b.website) : '') + '</div></div>';
     h += '<div class="tq-wrap">' + page + '</div></div></div>';
@@ -1330,7 +1335,12 @@
   // the app is too high"). Now it is explicit everywhere: the content is laid
   // out at PB_W and drawn at PB_K, on screen (the sheet's own scale) and on
   // paper (zoom), so a page holds PB_H of it.
-  var PB_K = 695 / 794, PB_W = 794, PB_H = 1016 / PB_K, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
+  // A sheet is FILLED to 14px short of A4 (PB_FIT): Chrome's own pagination
+  // runs a few pixels shorter than the measure here, and a block the app put
+  // at the foot of a sheet went over in the PDF (2026-10-29, the owner: the
+  // tender price on the last page of the PDF, the page before in the app). The
+  // PDF then breaks exactly where the app does (`break-before` on each line).
+  var PB_K = 695 / 794, PB_W = 794, PB_H = 1016 / PB_K, PB_FIT = PB_H - 14, _pbT = null, _pbFonts = 0, _pbGen = 0, _pbFrame = null;
   function pbStripped(el){
     if (!el.querySelector('.tq-pb')) return el.innerHTML;
     var c = el.cloneNode(true); c.querySelectorAll('.tq-pb').forEach(function(n){ n.remove(); }); return c.innerHTML;
@@ -1383,18 +1393,23 @@
       var top0 = cp.getBoundingClientRect().top, blocks = [];
       var add = function(el, a, b){ var r1 = a.getBoundingClientRect(), r2 = (b || a).getBoundingClientRect(); if (r2.bottom - r1.top > 0) blocks.push({ el: el, end: b || a, top: r1.top - top0, bot: r2.bottom - top0 }); };
       Array.prototype.forEach.call(cp.children, function(ch){
+        var n0 = blocks.length;
+        sec(ch);
+        if (ch.classList.contains('tq-newpage') && blocks.length > n0) blocks[n0].force = true;
+      });
+      function sec(ch){
         if (!ch.classList.contains('tq-sec')) { add(ch, ch); return; }
         if (ch.classList.contains('tq-keep') && ch.getBoundingClientRect().height <= PB_H) { add(ch, ch); return; }
         var h2 = ch.querySelector('h2'), leaves = [], box = ch.querySelector('.tq-body');
         if (box) pbLeaves(box, leaves);
         if (h2) add(ch, h2, leaves[0] || h2);
         leaves.slice(h2 ? 1 : 0).forEach(function(l){ add(l, l); });
-      });
+      }
       // where each sheet ends: how much of it the content fills, and the
       // element that content ends on
       var pageTop = 0, page = 1, marks = [], prev = null;
       blocks.forEach(function(b){
-        if (b.bot - pageTop > PB_H && b.top > pageTop + 1 && prev) { marks.push({ el: b.el, page: page + 1, used: prev.bot - pageTop, endEl: prev.end }); page++; pageTop = b.top; }
+        if (prev && (b.force || (b.bot - pageTop > PB_FIT && b.top > pageTop + 1))) { marks.push({ el: b.el, page: page + 1, used: prev.bot - pageTop, endEl: prev.end }); page++; pageTop = b.top; }
         while (b.bot - pageTop > PB_H) { pageTop += PB_H; page++; }
         prev = b;
       });
@@ -1407,6 +1422,11 @@
       var sc = pageFitScale(), pgR = pg.getBoundingClientRect(), cs = getComputedStyle(pg);
       var exact = Math.abs(pgR.width / sc - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - PB_W) < 6;
       var padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+      var padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+      // each sheet's margins carry what the PDF's do: "Page 2 of 3" at the
+      // foot, the logo at the head of every sheet after the letterhead
+      var lg = brand().logo_data_url;
+      var noHtml = function(k){ return exact ? '<span class="tq-pb-no" style="right:' + padR + 'px;bottom:' + (padB / 2 - 7) + 'px">Page ' + k + ' of ' + page + '</span>' : ''; };
       var liveOf = function(cel){ var i = ix.get(cel); return i == null ? null : live[i]; };
       var startY = pgR.top + padT * sc;
       marks.forEach(function(m){
@@ -1414,7 +1434,7 @@
         if (el.tagName === 'TR') el = el.closest('table') || el;
         var mk = document.createElement(el.tagName === 'LI' ? 'li' : 'div');
         mk.className = 'tq-pb no-print'; mk.setAttribute('contenteditable', 'false'); mk.setAttribute('data-page', m.page);
-        mk.innerHTML = '<div class="tq-pb-f"></div><div class="tq-pb-g"><span>Page ' + m.page + '</span></div><div class="tq-pb-t"></div>';
+        mk.innerHTML = '<div class="tq-pb-f">' + noHtml(m.page - 1) + '</div><div class="tq-pb-g"><span>Page ' + m.page + '</span></div><div class="tq-pb-t">' + (exact && lg ? '<img class="tq-pb-lg" alt="" style="left:' + padL + 'px" src="' + esc(lg) + '">' : '') + '</div>';
         el.parentNode.insertBefore(mk, el);
         var r = mk.getBoundingClientRect();
         mk.style.marginLeft = ((pgR.left - r.left) / sc) + 'px'; mk.style.width = (pgR.width / sc) + 'px';
@@ -1430,7 +1450,9 @@
       if (exact && lastEnd) {   // the last sheet is a whole sheet too
         var tail = document.createElement('div'); tail.className = 'tq-pb tq-pb-end no-print';
         pg.appendChild(tail);
-        tail.style.height = Math.max(0, PB_H - (tail.getBoundingClientRect().top - startY) / sc) + 'px';
+        var tf = Math.max(0, PB_H - (tail.getBoundingClientRect().top - startY) / sc);
+        tail.style.height = tf + 'px';
+        tail.innerHTML = '<span class="tq-pb-no" style="right:0;bottom:' + (-padB / 2 - 7) + 'px">Page ' + page + ' of ' + page + '</span>';
       }
       pageFit();
       var n = document.getElementById('tqPages'); if (n) n.textContent = 'A4 PDF: ' + page + (page === 1 ? ' page' : ' pages') + ' · ';
@@ -1443,10 +1465,27 @@
 
   // The PDF: the page above, alone, through the browser's own Save as PDF —
   // real text, real page breaks, nothing re-drawn as a picture.
+  // the PDF's page margins: the logo at the head of every page after the
+  // letterhead, "Page 2 of 3" at the foot of every page (2026-10-29, the
+  // owner). The logo goes in an SVG of the size it prints at, so a margin box
+  // (which draws an image at its own size) shows it small and sharp.
+  function pdfMargins(){
+    var out = '@bottom-right{content:"Page " counter(page) " of " counter(pages);font:600 8.5px Inter,Segoe UI,Arial,sans-serif;color:#64748b;vertical-align:middle}';
+    var lg = brand().logo_data_url, im = document.querySelector('#tqPage .tq-logo');
+    if (lg && /^data:image\//.test(lg) && im && im.naturalWidth && im.naturalHeight) {
+      var hh = 28, ww = Math.min(200, Math.round(hh * im.naturalWidth / im.naturalHeight));
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + ww + '" height="' + hh + '" viewBox="0 0 ' + ww + ' ' + hh + '"><image width="' + ww + '" height="' + hh + '" preserveAspectRatio="xMinYMid meet" xlink:href="' + lg + '" href="' + lg + '"/></svg>';
+      var b64 = ''; try { b64 = btoa(unescape(encodeURIComponent(svg))); } catch (e) {}
+      if (b64) out += '@top-left{content:url("data:image/svg+xml;base64,' + b64 + '");vertical-align:middle}';
+    }
+    return out;
+  }
   window._tnPdf = function(){
     var pg = document.getElementById('tqPage'); if (!pg) return;
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     var clone = pg.cloneNode(true);
+    // a new sheet wherever the app draws one, so the PDF's pages are the app's
+    clone.querySelectorAll('.tq-pb:not(.tq-pb-end)').forEach(function(m){ var nx = m.nextElementSibling; if (nx) nx.style.breakBefore = 'page'; });
     clone.querySelectorAll('.no-print').forEach(function(n){ n.remove(); });
     clone.querySelectorAll('[contenteditable]').forEach(function(n){ n.removeAttribute('contenteditable'); });
     var css = document.getElementById('tenderCss');
@@ -1467,7 +1506,7 @@
     dd.write('<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title>' +
       PDF_FONTS + '<style>' + (css ? css.textContent : '') + '.tq-page{width:794px!important;zoom:' + PB_K.toFixed(5) + '}' +
       '*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}' +
-      '@page{size:A4;margin:14mm 13mm}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
+      '@page{size:A4;margin:14mm 13mm;' + pdfMargins() + '}@page:first{@top-left{content:none}}body{margin:0;background:#fff;font-family:Inter,Segoe UI,Arial,sans-serif}.tq-org,.tq-sec h2,.tq-sec.tq-keep{break-inside:avoid}.tq-ob{break-inside:avoid}.tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important}.tq-sec{break-inside:auto}.tq-sec h2{break-after:avoid}.tq-tbl tr,.tq-g,.tq-price,.tq-price tr{break-inside:avoid}</style></head><body>' + clone.outerHTML + '</body></html>');
     dd.close();
     var go = function(){ var was = document.title; document.title = title; try { w.focus(); w.print(); } catch (e) {} setTimeout(function(){ document.title = was; }, 1500); setTimeout(function(){ f.remove(); }, 60000); };
     var started = false; var go1 = function(){ if (started) return; started = true; go(); };
@@ -1548,7 +1587,7 @@
       '.tq-tbl td{padding:5px 6px;border-bottom:1px solid #e2e8f0;vertical-align:top}.tq-tbl td:first-child{white-space:nowrap;color:#475569;font-weight:600;width:110px}',
       '.tq-tbl .r{text-align:right}.tq-sub{color:#64748b;font-size:11px}',
       '.tq-ul{margin:0;padding-left:18px}.tq-ul li{margin:2px 0}',
-      '.tq-price{border-collapse:collapse;margin:0 0 10px auto;min-width:480px;font-size:25px;line-height:1.35}.tq-price td{padding:6px 10px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
+      '.tq-price{border-collapse:collapse;margin:0 0 10px auto;min-width:420px;font-size:21px;line-height:1.35}.tq-price td{padding:6px 10px}.tq-price td:last-child{text-align:right;white-space:nowrap}',
       '.tq-price tr.b td{font-weight:800;border-top:1.5px solid #0a1628}',
       '.tq-g{display:grid;grid-template-columns:200px 60px 1fr;gap:8px;align-items:center;margin:0;padding:5px 0;border-bottom:1px solid #e2e8f0}.tq-gantt .tq-g:first-child{border-top:1px solid #e2e8f0}.tq-g.tq-g-tot{border-bottom:0;padding-top:6px}.tq-g-d{color:#64748b;font-size:11px}.tq-g-t{height:12px}',
       '.tq-foot{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:8px;font-size:10.5px;color:#64748b;text-align:center}',
@@ -1596,13 +1635,14 @@
       '.tn-bxs{display:inline-flex;gap:4px;flex:0 0 auto}.tn-bx{font:inherit;font-size:10.5px;font-weight:700;letter-spacing:0;text-transform:none;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:5px;padding:2px 7px;cursor:pointer;white-space:nowrap}.tn-bx:hover{background:rgba(255,255,255,.3)}',
       // the gap between two A4 sheets on the document
       '.tq-pb{list-style:none;display:block;margin-top:0;margin-bottom:0;box-sizing:border-box;user-select:none}.tq-pb-f,.tq-pb-t{background:#fff}',
-      '.tq-pb-g{height:26px;background:#e2e8f0;margin:0 -16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 6px 8px -6px rgba(15,23,42,.25),inset 0 -6px 8px -6px rgba(15,23,42,.25)}.tq-pb-g span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b}',
+      '.tq-pb-f,.tq-pb-t,.tq-pb-end{position:relative}.tq-pb-no{position:absolute;font-size:9.7px;line-height:14px;font-weight:600;color:#64748b;white-space:nowrap}.tq-pb-lg{position:absolute;top:50%;transform:translateY(-50%);height:32px;max-width:230px;object-fit:contain}.tq-pb-g{height:26px;background:#e2e8f0;margin:0 -16px;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 6px 8px -6px rgba(15,23,42,.25),inset 0 -6px 8px -6px rgba(15,23,42,.25)}.tq-pb-g span{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#64748b}',
       '#tqPages{font-weight:700;color:#fca5a5}',
       // the copy the page breaks are measured on: the PDF's own box
       '#tqMeasure .tq-page{box-shadow:none!important;border:none!important;margin:0!important;padding:0!important;max-width:none!important;width:794px!important;transform:none!important}#tqMeasure .tn-box{height:auto!important;overflow:visible!important;display:block!important;box-shadow:none!important;padding:0!important}',
       // Edit [section]
       '.tn-edit{font:inherit;font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;background:#0099cc;color:#fff;border:none;border-radius:6px;padding:4px 9px;cursor:pointer;white-space:nowrap}.tn-edit:hover{background:#0087b4}',
       '.tq-tools .tq-edit{background:#0099cc;font-weight:700}',
+      '.tq-mv{margin-left:auto}.tq-mv button{font:inherit;font-size:10.5px;letter-spacing:0;text-transform:none;background:rgba(255,255,255,.14);color:#fff;border:1px dashed rgba(255,255,255,.5);border-radius:4px;padding:1px 9px;cursor:pointer;white-space:nowrap}.tq-mv button:hover{background:rgba(255,255,255,.26)}.tq-mv button.on{background:#f59e0b;border:1px solid #f59e0b;color:#0a1628;font-weight:700}',
       '.tn-modal{position:fixed;inset:0;background:rgba(10,22,40,.45);display:none;align-items:center;justify-content:center;z-index:10060;padding:16px}.tn-modal.open{display:flex}',
       '.tn-modal-card{background:#fff;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:100%;max-width:560px;padding:16px 18px;font-family:Inter,Segoe UI,Arial,sans-serif}',
       '.tn-modal-hd{display:flex;align-items:center;margin-bottom:8px}.tn-modal-hd b{font-size:16px;color:#0a1628;margin-right:auto}',
