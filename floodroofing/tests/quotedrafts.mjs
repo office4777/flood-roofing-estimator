@@ -191,9 +191,13 @@ const fc = await pg.evaluate(async () => {
   S.quote.lineItems = [{ desc: 'Labour', qty: 1, unit: 5000 }];
   const rev0 = S.quote.fergusQuoteRev || 0;
   const p = pushQuotePricingToFergus(null, {});
-  await new Promise(r => setTimeout(r, 700));
+  // Wait for the Cancel rather than guessing when it lands: a busy CI runner
+  // took longer than a fixed 700 ms to put it up (the stubbed create takes 1.5 s).
+  const live = () => { const b = document.getElementById('workingCancel'), pl = document.getElementById('workingPill');
+    return !!b && !!pl && getComputedStyle(pl).pointerEvents !== 'none'; };
+  for (let t = 0; t < 1400 && !live(); t += 50) await new Promise(r => setTimeout(r, 50));
   const btn = document.getElementById('workingCancel');
-  const had = !!btn && getComputedStyle(document.getElementById('workingPill')).pointerEvents !== 'none';
+  const had = live();
   if (btn) btn.click();
   await p;
   return { had, msg: (document.getElementById('qaMsg') || {}).textContent || '', rev: S.quote.fergusQuoteRev || 0, rev0, sentMark: !!(S.fergusSent && S.fergusSent.quote) };
