@@ -72,6 +72,11 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   if (p === '/tender/tn-1/doc' && m === 'PUT') { TENDER.doc = body.doc; return j({ ok: true, savedAt: new Date().toISOString() }); }
   if (p === '/tender/tn-1/amend' && m === 'POST') {
     const d = JSON.parse(JSON.stringify(body.doc));
+    if (body.mode === 'chat' && !body.change && /pricing bigger/.test(body.instruction)) {
+      d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.instruction, at: '' }, { who: 'ai', text: 'Do you mean raise the price amounts, or make the price text bigger?', kind: 'clarify', at: '' }]);
+      TENDER.doc = d;
+      return j({ ok: true, doc: d, answered: true, clarify: true, question: 'Do you mean raise the price amounts, or make the price text bigger?' });
+    }
     if (body.mode === 'chat' && !body.change && /\?\s*$/.test(body.instruction)) {
       d.chat = (d.chat || []).filter(c => !c.pending).concat([{ who: 'you', text: body.instruction, at: '' }, { who: 'ai', text: 'Yes — two buildings joined by a covered link.', pages: 'A201', kind: 'answer', at: '' }]);
       TENDER.doc = d;
@@ -85,6 +90,7 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
   }
   if (p === '/tender/tn-1/section' && m === 'POST') {
     const d = JSON.parse(JSON.stringify(body.doc));
+    if (/make it bigger/.test(body.instruction) && !/My answer/.test(body.instruction)) { d.chat = (d.chat || []).concat([{ who: 'ai', text: 'Longer wording, or bigger text?', kind: 'clarify' }]); TENDER.doc = d; return j({ ok: true, doc: d, answered: true, clarify: true, question: 'Longer wording, or bigger text?' }); }
     if (body.section === 'org') d.org = { people: [{ id: 'p1', role: 'Director', name: 'Aron Flood', reports_to: '', note: '' }, { id: 'p2', role: 'Project Manager', name: 'Ethan', reports_to: 'p1', note: '' }, { id: 'p3', role: 'Roofing crews', name: '', reports_to: 'p2', note: '4 crews' }], described: true };
     if (body.section === 'terms') { d.quote = d.quote || {}; d.quote.terms = '<p>Payment within 20 days.</p>'; }
     TENDER.doc = d;
@@ -290,6 +296,21 @@ await pg.click('#tnEditGo');
 await pg.waitForTimeout(700);
 const am3 = calls.filter(c => /\/amend$/.test(c.p)).pop();
 check('Edit Scope of work changes the tender whole, so the price follows', am3 && am3.body.mode === 'chat' && /^Change the Scope of work section: take the skylights out/.test(am3.body.instruction), JSON.stringify(am3 && am3.body.instruction));
+check('…and may be asked about first, carrying every section as it reads', am3 && !am3.body.change && am3.body.secs && typeof am3.body.secs.terms === 'string' && /Edit Scope of work: take the skylights out/.test(am3.body.said), JSON.stringify(am3 && [am3.body.change, am3.body.said, Object.keys(am3.body.secs || {})]));
+// a clarifying question keeps the window open for the answer (2026-10-28)
+calls.length = 0;
+await pg.evaluate(() => _tnEdit('terms'));
+await pg.fill('#tnEditIn', 'make it bigger');
+await pg.click('#tnEditGo');
+await pg.waitForTimeout(600);
+r = await pg.evaluate(() => ({ open: document.getElementById('tnEditModal').classList.contains('open'), ask: document.getElementById('tnEditAsk').textContent, shown: getComputedStyle(document.getElementById('tnEditAsk')).display, lbl: document.getElementById('tnEditLbl').textContent, val: document.getElementById('tnEditIn').value }));
+check('Edit with A.I. shows Claude\'s clarifying question and stays open for the answer', r.open && /Longer wording, or bigger text\?/.test(r.ask) && r.shown !== 'none' && r.lbl === 'Your answer' && r.val === '', JSON.stringify(r));
+await pg.fill('#tnEditIn', 'longer wording');
+await pg.click('#tnEditGo');
+await pg.waitForTimeout(600);
+const secA = calls.filter(c => /\/section$/.test(c.p)).pop();
+r = await pg.evaluate(() => ({ open: document.getElementById('tnEditModal').classList.contains('open') }));
+check('…and the answer goes back with the first instruction and the question', secA && /^make it bigger/.test(secA.body.instruction) && /You asked: "Longer wording, or bigger text\?" My answer: longer wording/.test(secA.body.instruction) && !r.open, JSON.stringify([secA && secA.body.instruction, r]));
 // a person's name typed straight into the chart saves
 calls.length = 0;
 await pg.evaluate(() => { const el = [...document.querySelectorAll('#tqPage .tq-ob span')].find(x => x.textContent === 'Ethan'); el.focus(); el.textContent = 'Ethan Flood'; el.blur(); });
@@ -377,6 +398,13 @@ await pg.waitForTimeout(700);
 const amQ = calls.filter(c => /\/amend$/.test(c.p)).pop();
 r = await pg.evaluate(() => ({ log: document.getElementById('tnChatLog').innerText, hd: document.querySelector('.tn-chat-hd').textContent, ph: document.getElementById('tnChatIn').placeholder }));
 check('the chat answers a question, naming the sheet it came from', amQ && !amQ.body.change && /two buildings/.test(r.log) && /From: A201/.test(r.log) && /questions or changes/.test(r.hd) && /question/.test(r.ph), JSON.stringify([amQ && amQ.body.change, r]));
+// an unclear change is asked about in the chat, not made
+calls.length = 0;
+await pg.fill('#tnChatIn', 'make the pricing bigger');
+await pg.press('#tnChatIn', 'Enter');
+await pg.waitForTimeout(700);
+r = await pg.evaluate(() => { const m = [...document.querySelectorAll('#tnChatLog .tn-msg')].pop(); return { cls: m.className, text: m.textContent }; });
+check('the chat asks a clarifying question, marked as one', /\bask\b/.test(r.cls) && /^❓ Do you mean raise the price amounts/.test(r.text), JSON.stringify(r));
 // Tag out: the line moves to the exclusions at once and Claude takes its items out
 calls.length = 0;
 r = await pg.evaluate(() => { const b = [...document.querySelectorAll('#tn-a-scope .tn-tagout')]; return { n: b.length, rows: document.querySelectorAll('#tn-a-scope .tn-list > li').length, first: (document.querySelector('#tn-a-scope .tn-list textarea') || {}).value }; });

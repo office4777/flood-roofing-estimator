@@ -232,12 +232,17 @@ const SECTION_TOOL = {
     exclusions: { type: 'array', items: obj({ text: S(), why: S() }) },
     lines: { type: 'array', items: obj({ desc: S(), amount: N('NZD ex GST') }) },
     people: { type: 'array', items: obj({ id: S('short stable id, e.g. p1'), role: S(), name: S('the person\'s name, or "" if not given'), reports_to: S('id of the person above, or "" for the top'), note: S('e.g. "2 crews", qualifications, or ""') }) },
-    summary: S('one short sentence saying what you changed'),
+    question: S('a short clarifying question when the instruction could mean different things, with every other field left empty; otherwise ""'),
+    summary: S('one short sentence saying what you changed, or "" when asking a question'),
   }),
 };
 async function editSection(section, label, current, instruction, opts){
-  const text = ['THE SECTION: ' + label + ' (' + section + ')', '', 'AS IT IS NOW:', String(current || '(empty)').slice(0, 20000), '',
-    'THE ESTIMATOR\'S INSTRUCTION:', String(instruction || '').slice(0, 4000)].join('\n');
+  const parts = ['THE SECTION: ' + label + ' (' + section + ')', '', 'AS IT IS NOW:', String(current || '(empty)').slice(0, 20000), ''];
+  const recent = ((opts && opts.chat) || []).slice(-6).map(m => (m.who === 'ai' ? 'A.I.: ' : 'Estimator: ') + String(m.text || '').slice(0, 1200));
+  if (recent.length) parts.push('THE CONVERSATION SO FAR:', recent.join('\n'), '');
+  parts.push('THE ESTIMATOR\'S INSTRUCTION:', String(instruction || '').slice(0, 4000));
+  const text = parts.join('\n');
+  opts = Object.assign({}, opts || {}); delete opts.chat;
   const r = await structured('extract', 'edit-section', SECTION_TOOL, text, [], Object.assign({ maxTokens: 6000 }, opts || {}));
   r.result = r.input || {};
   return r;
@@ -252,9 +257,11 @@ const ASK_TOOL = {
   description: 'Record whether the estimator asked a question or asked for a change, and the answer to a question.',
   strict: true,
   input_schema: obj({
-    kind: { type: 'string', enum: ['question', 'change'] },
-    answer: S('the answer to a question, plain text, or "" for a change'),
+    kind: { type: 'string', enum: ['question', 'clarify', 'change'] },
+    answer: S('the answer to a question, or the one clarifying question to ask; "" for a change'),
     pages: S('the sheets or pages the answer came from, e.g. "A201, A403", or ""'),
+    instruction: S('for a change: the whole change in plain words, including what earlier messages settled; otherwise ""'),
+    section: { type: 'string', enum: ['', 'tender', 'intro', 'terms', 'accept', 'priceNote', 'progNote', 'exclusions', 'assumptions', 'rfis', 'org', 'price'] },
   }),
 };
 // `plans` = [{label, text}], `images` = [{mime, base64, label}].
@@ -273,7 +280,10 @@ async function askTender(doc, message, plans, images, chat, opts){
   parts.push('', 'THE ESTIMATOR\'S MESSAGE:', String(message || '').slice(0, 4000));
   const r = await structured('extract', 'ask-tender', ASK_TOOL, parts.join('\n'), images || [], Object.assign({ maxTokens: 6000 }, opts || {}));
   const i = r.input || {};
-  r.result = { kind: i.kind === 'question' ? 'question' : 'change', answer: String(i.answer || '').trim().slice(0, 6000), pages: String(i.pages || '').trim().slice(0, 300) };
+  const kind = i.kind === 'question' || i.kind === 'clarify' ? i.kind : 'change';
+  r.result = { kind, answer: String(i.answer || '').trim().slice(0, 6000), pages: String(i.pages || '').trim().slice(0, 300),
+    instruction: String(i.instruction || '').trim().slice(0, 4000), section: String(i.section || '').trim() };
+  if (kind === 'clarify' && !r.result.answer) r.result.kind = 'change';
   return r;
 }
 

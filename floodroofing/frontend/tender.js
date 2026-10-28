@@ -742,7 +742,7 @@
     docRerender();
     try {
       if (DOC.dirty) await saveNow();
-      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d });
+      var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d, secs: change ? undefined : secsNow() });
       T.data.doc = x.doc;
       if (!x.answered) T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
     } catch (e) {
@@ -852,7 +852,7 @@
     var m = document.getElementById('tnEditModal'); if (m) return m;
     m = document.createElement('div'); m.id = 'tnEditModal'; m.className = 'tn-modal';
     m.innerHTML = '<div class="tn-modal-card" role="dialog" aria-modal="true" aria-labelledby="tnEditTitle"><div class="tn-modal-hd"><b id="tnEditTitle"></b><button type="button" class="tn-x" onclick="_tnEditClose()" aria-label="Close">✕</button></div>' +
-      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><label class="tn-modal-lbl" for="tnEditIn">Describe your change</label>' +
+      '<p class="tn-note" id="tnEditHint" style="margin:0 0 8px"></p><div class="tn-edit-ask" id="tnEditAsk" style="display:none"></div><label class="tn-modal-lbl" for="tnEditIn" id="tnEditLbl">Describe your change</label>' +
       '<textarea id="tnEditIn" rows="4" placeholder="Type it, or press Speak and say it"></textarea>' +
       '<div class="tn-modal-ft"><button type="button" class="tn-btn sec tn-mic" id="tnEditMic" onclick="_tnMic()">🎤 Speak</button><span id="tnEditMsg" class="tn-edit-msg"></span>' +
       '<button type="button" class="tn-btn sec" onclick="_tnEditClose()">Cancel</button><button type="button" class="tn-btn" id="tnEditGo" onclick="_tnEditGo()">Make the change</button></div></div>';
@@ -869,6 +869,7 @@
     m.querySelector('#tnEditHint').textContent = EDIT_HINT[sec] || 'Say what you want changed in this section, in your own words.';
     var inp = m.querySelector('#tnEditIn'); inp.value = ''; inp.disabled = false;
     m.querySelector('#tnEditMsg').textContent = '';
+    EDIT.ask = null; editAsk('');
     m.querySelector('#tnEditMic').style.display = speechCtor() ? '' : 'none';
     editBusy(false);
     m.classList.add('open');
@@ -881,6 +882,12 @@
     var go = m.querySelector('#tnEditGo'); go.disabled = on; go.textContent = on ? 'Working on it…' : 'Make the change';
     m.querySelector('#tnEditIn').disabled = on; m.querySelector('#tnEditMic').disabled = on;
   }
+  // Every words-only section as it reads now: a chat change may land on one.
+  function secsNow(){
+    var o = {};
+    Object.keys(SEC_TEXT).forEach(function(k){ if (k !== 'org') { try { o[k] = secCurrent(k); } catch (e) {} } });
+    return o;
+  }
   // What the section says now, as plain text, for the words-only sections.
   function secCurrent(sec){
     if (sec === 'org') return orgOf(T.data).people;
@@ -891,11 +898,21 @@
     el.querySelectorAll('p:not(.tq-pb),li:not(.tq-pb)').forEach(function(n){ t += (n.tagName === 'LI' ? '- ' : '') + n.textContent.trim() + '\n'; });
     return t || el.textContent.trim();
   }
+  // A clarifying question from Claude (2026-10-28, the owner: "keep the
+  // conversation open and ask a clarifying question first"): shown in the
+  // window, which stays open for the answer.
+  function editAsk(q){
+    var m = document.getElementById('tnEditModal'); if (!m) return;
+    var a = m.querySelector('#tnEditAsk'), l = m.querySelector('#tnEditLbl');
+    a.style.display = q ? '' : 'none'; a.textContent = q ? '❓ ' + q : '';
+    l.textContent = q ? 'Your answer' : 'Describe your change';
+  }
   window._tnEditGo = async function(){
     var m = document.getElementById('tnEditModal'); if (!m || EDIT.busy) return;
     var inp = m.querySelector('#tnEditIn'), msg = m.querySelector('#tnEditMsg');
-    var instr = inp.value.trim();
-    if (!instr) { msg.textContent = 'Say what to change first.'; inp.focus(); return; }
+    var typed = inp.value.trim();
+    if (!typed) { msg.textContent = EDIT.ask ? 'Answer the question first.' : 'Say what to change first.'; inp.focus(); return; }
+    var instr = EDIT.ask ? (EDIT.ask.instr + '\n(You asked: "' + EDIT.ask.q + '" My answer: ' + typed + ')') : typed;
     micStop();
     var sec = EDIT.sec;
     editBusy(true); msg.textContent = SEC_TEXT[sec] ? 'Claude is rewriting the section…' : 'Claude is changing the tender — this can take a minute…';
@@ -903,8 +920,15 @@
       if (DOC.dirty) await saveNow();
       var d = T.data.doc, x;
       if (SEC_TEXT[sec]) x = await api('POST', '/tender/' + T.id + '/section', { section: sec, instruction: instr, current: secCurrent(sec), doc: d });
-      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', change: true, instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, doc: d });
+      else x = await api('POST', '/tender/' + T.id + '/amend', { mode: 'chat', instruction: 'Change the ' + (SEC_LABEL[sec] || sec) + ' section: ' + instr, said: 'Edit ' + (SEC_LABEL[sec] || sec) + ': ' + typed, doc: d, secs: secsNow() });
       T.data.doc = x.doc;
+      if (x.answered) {
+        editBusy(false); docRerender();
+        if (x.clarify) { EDIT.ask = { instr: instr, q: x.question || '' }; editAsk(x.question || ''); inp.value = ''; msg.textContent = ''; setTimeout(function(){ inp.focus(); }, 30); }
+        else { var last = (x.doc.chat || [])[x.doc.chat.length - 1]; EDIT.ask = null; editAsk(''); msg.textContent = last ? last.text : 'Nothing was changed.'; }
+        return;
+      }
+      EDIT.ask = null;
       T.data.history = [{ at: new Date().toISOString(), why: 'Edit ' + (SEC_LABEL[sec] || sec) }].concat(T.data.history || []);
       editBusy(false);
       window._tnEditClose();
@@ -1035,7 +1059,7 @@
   function chatHtml(doc){
     var chat = doc.chat || [];
     return '<div class="tn-chat" id="tnChat"><div class="tn-chat-hd">✨ Ask A.I. — questions or changes</div><div class="tn-chat-log" id="tnChatLog">' +
-      (chat.length ? chat.filter(function(m){ return !m.pending || DOC.chatBusy; }).map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + '">' + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
+      (chat.length ? chat.filter(function(m){ return !m.pending || DOC.chatBusy; }).map(function(m){ return '<div class="tn-msg ' + (m.who === 'you' ? 'you' : 'ai') + (m.err ? ' err' : '') + (m.kind === 'clarify' ? ' ask' : '') + '">' + (m.kind === 'clarify' ? '❓ ' : '') + esc(m.text) + (m.pages ? '<span class="tn-msg-src">From: ' + esc(m.pages) + '</span>' : '') + (m.pending ? ' <i>— working on it…</i>' : '') + '</div>'; }).join('')
         : '<div class="tn-note" style="margin:0">Ask about the plans or the tender — “are Blocks 1 and 5/6 separate buildings?” — or ask for a change — “take the spouting out, the builder is doing it”.</div>') +
       '</div><textarea id="tnChatIn" rows="2" placeholder="Ask a question or say what to change — type, or press Speak…" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();_tnAmend(\'chat\')}" ' + (DOC.chatBusy ? 'disabled' : '') + '></textarea>' +
       '<div class="tn-chat-in"><button type="button" class="tn-btn sec tn-mic" id="tnChatMic" onclick="_tnMic(\'chat\')" ' + (DOC.chatBusy ? 'disabled' : '') + '>🎤 Speak</button><span id="tnChatMsg" class="tn-edit-msg"></span>' +
@@ -1471,7 +1495,7 @@
       '.tn-chat-hd{font-weight:800;color:#312e81;font-size:13px;margin-bottom:8px}',
       '.tn-chat-log{max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;margin-bottom:8px}',
       '.tn-msg{padding:7px 10px;border-radius:10px;font-size:13px;max-width:85%;white-space:pre-wrap}.tn-msg.you{align-self:flex-end;background:#0099cc;color:#fff}',
-      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}',
+      '.tn-msg.ai{align-self:flex-start;background:#fff;border:1px solid #dbe3ec;color:#0a1628}.tn-msg.err{border-color:#fecaca;color:#991b1b}.tn-msg.ask{background:#fffbeb;border-color:#fcd34d}',
       '.tn-chat-in{display:flex;gap:8px;align-items:flex-end}.tn-chat-in textarea{flex:1;font:inherit;font-size:13.5px;padding:8px;border:1px solid #c7d2fe;border-radius:8px;resize:vertical}',
       '.tn-rates{display:flex;flex-wrap:wrap;gap:10px 16px;margin-bottom:12px}',
       '.tn-rates label{display:flex;flex-direction:column;font-size:11px;color:#64748b;font-weight:700;letter-spacing:.03em;text-transform:uppercase;gap:3px}',
@@ -1565,7 +1589,7 @@
       '.tn-modal-hd{display:flex;align-items:center;margin-bottom:8px}.tn-modal-hd b{font-size:16px;color:#0a1628;margin-right:auto}',
       '.tn-modal-lbl{display:block;font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b;margin-bottom:4px}',
       '#tnEditIn{width:100%;box-sizing:border-box;font:inherit;font-size:14px;padding:10px;border:1px solid #cbd5e1;border-radius:9px;resize:vertical;min-height:96px}#tnEditIn:focus{border-color:#0099cc;outline:none}',
-      '.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
+      '.tn-edit-ask{background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:8px 10px;margin:0 0 8px;font-size:13.5px;color:#0a1628}.tn-modal-ft{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}.tn-edit-msg{margin-right:auto;font-size:12.5px;color:#475569;flex:1 1 140px}',
       '.tn-mic.on{background:#fee2e2;border-color:#fca5a5;color:#991b1b}',
       '.tn-flash{animation:tnFlash 1.8s ease}@keyframes tnFlash{0%,40%{box-shadow:0 0 0 3px #0099cc;border-radius:8px}100%{box-shadow:0 0 0 0 transparent}}',
       // the organisation structure
