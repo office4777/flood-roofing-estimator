@@ -126,7 +126,7 @@ check('the acceptance email spells out the selections, not just the total',
   /steelGrade:\s*\{ _t:'Steel grade'/.test(src) &&
   /Armorsteel ColorZen/.test(src) && /Colorsteel MAXAM/.test(src));
 check('…including the colour they picked',
-  /if \(po\.colour\) out\.push\('Colour: '/.test(src));
+  /if \(po\.colour( && !gj)?\) out\.push\('Colour: '/.test(src));   // a gutters-only job lists its gutter colour instead
 // One list, so the email and the summary written onto the Fergus job
 // cannot disagree about which steel was picked (2026-09-30).
 check('…and the Fergus job summary reads the same list, not a copy of it',
