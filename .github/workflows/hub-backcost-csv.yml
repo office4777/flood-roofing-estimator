@@ -10,6 +10,10 @@ on:
         description: 'Calendar months back from this one, inclusive'
         default: '20'
         type: string
+      keep_all:
+        description: 'Keep the jobs with no actual labour too (flagged)'
+        default: 'false'
+        type: string
 
 jobs:
   csv:
@@ -27,6 +31,7 @@ jobs:
           HUB_USER: ${{ secrets.HUB_SYNC_USER }}
           HUB_PASS: ${{ secrets.HUB_SYNC_PASS }}
           WINDOW_MONTHS: ${{ github.event.inputs.months || '20' }}
+          KEEP_ALL: ${{ github.event.inputs.keep_all || 'false' }}
         run: node scripts/backcost-csv.js
       - uses: actions/upload-artifact@v4
         if: always()
