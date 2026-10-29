@@ -38,7 +38,7 @@ await shoot('phone', { width: 390, height: 844 }, [
   ['work', async pg => { await closeAll(pg); await pg.evaluate(() => go('work')); }, true],
   ['bc', pg => pg.evaluate(() => go('bc')), false],
   ['pl', pg => pg.evaluate(() => go('pl')), false],
-  ...['work', 'bc', 'pl', 'growth', 'marketing', 'cash'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
+  ...['work', 'bc', 'pl', 'growth', 'marketing', 'cash', 'reports'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
   ['detail-deposit', pg => pg.evaluate(() => { go('cash'); openCashDetail('deposit'); }), false],
   ['dash-dark', pg => pg.evaluate(() => { closeCashDetail(); go('dash'); toggleTheme(); }), false],
 ]);
@@ -47,7 +47,7 @@ await shoot('desk', { width: 1440, height: 900 }, [
   ['dash-full', null, true],
   ['detail-gp', pg => pg.evaluate(() => openCmdDetail('gp')), false],
   ['work', async pg => { await closeAll(pg); await pg.evaluate(() => go('work')); }, false],
-  ...['bc', 'pl', 'growth', 'marketing', 'cash'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
+  ...['bc', 'pl', 'growth', 'marketing', 'cash', 'reports'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
 ]);
 await b.close();
 console.log('shots in', OUT);

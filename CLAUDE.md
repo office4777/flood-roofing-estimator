@@ -118,6 +118,13 @@ accordingly.
   after next (`matDueMs`), biggest first — the 13-week forecast's own week-by-week materials are unchanged. The
   Last Month card (`.d-last`, `#met-last`) is gone from the Command Centre; Cash at a glance takes the row. `hub-cash-peek.yml` → `hub-api/scripts/cash-peek.js` prints what the shared Cash
   state holds (bill count, bills by due month, bills due this month) from the Actions log.
+  THE REPORTS TAB (2026-10-29, the owner: "put the two review/powerpoint creation buttons into their
+  own tab called Reports"): `#page-reports` / `#nav-reports` (last in the bar and the swipe `order`)
+  carries two cards — Team meeting (`#rep-mtg-btn` → `openMeeting`, the PowerPoint deck, `pm-hide`)
+  and Back-costing review (`#rep-bcr-btn` → `openBcReview`). The button on the Command Centre's P&L
+  row and the card on the Back Cost tab are gone; the modals are unchanged. `hubui` (107) pins it.
+  `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
+  job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
   `hub-backcost-report.yml` (the GP-margin target per revenue band from the hub's rows) and
   `hub-labour-check.yml` → `hub-api/scripts/labour-check.js`, RoofMap's labour auto-calc against the

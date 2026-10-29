@@ -110,12 +110,27 @@ await pg.evaluate(() => go('dash'));
 
 // every tab, from the bottom bar
 bad = [];
-for (const p of ['work', 'bc', 'pl', 'growth', 'marketing', 'cash', 'dash']){
+for (const p of ['work', 'bc', 'pl', 'growth', 'marketing', 'cash', 'reports', 'dash']){
   await pg.click('#nav-' + p);
   if (!(await pg.evaluate(p => page === p && document.getElementById('page-' + p).classList.contains('active'), p))) bad.push(p);
 }
 check('every tab opens from the bottom bar', bad.length === 0, bad.join(','));
 check('…with no page error anywhere along the way', errs.length === 0, JSON.stringify(errs));
+
+// Reports tab (2026-10-29): the Team meeting deck and the Back-costing review live there and nowhere else
+const rep = await pg.evaluate(() => {
+  go('reports');
+  const on = document.getElementById('page-reports').classList.contains('active') && document.getElementById('nav-reports').classList.contains('on');
+  const here = ['#page-reports #rep-mtg-btn', '#page-reports #rep-bcr-btn'].map(q => !!document.querySelector(q));
+  const gone = ['#page-dash .d-pl .mtg-btn', '#page-bc .mtg-btn', '#page-dash [onclick*="openBcReview"]', '#page-bc [onclick*="openBcReview"]'].map(q => !!document.querySelector(q));
+  document.getElementById('rep-mtg-btn').click(); const mtg = document.getElementById('mtg-modal').classList.contains('open'); closeMeeting();
+  document.getElementById('rep-bcr-btn').click(); const bcr = document.getElementById('bcr-modal').classList.contains('open'); closeBcReview();
+  return { on, here, gone, mtg, bcr, title: document.getElementById('page-title') ? document.getElementById('page-title').textContent : 'Reports' };
+});
+check('the Reports tab opens and carries the Team meeting and Back-costing review buttons', rep.on && rep.here.every(Boolean) && rep.title === 'Reports', JSON.stringify(rep));
+check('…and the two buttons are gone from the Command Centre and the Back Cost tab', rep.gone.every(x => !x), JSON.stringify(rep.gone));
+check('…and each opens its own window from there', rep.mtg && rep.bcr, JSON.stringify(rep));
+await pg.evaluate(() => go('dash'));
 check('the nightly sync\'s entry point is still there', await pg.evaluate(() => typeof window.__teamHeadlessSync === 'function'));
 
 // every other tab carries the same look (2026-10-24, "do the same styling for all the tabs")

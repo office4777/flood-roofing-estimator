@@ -429,7 +429,11 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 /* ── Monthly team meeting deck ── */
 .mtg-btn{display:inline-flex;align-items:center;gap:5px;margin-left:auto;background:linear-gradient(135deg,#4d8dff,#8b5cf6);color:#fff;border:none;border-radius:22px;padding:7px 14px;font-size:.72rem;font-weight:800;letter-spacing:.2px;cursor:pointer;box-shadow:0 2px 10px rgba(77,141,255,.35);}
 .mtg-btn:active{transform:scale(.97);}
-.sect .mtg-btn{padding:5px 10px;font-size:.62rem;white-space:nowrap;}   /* sits between the P&L title and the Xero pill on a phone */
+.sect .mtg-btn{padding:5px 10px;font-size:.62rem;white-space:nowrap;}
+/* Reports tab: one card a report, the button at the right (under the words on a narrow phone) */
+.rep-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.rep-title{font-weight:800;letter-spacing:-.01em;font-size:.95rem;margin-bottom:3px;}
+.rep-head .mtg-btn{margin-left:auto;padding:9px 18px;font-size:.78rem;}   /* sits between the P&L title and the Xero pill on a phone */
 .mtg-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 14px;}
 .mtg-toolbar .mtg-mstep{display:flex;align-items:center;gap:8px;}
 .mtg-mbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:1.2rem;font-weight:700;cursor:pointer;}
@@ -1298,7 +1302,7 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
         <div class="ct">Cash at a glance <span class="period-sub" style="margin-left:auto;">position + due in · tap a line</span></div>
         <div class="mg mg-list" id="dash-summary"></div>
       </div></div>
-      <div class="d-pl sect pm-hide"><span>Profit &amp; Loss</span><button class="mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">📋 Team meeting</button><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
+      <div class="d-pl sect pm-hide"><span>Profit &amp; Loss</span><span class="livepill off" id="pl-live-pill">Xero — not connected</span></div>
       <div class="d-roll3 pm-hide"><div class="card per-3mo">
         <div class="ct">3-Month Rolling — by month <span class="period-sub" style="margin-left:auto;">swipe ↔</span></div>
         <div class="mstrip" id="roll-strip-dash"></div>
@@ -1395,10 +1399,6 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
       <div class="note" style="margin-top:11px;">Back costing syncs with <b>⚙ → Refresh</b> (everyday) or <b>Master refresh</b> (full history), top-right.<br>Pick a roofer above to see <b>every job they were on</b> — where they were lead <b>or</b> logged ≥10% of the hours. Hours come from each job's <b>full Fergus labour history</b>, so run a <b>Master refresh</b> (or <b>P&L → Reload full labour history</b>) once to backfill older jobs; after that they show automatically. You can still tap <b>+ crew</b> under a job to add someone by hand. Use <b>▦ Columns → Roofer view</b> to hide the $ columns before showing the table to a roofer.</div>
     </div>
 
-    <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <div><div style="font-weight:800;letter-spacing:-.01em;">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours.</div></div>
-      <button class="mtg-btn" onclick="openBcReview()" title="Run through the month's finished jobs">Start review</button>
-    </div>
     <!-- OPEN at top: Performance by Lead Roofer + All Back Costing -->
     <div class="card" id="lr-card">
       <div class="ct">Performance by Lead Roofer <span id="lr-sub" class="period-sub" style="margin-left:auto;"></span></div>
@@ -1822,6 +1822,24 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
 
 </div><!-- /app -->
 
+  <!-- Reports (2026-10-29, the owner: "put the two review/powerpoint creation buttons into their own tab
+       called Reports"): the Team meeting deck and the Back-costing review used to be a button on the Command
+       Centre's P&L row and a card on the Back Cost tab. Both open the same modals they always did. -->
+  <div class="page" id="page-reports">
+    <div class="card hero-card">
+      <div class="ct">Reports</div>
+      <div class="period-sub" style="margin-top:4px;">The two sit-downs, built from the month's back costing. Each opens on last month and steps to any month.</div>
+    </div>
+    <div class="card rep-card pm-hide">
+      <div class="rep-head"><div><div class="rep-title">📋 Team meeting</div><div class="period-sub">One slide a finished job — time allowed vs time taken, the crew, before / after photos, Google review · Photos · QA ticks and notes — then <b>⬇ PowerPoint</b> or PDF.</div></div>
+      <button class="mtg-btn" id="rep-mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">Build the deck</button></div>
+    </div>
+    <div class="card rep-card">
+      <div class="rep-head"><div><div class="rep-title">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours, line by line.</div></div>
+      <button class="mtg-btn" id="rep-bcr-btn" onclick="openBcReview()" title="Run through the month's finished jobs">Start review</button></div>
+    </div>
+  </div>
+
 <div id="nav">
   <div class="nav-brand"><img alt=""><div><b>Finance Hub</b><span>Flood Roofing</span></div></div>
   <div class="nav-i on" id="nav-dash" onclick="go('dash')"><span class="ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7.5" height="9" rx="1.6"/><rect x="13.5" y="3" width="7.5" height="5.5" rx="1.6"/><rect x="13.5" y="11.5" width="7.5" height="9.5" rx="1.6"/><rect x="3" y="15" width="7.5" height="6" rx="1.6"/></svg></span>Home</div>
@@ -1831,6 +1849,7 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
   <div class="nav-i pm-hide" id="nav-growth" onclick="go('growth')"><span class="ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span>Growth</div>
   <div class="nav-i" id="nav-marketing" onclick="go('marketing')"><span class="ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5v3.5a1 1 0 0 0 1 1h2.5l5 4.5V5l-5 4.5H4a1 1 0 0 0-1 1z"/><path d="M15.5 9a3.5 3.5 0 0 1 0 6M18.5 6.5a7 7 0 0 1 0 11"/></svg></span>Mktg</div>
   <div class="nav-i pm-hide" id="nav-cash" onclick="go('cash')"><span class="ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6" width="19" height="13.5" rx="2.2"/><path d="M2.5 10.5h19M16 15h2.5"/><path d="M6 6l9-3.5 1.5 3.5"/></svg></span>Cash</div>
+  <div class="nav-i" id="nav-reports" onclick="go('reports')"><span class="ic"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3.5" width="18" height="13" rx="2"/><path d="M8 21h8M12 16.5V21M7.5 12.5l3-3 2.5 2.5 3.5-4"/></svg></span>Reports</div>
   <div class="nav-foot"><button onclick="openConnect()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>Sync &amp; settings</button></div>
 </div>
 
@@ -7394,7 +7413,7 @@ function renderBcReview(){
 try{_bcrMk=calMonthKey(-1);}catch(e){}
 
 // ════════ NAV ════════
-const PAGE_TITLES={dash:'Command Centre',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash'};
+const PAGE_TITLES={dash:'Command Centre',work:'Workload',bc:'Back Costing',pl:'Profit & Loss',growth:'Growth Structure',marketing:'Marketing & Sales',cash:'Cash',reports:'Reports'};
 function go(p,dir){
   if(isPM()&&PM_HIDE_TABS[p])p='dash';   // project managers can't open the money tabs
   try{closeCashDetail();}catch(e){}
@@ -7541,7 +7560,7 @@ function renderAll(){renderDash();renderWork();renderModspace();renderBC();rende
 // ════════ SWIPE NAV ════════ Facebook-style interactive pager — the page tracks your finger,
 // the neighbouring tab slides in beside it, and it snaps/commits on release.
 (function(){
-  const order=['dash','work','bc','pl','growth','marketing','cash'];
+  const order=['dash','work','bc','pl','growth','marketing','cash','reports'];
   const topEl=document.getElementById('top');
   const pageEl=p=>document.getElementById('page-'+p);
   let x0=0,y0=0,armed=false,horiz=false,cur=null,nxt=null,dir=0,W=360,finishing=false;
