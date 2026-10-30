@@ -5261,7 +5261,16 @@ not a saving, and 49 purple to 48 orange.
   fixes/run`), acting only while it still reads MAXAM: MagnaFlow + Corrugate in
   the job and the frozen Accepted copy, a "Corrected:" office email
   (`_acceptOfficeNotify(…, {corrected})`) and the Fergus description rewritten.
-  `tests/custevents.mjs` (50), `tests/inclextras.mjs`.
+  THE FERGUS VERSION PUSHED ON ACCEPT CARRIES THE ACCEPTED PRICE (the same day:
+  "the latest quote version that was pushed automatically, totals to around
+  59,000"): `_fergusAutoVersionNow` did run, but priced the dropped MAXAM and
+  `_fergusSelectionChanges` knew nothing of the included Extras — $62,920.95
+  less both is the $59,044.57 he saw. The extras are an "Extras" section now
+  (ahead of the word-matching rules, so "Flaxpod Downpipes" is not filed under
+  Downpipes); an accepted version whose total misses `accepted.total` by over
+  $1 is recorded (`plan.auto.mismatch`, recordError); and the 3338 repair
+  pushes a fresh accepted version (v4) at the accepted price, voiding the old.
+  `tests/custevents.mjs` (51), `tests/inclextras.mjs`.
 - AN EMAILED TOKEN LANDS ON /app, NEVER THE ROOT (2026-10-22, a customer's
   reply to his own reset email, forwarded by the owner — tyler@tgmroofing
   .co.nz: "This keeps just taking me back to the home page"). `/auth/forgot`

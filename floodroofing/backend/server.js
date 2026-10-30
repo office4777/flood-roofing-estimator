@@ -8238,6 +8238,19 @@ async function _acceptedPickFixesOnce(){
         console.log('[accepted-pick-fix] job ' + f.ref + ': steelGrade ' + f.from + ' -> ' + g.id);
         try { await _acceptOfficeNotify(j.data, quote, null, { corrected: f.why }); } catch (e) { r.mailError = e && e.message; }
         try { await _fergusOnAccept(j.data.id, null); } catch (e) {}
+        // …and the accepted version in Fergus again, at the accepted price: the
+        // one pushed on the day carried MAXAM and none of the extras.
+        try {
+          const fj = await supabase.from('jobs').select('id, quote:draw_state->state->quote').eq('id', j.data.id).single();
+          const fq = fj.data && fj.data.quote, fp = fq && fq.share && fq.share.fergus;
+          if (fp && fp.jobId){
+            if (fp.auto) { fp.auto.acceptedAt = null; fp.auto.selKey = ''; }
+            fp.selKey = '';
+            await _saveQuoteBack({ id: j.data.id }, fq);
+            const v = await _fergusAutoVersionNow(j.data.id);
+            r.fergus = v ? { rev: v.rev, total: v.total, mismatch: v.mismatch || null } : null;
+          }
+        } catch (e) { r.fergusError = e && e.message; }
       }
     } catch (e) { r.error = e && e.message; console.warn('[accepted-pick-fix] ' + f.ref + ' failed: ' + r.error); }
   }
@@ -10558,6 +10571,14 @@ function _fergusSelectionChanges(P, quote){
     if (!row || !(+row.price)) return;
     out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
   });
+  // The quote's included extras (2026-10-30, job 3338: Leaf Diverters and
+  // Flaxpod Downpipes were in the accepted total and missing from the Fergus
+  // version) — the list stamped at send, else the quote's own.
+  const ix = Array.isArray(P.inclx) ? P.inclx : (Array.isArray(quote && quote.inclExtras) ? quote.inclExtras : []);
+  ix.forEach(function (x) {
+    const nm = String((x && x.name) || '').trim(), pr = Math.round((parseFloat(x && x.price) || 0) * 100) / 100;
+    if (nm && pr) out.push({ label: 'Extras — ' + nm, delta: pr, inclx: true });
+  });
   return out;
 }
 function _fergusComposeSections(plan, P, quote){
@@ -10585,6 +10606,8 @@ function _fergusComposeSections(plan, P, quote){
   changes.forEach(c => {
     if (!c.delta || Math.abs(c.delta) <= 0.005) return;
     const low = String(c.label || '').toLowerCase();
+    // An included extra is the office's own line, whatever its words say.
+    if (c.inclx){ section('Extras').lineItems.push(mk('mat', c.label.replace(/^Extras — /, ''), 1, c.delta)); return; }
     if (c.gutter){ section('Guttering').lineItems.push(mk('mat', 'Guttering — ' + c.label, 1, c.delta)); return; }
     if (low.indexOf('downpipe') >= 0){ section('Downpipes').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (low.indexOf('bracket') >= 0){ section('Guttering').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
@@ -10658,6 +10681,14 @@ async function _fergusAutoVersionNow(jobId){
   plan.rev = rev;
   plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published, publishResult, sentResult,
                 acceptedAt: quote.accepted ? quote.accepted.at : null, total: +(built.sub + gst).toFixed(2) };
+  // The accepted version must carry the accepted figure. A gap means a pick or
+  // a priced item the composer does not know — say so, rather than leave the
+  // office to find a Fergus quote $3,800 short (job 3338, 2026-10-30).
+  if (quote.accepted && isFinite(+quote.accepted.total) && Math.abs(plan.auto.total - (+quote.accepted.total)) > 1){
+    plan.auto.mismatch = { accepted: +quote.accepted.total, fergus: plan.auto.total };
+    try { recordError('server', new Error('Fergus accepted version ' + _money(plan.auto.total) + ' does not match the accepted total ' +
+      _money(quote.accepted.total) + ' on quote ' + (quote.ref || jobId)), { route: 'fergus-auto-version', company: job.company_id || '' }); } catch (e) {}
+  }
   quote.share.fergus = plan;
   if (!Array.isArray(quote.share.events)) quote.share.events = [];
   quote.share.events.push({ type: 'fergus-version', at: plan.auto.at,

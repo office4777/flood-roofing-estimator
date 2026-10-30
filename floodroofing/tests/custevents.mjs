@@ -100,13 +100,21 @@ const { db, port } = await startFakePostgrest({
                          profile: { corrugate: 0, ri925: 0 }, profileLabel: { corrugate: 'Corrugate', ri925: 'RI-925' } } } })),
     // job 3338 itself, as it was written: accepted, still reading MAXAM.
     job('j-3338', quote({ ref: '3338', client: 'Ed Higgins', addr: '17 Pine Tree Lane, Russell',
-      proposalOptions: { steelGrade: 'maxam', steelThickness: '55', gutterType: 'marley_typhoon' },
-      accepted: { name: 'Ed Higgins', at: ago(0), total: 62920.95 },
+      proposalOptions: { steelGrade: 'maxam', steelThickness: '40' },
+      accepted: { name: 'Ed Higgins', at: '2026-10-30T02:13:19.170Z', total: 62920.95 },
+      baseGrade: 'gmagna',
+      inclExtras: [ { id: 'i1', name: 'Leaf Diverters', price: 782 }, { id: 'i2', name: 'Flaxpod Downpipes', price: 130 } ],
       versions: { accepted: { id: 'va1', total: 62920.95, quote: { proposalOptions: { steelGrade: 'maxam' } } } },
       selectablesSnapshot: { grades: [ { id: 'maxam', name: 'Colorsteel® MAXAM' }, { id: 'gmagna', name: 'COLORCOTE MAGNAFLOW®' } ],
                              profiles: [ { id: 'corrugate', name: 'Corrugate' } ] },
       share: { token: 'tok-3338', status: 'accepted', sentAt: ago(7), acceptedAt: ago(0), acceptOfficeAt: ago(0),
-               sentTo: 'ed@example.com', sentTotal: 62920.95, events: [] } })),
+               sentTo: 'ed@example.com', sentTotal: 62920.95, events: [],
+               priced: { v: 1, gstRate: 15, base: 53801.87, grade: { maxam: -2458.77, gmagna: 0 },
+                         gradeLabel: { maxam: 'Colorsteel® MAXAM', gmagna: 'COLORCOTE MAGNAFLOW®' },
+                         inclx: [ { id: 'i1', name: 'Leaf Diverters', price: 782 }, { id: 'i2', name: 'Flaxpod Downpipes', price: 130 } ] },
+               // the version pushed on the day: MAXAM and no extras
+               fergus: { jobId: 'FJ-38', rev: 3, title: 'Quote 3338', baseSections: [ { name: 'Roof Material', lineItems: [] } ], template: {},
+                         auto: { acceptedAt: '2026-10-30T02:13:19.170Z', total: 59044.57, selKey: 'x' } } } })),
     // 3303's shape: a question
     job('j-q', quote({ ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
       share: { token: 'tok-q', status: 'sent', sentAt: ago(1), sentTo: 'dot@example.com', events: [] } })),
@@ -130,7 +138,7 @@ db.jobs.find(j => j.id === 'j-decoff').user_id = 'u2';
 // Fergus is reached two ways and both need a seam: the job read and the
 // description write go through httpsRequest (__TEST_HTTPS), and the attachment
 // upload uses global fetch directly, because it is multipart.
-const fergus = { desc: [], files: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
+const fergus = { desc: [], files: [], versions: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
 globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
   if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
   if (method === 'GET' && /^\/jobs\/FJ-77$/.test(path))
@@ -141,6 +149,7 @@ globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
   }
   // the auto-version's quote create / list, which rides along on an accept
+  if (method === 'POST' && /\/jobs\/[^/]+\/quotes$/.test(path)) fergus.versions.push(body || {});
   return Promise.resolve({ status: 200, body: JSON.stringify({ data: [] }) });
 };
 const _realFetch = globalThis.fetch;
@@ -432,6 +441,12 @@ check('…and the office gets a corrected acceptance email saying so',
 sent.length = 0;
 await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
 check('…once only', to('office@flood.nz').length === 0, String(to('office@flood.nz').length));
+const v38 = fergus.versions.filter(b => /Quote 3338/.test(b.title || '')).pop() || {};
+check('…and Fergus gets a new accepted version at the ACCEPTED price, MagnaFlow and the extras in it',
+  Math.abs((+v38.total || 0) - 62920.95) < 0.02 && JSON.stringify(v38.sections || []).indexOf('Leaf Diverters') >= 0 &&
+  JSON.stringify(v38.sections || []).indexOf('MAXAM') < 0 &&
+  (v38.sections || []).some(s2 => s2.name === 'Extras' && (s2.lineItems || []).length === 2),
+  JSON.stringify({ total: v38.total, fx, secs: (v38.sections || []).map(s2 => s2.name + ':' + (s2.lineItems || []).map(l => l.itemName + '=' + l.itemPrice).join('|')) }));
 
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
