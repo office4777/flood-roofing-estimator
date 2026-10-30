@@ -5201,7 +5201,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-30T01:34:53Z';
+  window.APP_BUILT_AT = '2026-10-30T02:33:25Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33833,10 +33833,13 @@ function _customerSelections(){
   var er = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
   var erOut = {};
   Object.keys(er).forEach(function(k){ if (/^\d+$/.test(String(k)) && er[k]) erOut[k] = true; });
-  return {
-    options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
-    gutterChoice: S.quote.gutterChoice || 'none',
-    proposalOptions: {
+  // The office's own options and a gutters job's colour ride too (2026-10-30):
+  // the server has always taken them, and a choice the customer changed there
+  // was never sent, so the job and the acceptance email kept the office's pick.
+  var exOut = {};
+  var ex = (p.extras && typeof p.extras === 'object') ? p.extras : {};
+  Object.keys(ex).forEach(function(k){ if (ex[k] != null && ex[k] !== '') exOut[k] = String(ex[k]); });
+  var po = {
       profile:        p.profile || '',
       steelGrade:     p.steelGrade || '',
       steelThickness: p.steelThickness || '',
@@ -33845,8 +33848,14 @@ function _customerSelections(){
       downpipes:      p.downpipes || '',
       disposal:       p.disposal || '',
       colour:         p.colour || '',
-      extraRoofsSel:  erOut
-    }
+      extraRoofsSel:  erOut,
+      extras:         exOut
+  };
+  if (p.gutterColour) po.gutterColour = String(p.gutterColour);
+  return {
+    options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
+    gutterChoice: S.quote.gutterChoice || 'none',
+    proposalOptions: po
   };
 }
 // The fingerprint of the prices a customer's page was opened with. The server

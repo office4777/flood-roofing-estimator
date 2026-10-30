@@ -929,19 +929,54 @@ const QUOTE_SELECTION_LABELS = {
   downpipes:      { _t:'Downpipes',      yes:'Included', no:'Not included' },
   disposal:       { _t:'Existing material', dispose:'We dispose of it', keep:'Kept on site' },
 };
+// THE QUOTE'S OWN PRODUCTS (2026-10-30, job 3338: the customer took COLORCOTE
+// MAGNAFLOW, a grade the office added in Settings, and the acceptance email
+// said "Colorsteel MAXAM"). A grade, profile or gutter is whatever THIS quote
+// offered — the names stamped at send (share.priced.*Label), else the product
+// list that rode with it (selectablesSnapshot, customProfiles), else the
+// built-in words above. _quoteProductIds is the same list, for the accept
+// handler's allow-list.
+const _QSEL_SRC = { steelGrade: ['grade', 'grades'], profile: ['profile', 'profiles'], gutterType: ['gutter', 'gutters'] };
+function _quoteProductRows(quote, k){
+  const src = _QSEL_SRC[k]; if (!src) return [];
+  const q = quote || {}, P = ((q.share || {}).priced) || {}, out = [];
+  const lab = P[src[0] + 'Label'] || {};
+  Object.keys(P[src[0]] || {}).concat(Object.keys(lab)).forEach(function (id) { out.push({ id: id, name: lab[id] || '' }); });
+  const snap = (q.selectablesSnapshot && Array.isArray(q.selectablesSnapshot[src[1]])) ? q.selectablesSnapshot[src[1]] : [];
+  snap.concat(k === 'profile' && Array.isArray(q.customProfiles) ? q.customProfiles : []).forEach(function (r) {
+    if (r && r.id != null) out.push({ id: String(r.id), name: String(r.name || r.label || '') });
+  });
+  return out;
+}
+function _quoteProductIds(quote, k){
+  const ID = /^[A-Za-z0-9_.-]{1,60}$/;
+  return _quoteProductRows(quote, k).map(function (r) { return r.id; }).filter(function (id) { return ID.test(id); });
+}
+function _quoteProductName(quote, k, id){
+  const hit = _quoteProductRows(quote, k).filter(function (r) { return r.id === String(id) && r.name; })[0];
+  return hit ? String(hit.name).slice(0, 80) : '';
+}
 function _quoteSelectionLines(quote){
-  const po = (quote && quote.proposalOptions) || {};
+  const po = Object.assign({}, (quote && quote.proposalOptions) || {});
   const out = [];
   // A Gutters only quote (2026-10-28) chose a gutter and its colour; the
   // roofing picks it never offered are not listed.
   const gj = quote && quote.quoteKind === 'gutters';
+  const shed = quote && quote.quoteKind === 'poleshed';
   const GJ = { gutterType: 1, gutterBracket: 1, downpipes: 1 };
+  // A pick the customer never touched is the one the quote was priced at — the
+  // profile above all, which on job 3338 was never listed at all.
+  if (!gj && !shed) {
+    if (po.steelGrade == null || po.steelGrade === '') po.steelGrade = (quote && quote.baseGrade) || '';
+    if (po.profile == null || po.profile === '')
+      po.profile = (quote && quote.baseProfile) || ((_quoteProductRows(quote, 'profile')[0] || {}).id) || 'corrugate';
+  }
   for (const k of Object.keys(QUOTE_SELECTION_LABELS)) {
     if (gj && !GJ[k]) continue;
     const v = po[k];
     if (v == null || v === '') continue;
     const L = QUOTE_SELECTION_LABELS[k];
-    out.push(L._t + ': ' + (L[String(v)] || String(v)));
+    out.push(L._t + ': ' + (_quoteProductName(quote, k, v) || L[String(v)] || String(v)));
   }
   if (po.colour && !gj) out.push('Colour: ' + String(po.colour).slice(0, 60));
   if (gj) {
@@ -5587,6 +5622,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
           downpipes:      ['yes', 'no'],
           disposal:       ['dispose', 'keep'],
         };
+        // …plus every grade, profile and gutter THIS quote offered (2026-10-30,
+        // job 3338: a grade the office added was dropped here, so the job kept
+        // the recommended MAXAM while the customer had taken MagnaFlow).
+        ['steelGrade', 'profile', 'gutterType'].forEach(function (k) { ALLOW[k] = ALLOW[k].concat(_quoteProductIds(quote, k)); });
         if (!quote.proposalOptions || typeof quote.proposalOptions !== 'object') quote.proposalOptions = {};
         Object.keys(ALLOW).forEach(function (k) {
           const v = String(po[k] == null ? '' : po[k]);
@@ -5914,12 +5953,14 @@ async function _questionNotify(job, quote, message){
 // So this is a function now, called from three places: that route (with the
 // PDF, when it does arrive), a short timer after the accept, and an hourly
 // sweep. `share.acceptOfficeAt` is the claim that keeps it to one email.
-async function _acceptOfficeNotify(job, quote, attachment){
+async function _acceptOfficeNotify(job, quote, attachment, opts){
+  opts = opts || {};
   const acc = quote.accepted || {};
   const client = job.client_name || quote.client || acc.name || 'Customer';
   const addr = job.site_address || quote.addr || '';
   const ref = quote.ref || '';
   const lines = ['A customer has accepted their quote online.', ''];
+  if (opts.corrected) lines.unshift('CORRECTED — ' + opts.corrected, '');
   if (ref) lines.push('Quote reference: ' + ref);
   lines.push('Customer: ' + client);
   if (addr) lines.push('Address: ' + addr);
@@ -5944,7 +5985,7 @@ async function _acceptOfficeNotify(job, quote, attachment){
   lines.push('', attachment
     ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
     : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
-  const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
+  const subject = (opts.corrected ? 'Corrected: ' : '') + 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
   // Who hears about this acceptance. It has to be the business that SENT the
   // quote — a fixed address here mailed every subscriber's acceptances to one
   // inbox, which is a leak between competitors, not just a wrong recipient.
@@ -5965,8 +6006,9 @@ async function _acceptOfficeNotify(job, quote, attachment){
     const _v = _acceptVars(job, quote, ((_st || {}).branding) || {}, '');
     _v.pdf_note = attachment ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
                              : '(The quote PDF could not be attached automatically — see the customer link in the app.)';
-    if (_em.accept_office_subject) _subject = _fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject;
+    if (_em.accept_office_subject) _subject = (opts.corrected ? 'Corrected: ' : '') + (_fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject.replace(/^Corrected: /, ''));
     _text = _fillTpl(_em.accept_office_body || ACCEPT_OFFICE_EMAIL_DEFAULT.body, _v).replace(/\n{3,}/g, '\n\n');
+    if (opts.corrected) _text = 'CORRECTED — ' + opts.corrected + '\n\n' + _text;
   }
   const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
   await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
@@ -8146,6 +8188,66 @@ async function _acceptedTotalFixesOnce(){
   }
   return out;
 }
+// ── A RECORDED PICK PUT RIGHT (2026-10-30, job 3338) ────────────────────
+// The customer took COLORCOTE MAGNAFLOW, a grade the office had added; the
+// accept handler's allow-list knew only the four built-in grades, so the job
+// kept the recommended MAXAM and the office's acceptance email said so. The
+// handler takes the quote's own products now (_quoteProductIds); this puts the
+// one job already written right, only while it still reads the old grade, then
+// tells the office again (marked Corrected) and rewrites the Fergus job.
+const ACCEPTED_PICK_FIXES = [
+  { ref: '3338', client: 'Ed Higgins', site: '17 pine tree lane', from: 'maxam', grade: /magnaflow/i, profile: /corrugate/i,
+    why: 'the customer chose COLORCOTE MAGNAFLOW and Corrugate; the first email said Colorsteel MAXAM and left the profile out.' },
+];
+async function _acceptedPickFixesOnce(){
+  const out = [];
+  for (const f of ACCEPTED_PICK_FIXES){
+    const r = { ref: f.ref, fixed: 0 };
+    out.push(r);
+    try {
+      const c = await supabase.from('jobs').select('id, client_name, site_address, job_no:draw_state->state->quote->ref')
+        .ilike('client_name', f.client);
+      if (c.error) { r.error = c.error.message; continue; }
+      for (const row of (c.data || [])){
+        if (String(row.job_no == null ? '' : row.job_no).trim() !== f.ref) continue;
+        if (String(row.site_address || '').toLowerCase().indexOf(f.site) < 0) continue;
+        const j = await supabase.from('jobs')
+          .select('id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote').eq('id', row.id).single();
+        if (j.error || !j.data || !j.data.quote) continue;
+        const quote = j.data.quote, sh = quote.share || {};
+        if (!quote.accepted || sh.status !== 'accepted') continue;
+        const po = quote.proposalOptions || (quote.proposalOptions = {});
+        if (String(po.steelGrade || '') !== f.from) continue;          // already right, or not this one
+        const g = _quoteProductRows(quote, 'steelGrade').filter(function (x) { return f.grade.test(x.name || x.id); })[0];
+        if (!g) { r.error = 'grade not on this quote'; continue; }
+        const pr = _quoteProductRows(quote, 'profile').filter(function (x) { return f.profile.test(x.name || x.id); })[0];
+        const fix = function (o) {
+          if (!o || typeof o !== 'object') return;
+          o.steelGrade = g.id;
+          if (!o.profile) o.profile = pr ? pr.id : 'corrugate';
+        };
+        fix(po);
+        const va = quote.versions && quote.versions.accepted;
+        if (va && va.quote && typeof va.quote === 'object') fix(va.quote.proposalOptions || (va.quote.proposalOptions = {}));
+        quote.accepted.picksCorrected = { at: new Date().toISOString(), from: f.from, to: g.id, why: f.why };
+        delete sh.fergusAcceptDescAt;          // the description lists the picks: write it again
+        quote.share = sh;
+        await _saveQuoteBack({ id: j.data.id }, quote);
+        try { _quoteFeedInvalidate(j.data.company_id || null); _quoteFeedInvalidate(null); } catch (e) {}
+        r.fixed++; r.job = j.data.id; r.grade = g.id;
+        console.log('[accepted-pick-fix] job ' + f.ref + ': steelGrade ' + f.from + ' -> ' + g.id);
+        try { await _acceptOfficeNotify(j.data, quote, null, { corrected: f.why }); } catch (e) { r.mailError = e && e.message; }
+        try { await _fergusOnAccept(j.data.id, null); } catch (e) {}
+      }
+    } catch (e) { r.error = e && e.message; console.warn('[accepted-pick-fix] ' + f.ref + ' failed: ' + r.error); }
+  }
+  return out;
+}
+app.post('/admin/accepted-pick-fixes/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _acceptedPickFixesOnce()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/accepted-total-fixes/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _acceptedTotalFixesOnce()); }
@@ -14995,6 +15097,9 @@ app.listen(PORT, () => {
   // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
   const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
   if (_atKick.unref) _atKick.unref();
+  // …and the accepted picks (ACCEPTED_PICK_FIXES).
+  const _apKick = setTimeout(function(){ _acceptedPickFixesOnce().catch(function(){}); }, 55e3);
+  if (_apKick.unref) _apKick.unref();
   // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();

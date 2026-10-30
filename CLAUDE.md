@@ -5242,6 +5242,26 @@ not a saving, and 49 purple to 48 orange.
   marker), keeping `accepted.totalCorrected {from, to, at, why}`, setting the
   frozen Accepted copy's total too, and re-writing the Fergus description.
   The office emails already sent still say $35,252.82. `tests/acceptstale.mjs`.
+- THE CUSTOMER'S PICKS ARE THE QUOTE'S OWN PRODUCTS (2026-10-30, job 3338:
+  "I added color coat MagnaFlow as a steel grade option. The customer selected
+  that MagnaFlow, but then the confirmation quote acceptance email still says
+  color steel ... the choice between corrugate and fiber rib isn't showing").
+  THREE HOLES. The accept handler's allow-list knew only the four built-in
+  grades, two profiles and four gutters, so a grade, profile or gutter the
+  office ADDED was dropped and the job kept the office's recommended pick; it
+  now also takes every id the quote carries (`_quoteProductIds`: the priced
+  block's keys, `selectablesSnapshot`, `customProfiles`). The email named
+  picks from a fixed word list (`QUOTE_SELECTION_LABELS`); `_quoteSelectionLines`
+  reads the quote's own names first (`_quoteProductName`, priced `*Label` then
+  the snapshot) and lists the grade and PROFILE even when the customer never
+  touched them (`baseGrade` / `baseProfile` / the first profile). And
+  `_customerSelections` never SENT `extras` (the office's own options) or a
+  gutters job's `gutterColour`, which the server had always taken. JOB 3338
+  ITSELF: `ACCEPTED_PICK_FIXES` (55 s after boot, `POST /admin/accepted-pick-
+  fixes/run`), acting only while it still reads MAXAM: MagnaFlow + Corrugate in
+  the job and the frozen Accepted copy, a "Corrected:" office email
+  (`_acceptOfficeNotify(…, {corrected})`) and the Fergus description rewritten.
+  `tests/custevents.mjs` (50), `tests/inclextras.mjs`.
 - AN EMAILED TOKEN LANDS ON /app, NEVER THE ROOT (2026-10-22, a customer's
   reply to his own reset email, forwarded by the owner — tyler@tgmroofing
   .co.nz: "This keeps just taking me back to the home page"). `/auth/forgot`

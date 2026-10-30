@@ -123,6 +123,14 @@ c = await pg.evaluate(async () => {
 });
 check('an accepted quote opens no editor and loses no extra', !c.opened && c.n0 === c.n1, JSON.stringify(c));
 
+// What the customer's page sends on accept carries every pick (2026-10-30):
+// the office's own options and a gutters job's colour went missing before.
+c = await pg.evaluate(() => {
+  S.quote.proposalOptions = { steelGrade:'magnaflow', profile:'corrugate', extras:{ qx1:'r2' }, gutterColour:'Ironsand' };
+  return _customerSelections().proposalOptions;
+});
+check('the customer\u2019s accept sends the grade, the profile, the office\u2019s own options and the gutter colour',
+  c.steelGrade === 'magnaflow' && c.profile === 'corrugate' && c.extras && c.extras.qx1 === 'r2' && c.gutterColour === 'Ironsand', JSON.stringify(c));
 check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;
