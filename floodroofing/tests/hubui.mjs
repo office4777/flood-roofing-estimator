@@ -130,7 +130,51 @@ const rep = await pg.evaluate(() => {
 check('the Reports tab opens and carries the Team meeting and Back-costing review buttons', rep.on && rep.here.every(Boolean) && rep.title === 'Reports', JSON.stringify(rep));
 check('…and the two buttons are gone from the Command Centre and the Back Cost tab', rep.gone.every(x => !x), JSON.stringify(rep.gone));
 check('…and each opens its own window from there', rep.mtg && rep.bcr, JSON.stringify(rep));
-await pg.evaluate(() => go('dash'));
+
+// Weekly toolbox talk (2026-10-30): the toolbox app's sheet lives on the Reports tab too
+const tbx = await pg.evaluate(() => {
+  go('reports');
+  localStorage.removeItem('fr3_tbx'); localStorage.removeItem('fr3_tbxStaff');
+  document.getElementById('rep-tbx-btn').click();
+  const open = document.getElementById('tbx-modal').classList.contains('open');
+  const wk0 = document.getElementById('tbx-wk').textContent;
+  const monday = /^\d{4}-\d{2}-\d{2}$/.test(_tbxWk) && new Date(_tbxWk + 'T00:00:00Z').getUTCDay() === 1;
+  const secs = [...document.querySelectorAll('#tbx-body .tbx-hd')].map(e => e.textContent.trim());
+  const jobs = document.querySelectorAll('#tbx-jobs tbody tr').length;
+  const jobsSynced = (JSON.parse(localStorage.getItem('fr3_fwJobs') || '[]')).filter(j => !isExcl(j)).length;
+  const pct = [...document.querySelectorAll('#tbx-jobs .tbx-pct')].length;
+  // type into a field, step a week and back: the text is on that week alone and survives a re-render
+  const ta = document.querySelector('#tbx-body textarea[placeholder^="Vision"]'); ta.value = 'Finish the Russell job'; ta.dispatchEvent(new Event('input'));
+  const jn = document.querySelector('#tbx-jobs textarea'); if (jn){ jn.value = 'Needs the scaffold down'; jn.dispatchEvent(new Event('input')); }
+  const stored = JSON.parse(localStorage.getItem('fr3_tbx') || '{}');
+  const savedHere = stored[_tbxWk] && stored[_tbxWk].companyDirection === 'Finish the Russell job';
+  tbxStep(1); const wk1 = document.getElementById('tbx-wk').textContent; const blankNext = document.querySelector('#tbx-body textarea[placeholder^="Vision"]').value === '';
+  tbxStep(-1); const back = document.querySelector('#tbx-body textarea[placeholder^="Vision"]').value === 'Finish the Russell job';
+  const noteBack = jn ? document.querySelector('#tbx-jobs textarea').value === 'Needs the scaffold down' : true;
+  // the attendance list: typed names win, and a tick is kept on the week
+  S.set('tbxStaff', [{ n: 'Lead One', p: 'Lead Roofer' }, { n: 'Apprentice Two', p: 'Apprentice' }]); renderToolbox();
+  const names = [...document.querySelectorAll('#tbx-staff tbody tr td:nth-child(2)')].map(e => e.textContent);
+  const cb = document.querySelector('#tbx-staff input[type=checkbox]'); cb.checked = true; cb.dispatchEvent(new Event('change'));
+  const present = (JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[_tbxWk] || {}).present || {};
+  renderToolbox(); const stillTicked = document.querySelector('#tbx-staff input[type=checkbox]').checked;
+  // print: the modal alone is on the paper, A4 portrait, and the page is itself again afterwards
+  const origPrint = window.print; let printed = 0; window.print = () => { printed++; };
+  tbxPrint();
+  return new Promise(res => setTimeout(() => {
+    const during = document.body.classList.contains('tbx-printing') && !!document.getElementById('tbx-page') && /portrait/.test(document.getElementById('tbx-page').textContent);
+    window.dispatchEvent(new Event('afterprint'));
+    const after = !document.body.classList.contains('tbx-printing') && !document.getElementById('tbx-page');
+    window.print = origPrint; closeToolbox();
+    res({ open, wk0, wk1, monday, secs, jobs, jobsSynced, pct, savedHere, blankNext, back, noteBack, names, present, stillTicked, printed, during, after, closed: !document.getElementById('tbx-modal').classList.contains('open') });
+  }, 150));
+});
+check('the toolbox talk opens from the Reports tab on this Monday\'s week', tbx.open && tbx.monday && tbx.closed, JSON.stringify({ open: tbx.open, monday: tbx.monday, wk: tbx.wk0 }));
+check('…with the meeting sheet\'s ten sections in order', JSON.stringify(tbx.secs) === JSON.stringify(['📋Meeting details', '🎯Company direction & updates', '🤝Team culture', '🌤️Weather forecast — Kerikeri', '📊Jobs on the go — priced vs actual hours', '🏠Housekeeping', '🎉Special events / occasions', '⛑️Health & safety', '💬Other information / comments', '✍️Attendance & signatures']), JSON.stringify(tbx.secs));
+check('…the jobs on the go are the Workload sync\'s active jobs with a used-hours badge each', tbx.jobs === tbx.jobsSynced && tbx.jobs > 0 && tbx.pct === tbx.jobs, JSON.stringify({ jobs: tbx.jobs, synced: tbx.jobsSynced, pct: tbx.pct }));
+check('…notes save as typed, per week, and come back on that week', tbx.savedHere && tbx.blankNext && tbx.back && tbx.noteBack && tbx.wk1 !== tbx.wk0, JSON.stringify({ savedHere: tbx.savedHere, blankNext: tbx.blankNext, back: tbx.back, noteBack: tbx.noteBack }));
+check('…the attendance list is the typed one and a Present tick is kept on the week', JSON.stringify(tbx.names) === JSON.stringify(['Lead One', 'Apprentice Two']) && tbx.present['Lead One'] === 1 && tbx.stillTicked, JSON.stringify({ names: tbx.names, present: tbx.present, stillTicked: tbx.stillTicked }));
+check('…and Print puts the sheet alone on A4 portrait, then restores the page', tbx.printed === 1 && tbx.during && tbx.after, JSON.stringify({ printed: tbx.printed, during: tbx.during, after: tbx.after }));
+await pg.evaluate(() => { localStorage.removeItem('fr3_tbx'); localStorage.removeItem('fr3_tbxStaff'); go('dash'); });
 check('the nightly sync\'s entry point is still there', await pg.evaluate(() => typeof window.__teamHeadlessSync === 'function'));
 
 // every other tab carries the same look (2026-10-24, "do the same styling for all the tabs")

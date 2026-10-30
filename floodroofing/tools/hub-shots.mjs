@@ -39,7 +39,8 @@ await shoot('phone', { width: 390, height: 844 }, [
   ['bc', pg => pg.evaluate(() => go('bc')), false],
   ['pl', pg => pg.evaluate(() => go('pl')), false],
   ...['work', 'bc', 'pl', 'growth', 'marketing', 'cash', 'reports'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
-  ['detail-deposit', pg => pg.evaluate(() => { go('cash'); openCashDetail('deposit'); }), false],
+  ['toolbox', pg => pg.evaluate(() => { go('reports'); S.set('tbxStaff', [{ n: 'Lead roofer', p: 'Lead Roofer' }, { n: 'Apprentice', p: 'Apprentice' }]); openToolbox(); }), true],
+  ['detail-deposit', pg => pg.evaluate(() => { closeToolbox(); go('cash'); openCashDetail('deposit'); }), false],
   ['dash-dark', pg => pg.evaluate(() => { closeCashDetail(); go('dash'); toggleTheme(); }), false],
 ]);
 await shoot('desk', { width: 1440, height: 900 }, [
@@ -48,6 +49,7 @@ await shoot('desk', { width: 1440, height: 900 }, [
   ['detail-gp', pg => pg.evaluate(() => openCmdDetail('gp')), false],
   ['work', async pg => { await closeAll(pg); await pg.evaluate(() => go('work')); }, false],
   ...['bc', 'pl', 'growth', 'marketing', 'cash', 'reports'].map(t => ['tab-' + t, pg => pg.evaluate(t => { go(t); document.querySelectorAll('details.acc').forEach(d => d.open = true); }, t), true]),
+  ['toolbox', pg => pg.evaluate(() => { go('reports'); S.set('tbxStaff', [{ n: 'Lead roofer', p: 'Lead Roofer' }, { n: 'Apprentice', p: 'Apprentice' }]); openToolbox(); }), true],
 ]);
 await b.close();
 console.log('shots in', OUT);
