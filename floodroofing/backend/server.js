@@ -2774,7 +2774,7 @@ function _trialEndedMail(p, sub){
     'Either way, thanks for giving it a go. Reply to this email and it comes straight to me.\n\nAron\nRoofMap';
   const btn = (href, label, bg) => '<a href="' + href + '" style="display:inline-block;padding:13px 22px;border-radius:9px;background:' + bg + ';color:#fff;font-weight:800;text-decoration:none;font-size:15px;margin:6px 8px 6px 0">' + label + '</a>';
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
     '<h2 style="margin:8px 0 12px;font-size:22px">Your trial has ended</h2>' +
     '<p>Hi ' + _esc(first) + ',</p>' +
     '<p>Your free RoofMap trial has ended. Everything you measured, drew and quoted is still there.</p>' +
@@ -6508,7 +6508,7 @@ async function _sendCancelMail(req, endsAt){
     'Changed your mind? Settings → Billing will start it up again.', '',
     'If something went wrong that we could have fixed, reply to this email — it reaches a person.'].join('\n');
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6b7a">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6b7a">RoofMap&trade;</div>' +
     '<h2 style="font-size:19px;margin:8px 0 14px">Your subscription is cancelled</h2>' +
     '<p>You will not be charged again.' + (when ? (' Your plan stays on until <strong>' + esc(when) +
       '</strong> — the month you have already paid for — and everything keeps working until then.') : '') + '</p>' +
@@ -6760,7 +6760,7 @@ function _newPayerEmail(row, d, o){
   const h = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
   const row2 = (k, v) => v ? '<tr><td style="padding:4px 14px 4px 0;color:#5f6b7a">' + h(k) + '</td><td style="padding:4px 0"><b>' + h(v) + '</b></td></tr>' : '';
   const html = '<div style="font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#0a1628;max-width:560px">' +
-    '<div style="background:#0a1628;color:#fff;border-radius:12px;padding:18px 20px"><div style="font-size:13px;color:#9fb3c8">RoofMap</div>' +
+    '<div style="background:#0a1628;color:#fff;border-radius:12px;padding:18px 20px"><div style="font-size:13px;color:#9fb3c8">RoofMap&trade;</div>' +
     '<div style="font-size:21px;font-weight:800;margin-top:2px">🎉 New paying subscriber</div>' +
     '<div style="margin-top:4px;color:#cfe3f5">' + h(who) + ' has started paying on ' + h(plan) + '.</div></div>' +
     '<table style="margin:14px 0;border-collapse:collapse;font-size:14px">' +
@@ -13032,7 +13032,7 @@ async function _waitlistInvite(row){
         'and material order before you do your own.\n\n' +
         'Reply to this email if anything is in your way.\n\n— RoofMap\n',
       html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
-        '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+        '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
         '<h2 style="font-size:21px;margin:10px 0 14px">You are in' + (row.name ? (', ' + esc(row.name)) : '') + '.</h2>' +
         '<p style="margin:0 0 18px">Setting your business up takes about a minute — business name, your name, a password. There is a finished sample job waiting inside, so you can see a completed quote, cut list and material order before you do your own.</p>' +
         '<p style="margin:0 0 16px"><a href="' + esc(link) + '" style="display:inline-block;background:#0099cc;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">Set up your business</a></p>' +
@@ -13072,7 +13072,7 @@ app.get('/admin/waitlist/:id/invite', async (req, res) => {
     '<title>RoofMap</title>' +
     '<body style="font-family:-apple-system,Segoe UI,sans-serif;background:#f4f7fa;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
     '<div style="background:#fff;border-radius:14px;padding:34px 38px;max-width:440px;box-shadow:0 12px 40px rgba(10,22,40,.12)">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
     '<h2 style="color:' + colour + ';margin:10px 0 8px;font-size:20px">' + title + '</h2>' +
     '<p style="color:#43556a;font-size:14.5px;line-height:1.6;margin:0">' + body + '</p></div></body>';
   const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
