@@ -8217,7 +8217,15 @@ async function _acceptedPickFixesOnce(){
         const quote = j.data.quote, sh = quote.share || {};
         if (!quote.accepted || sh.status !== 'accepted') continue;
         const po = quote.proposalOptions || (quote.proposalOptions = {});
-        if (String(po.steelGrade || '') !== f.from) continue;          // already right, or not this one
+        if (String(po.steelGrade || '') !== f.from){
+          // Picks already right (an earlier boot fixed them): the Fergus
+          // version may still carry the old price — put that right on its own.
+          const fp0 = sh.fergus;
+          if (fp0 && fp0.jobId && fp0.auto && isFinite(+fp0.auto.total) && Math.abs((+fp0.auto.total) - (+quote.accepted.total)) > 1){
+            try { r.fergus = await _acceptedPickRepush(j.data.id); } catch (e) { r.fergusError = e && e.message; }
+          }
+          continue;
+        }
         const g = _quoteProductRows(quote, 'steelGrade').filter(function (x) { return f.grade.test(x.name || x.id); })[0];
         if (!g) { r.error = 'grade not on this quote'; continue; }
         const pr = _quoteProductRows(quote, 'profile').filter(function (x) { return f.profile.test(x.name || x.id); })[0];
@@ -8240,21 +8248,21 @@ async function _acceptedPickFixesOnce(){
         try { await _fergusOnAccept(j.data.id, null); } catch (e) {}
         // …and the accepted version in Fergus again, at the accepted price: the
         // one pushed on the day carried MAXAM and none of the extras.
-        try {
-          const fj = await supabase.from('jobs').select('id, quote:draw_state->state->quote').eq('id', j.data.id).single();
-          const fq = fj.data && fj.data.quote, fp = fq && fq.share && fq.share.fergus;
-          if (fp && fp.jobId){
-            if (fp.auto) { fp.auto.acceptedAt = null; fp.auto.selKey = ''; }
-            fp.selKey = '';
-            await _saveQuoteBack({ id: j.data.id }, fq);
-            const v = await _fergusAutoVersionNow(j.data.id);
-            r.fergus = v ? { rev: v.rev, total: v.total, mismatch: v.mismatch || null } : null;
-          }
-        } catch (e) { r.fergusError = e && e.message; }
+        try { r.fergus = await _acceptedPickRepush(j.data.id); } catch (e) { r.fergusError = e && e.message; }
       }
     } catch (e) { r.error = e && e.message; console.warn('[accepted-pick-fix] ' + f.ref + ' failed: ' + r.error); }
   }
   return out;
+}
+async function _acceptedPickRepush(jobId){
+  const fj = await supabase.from('jobs').select('id, quote:draw_state->state->quote').eq('id', jobId).single();
+  const fq = fj.data && fj.data.quote, fp = fq && fq.share && fq.share.fergus;
+  if (!fp || !fp.jobId) return null;
+  if (fp.auto) { fp.auto.acceptedAt = null; fp.auto.selKey = ''; }
+  fp.selKey = '';
+  await _saveQuoteBack({ id: jobId }, fq);
+  const v = await _fergusAutoVersionNow(jobId);
+  return v ? { rev: v.rev, total: v.total, mismatch: v.mismatch || null } : null;
 }
 app.post('/admin/accepted-pick-fixes/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });

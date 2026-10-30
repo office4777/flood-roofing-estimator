@@ -441,13 +441,23 @@ check('…and the office gets a corrected acceptance email saying so',
 sent.length = 0;
 await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
 check('…once only', to('office@flood.nz').length === 0, String(to('office@flood.nz').length));
+// An earlier server (picks fixed, no Fergus re-push) got there first: the
+// next boot still re-pushes, because the Fergus version misses the total.
+{
+  const q38 = db.jobs.find(j => j.id === 'j-3338').draw_state.state.quote;
+  q38.share.fergus.auto = { acceptedAt: q38.accepted.at, total: 59044.57, selKey: 'x' };
+  fergus.versions.length = 0;
+  await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
+}
 const v38 = fergus.versions.filter(b => /Quote 3338/.test(b.title || '')).pop() || {};
-check('…and Fergus gets a new accepted version at the ACCEPTED price, MagnaFlow and the extras in it',
+check('…and Fergus gets a new accepted version at the ACCEPTED price, MagnaFlow and the extras in it — whichever boot fixed the picks',
   Math.abs((+v38.total || 0) - 62920.95) < 0.02 && JSON.stringify(v38.sections || []).indexOf('Leaf Diverters') >= 0 &&
   JSON.stringify(v38.sections || []).indexOf('MAXAM') < 0 &&
   (v38.sections || []).some(s2 => s2.name === 'Extras' && (s2.lineItems || []).length === 2),
-  JSON.stringify({ total: v38.total, fx, secs: (v38.sections || []).map(s2 => s2.name + ':' + (s2.lineItems || []).map(l => l.itemName + '=' + l.itemPrice).join('|')) }));
+  JSON.stringify({ n: fergus.versions.length, total: v38.total, secs: (v38.sections || []).map(s2 => s2.name + ':' + (s2.lineItems || []).map(l => l.itemName + '=' + l.itemPrice).join('|')) }));
 
+await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
+check('…and never again once Fergus carries the accepted price', fergus.versions.length === 1, String(fergus.versions.length));
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

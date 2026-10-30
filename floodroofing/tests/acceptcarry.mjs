@@ -36,7 +36,10 @@ import { readFileSync } from 'node:fs';
 const srv = readFileSync(DIR + '/../backend/server.js', 'utf8');
 const applySrc = srv.split("    // Apply customer selections (only the safe, customer-controlled fields).")[1]
                     .split("    if (type === 'accepted')")[0];
-const applySelections = new Function('quote', 'selections', 'if (!selections) return;' + applySrc.replace(/^\s*if \(selections\) \{/, '').replace(/\}\s*$/, ''));
+// …and the helpers it calls (2026-10-30: the allow-list takes the quote's own
+// products through _quoteProductIds), lifted the same way.
+const helperSrc = 'const _QSEL_SRC' + srv.split('const _QSEL_SRC')[1].split('function _quoteProductName')[0];
+const applySelections = new Function('quote', 'selections', helperSrc + 'if (!selections) return;' + applySrc.replace(/^\s*if \(selections\) \{/, '').replace(/\}\s*$/, ''));
 
 async function run(){
   const store = { quote: sent() };
