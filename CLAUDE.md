@@ -123,6 +123,20 @@ accordingly.
   carries two cards — Team meeting (`#rep-mtg-btn` → `openMeeting`, the PowerPoint deck, `pm-hide`)
   and Back-costing review (`#rep-bcr-btn` → `openBcReview`). The button on the Command Centre's P&L
   row and the card on the Back Cost tab are gone; the modals are unchanged. `hubui` (107) pins it.
+  THE WEEKLY TOOLBOX TALK IS ON IT TOO (2026-10-30, the owner: "incorporate the toolbox app into this
+  financials app? Put it in the reports tab too"): the private `office4777/flood-roofing-toolbox` repo
+  (a Next.js page on Vercel — the Monday meeting sheet, its notes in that browser's localStorage, a
+  Fergus API route for the open jobs, open-meteo for Kerikeri's weather) rebuilt in the hub as
+  `#tbx-modal` (`openToolbox` / `renderToolbox` / `tbxStep`, card `#rep-tbx-btn`). Same sections in the
+  same order (meeting details, direction & updates, team culture, weather Mon–Fri with the auto-fill
+  button, jobs on the go, housekeeping, special events, H&S, other comments, attendance & signatures);
+  the notes live in `fr3_tbx[<Monday>]` and so ride the TEAM SYNC (one sheet for the office and the
+  yard); the jobs are the Workload sync's `fwJobs` with priced vs actual hours and a used-% badge (the
+  old app's "Load Fergus data" and its crew / schedule columns are gone — Fergus's partner API never
+  filled them); the attendance list is whoever logs hours (`teamWork.persons`) unless the office types
+  its own (`fr3_tbxStaff`, "Edit the list") — NO NAMES IN THE SOURCE, the hub is a public page; Present
+  ticks are kept on the week. Print / Save PDF is `tbxPrint` (`body.tbx-printing`, an injected
+  `@page` A4 portrait, the meeting deck's own pattern). `hubui` (113), `hub-shots` renders it.
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):

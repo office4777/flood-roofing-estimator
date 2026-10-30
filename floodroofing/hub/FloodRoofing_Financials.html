@@ -433,7 +433,49 @@ rect[data-tip]:hover{fill:rgba(255,255,255,.06);}
 /* Reports tab: one card a report, the button at the right (under the words on a narrow phone) */
 .rep-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
 .rep-title{font-weight:800;letter-spacing:-.01em;font-size:.95rem;margin-bottom:3px;}
-.rep-head .mtg-btn{margin-left:auto;padding:9px 18px;font-size:.78rem;}   /* sits between the P&L title and the Xero pill on a phone */
+.rep-head .mtg-btn{margin-left:auto;padding:9px 18px;font-size:.78rem;}
+/* ── Weekly toolbox talk (the flood-roofing-toolbox app folded into the hub, 2026-10-30) ── */
+.tbx-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 12px;}
+.tbx-bar .tbx-wk{font-weight:800;font-size:.92rem;min-width:170px;text-align:center;}
+.tbx-nb{background:var(--elev);border:1px solid var(--border);color:var(--text);border-radius:22px;padding:7px 13px;font-size:.78rem;font-weight:700;cursor:pointer;}
+.tbx-sec{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:12px;overflow:hidden;}
+.tbx-hd{background:var(--ink);color:#fff;padding:8px 14px;font-size:.68rem;font-weight:800;letter-spacing:.8px;text-transform:uppercase;display:flex;align-items:center;gap:8px;}
+html[data-theme="dark"] .tbx-hd{background:var(--primary);color:#04121a;}
+.tbx-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));}
+.tbx-cell{padding:10px 12px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);}
+.tbx-lab{font-size:.6rem;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:5px;}
+.tbx-val{font-size:.88rem;font-weight:700;padding-top:3px;}
+.tbx-row{display:grid;grid-template-columns:170px 1fr;border-bottom:1px solid var(--border);}
+.tbx-row:last-child{border-bottom:none;}
+.tbx-row .tbx-lab{padding:10px 12px;margin:0;background:var(--elev);border-right:1px solid var(--border);display:flex;align-items:flex-start;font-size:.7rem;text-transform:none;letter-spacing:0;color:var(--text);}
+.tbx-row>div:last-child{padding:7px 10px;}
+.tbx-in,.tbx-ta{width:100%;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:.82rem;font-family:inherit;background:var(--bg2);color:var(--text);outline:none;line-height:1.45;}
+.tbx-ta{resize:vertical;min-height:58px;}
+.tbx-in:focus,.tbx-ta:focus{border-color:var(--primary);}
+.tbx-tbl{width:100%;border-collapse:collapse;font-size:.78rem;}
+.tbx-tbl th{text-align:left;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.tbx-tbl td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+.tbx-pct{display:inline-block;padding:2px 8px;border-radius:12px;font-weight:800;font-size:.72rem;}
+.tbx-pct.ok{background:rgba(34,197,94,.14);color:#15803d;}.tbx-pct.near{background:rgba(245,158,11,.16);color:#92400e;}.tbx-pct.over{background:rgba(239,68,68,.14);color:#b91c1c;}
+.tbx-tbl .tbx-ta{min-height:44px;font-size:.76rem;}
+.tbx-sig td{height:36px;}
+.tbx-foot{text-align:center;font-size:.66rem;color:var(--muted);padding:8px 0 14px;}
+.tbx-wrap{overflow-x:auto;}
+@media (max-width:640px){.tbx-row{grid-template-columns:1fr;}.tbx-row .tbx-lab{border-right:none;border-bottom:1px solid var(--border);}}
+@media print{
+  body.tbx-printing{background:#fff!important;overflow:visible!important;}
+  body.tbx-printing #nav,body.tbx-printing #topbar,body.tbx-printing .page{display:none!important;}
+  body.tbx-printing .cmodal{display:none!important;}
+  body.tbx-printing #tbx-modal{display:block!important;position:static!important;background:#fff!important;backdrop-filter:none!important;overflow:visible!important;}
+  body.tbx-printing #tbx-modal .cmodal-card{max-width:none!important;padding:0!important;margin:0!important;min-height:0!important;box-shadow:none!important;border-radius:0!important;background:#fff!important;}
+  body.tbx-printing #tbx-modal .cmodal-head,body.tbx-printing .tbx-bar,body.tbx-printing .tbx-np{display:none!important;}
+  body.tbx-printing .tbx-sec{break-inside:avoid;border:1px solid #bbb!important;background:#fff!important;color:#111!important;border-radius:4px;}
+  body.tbx-printing .tbx-hd{background:#1B3A6B!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body.tbx-printing .tbx-in,body.tbx-printing .tbx-ta{border:1px solid #ccc!important;background:#fff!important;color:#111!important;}
+  body.tbx-printing .tbx-tbl td,body.tbx-printing .tbx-tbl th,body.tbx-printing .tbx-cell,body.tbx-printing .tbx-row .tbx-lab,body.tbx-printing .tbx-val{color:#111!important;background:#fff!important;}
+  body.tbx-printing .tbx-pct{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body.tbx-printing .tbx-pb{break-before:page;}
+}   /* sits between the P&L title and the Xero pill on a phone */
 .mtg-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:2px 0 14px;}
 .mtg-toolbar .mtg-mstep{display:flex;align-items:center;gap:8px;}
 .mtg-mbtn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:1.2rem;font-weight:700;cursor:pointer;}
@@ -1278,6 +1320,16 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
     </div>
   </div>
 
+  <!-- Weekly toolbox talk (2026-10-30): the flood-roofing-toolbox app's form, in the hub. Notes are kept per
+       week in the shared state (fr3_tbx) so the office and the yard see the same sheet; the jobs are the
+       Workload sync's active jobs, the attendance list the people who log hours (editable). -->
+  <div id="tbx-modal" class="cmodal" onclick="if(event.target===this)closeToolbox();">
+    <div class="cmodal-card">
+      <div class="cmodal-head"><span>🧰 Weekly toolbox talk</span><button class="cmodal-x" onclick="closeToolbox()">✕ Close</button></div>
+      <div id="tbx-body"></div>
+    </div>
+  </div>
+
   <!-- Back-costing review (sales-manager sit-down) — sibling of the pages so it opens from any tab -->
   <div id="bcr-modal" class="cmodal" onclick="if(event.target===this)closeBcReview();">
     <div class="cmodal-card">
@@ -1828,11 +1880,15 @@ html:not(.is-desktop) .wk-tbl-wrap{display:none;}
   <div class="page" id="page-reports">
     <div class="card hero-card">
       <div class="ct">Reports</div>
-      <div class="period-sub" style="margin-top:4px;">The two sit-downs, built from the month's back costing. Each opens on last month and steps to any month.</div>
+      <div class="period-sub" style="margin-top:4px;">The Monday toolbox talk and the two month-end sit-downs. The talk opens on this week; the meeting and the review open on last month, and each steps to any week or month.</div>
     </div>
     <div class="card rep-card pm-hide">
       <div class="rep-head"><div><div class="rep-title">📋 Team meeting</div><div class="period-sub">One slide a finished job — time allowed vs time taken, the crew, before / after photos, Google review · Photos · QA ticks and notes — then <b>⬇ PowerPoint</b> or PDF.</div></div>
       <button class="mtg-btn" id="rep-mtg-btn" onclick="openMeeting()" title="Build this month's team meeting deck">Build the deck</button></div>
+    </div>
+    <div class="card rep-card">
+      <div class="rep-head"><div><div class="rep-title">🧰 Weekly toolbox talk</div><div class="period-sub">The Monday meeting sheet — direction, culture, the week's weather, the jobs on the go with their hours, housekeeping, H&amp;S, attendance and signatures. Notes save per week and print to A4.</div></div>
+      <button class="mtg-btn" id="rep-tbx-btn" onclick="openToolbox()" title="Open this week's toolbox talk">Open this week</button></div>
     </div>
     <div class="card rep-card">
       <div class="rep-head"><div><div class="rep-title">🧾 Back-costing review</div><div class="period-sub">Sit down with the sales manager — every finished job, the quote vs the actual costs &amp; hours, line by line.</div></div>
@@ -7291,6 +7347,98 @@ function renderMeeting(){
 }
 // New month? quietly point the meeting at last complete month so it's one tap when the boss opens it.
 try{_mtgMk=calMonthKey(-1);}catch(e){}
+
+// ════════ WEEKLY TOOLBOX TALK (2026-10-30, the owner: "incorporate the toolbox app into this financials app") ════════
+// The flood-roofing-toolbox repo's Next.js page, rebuilt here in plain JS on the hub's own data: one sheet a week
+// (Monday-dated), its text kept in fr3_tbx[weekStart] and shared through the team sync, the jobs on the go from
+// the Workload sync (fwJobs: priced vs actual hours), the weather from open-meteo for Kerikeri on a button, and the
+// attendance list from whoever logs hours (teamWork.persons) unless the office has typed its own (fr3_tbxStaff).
+const TBX_BLANK={meetingTime:'7:00am',meetingLocation:'Flood Roofing Office/Yard',companyDirection:'',companyUpdates:'',teamCulture:'',issuesComments:'',solutions:'',
+  forecastMon:'',forecastTue:'',forecastWed:'',forecastThu:'',forecastFri:'',toolEquipment:'',materialOrders:'',training:'',
+  jobChecklists:'Please keep doing onsite before you leave so you remember everything needed for next time on the job.',
+  timesheetEntries:'Make sure timesheets are completed by Sunday night so Paula can process payroll on Monday morning.',
+  generalHouseKeeping:'',videoOfWeek:'',birthdays:'',workAnniversaries:'',events:'',leave:'',otherEvents:'',healthSafety:'',otherComments:'',jobNotes:{},present:{}};
+const TBX_WMO={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Foggy',48:'Icy fog',51:'Light drizzle',53:'Moderate drizzle',55:'Dense drizzle',61:'Slight rain',63:'Moderate rain',65:'Heavy rain',71:'Slight snow',73:'Moderate snow',75:'Heavy snow',77:'Snow grains',80:'Slight showers',81:'Moderate showers',82:'Violent showers',85:'Slight snow showers',86:'Heavy snow showers',95:'Thunderstorm',96:'Thunderstorm w/ hail',99:'Thunderstorm w/ heavy hail'};
+const TBX_DAYS=['Mon','Tue','Wed','Thu','Fri'];
+let _tbxWk=null;
+function tbxAddDays(ds,n){const d=new Date(ds+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function tbxMonday(d){const x=new Date(d);const day=x.getDay();x.setDate(x.getDate()+(day===0?-6:1-day));return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');}
+function tbxShort(ds){const p=ds.split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2])).toLocaleDateString('en-NZ',{day:'numeric',month:'short',timeZone:'UTC'});}
+function tbxLong(ds){const p=ds.split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2])).toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});}
+function tbxWeekLabel(ws){return tbxShort(ws)+' – '+tbxShort(tbxAddDays(ws,6))+' '+ws.slice(0,4);}
+function tbxAll(){return S.get('tbx',{})||{};}
+function tbxForm(ws){const all=tbxAll();const f=Object.assign({},TBX_BLANK,all[ws||_tbxWk]||{});f.jobNotes=Object.assign({},f.jobNotes||{});f.present=Object.assign({},f.present||{});return f;}
+function tbxSet(key,val){const all=tbxAll();const f=Object.assign({},TBX_BLANK,all[_tbxWk]||{});f[key]=val;all[_tbxWk]=f;S.set('tbx',all);}
+function tbxSetNote(id,val){const f=tbxForm();f.jobNotes[id]=val;tbxSet('jobNotes',f.jobNotes);}
+function tbxSetPresent(name,on){const f=tbxForm();if(on)f.present[name]=1;else delete f.present[name];tbxSet('present',f.present);}
+function tbxStaff(){
+  const typed=S.get('tbxStaff',null);
+  if(Array.isArray(typed)&&typed.length)return typed.map(x=>typeof x==='string'?{n:x,p:''}:{n:String(x.n||''),p:String(x.p||'')}).filter(x=>x.n);
+  const tw=S.get('teamWork',null);const ps=(tw&&tw.persons)||[];
+  return ps.filter(p=>p&&p.n&&num(p.h)>0).map(p=>({n:p.n,p:''}));
+}
+function tbxEditStaff(){
+  const cur=tbxStaff().map(x=>x.n+(x.p?' — '+x.p:'')).join('\n');
+  const v=prompt('Attendance list — one person a line, "Name — Position" (blank = back to whoever logs hours in Fergus):',cur);
+  if(v==null)return;
+  const list=v.split('\n').map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.split(/\s+[—–-]\s+/);return {n:m[0].trim(),p:(m[1]||'').trim()};});
+  S.set('tbxStaff',list.length?list:null);renderToolbox();
+}
+function openToolbox(ws){_tbxWk=ws||_tbxWk||tbxMonday(new Date());document.getElementById('tbx-modal').classList.add('open');document.body.style.overflow='hidden';renderToolbox();window.scrollTo(0,0);}
+function closeToolbox(){document.getElementById('tbx-modal').classList.remove('open');document.body.style.overflow='';}
+function tbxStep(d){_tbxWk=tbxAddDays(_tbxWk,7*d);renderToolbox();}
+async function tbxForecast(btn){
+  if(btn){btn.disabled=true;btn.textContent='Fetching…';}
+  try{
+    const end=tbxAddDays(_tbxWk,4);
+    const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=-35.2275&longitude=173.9462&daily=weathercode,precipitation_probability_max&timezone=Pacific%2FAuckland&start_date='+_tbxWk+'&end_date='+end);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();const f=tbxForm();const all=tbxAll();let got=0;
+    TBX_DAYS.forEach((d,i)=>{const code=data.daily&&data.daily.weathercode?data.daily.weathercode[i]:undefined;if(code===undefined)return;const rain=(data.daily.precipitation_probability_max||[])[i]||0;const lab=TBX_WMO[code]||('Code '+code);f['forecast'+d]=rain>20?(lab+', '+rain+'% chance of rain'):lab;got++;});
+    all[_tbxWk]=f;S.set('tbx',all);renderToolbox();
+    if(!got)toast('open-meteo has no forecast for that week yet — type it in','err');
+  }catch(e){toast('Couldn’t fetch the forecast ('+(e&&e.message||e)+') — type it in','err');if(btn){btn.disabled=false;btn.textContent='Auto-fill Kerikeri forecast';}}
+}
+function tbxPrint(){
+  const st=document.createElement('style');st.id='tbx-page';st.textContent='@page{size:A4 portrait;margin:10mm;}';document.head.appendChild(st);
+  document.body.classList.add('tbx-printing');
+  const done=()=>{document.body.classList.remove('tbx-printing');const e=document.getElementById('tbx-page');if(e)e.remove();window.removeEventListener('afterprint',done);};
+  window.addEventListener('afterprint',done);setTimeout(()=>window.print(),60);
+}
+function _tbxTA(key,ph,rows){const f=tbxForm();return '<textarea class="tbx-ta" rows="'+(rows||3)+'" placeholder="'+esc(ph||'')+'" oninput="tbxSet(\''+key+'\',this.value)">'+esc(f[key]||'')+'</textarea>';}
+function _tbxIn(key,ph){const f=tbxForm();return '<input type="text" class="tbx-in" placeholder="'+esc(ph||'')+'" value="'+esc(f[key]||'')+'" oninput="tbxSet(\''+key+'\',this.value)">';}
+function _tbxPct(j){if(!(j.priced>0))return '<span class="mut" style="font-size:.7rem;">no priced h</span>';const p=j.actual/j.priced*100;const c=p>100?'over':(p>=80?'near':'ok');return '<span class="tbx-pct '+c+'">'+Math.round(p)+'%</span>';}
+function renderToolbox(){
+  const el=document.getElementById('tbx-body');if(!el||!_tbxWk)return;
+  const f=tbxForm();const ws=_tbxWk;
+  const jobs=(S.get('fwJobs',[])||[]).filter(j=>!isExcl(j)).slice().sort((a,b)=>num(a.jobNo)-num(b.jobNo));
+  const staff=tbxStaff();
+  const sec=(icon,title,body,cls)=>'<div class="tbx-sec'+(cls?' '+cls:'')+'"><div class="tbx-hd"><span>'+icon+'</span>'+title+'</div>'+body+'</div>';
+  const rows=list=>list.map(x=>'<div class="tbx-row"><div class="tbx-lab">'+x.l+'</div><div>'+(x.ta?_tbxTA(x.k,x.l+'…',3):_tbxIn(x.k,x.l+'…'))+'</div></div>').join('');
+  let h='';
+  h+='<div class="tbx-bar"><button class="tbx-nb" onclick="tbxStep(-1)">« Prev</button><span class="tbx-wk" id="tbx-wk">'+esc(tbxWeekLabel(ws))+'</span><button class="tbx-nb" onclick="tbxStep(1)">Next »</button>'+
+     '<button class="mtg-btn" id="tbx-print" onclick="tbxPrint()">🖨 Print / Save PDF</button><span class="mut" style="font-size:.66rem;">Notes save as you type, per week, shared with the team</span></div>';
+  h+=sec('📋','Meeting details','<div class="tbx-grid"><div class="tbx-cell"><div class="tbx-lab">Date</div><div class="tbx-val" id="tbx-date">'+esc(tbxLong(ws))+'</div></div><div class="tbx-cell"><div class="tbx-lab">Time</div>'+_tbxIn('meetingTime','e.g. 7:00am')+'</div><div class="tbx-cell"><div class="tbx-lab">Location</div>'+_tbxIn('meetingLocation','Location')+'</div></div>');
+  h+=sec('🎯','Company direction &amp; updates','<div class="tbx-grid"><div class="tbx-cell"><div class="tbx-lab">Company direction</div>'+_tbxTA('companyDirection','Vision, goals, focus areas…')+'</div><div class="tbx-cell"><div class="tbx-lab">Updates / announcements</div>'+_tbxTA('companyUpdates','News, reminders, changes…')+'</div></div>');
+  h+=sec('🤝','Team culture','<div class="tbx-grid"><div class="tbx-cell"><div class="tbx-lab">Team culture</div>'+_tbxTA('teamCulture','Values, wins, recognition…')+'</div><div class="tbx-cell"><div class="tbx-lab">Issues / comments</div>'+_tbxTA('issuesComments','Any issues raised by the team…')+'</div><div class="tbx-cell"><div class="tbx-lab">Solutions</div>'+_tbxTA('solutions','How we are addressing them…')+'</div></div>');
+  h+=sec('🌤️','Weather forecast — Kerikeri','<div class="tbx-np" style="padding:8px 12px 2px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="tbx-nb" id="tbx-fc" onclick="tbxForecast(this)">Auto-fill Kerikeri forecast</button><span class="mut" style="font-size:.66rem;">or type it below</span></div><div class="tbx-grid">'+
+     TBX_DAYS.map((d,i)=>'<div class="tbx-cell"><div class="tbx-lab">'+d+' <span class="mut" style="font-weight:600;">'+esc(tbxShort(tbxAddDays(ws,i)))+'</span></div>'+_tbxIn('forecast'+d,'e.g. Partly cloudy')+'</div>').join('')+'</div>');
+  const jobRows=jobs.length?jobs.map(j=>{const no=String(j.jobNo||'').trim();const over=j.actual>j.priced&&j.priced>0;
+    return '<tr'+(over?' style="background:rgba(239,68,68,.05);"':'')+'><td style="font-weight:800;white-space:nowrap;">'+(no?'#'+esc(no):'—')+'</td><td><div style="font-weight:700;">'+esc(j.client||j.job||'')+'</div><div class="mut" style="font-size:.7rem;">'+esc(j.site||'')+(j.title?' · '+esc(j.title):'')+'</div></td><td style="text-align:center;">'+(j.priced>0?fmtH(j.priced):'—')+'</td><td style="text-align:center;font-weight:700;">'+fmtH(j.actual)+'</td><td style="text-align:center;">'+_tbxPct(j)+'</td><td style="min-width:180px;"><textarea class="tbx-ta" rows="2" placeholder="Notes for this job…" oninput="tbxSetNote(\''+esc(j.id)+'\',this.value)">'+esc(f.jobNotes[j.id]||'')+'</textarea></td></tr>';}).join('')
+    :'<tr><td colspan="6" class="empty">No active jobs synced yet — ⚙ → Refresh brings them in.</td></tr>';
+  h+=sec('📊','Jobs on the go — priced vs actual hours','<div class="tbx-wrap"><table class="tbx-tbl" id="tbx-jobs"><thead><tr><th>Job</th><th>Customer &amp; site</th><th style="text-align:center;">Priced h</th><th style="text-align:center;">Actual h</th><th style="text-align:center;">Used</th><th>Notes</th></tr></thead><tbody>'+jobRows+'</tbody></table></div>'+
+     '<div class="tbx-np" style="padding:6px 12px;display:flex;gap:12px;flex-wrap:wrap;font-size:.64rem;"><span class="tbx-pct ok">under 80% — on track</span><span class="tbx-pct near">80–100% — near budget</span><span class="tbx-pct over">over 100% — exceeded</span><span class="mut">from the Workload sync'+(S.get('fw_last_sync','')?' · '+esc(S.get('fw_last_sync','')):'')+'</span></div>');
+  h+=sec('🏠','Housekeeping',rows([{k:'toolEquipment',l:'Tool & equipment',ta:1},{k:'materialOrders',l:'Material orders',ta:1},{k:'training',l:'Training',ta:1},{k:'jobChecklists',l:'Job checklists',ta:1},{k:'timesheetEntries',l:'Timesheet entries',ta:1},{k:'generalHouseKeeping',l:'General housekeeping',ta:1}]),'tbx-pb');
+  h+=sec('🎉','Special events / occasions',rows([{k:'videoOfWeek',l:'Video of the week'},{k:'birthdays',l:'Birthdays'},{k:'workAnniversaries',l:'Work anniversaries'},{k:'events',l:'Events'},{k:'leave',l:'Leave'},{k:'otherEvents',l:'Other'}]));
+  h+=sec('⛑️','Health &amp; safety','<div style="padding:10px 12px;">'+_tbxTA('healthSafety','H&S topics, incidents, near-misses, toolbox topic, PPE reminders…',6)+'</div>');
+  h+=sec('💬','Other information / comments','<div style="padding:10px 12px;">'+_tbxTA('otherComments','Any other notes, reminders or comments…',4)+'</div>');
+  const sig=staff.length?staff.map((p,i)=>'<tr><td style="text-align:center;color:var(--muted);">'+(i+1)+'</td><td style="font-weight:700;">'+esc(p.n)+'</td><td class="mut" style="font-size:.72rem;">'+esc(p.p)+'</td><td style="text-align:center;"><input type="checkbox" '+(f.present[p.n]?'checked ':'')+'onchange="tbxSetPresent(\''+esc(p.n)+'\',this.checked)"></td><td style="border-left:1px solid var(--border);">&nbsp;</td></tr>').join('')
+    :'<tr><td colspan="5" class="empty">Nobody listed yet — a Master refresh reads who logs hours, or tap “Edit the list”.</td></tr>';
+  h+=sec('✍️','Attendance &amp; signatures','<div class="tbx-wrap"><table class="tbx-tbl tbx-sig" id="tbx-staff"><thead><tr><th style="width:36px;text-align:center;">#</th><th>Name</th><th>Position</th><th style="width:70px;text-align:center;">Present</th><th>Signature</th></tr></thead><tbody>'+sig+'</tbody></table></div>'+
+     '<div style="padding:8px 12px;font-size:.66rem;color:var(--muted);border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><span>By signing above, I confirm I attended this toolbox talk and understand the information presented.</span><a class="tbx-np" style="font-weight:800;color:var(--primary);cursor:pointer;" onclick="tbxEditStaff()">Edit the list</a></div>');
+  h+='<div class="tbx-foot">Flood Roofing Ltd — Weekly Toolbox Talk — '+esc(tbxWeekLabel(ws))+' — Confidential</div>';
+  el.innerHTML=h;
+}
 
 // ════════ BACK-COSTING REVIEW (sales-manager sit-down) ════════
 // Runs through each job FINISHED that month: the real quote line items (fetched live from Fergus), the
