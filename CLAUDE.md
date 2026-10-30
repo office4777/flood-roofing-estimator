@@ -26,7 +26,7 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (292 as of 2026-10-29 — 66 in its `API` list, 226 in `UI` — four at a time,
+  (293 as of 2026-10-30 — 66 in its `API` list, 227 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
   `run.mjs api` is the exact command CI's Backend job runs, 66 suites in
@@ -1060,6 +1060,35 @@ not a saving, and 49 purple to 48 orange.
   Delete this page (`_qcoDelete`: removes a quote option, hides a Settings
   one via `selHide.extras`). `customExtras` is in Q_CONTENT_KEYS,
   Q_FRESH_DROP and a template's `wording`. `tests/sendexact.mjs` sends one.
+- EXTRAS — INCLUDED ITEMS, ON EVERY JOB TYPE (2026-10-30, the owner: "each
+  line is an included item, for instance the customer want customer coloured
+  downpipes and leaf diverters ... both show as included as show the price ...
+  make sure the price effects the overall quote price and make sure they show
+  in the quote summary"). `S.quote.inclExtras` = [{id, name, desc, price ex
+  GST}] (`_ix*`): not a choice, every line is IN. The section `inclx` ("Extras")
+  goes just ahead of Review / Your total (`_ixAppend`, in `_qdSectionsRaw`,
+  `_qbPages`, `_gjSections`, `_psModernSections`); "+ Insert Extras"
+  (`__addinclx`, office only, while there are none) stands above "+ Insert
+  custom option"; the window is `_ixEdit` / `_ixSave` (name, words, price);
+  ✎ / ✕ per row, Delete this page clears them; never on an accepted quote.
+  THE PRICE is in `_qpSelectionChanges` (live), `_qpSelectionChangesPriced`
+  (from `share.priced.inclx`, stamped by `_qpBuildPriced` only when there are
+  any, so a quote without extras stamps the same block — typesnap pins it) and
+  `_poleShedSelItems`, as "Extras — <name>" rows; `_ixView()` is what is SHOWN
+  and charged (the stamped list where `_qpPriced()` answers, else live), so the
+  section, the summary rows, the picks ("<name>: Included", `_qbPicksAuto`
+  wraps `_qbPicksAutoBase`) and the total agree. Profitability counts them at
+  cost (`inclx`). The server lists them in `_quoteChoiceLines` ("Extra
+  (included): …", the stamped list first) — the acceptance email and the
+  Fergus description. In Q_CONTENT_KEYS, Q_FRESH_DROP and a template's
+  `wording`. `tests/inclextras.mjs` (29, UI; roofing, pole shed, gutters),
+  `custevents.mjs`.
+  THE EDIT RAIL IS ONE COLUMN (the same day: "tidy up those buttons, make them
+  in line and single row (wider if they have to)"): `_qeRailSync` makes every
+  rail button the widest one's width, one line each (`white-space:nowrap`),
+  all at one left edge beside the nearest block with the hands in a column,
+  and widens the gutter to fit (`--qe-gutter` on `#quoteProposal`, never
+  under 186px). `tests/quoteeditor.mjs`.
 - THE "UPDATED …" LINE (2026-10-02): `window.APP_BUILT_AT` (UTC ISO) in
   app.html, rendered by `_appUpdatedRender` as "Updated 7:48 am 2/10" (NZ
   time, light grey, full date on hover) in the sidebar's `.hdr-right` band

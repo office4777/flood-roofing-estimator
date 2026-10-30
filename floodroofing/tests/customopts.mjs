@@ -54,7 +54,7 @@ await pg.evaluate(async () => {
   _setQuotePreviewMode('computer'); await new Promise(r => setTimeout(r, 900));
 });
 const state = () => pg.evaluate(() => {
-  const secs = [...document.querySelectorAll('#qpRoot .qd-main > section')].map(s => s.getAttribute('data-qd-sec') || (s.hasAttribute('data-qd-addopt') ? 'ADD' : 'parked'));
+  const secs = [...document.querySelectorAll('#qpRoot .qd-main > section')].map(s => s.getAttribute('data-qd-sec') || (s.hasAttribute('data-qd-addopt') ? (s.querySelector('.ix-insert') ? 'ADDX' : 'ADD') : 'parked'));
   return {
     secs,
     incl: _qbInclusionLines(), excl: _qbExclusionLines(),

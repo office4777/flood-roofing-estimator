@@ -65,7 +65,7 @@ const { db, port } = await startFakePostgrest({
   comms_tasks: [], job_messages: [],
   jobs: [
     // 3305's shape: accepted, and the browser never called accept-email.
-    job('j-acc', quote()),
+    job('j-acc', quote({ inclExtras: [ { id: 'ix1', name: 'Leaf diverters', price: 180 } ] })),
     // the same again, where the browser DOES manage the PDF call
     job('j-pdf', quote({ ref: '3306', share: { token: 'tok-pdf', status: 'sent', sentAt: ago(1),
       sentTo: 'richard@example.com', sentTotal: 24500.5, events: [] } })),
@@ -84,7 +84,9 @@ const { db, port } = await startFakePostgrest({
       share: { token: 'tok-fg', status: 'sent', sentAt: ago(1), sentTo: 'fg@example.com',
                sentTotal: 40000, events: [],
                fergus: { jobId: 'FJ-77', rev: 1, title: 'Quote 3310' },
-               priced: { v: 1, gstRate: 15 } } })),
+               priced: { v: 1, gstRate: 15, inclx: [ { id: 'ix2', name: 'Coloured downpipes', price: 320 } ] } },
+      // the live list moved after the send; the stamped one is what was accepted
+      inclExtras: [ { id: 'ix2', name: 'Coloured downpipes', price: 999 } ] })),
     // 3303's shape: a question
     job('j-q', quote({ ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
       share: { token: 'tok-q', status: 'sent', sentAt: ago(1), sentTo: 'dot@example.com', events: [] } })),
@@ -180,6 +182,9 @@ check('…with the accepted total, the selections and replies going to the custo
   /\$24,500\.50/.test(one(office).text || '') && /Colour: Mist Green/.test(one(office).text || '') &&
   one(office).replyTo === 'richard@example.com',
   JSON.stringify({ rt: one(office).replyTo, text: (one(office).text || '').slice(0, 220) }));
+check('…and it lists the quote\u2019s included extras with their prices (2026-10-30)',
+  /Extra \(included\): Leaf diverters \$180\.00 \+ GST/.test(one(office).text || ''),
+  (one(office).text || '').slice(0, 600));
 check('…copied to the master copy, and named for the business',
   /boss@flood\.nz/.test(one(office).cc || '') && /Flood Roofing Ltd/.test(one(office).fromName || ''),
   JSON.stringify({ cc: one(office).cc, from: one(office).fromName }));
@@ -347,6 +352,8 @@ check('the job description carries every choice the customer made',
   /Guttering: 125mm Colorsteel box gutter/.test(desc) && /Gutter brackets: External/.test(desc) &&
   /Downpipes: Included/.test(desc) && /Existing material: We dispose of it/.test(desc),
   desc.slice(0, 500));
+check('…and the included extras, at the price stamped at send',
+  /Extra \(included\): Coloured downpipes \$320\.00/.test(desc) && !/999/.test(desc), desc.slice(0, 700));
 check('…with the total and who accepted it, above RoofMap\u2019s own marked block',
   /\$40,000\.00/.test(desc) && /Accepted by Fergus Linked/.test(desc) &&
   /Customer rang about a leak\./.test(desc),

@@ -3534,10 +3534,15 @@ html.qp-phone-preview .qe-inline{ font-size:12px; }
    the thing it edits and pointing at it (_qeRailSync). The in-page button
    stays in the DOM as the anchor the rail measures from, made invisible
    and taken out of the flow. Narrow screens keep the buttons on the page. */
-html.qe-rail-on #quoteProposal{ position:relative; padding-left:186px !important; }
+/* ONE COLUMN, ONE LINE EACH (2026-10-30, the owner: "tidy up those buttons,
+   make them in line and single row (wider if they have to)"): every rail button
+   is the width of the widest, on one line, in one column with its hand beside
+   it; the gutter is as wide as that column needs (--qe-gutter, set by
+   _qeRailSync), never under the old 186px. */
+html.qe-rail-on #quoteProposal{ position:relative; padding-left:var(--qe-gutter, 186px) !important; }
 html.qe-rail-on #qpRoot .qe-inline{ position:absolute; visibility:hidden; pointer-events:none; margin:0; }
-#qeRail{ position:absolute; left:0; top:0; bottom:0; width:186px; overflow:visible; pointer-events:none; z-index:5; }
-.qe-rail-btn{ position:absolute; left:10px; max-width:150px; min-width:120px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
+#qeRail{ position:absolute; left:0; top:0; bottom:0; width:var(--qe-gutter, 186px); overflow:visible; pointer-events:none; z-index:5; }
+.qe-rail-btn{ position:absolute; left:10px; min-width:120px; display:block; padding:7px 12px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:nowrap; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; box-sizing:border-box; }
 .qe-rail-btn:hover{ background:#f0f8ff; }
 .qe-rail-line{ position:absolute; width:26px; height:26px; line-height:26px; font-size:20px; text-align:center; pointer-events:none; font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; animation:qeHandNudge 1.6s ease-in-out infinite; }
 @keyframes qeHandNudge{ 0%,100%{ transform:translateX(0); } 50%{ transform:translateX(4px); } }
@@ -5196,7 +5201,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T23:20:29Z';
+  window.APP_BUILT_AT = '2026-10-30T01:34:53Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27246,6 +27251,8 @@ function _profitSelectionItems(){
       it.hrs = f(gl.leadHrs) + f(gl.appHrs);
       it.cost = matBase + f(gl.leadHrs) * f(gl.leadCost) + f(gl.appHrs) * f(gl.appCost);
       it.sub = lm.toFixed(1) + ' lm \u00b7 ' + it.hrs.toFixed(1) + ' hrs labour + material';
+    } else if (ch.inclx){
+      it.key = 'inclx'; it.sub = 'included extra \u00b7 at cost';
     } else if (/ steel$/.test(L) || / gauge steel$/.test(L) || /profile \(supplied in/.test(L)){
       it.sub = 'materials at cost';
     } else {
@@ -31331,7 +31338,8 @@ function _qpSelectionChanges(){
     var d = _selExtraDelta(g, row);
     if (d) out.push({ label: (g.title || 'Option') + ' — ' + (row.name || row.id), delta: d });
   });
-  return out;
+  // …and the quote's included extras (_ixItems), every one of them in.
+  return out.concat(_ixChanges(_ixItems()));
 }
 // ── SELL PRICES, NOT COST AND MARKUP ────────────────────────────────
 // The customer's page runs this same file, and it used to recompute every
@@ -31429,6 +31437,9 @@ function _qpBuildPriced(){
     });
     out.extras[g.id] = { title: g.title || '', first: (g.rows[0] || {}).id || '', rows: rows };
   });
+  // The quote's included extras, at the prices they were sent at — only
+  // where there are any, so a quote without them stamps the same block.
+  if (_ixItems().length) out.inclx = _ixItems().map(function(x){ return { id: x.id, name: String(x.name || '').trim(), desc: String(x.desc || ''), price: _ixPrice(x) }; });
   return out;
 }
 // The priced block a customer page should read, if this quote carries one.
@@ -31501,7 +31512,9 @@ function _qpSelectionChangesPriced(P){
     if (!row || !(+row.price)) return;
     out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
   });
-  return out;
+  // The included extras: from the block stamped at send, else (a quote sent
+  // before they existed) off the quote itself.
+  return out.concat(_ixChanges(Array.isArray(P.inclx) ? P.inclx : _ixItems()));
 }
 
 function _qpSelectionDeltaSum(){
@@ -32600,7 +32613,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -34141,7 +34154,7 @@ function _qbPages(){
     });
   } catch(e){}
   pages.push({ key:'summary', label:'Your total', html:_qbSummary });
-  pages = _qModernApply(pages);
+  pages = _qModernApply(_ixAppend(pages));
   // Brackets & downpipes are a decision ABOUT the gutter: they sit right
   // after it wherever it lands, and go when it goes.
   var gi = pages.findIndex(function(x){ return x.key === 'gutter'; });
@@ -34200,7 +34213,7 @@ function _qbRender(){
       '</div>'+
       '<div class="qb-scroll-hint" id="qbScrollHint" aria-hidden="true">Scroll<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
       // The office's phone preview: the pages taken out, each with its Insert.
-      (function(){ var pk = _qbParkedForOffice(); if (!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE)) pk = pk.concat(['__addopt']); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
+      (function(){ var pk = _qbParkedForOffice(); if (!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE)) pk = pk.concat(['__addopt']).concat(_ixItems().length ? [] : ['__addinclx']); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
     '</div>';
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
@@ -35246,14 +35259,26 @@ function _qeRailSync(){
   // The button sits right beside the block it edits with a pointing hand
   // between them (the owner: "bring the edit button in closer"). The hand
   // stops short of the block's card, which paints over the rail.
+  // One column: every button as wide as the widest, on one line, the hands in
+  // a column beside them, and the gutter as wide as that needs.
   var btns = rail.querySelectorAll('.qe-rail-btn'), lines = rail.querySelectorAll('.qe-rail-line');
-  items.forEach(function(it, i){
-    var bw = btns[i] ? btns[i].offsetWidth : 160;
-    var handLeft = Math.max(8, it.x - 30 - 26);
-    var btnLeft = Math.max(4, handLeft - 6 - bw);
-    if (btns[i]) btns[i].style.left = btnLeft + 'px';
-    if (lines[i]) lines[i].style.left = handLeft + 'px';
-  });
+  var bw = 0;
+  for (var k = 0; k < btns.length; k++) bw = Math.max(bw, Math.ceil(btns[k].getBoundingClientRect().width));
+  if (!bw) bw = 150;
+  var gutter = Math.max(186, 10 + bw + 6 + 26 + 30);
+  var curG = parseFloat(wrap.style.getPropertyValue('--qe-gutter')) || 0;
+  if (Math.abs(curG - gutter) > 1){
+    // The blocks move when the gutter does: lay the rail out again once they have.
+    wrap.style.setProperty('--qe-gutter', gutter + 'px');
+    try { _qeRailQueue(); } catch(e){}
+  }
+  // The column stands right beside the blocks (the owner: "bring the edit
+  // button in closer"), all at the nearest block's edge so they line up.
+  var minX = Infinity; items.forEach(function(it){ if (it.x < minX) minX = it.x; });
+  var handLeft = isFinite(minX) ? Math.max(10 + bw + 6, minX - 30 - 26) : 10 + bw + 6;
+  var btnLeft = Math.max(4, handLeft - 6 - bw);
+  for (var j = 0; j < btns.length; j++){ btns[j].style.width = bw + 'px'; btns[j].style.left = btnLeft + 'px'; }
+  for (var m = 0; m < lines.length; m++) lines[m].style.left = handLeft + 'px';
 }
 // Hovering a rail button lights the block its anchor sits in.
 function _qeRailHover(i, on){
@@ -36036,7 +36061,7 @@ function _gjSections(book){
     });
   } catch(e){}
   list.push(book ? { key:'summary', label:'Your total', html:_qbSummary } : { key:'review', label:'Review', html:_qdReview });
-  return list;
+  return _ixAppend(list);
 }
 // The colour of the new gutter: the Colorsteel chart for a Colorsteel box
 // gutter, Marley's Typhoon range for Typhoon, and white for Marley Classic.
@@ -36397,6 +36422,128 @@ async function _qcoSave(id){
   try { if (typeof saveSettings === 'function') await saveSettings(); } catch(e){ ok = false; }
   try { _siteToast(ok ? '\u201c' + (g.title || 'Option') + '\u201d saved \u2014 Insert custom option \u2192 Select from saved' : 'The option could not be saved \u2014 try again'); } catch(e){}
 }
+// ── EXTRAS: INCLUDED ITEMS (2026-10-30, the owner: "add another optional add
+// in section into the quotes in all job types ... each line is an included
+// item, for instance the customer want customer coloured downpipes and leaf
+// diverters ... they both show as included as show the price ... make sure
+// the price effects the overall quote price and make sure they show in the
+// quote summary"). Not a choice: every line is IN the quote. `S.quote.
+// inclExtras` = [{id, name, desc, price}] (price ex GST). One list read by
+// the three totals — the roofing/gutters selection list (live and from the
+// priced block stamped at send, `P.inclx`, so a customer holding a sent quote
+// keeps the figures they were sent) and the shed's _poleShedSelItems — so the
+// section, the summary rows and the total cannot disagree. The office adds,
+// edits and removes them (never on an accepted quote); the customer only sees.
+function _ixItems(q){
+  q = q || (window.S && S.quote) || {};
+  return Array.isArray(q.inclExtras) ? q.inclExtras.filter(function(x){ return x && x.id && String(x.name || '').trim(); }) : [];
+}
+// What the quote SHOWS and CHARGES: the list stamped at send where the quote
+// is read from its priced block (the customer, an accepted quote), else live.
+function _ixView(){
+  var P = null; try { P = _qpPriced(); } catch(e){}
+  if (P && Array.isArray(P.inclx)) return P.inclx.filter(function(x){ return x && String(x.name || '').trim(); })
+    .map(function(x, i){ return { id: x.id || ('ixp' + i), name: x.name, desc: x.desc || '', price: x.price }; });
+  return _ixItems();
+}
+function _ixPrice(x){ return Math.round((parseFloat(x && x.price) || 0) * 100) / 100; }
+function _ixEditable(){ return _psAddonEditable(); }
+// The summary/total rows, from a list of {name, price}.
+function _ixChanges(list){
+  return (list || []).map(function(x){ return { label: 'Extras — ' + String(x.name || '').trim(), delta: _ixPrice(x), inclx: true }; })
+    .filter(function(c){ return c.delta; });
+}
+// Where the section goes: just ahead of the last section (Review / Your total).
+function _ixAppend(list){
+  if (!_ixView().length || !list || !list.length) return list;
+  if (list.some(function(x){ return x.key === 'inclx'; })) return list;
+  var at = list.length - 1;
+  list.splice(at, 0, { key:'inclx', label:'Extras', html:_ixSection });
+  return list;
+}
+function _ixSection(){
+  var list = _ixView(), edit = _ixEditable();
+  var tick = '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var rows = list.map(function(x){
+    var pr = _ixPrice(x);
+    return '<div class="qb-opt ps-ao ix-row on" data-ix="'+esc2(x.id)+'">'+
+        '<div class="ps-ao-hit" style="cursor:default">'+
+          '<span class="qb-tick sq">'+tick+'</span>'+
+          '<span class="qb-opt-txt"><b>'+esc2(x.name)+'</b>'+(x.desc ? '<span class="qb-opt-desc">'+esc2(x.desc)+'</span>' : '')+'</span>'+
+          '<span class="qb-opt-price"><span class="qb-up">'+(pr ? '+' + _qbMoney(_qbIncl(pr)) : 'Included')+'</span></span>'+
+        '</div>'+
+        (edit
+          ? '<span class="ps-ao-tools no-print">'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-ed" title="Change this extra’s name, words or price" onclick="_ixEdit(\''+esc2(x.id)+'\')">✎ Edit</button>'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-del" title="Take this extra off the quote" onclick="_ixDelete(\''+esc2(x.id)+'\')">✕</button>'+
+            '</span>'
+          : '')+
+      '</div>';
+  }).join('');
+  var tot = list.reduce(function(s, x){ return s + _ixPrice(x); }, 0);
+  return '<div class="qb-body ix-body">'+
+    '<span class="qb-eyebrow">Included in your price</span>'+
+    '<h2 class="qb-h2">Extras</h2>'+
+    (edit ? '<div class="qco-tools no-print" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 8px">'+
+        '<button type="button" class="qe-inline ix-add" onclick="_ixEdit(null)" title="Add another included item to this quote">+ Add an extra</button>'+
+        '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_ixClear()" title="Take every extra off this quote">Delete this page from this quote</button></div>' : '')+
+    _qSecPara('inclx', 'These extras are included in your quote, and their prices are in your total.')+
+    '<div class="qb-opts">'+rows+'</div>'+
+    (list.length > 1 && tot ? '<div class="qb-chosen ix-tot">Extras in total: <b>+'+_qbMoney(_qbIncl(tot))+'</b></div>' : '')+
+  '</div>';
+}
+function _ixWrite(list){
+  if (!S.quote) return;
+  if (list && list.length) S.quote.inclExtras = list; else delete S.quote.inclExtras;
+  _qcoChanged();
+}
+function _ixEdit(id){
+  if (!S.quote || !_ixEditable()) return;
+  var cur = id ? _ixItems().filter(function(x){ return x.id === id; })[0] : null;
+  if (id && !cur) return;
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>'+(cur ? 'Edit this extra' : 'Add an extra')+'</b><span>An item included in this quote — e.g. Coloured downpipes, Leaf diverters. It shows as included with its price, and the price is added to the quote’s total, excl. GST.</span></div>'+
+    '<div class="qco-bd">'+
+      '<label class="qco-l" for="ixName">Item name</label><input type="text" id="ixName" maxlength="70" placeholder="e.g. Leaf diverters" value="'+esc2(cur ? cur.name || '' : '')+'">'+
+      '<label class="qco-l" for="ixDesc">Description <span style="text-transform:none;font-weight:400">(shown under it, optional)</span></label>'+
+      '<input type="text" id="ixDesc" maxlength="240" value="'+esc2(cur ? cur.desc || '' : '')+'">'+
+      '<label class="qco-l" for="ixPrice">Price <span style="text-transform:none;font-weight:400">($ excl. GST)</span></label>'+
+      '<input type="text" id="ixPrice" inputmode="decimal" value="'+esc2(cur ? String(_ixPrice(cur)) : '')+'" placeholder="0.00">'+
+      '<div class="qco-msg" id="ixMsg"></div>'+
+    '</div>'+
+    '<div class="qco-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>'+
+      '<button type="button" class="qa-btn qa-btn-primary" id="ixSave" onclick="_ixSave()">'+(cur ? 'Save' : 'Add to quote')+'</button></div>');
+  host._ixId = cur ? cur.id : null;
+  setTimeout(function(){ try { document.getElementById('ixName').focus(); } catch(e){} }, 30);
+}
+function _ixSave(){
+  var host = document.getElementById('qcoModal'); if (!host || !_ixEditable()) return;
+  var msg = document.getElementById('ixMsg');
+  var name = String(document.getElementById('ixName').value || '').trim().slice(0, 70);
+  var desc = String(document.getElementById('ixDesc').value || '').trim().slice(0, 240);
+  var price = parseFloat(String(document.getElementById('ixPrice').value || '').replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(price)) price = 0;
+  price = Math.round(price * 100) / 100;
+  if (!name){ if (msg) msg.textContent = 'Give the extra a name.'; return; }
+  var id = host._ixId;
+  _qcoClose();
+  var list = _ixItems().slice();
+  if (id) list = list.map(function(x){ return x.id === id ? Object.assign({}, x, { name:name, desc:desc, price:price }) : x; });
+  else list.push({ id: _qcoNewId('ix'), name:name, desc:desc, price:price });
+  _ixWrite(list);
+  try { _siteToast(id ? 'Extra saved' : '“' + name + '” added to this quote’s extras'); } catch(e){}
+}
+function _ixDelete(id){
+  if (!_ixEditable()) return;
+  var cur = _ixItems().filter(function(x){ return x.id === id; })[0]; if (!cur) return;
+  if (!confirm('Take “' + cur.name + '” off this quote’s extras?')) return;
+  _ixWrite(_ixItems().filter(function(x){ return x.id !== id; }));
+}
+function _ixClear(){
+  if (!_ixEditable() || !_ixItems().length) return;
+  if (!confirm('Take every extra off this quote?')) return;
+  _ixWrite([]);
+}
 // ── taking a section out of this quote, and putting it back ─────────
 // The same store the template editor uses (`S.quote.modernParked`; the
 // condition page is the A4's page, so it is toggled in the document), from
@@ -36452,6 +36599,7 @@ function _qbParkedForOffice(){
 }
 function _qbInsertBtnHtml(key){
   if (key === '__addopt') return '<button type="button" class="qe-inline qe-insert qco-insert no-print" onclick="_qcoInsertMenu()" title="Add an option of your own to this quote \u2014 new, or one you saved">+ Insert custom option</button>';
+  if (key === '__addinclx') return '<button type="button" class="qe-inline qe-insert ix-insert no-print" onclick="_ixEdit(null)" title="Add items included in this quote, each with its price \u2014 e.g. coloured downpipes, leaf diverters">+ Insert Extras</button>';
   return '<button type="button" class="qe-inline qe-insert no-print" onclick="_qbSectionInsert(\''+esc2(key)+'\')" title="Put this section back into this quote">+ Insert '+esc2(_qModernLabel(key))+' page</button>';
 }
 // Mark the recommended row of a fixed group: the office's pick, else the base.
@@ -36625,7 +36773,9 @@ function _psPicksAuto(){
   } catch(e){}
   return out.filter(function(r){ return r[1]; });
 }
-function _qbPicksAuto(){
+// The included extras close every list of picks, each "Included".
+function _qbPicksAuto(){ return _qbPicksAutoBase().concat(_ixView().map(function(x){ return [String(x.name).trim(), 'Included', 'ix:' + x.id]; })); }
+function _qbPicksAutoBase(){
   if (typeof _psIsShed === 'function' && _psIsShed()) { try { return _psPicksAuto(); } catch(e){} }
   if (_isGutterJob()) { try { return _gjPicksAuto(); } catch(e){} }
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -36727,7 +36877,7 @@ function _fergusJobSummary(){
 // the sections card and the editor all agree.
 var QD_LABELS = { psplans:'Plans & elevations', psdetails:'Your shed', psplan:'Plan option', psgrade:'Steel grade', psprofile:'Profile',
   psthickness:'Thickness', pscolour:'Colour', psgutter:'Guttering', psroller:'Roller door', psaddons:'Add-ons', psincluded:"What's included",
-  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total' };
+  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total', inclx:'Extras' };
 function _qModernLabel(key){ return QD_LABELS[key] || (/^extra\d+$/.test(key) ? 'Options' : key); }
 function _qModernFixed(key, lastKey){ return key === 'cover' || key === 'proposal' || key === lastKey; }
 function _qModernApply(list){
@@ -36800,7 +36950,7 @@ function _qdSectionsRaw(){
     });
   } catch(e){}
   list.push({ key:'review', label:'Review', html:_qdReview });
-  return list;
+  return _ixAppend(list);
 }
 // The office's preview shows an "Insert … page" placeholder where a
 // section was taken out, at the place the default order puts it.
@@ -36821,6 +36971,10 @@ function _qcoWithInsert(list){
   if (at < 0) out.forEach(function(x, i){ if (at < 0 && (x.key === 'review' || x.key === 'summary')) at = i; });
   if (at < 0) at = out.length;
   out.splice(at, 0, { key:'__addopt', parked:true, label:'Custom option' });
+  // "+ Insert Extras" beside it while the quote has none (the section carries
+  // its own "+ Add an extra" once it has one).
+  // Above it, so "+ Insert custom option" stays straight above the colour.
+  if (!_ixItems().length) out.splice(at, 0, { key:'__addinclx', parked:true, label:'Extras' });
   return out;
 }
 function _qdWithParked(secs){
@@ -36847,7 +37001,7 @@ function _qdRender(){
   var logo = br.logo_url || br.logo || '';
   var q = S.quote || {};
   var main = _qdWithPlaceholders(secs).map(function(sc){
-    if (sc.key === '__addopt') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
+    if (sc.key === '__addopt' || sc.key === '__addinclx') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
     if (sc.parked) return '<section class="qd-sec qd-parked no-print" data-qd-parked="'+esc2(sc.key)+'">'+_qbInsertBtnHtml(sc.key)+'</section>';
     var inner = '';
     try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
@@ -41709,7 +41863,8 @@ function _poleShedSelItems(){
       if (d) out.push({ label: (g.title || 'Option') + ' \u2014 ' + (row.name || row.id), delta: d });
     });
   } catch(e){}
-  return out;
+  // The included extras, every one of them in the price.
+  return out.concat(_ixChanges(_ixView()));
 }
 function _poleShedSelDelta(){
   return _poleShedSelItems().reduce(function(d, r){ return d + r.delta; }, 0);
@@ -43756,7 +43911,7 @@ function _psModernSections(){
   // narrow screen's bottom bar both scroll to #qd-review, so a shed with its
   // own key had a Review button that went nowhere.
   list.push({ key:'review',      label:'Review',      html:_psmReview });
-  return list;
+  return _ixAppend(list);
 }
 // The customer's quote is locked once they've accepted it — selections are
 // frozen at what they signed off. Blocks the option/roof/colour setters (the
@@ -46275,7 +46430,7 @@ function _qtSnapshot(){
       var w = {};
       ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
       if (q.summaryRowLabels && typeof q.summaryRowLabels === 'object') w.summaryRowLabels = JSON.parse(JSON.stringify(q.summaryRowLabels));
-      ['custDesc','custExcl','custNotes','summaryPicks','customExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
+      ['custDesc','custExcl','custNotes','summaryPicks','customExtras','inclExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
       if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
       if (q.sectionDesc && typeof q.sectionDesc === 'object') w.sectionDesc = JSON.parse(JSON.stringify(q.sectionDesc));
       return w;
@@ -46298,7 +46453,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras','inclExtras'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -46464,7 +46619,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;

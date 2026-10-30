@@ -77,6 +77,7 @@ const rail = await pg.evaluate(async () => {
   _qeRailSync(); await new Promise(r => setTimeout(r, 100));
   const wrap = document.getElementById('quoteProposal').getBoundingClientRect();
   const insertOnRail = [...document.querySelectorAll('#qeRail .qe-rail-btn')].some(b => /Insert custom option/.test(b.textContent));
+  const insertExtrasOnRail = [...document.querySelectorAll('#qeRail .qe-rail-btn')].some(b => /Insert Extras/.test(b.textContent));
   const btns = [...document.querySelectorAll('#qeRail .qe-rail-btn')].filter(b => b.dataset.qeRail).map(b => {
     const r = b.getBoundingClientRect();
     const a = document.querySelector('#qpRoot .qe-inline[data-qe-btn="' + b.dataset.qeRail + '"]').getBoundingClientRect();
@@ -86,13 +87,14 @@ const rail = await pg.evaluate(async () => {
              close: a.left - r.right < 80, hand: !!h && h.left >= r.right - 2 && h.right <= a.left + 2 && /\u{1F449}/u.test(hand.textContent) };
   });
   const lines = [...document.querySelectorAll('#qeRail .qe-rail-line')].map(l => /\u{1F449}/u.test(l.textContent));
-  return { insertOnRail, on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
+  return { insertOnRail, insertExtrasOnRail, on: document.documentElement.classList.contains('qe-rail-on'), gutter: parseFloat(getComputedStyle(document.getElementById('quoteProposal')).paddingLeft), btns, lines,
            inlineHidden: getComputedStyle(document.querySelector('#qpRoot .qe-inline')).visibility === 'hidden' };
 });
 // Seven since 2026-10-01: Edit summary on the Your quote section; and
-// "+ Insert custom option" (2026-10-02) rides the rail too, with its own hand.
-check('a wide office screen shows the rail: seven edit buttons in the left gutter, each level with its block, close beside it, a pointing hand between — and + Insert custom option',
-  rail.on && rail.gutter >= 150 && rail.btns.length === 7 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.insertOnRail && rail.lines.length === 8 && rail.lines.every(Boolean) && rail.inlineHidden,
+// "+ Insert custom option" (2026-10-02) rides the rail too, with its own hand,
+// and so does "+ Insert Extras" (2026-10-30).
+check('a wide office screen shows the rail: seven edit buttons in the left gutter, each level with its block, close beside it, a pointing hand between — and + Insert custom option and + Insert Extras',
+  rail.on && rail.gutter >= 150 && rail.btns.length === 7 && rail.btns.every(b => b.level && b.leftOf && b.close && b.hand) && rail.insertOnRail && rail.insertExtrasOnRail && rail.lines.length === 9 && rail.lines.every(Boolean) && rail.inlineHidden,
   JSON.stringify(rail));
 check('the book carries the same three on its proposal, grade and gutter pages', where.book.proposal === 'desc' && where.book.grade === 'sel' && where.book.gutter === 'gutter', JSON.stringify(where.book));
 check('the classic document carries them beside its scope, its selections page and its guttering panel', where.a4.includes('desc') && where.a4.includes('sel') && where.a4.includes('gutter'), where.a4.join(','));
@@ -332,7 +334,7 @@ check('the roof colour section deletes like the others: gone, its pick off the s
   JSON.stringify({ b: park.colourPickBefore, g: park.colourGone, a: park.colourPickAfter, ph: park.colourPlaceholder, back: park.colourBack }));
 check('…and the customer never sees the colour section\'s Delete button', park.custColourDel === false);
 check('deleting the profile section leaves an Insert Profile page button between the grade and the thickness', park.parked.join(',') === 'profile' && park.profileGone && /Insert Profile page/.test(park.placeholder || '') && park.afterGrade === 'grade' && park.beforeThickness === 'thickness', JSON.stringify(park));
-check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page|+ Insert custom option' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
+check('…the customer never sees a placeholder, and the phone preview lists it under the book', park.custParked === 0 && park.bookStrip.join('|') === '+ Insert Profile page|+ Insert custom option|+ Insert Extras' && !park.bookHasProfile, JSON.stringify({ c: park.custParked, strip: park.bookStrip }));
 check('…and Insert puts it back', park.back);
 
 // GRADE AND GAUGE DELTAS ARE WORKED ON THE RAW MATERIAL COST — before the

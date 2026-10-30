@@ -7751,6 +7751,14 @@ function _quoteChoiceLines(quote){
   const sel = (po.extraRoofsSel && typeof po.extraRoofsSel === 'object') ? po.extraRoofsSel : {};
   const xr = Array.isArray(quote && quote.extraRoofs) ? quote.extraRoofs : [];
   Object.keys(sel).forEach(function(k){ if (sel[k] && xr[+k]) out.push('Additional roof: ' + String(xr[+k].name || ('Roof ' + (+k + 2))).slice(0, 60)); });
+  // The quote's included extras (2026-10-30): every one is IN the price.
+  // The list stamped at send is what the customer accepted; the live one otherwise.
+  const _pix = ((((quote || {}).share || {}).priced) || {}).inclx;
+  (Array.isArray(_pix) ? _pix : Array.isArray(quote && quote.inclExtras) ? quote.inclExtras : []).forEach(function(x){
+    const nm = String((x && x.name) || '').trim().slice(0, 70);
+    const pr = parseFloat(x && x.price) || 0;
+    if (nm) out.push('Extra (included): ' + nm + (pr ? ' ' + _money(pr) + ' + GST' : ''));
+  });
   const acc = (quote && quote.accepted) || {};
   (Array.isArray(acc.options) ? acc.options : []).forEach(function(o){
     o = o || {};
