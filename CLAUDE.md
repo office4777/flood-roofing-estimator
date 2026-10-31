@@ -136,7 +136,22 @@ accordingly.
   filled them); the attendance list is whoever logs hours (`teamWork.persons`) unless the office types
   its own (`fr3_tbxStaff`, "Edit the list") — NO NAMES IN THE SOURCE, the hub is a public page; Present
   ticks are kept on the week. Print / Save PDF is `tbxPrint` (`body.tbx-printing`, an injected
-  `@page` A4 portrait, the meeting deck's own pattern). `hubui` (113), `hub-shots` renders it.
+  `@page` A4 portrait, the meeting deck's own pattern). `hubui` (118), `hub-shots` renders it.
+  THE FERGUS LINK ON IT (2026-10-31, the owner: "make sure all the functions to the toolbox work, like the
+  fergus link (showing the scheduled jobs the guys are on this week and what they were working on last
+  week) and the weather forecast"). Fergus's partner API has NO schedule (the old app's own report route
+  returned empty schedule maps for the same reason), so the Crews section (`tbxLoadFergus`,
+  `_tbxFergusHtml`, `#tbx-fg`) reads the TIME ENTRIES newest-first (`/timeEntries?pageSize=100&sortField=
+  timeEntryDate&sortOrder=desc&page=N`, plain paging as the fallback, stopping at the first page wholly
+  before last Monday): LAST WEEK is exact — `#tbx-last`, person × job × hours × days, Mon–Sun before the
+  sheet's week, a job the Workload sync has not got named from `/jobs/<id>`, no job = "Toolbox / yard /
+  other"; THIS WEEK is `#tbx-week`, one row a job: last week's crew, the hours logged so far, and a PLANNED
+  CREW the office types (`fr3_tbx[<Monday>].crew`, shared, last week's crew as the placeholder; stacked
+  rows on a phone). Four schedule shapes (`TBX_SCHED_SHAPES`) are probed once a month (`tbxSchedProbe`)
+  and shown if Fergus ever answers one. The read is kept in `fr3_tbx[<Monday>].fergus`. THE FORECAST asks
+  open-meteo for `weather_code` (reads `weathercode` too), matches days by `daily.time`, says in words when
+  the week is past its 16 days, and reports the API's own `reason` on a refusal — it cannot be fetched from
+  the cloud container (the proxy refuses the host), so `hubui` pins it with a stubbed `fetch`.
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):

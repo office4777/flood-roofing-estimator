@@ -1,0 +1,24 @@
+name: Hub Fergus schedule probe
+
+# On demand: asks Fergus's partner API, through the fergus-proxy, which schedule / site-visit / calendar
+# shapes answer, so the toolbox talk's "who is on which job this week" can be read from Fergus if it is
+# there at all. Statuses, field names and short samples into this run's log; never the key.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe Fergus for a schedule
+        working-directory: floodroofing/hub-api
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
+        run: node scripts/fergus-schedule-probe.js
