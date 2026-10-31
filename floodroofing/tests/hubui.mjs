@@ -169,11 +169,60 @@ const tbx = await pg.evaluate(() => {
   }, 150));
 });
 check('the toolbox talk opens from the Reports tab on this Monday\'s week', tbx.open && tbx.monday && tbx.closed, JSON.stringify({ open: tbx.open, monday: tbx.monday, wk: tbx.wk0 }));
-check('…with the meeting sheet\'s ten sections in order', JSON.stringify(tbx.secs) === JSON.stringify(['📋Meeting details', '🎯Company direction & updates', '🤝Team culture', '🌤️Weather forecast — Kerikeri', '📊Jobs on the go — priced vs actual hours', '🏠Housekeeping', '🎉Special events / occasions', '⛑️Health & safety', '💬Other information / comments', '✍️Attendance & signatures']), JSON.stringify(tbx.secs));
+check('…with the meeting sheet\'s eleven sections in order', JSON.stringify(tbx.secs) === JSON.stringify(['📋Meeting details', '🎯Company direction & updates', '🤝Team culture', '🌤️Weather forecast — Kerikeri', '📊Jobs on the go — priced vs actual hours', '👷Crews — last week & this week (Fergus)', '🏠Housekeeping', '🎉Special events / occasions', '⛑️Health & safety', '💬Other information / comments', '✍️Attendance & signatures']), JSON.stringify(tbx.secs));
 check('…the jobs on the go are the Workload sync\'s active jobs with a used-hours badge each', tbx.jobs === tbx.jobsSynced && tbx.jobs > 0 && tbx.pct === tbx.jobs, JSON.stringify({ jobs: tbx.jobs, synced: tbx.jobsSynced, pct: tbx.pct }));
 check('…notes save as typed, per week, and come back on that week', tbx.savedHere && tbx.blankNext && tbx.back && tbx.noteBack && tbx.wk1 !== tbx.wk0, JSON.stringify({ savedHere: tbx.savedHere, blankNext: tbx.blankNext, back: tbx.back, noteBack: tbx.noteBack }));
 check('…the attendance list is the typed one and a Present tick is kept on the week', JSON.stringify(tbx.names) === JSON.stringify(['Lead One', 'Apprentice Two']) && tbx.present['Lead One'] === 1 && tbx.stillTicked, JSON.stringify({ names: tbx.names, present: tbx.present, stillTicked: tbx.stillTicked }));
 check('…and Print puts the sheet alone on A4 portrait, then restores the page', tbx.printed === 1 && tbx.during && tbx.after, JSON.stringify({ printed: tbx.printed, during: tbx.during, after: tbx.after }));
+// The Fergus link and the forecast (2026-10-31, "make sure all the functions to the toolbox work, like the fergus link
+// ... and the weather forecast"): a stubbed Fergus answers time entries for last week and this week, a stubbed
+// open-meteo answers the week's codes; the sheet reads both into the week and keeps them.
+const fg = await pg.evaluate(async () => {
+  localStorage.removeItem('fr3_tbx'); localStorage.removeItem('fr3_tbxSchedProbe');
+  S.set('fergus_proxy_url', 'https://proxy.test');
+  openToolbox(tbxMonday(new Date()));
+  const ws = _tbxWk, lm = tbxAddDays(ws, -7);
+  const jobs = S.get('fwJobs', []);
+  const A = jobs[0].id, B = jobs[1].id;
+  const te = (id, jobId, user, day, h) => ({ timeEntryId: id, jobId, userName: user, startTime: day + ' 07:30', hours: h });
+  const entries = [
+    te(1, A, 'Nick Example', tbxAddDays(ws, 0), 8),            // this week, Monday
+    te(2, A, 'Nick Example', tbxAddDays(lm, 0), 8), te(3, A, 'Nick Example', tbxAddDays(lm, 1), 8), te(4, A, 'Nick Example', tbxAddDays(lm, 2), 6),
+    te(5, A, 'Sam Trainee', tbxAddDays(lm, 0), 8), te(6, B, 'Sam Trainee', tbxAddDays(lm, 3), 7.5),
+    te(7, '77777', 'Sam Trainee', tbxAddDays(lm, 4), 4),         // a job the Workload sync has not got → named from /jobs/77777
+    te(8, null, 'Nick Example', tbxAddDays(lm, 0), 0.5),         // toolbox talk itself, no job
+    te(9, A, 'Nick Example', tbxAddDays(lm, -3), 8),             // the week before → out
+  ];
+  const calls = [];
+  window.fergusApiFetch = async (path) => { calls.push(path);
+    if (/^\/timeEntries\?/.test(path)) return /page=1$/.test(path) ? entries : [];
+    if (path === '/jobs/77777') return { id: 77777, jobNo: '3777', customer: { name: 'Finished Customer' }, siteAddress: { address1: '9 Done St' } };
+    throw new Error('HTTP 404: no such route'); };
+  await tbxLoadFergus(document.getElementById('tbx-fg'));
+  const lastRows = [...document.querySelectorAll('#tbx-last tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
+  const weekRows = [...document.querySelectorAll('#tbx-week tbody tr')].map(tr => ({ job: tr.children[0].textContent.trim(), last: tr.children[1].textContent.trim(), logged: tr.children[2].textContent.trim(), hint: tr.querySelector('input').placeholder }));
+  const crewIn = document.querySelector('#tbx-week input.tbx-crew'); crewIn.value = 'Nick, Sam'; crewIn.dispatchEvent(new Event('input'));
+  const stored = JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {};
+  const probe = S.get('tbxSchedProbe', null);
+  const schedTried = calls.filter(c => !/^\/timeEntries|^\/jobs\/77777/.test(c)).length;
+  // the forecast
+  const realFetch = window.fetch; let url = '';
+  window.fetch = async (u) => { url = String(u); const time = [0, 1, 2, 3, 4].map(i => tbxAddDays(ws, i)); return { ok: true, status: 200, json: async () => ({ daily: { time, weather_code: [1, 61, 3, 95, 0], precipitation_probability_max: [5, 80, 15, 60, 0] } }) }; };
+  await tbxForecast(document.getElementById('tbx-fc'));
+  window.fetch = realFetch;
+  const fc = TBX_DAYS.map(d => document.querySelector('#tbx-body input[oninput*="forecast' + d + '"]').value);
+  const kept = JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {};
+  // the week after next is past open-meteo's 16 days: no request, a plain message
+  let far = 0; window.fetch = async () => { far++; return { ok: true, json: async () => ({}) }; };
+  tbxStep(3); await tbxForecast(document.getElementById('tbx-fc')); window.fetch = realFetch; tbxStep(-3);
+  closeToolbox(); delete window.fergusApiFetch; S.set('fergus_proxy_url', '');
+  return { lastRows, weekRows, crew: stored.crew, fergusKept: !!(stored.fergus && stored.fergus.last), probe, schedTried, url, fc, fcKept: kept.forecastTue, far, A, B };
+});
+check('Load from Fergus lists what each person was on LAST week, hours and days, the week before left out', JSON.stringify(fg.lastRows.map(r => r[0])) === JSON.stringify(['Nick', 'Sam Trainee']) && fg.lastRows[0][2] === '22.5h' && /Mon–Wed \(3d\)/.test(fg.lastRows[0][1]) && /Toolbox \/ yard \/ other/.test(fg.lastRows[0][1]) && /#3777 Finished Customer/.test(fg.lastRows[1][1]) && fg.lastRows[1][2] === '19.5h', JSON.stringify(fg.lastRows));
+check('…and THIS week per job: last week\'s crew as the hint, the hours logged so far, a planned crew typed and kept', fg.weekRows[0].hint === 'Nick, Sam Trainee' && /Nick 8h/.test(fg.weekRows[0].logged) && fg.weekRows[1].hint === 'Sam Trainee' && /nothing yet/.test(fg.weekRows[1].logged) && fg.crew && fg.crew[fg.A] === 'Nick, Sam' && fg.fergusKept, JSON.stringify({ w0: fg.weekRows[0], w1: fg.weekRows[1], crew: fg.crew, kept: fg.fergusKept }));
+check('…the schedule shapes are probed once and remembered as none', fg.schedTried === 4 && fg.probe && fg.probe.path === null, JSON.stringify({ tried: fg.schedTried, probe: fg.probe }));
+check('the forecast fills Mon–Fri from open-meteo\'s weather_code with the rain chance over 20%, kept on the week', /weather_code/.test(fg.url) && /start_date=\d{4}-\d{2}-\d{2}&end_date=/.test(fg.url) && JSON.stringify(fg.fc) === JSON.stringify(['Mainly clear', 'Slight rain, 80% chance of rain', 'Overcast', 'Thunderstorm, 60% chance of rain', 'Clear sky']) && fg.fcKept === 'Slight rain, 80% chance of rain', JSON.stringify({ url: fg.url, fc: fg.fc, kept: fg.fcKept }));
+check('…and a week past open-meteo\'s 16 days asks nothing and says so', fg.far === 0, JSON.stringify({ far: fg.far }));
 await pg.evaluate(() => { localStorage.removeItem('fr3_tbx'); localStorage.removeItem('fr3_tbxStaff'); go('dash'); });
 check('the nightly sync\'s entry point is still there', await pg.evaluate(() => typeof window.__teamHeadlessSync === 'function'));
 

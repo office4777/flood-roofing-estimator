@@ -453,6 +453,15 @@ html[data-theme="dark"] .tbx-hd{background:var(--primary);color:#04121a;}
 .tbx-ta{resize:vertical;min-height:58px;}
 .tbx-in:focus,.tbx-ta:focus{border-color:var(--primary);}
 .tbx-tbl{width:100%;border-collapse:collapse;font-size:.78rem;}
+.tbx-sub{font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;font-weight:800;color:var(--muted);padding:10px 12px 2px;}
+.tbx-crew{min-width:140px;}
+@media (max-width:760px){
+  #tbx-week thead{display:none;}#tbx-week tr{display:block;padding:8px 0 10px;border-bottom:1px solid var(--border);}
+  #tbx-week td{display:block;border:0;padding:2px 10px;}#tbx-week td:nth-child(2):before{content:'Last week: ';font-weight:700;}
+  #tbx-week td:nth-child(3):before{content:'Logged this week: ';font-weight:700;color:var(--muted);}#tbx-week td:nth-child(4):before{content:'Planned crew';display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:4px 0 2px;}
+  #tbx-week .tbx-crew{width:100%;box-sizing:border-box;}
+  #tbx-last td:nth-child(2){font-size:.74rem;}
+}
 .tbx-tbl th{text-align:left;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap;}
 .tbx-tbl td{padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
 .tbx-pct{display:inline-block;padding:2px 8px;border-radius:12px;font-weight:800;font-size:.72rem;}
@@ -7388,16 +7397,22 @@ function openToolbox(ws){_tbxWk=ws||_tbxWk||tbxMonday(new Date());document.getEl
 function closeToolbox(){document.getElementById('tbx-modal').classList.remove('open');document.body.style.overflow='';}
 function tbxStep(d){_tbxWk=tbxAddDays(_tbxWk,7*d);renderToolbox();}
 async function tbxForecast(btn){
+  // open-meteo (no key, CORS open) forecasts 16 days ahead; weather_code is the current name, weathercode the old one.
   if(btn){btn.disabled=true;btn.textContent='Fetching…';}
+  const reset=()=>{if(btn){btn.disabled=false;btn.textContent='Auto-fill Kerikeri forecast';}};
   try{
+    const today=new Date().toLocaleDateString('en-CA',{timeZone:'Pacific/Auckland'});
+    if(_tbxWk>tbxAddDays(today,15)){toast('open-meteo only forecasts 16 days ahead — '+tbxShort(_tbxWk)+' is further out, type it in nearer the time','err');reset();return;}
     const end=tbxAddDays(_tbxWk,4);
-    const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=-35.2275&longitude=173.9462&daily=weathercode,precipitation_probability_max&timezone=Pacific%2FAuckland&start_date='+_tbxWk+'&end_date='+end);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const data=await r.json();const f=tbxForm();const all=tbxAll();let got=0;
-    TBX_DAYS.forEach((d,i)=>{const code=data.daily&&data.daily.weathercode?data.daily.weathercode[i]:undefined;if(code===undefined)return;const rain=(data.daily.precipitation_probability_max||[])[i]||0;const lab=TBX_WMO[code]||('Code '+code);f['forecast'+d]=rain>20?(lab+', '+rain+'% chance of rain'):lab;got++;});
+    const r=await fetch('https://api.open-meteo.com/v1/forecast?latitude=-35.2275&longitude=173.9462&daily=weather_code,precipitation_probability_max&timezone=Pacific%2FAuckland&start_date='+_tbxWk+'&end_date='+end);
+    let data=null;try{data=await r.json();}catch(e){}
+    if(!r.ok)throw new Error((data&&data.reason)||('HTTP '+r.status));
+    const D=(data&&data.daily)||{};const codes=D.weather_code||D.weathercode||[];const rains=D.precipitation_probability_max||[];const times=D.time||[];
+    const f=tbxForm();const all=tbxAll();let got=0;
+    TBX_DAYS.forEach((d,i)=>{const day=tbxAddDays(_tbxWk,i);let k=times.indexOf(day);if(k<0&&!times.length)k=i;const code=k>=0?codes[k]:undefined;if(code==null)return;const rain=num(rains[k]);const lab=TBX_WMO[code]||('Code '+code);f['forecast'+d]=rain>20?(lab+', '+rain+'% chance of rain'):lab;got++;});
     all[_tbxWk]=f;S.set('tbx',all);renderToolbox();
-    if(!got)toast('open-meteo has no forecast for that week yet — type it in','err');
-  }catch(e){toast('Couldn’t fetch the forecast ('+(e&&e.message||e)+') — type it in','err');if(btn){btn.disabled=false;btn.textContent='Auto-fill Kerikeri forecast';}}
+    if(!got){toast('open-meteo has no forecast for that week yet — type it in','err');reset();}
+  }catch(e){toast('Couldn’t fetch the forecast ('+(e&&e.message||e)+') — type it in','err');reset();}
 }
 function tbxPrint(){
   const st=document.createElement('style');st.id='tbx-page';st.textContent='@page{size:A4 portrait;margin:10mm;}';document.head.appendChild(st);
@@ -7428,6 +7443,7 @@ function renderToolbox(){
     :'<tr><td colspan="6" class="empty">No active jobs synced yet — ⚙ → Refresh brings them in.</td></tr>';
   h+=sec('📊','Jobs on the go — priced vs actual hours','<div class="tbx-wrap"><table class="tbx-tbl" id="tbx-jobs"><thead><tr><th>Job</th><th>Customer &amp; site</th><th style="text-align:center;">Priced h</th><th style="text-align:center;">Actual h</th><th style="text-align:center;">Used</th><th>Notes</th></tr></thead><tbody>'+jobRows+'</tbody></table></div>'+
      '<div class="tbx-np" style="padding:6px 12px;display:flex;gap:12px;flex-wrap:wrap;font-size:.64rem;"><span class="tbx-pct ok">under 80% — on track</span><span class="tbx-pct near">80–100% — near budget</span><span class="tbx-pct over">over 100% — exceeded</span><span class="mut">from the Workload sync'+(S.get('fw_last_sync','')?' · '+esc(S.get('fw_last_sync','')):'')+'</span></div>');
+  h+=sec('👷','Crews — last week &amp; this week (Fergus)',_tbxFergusHtml(ws,f,jobs));
   h+=sec('🏠','Housekeeping',rows([{k:'toolEquipment',l:'Tool & equipment',ta:1},{k:'materialOrders',l:'Material orders',ta:1},{k:'training',l:'Training',ta:1},{k:'jobChecklists',l:'Job checklists',ta:1},{k:'timesheetEntries',l:'Timesheet entries',ta:1},{k:'generalHouseKeeping',l:'General housekeeping',ta:1}]),'tbx-pb');
   h+=sec('🎉','Special events / occasions',rows([{k:'videoOfWeek',l:'Video of the week'},{k:'birthdays',l:'Birthdays'},{k:'workAnniversaries',l:'Work anniversaries'},{k:'events',l:'Events'},{k:'leave',l:'Leave'},{k:'otherEvents',l:'Other'}]));
   h+=sec('⛑️','Health &amp; safety','<div style="padding:10px 12px;">'+_tbxTA('healthSafety','H&S topics, incidents, near-misses, toolbox topic, PPE reminders…',6)+'</div>');
@@ -7438,6 +7454,103 @@ function renderToolbox(){
      '<div style="padding:8px 12px;font-size:.66rem;color:var(--muted);border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;"><span>By signing above, I confirm I attended this toolbox talk and understand the information presented.</span><a class="tbx-np" style="font-weight:800;color:var(--primary);cursor:pointer;" onclick="tbxEditStaff()">Edit the list</a></div>');
   h+='<div class="tbx-foot">Flood Roofing Ltd — Weekly Toolbox Talk — '+esc(tbxWeekLabel(ws))+' — Confidential</div>';
   el.innerHTML=h;
+}
+
+// ── THE FERGUS LINK (2026-10-31, the owner: "make sure all the functions to the toolbox work, like the fergus link
+// (showing the scheduled jobs the guys are on this week and what they were working on last week)"). Fergus's partner
+// API gives the hub TIME ENTRIES (who logged hours on which job, on which day) and no schedule — the old toolbox app's
+// own report route said the same ("Fergus partner API only exposes /jobs - no schedule"). So LAST WEEK is read off the
+// entries exactly (person × job × days × hours, Mon–Sun before the sheet's week); THIS WEEK is the hours logged so far
+// plus a PLANNED CREW the office types per job (shared with the team, carried as a hint from last week's crew), and a
+// schedule endpoint is still PROBED once a month (tbxSchedProbe) so that if Fergus ever exposes one it is picked up.
+// The result is kept in fr3_tbx[<Monday>].fergus so it syncs, prints and survives a reload.
+const TBX_SCHED_SHAPES=['/schedule?from={f}&to={t}','/jobs/schedule?from={f}&to={t}','/siteVisits?from={f}&to={t}','/calendar/events?from={f}&to={t}'];
+function tbxEntryDay(e){const t=String((e&&(e.startTime||e.dateEntered||e.timeEntryDate||e.date))||'').replace(' ','T');const d=new Date(t);if(isNaN(d))return '';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function tbxJobLookup(){const m={};(S.get('cashJobs',[])||[]).forEach(j=>{if(j&&j.id!=null)m[String(j.id)]={no:String(j.jobNo||''),name:String(j.job||'')};});(S.get('fwJobs',[])||[]).forEach(j=>{if(j&&j.id!=null)m[String(j.id)]={no:String(j.jobNo||''),name:String(j.client||j.job||''),site:String(j.site||'')};});return m;}
+function tbxFergus(ws){const f=tbxForm(ws);return f.fergus&&typeof f.fergus==='object'?f.fergus:null;}
+function tbxSetCrew(id,val){const f=tbxForm();const c=Object.assign({},f.crew||{});if(String(val||'').trim())c[id]=val;else delete c[id];tbxSet('crew',c);}
+// People who logged hours on a job last week, most hours first — the hint under the planned-crew box.
+function tbxLastCrewOf(fg,id){const out=[];if(!fg||!fg.last)return out;Object.keys(fg.last).forEach(p=>{const j=fg.last[p].jobs&&fg.last[p].jobs[id];if(j&&j.h>0)out.push({n:p,h:j.h});});return out.sort((a,b)=>b.h-a.h);}
+async function tbxLoadFergus(btn){
+  if(!fergusProxyUrl()&&!fergusKey()){toast('Connect Fergus first (⚙)','err');return;}
+  if(btn){btn.disabled=true;btn.textContent='Reading Fergus…';}
+  try{
+    const ws=_tbxWk,lastMon=tbxAddDays(ws,-7),weekEnd=tbxAddDays(ws,7);   // [lastMon, weekEnd)
+    const lookup=tbxJobLookup();
+    const last={},week={},jobs={};
+    const seen=new Set();let n=0,older=0,sorted=true;
+    const add=(bucket,e)=>{
+      const day=tbxEntryDay(e);if(!day)return;
+      const h=entryHours(e);if(h<=0)return;
+      const uname=entryUser(e);const p=matchRoofer(uname)||String(uname||'').trim()||'Unnamed';
+      const jid=e.jobId!=null?String(e.jobId):(e.job_id!=null?String(e.job_id):'');
+      const key=jid||'_none';
+      const P=bucket[p]||(bucket[p]={h:0,jobs:{}});P.h+=h;
+      const J=P.jobs[key]||(P.jobs[key]={h:0,days:[]});J.h+=h;if(J.days.indexOf(day)<0)J.days.push(day);
+      if(jid&&!jobs[jid]){const k=lookup[jid];jobs[jid]={no:(k&&k.no)||String(e.jobNumber||e.jobNo||''),name:(k&&k.name)||String(e.jobTitle||e.jobName||(e.job&&(e.job.name||e.job.title))||''),site:(k&&k.site)||''};}
+    };
+    // Newest first, stop once a whole page lies before last week's Monday (Fergus's own ordering; a guard at 15 pages).
+    for(let page=1;page<=15;page++){
+      let arr=null;
+      for(const shape of ['/timeEntries?pageSize=100&sortField=timeEntryDate&sortOrder=desc&page=','/timeEntries?pageSize=100&page=']){
+        try{arr=_teArr(await fergusApiFetch(shape+page));break;}catch(e){if(shape.indexOf('sortField')<0)throw e;sorted=false;}
+      }
+      if(!arr||!arr.length)break;
+      let pageOld=0;
+      arr.forEach(e=>{const eid=e&&(e.timeEntryId!=null?e.timeEntryId:e.id);if(eid!=null){if(seen.has(eid))return;seen.add(eid);}n++;
+        const day=tbxEntryDay(e);if(!day)return;
+        if(day<lastMon){pageOld++;older++;return;}
+        if(day>=weekEnd)return;
+        add(day<ws?last:week,e);});
+      if(sorted&&pageOld===arr.length)break;
+    }
+    // Names for jobs the Workload sync has not got (finished since, or never active) — a few reads, capped.
+    const unnamed=Object.keys(jobs).filter(id=>!jobs[id].name).slice(0,12);
+    await Promise.all(unnamed.map(async id=>{try{const j=await fergusApiFetch('/jobs/'+encodeURIComponent(id));const job=(j&&(j.data||j))||{};jobs[id].no=jobs[id].no||String(job.jobNo||job.jobNumber||'');jobs[id].name=fergusName(job.customer)||fergusName(job.mainContact)||String(job.brief||job.title||'')||('Job '+id);jobs[id].site=fergusAddr(job.siteAddress)||'';}catch(e){jobs[id].name='Job '+id;}}));
+    // Probe for a schedule once a month: if Fergus ever answers one of these shapes with rows, they are shown.
+    let sched=S.get('tbxSchedProbe',null)||null;
+    if(!sched||!(sched.at>Date.now()-30*86400000)){
+      sched={at:Date.now(),path:null};
+      for(const sh of TBX_SCHED_SHAPES){const p=sh.replace('{f}',ws).replace('{t}',tbxAddDays(ws,6));try{const j=await fergusApiFetch(p);const a=Array.isArray(j)?j:((j&&(j.data||j.results||j.items||j.events||j.visits))||null);if(Array.isArray(a)){sched.path=sh;break;}}catch(e){}}
+      S.set('tbxSchedProbe',sched);
+    }
+    let schedRows=[];
+    if(sched.path){try{const j=await fergusApiFetch(sched.path.replace('{f}',ws).replace('{t}',tbxAddDays(ws,6)));const a=Array.isArray(j)?j:((j&&(j.data||j.results||j.items||j.events||j.visits))||[]);schedRows=a.slice(0,200).map(x=>({day:tbxEntryDay({startTime:x.startTime||x.start||x.date||x.scheduledDate}),who:entryUser(x)||fergusName(x.user||x.assignee||x.assignedTo)||'',job:String(x.jobId!=null?x.jobId:(x.job&&x.job.id)||''),title:String(x.title||x.summary||x.description||'')}));}catch(e){}}
+    const f=tbxForm();const all=tbxAll();
+    f.fergus={at:new Date().toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',timeZone:'Pacific/Auckland'}),from:lastMon,to:tbxAddDays(weekEnd,-1),last,week,jobs,entries:n,sorted,sched:{path:sched.path,rows:schedRows}};
+    all[ws]=f;S.set('tbx',all);renderToolbox();
+    if(!Object.keys(last).length&&!Object.keys(week).length)toast('Fergus has no time entries between '+tbxShort(lastMon)+' and '+tbxShort(tbxAddDays(weekEnd,-1))+(older?' (its newest '+older+' were older)':''),'err');
+  }catch(e){toast('Couldn’t read Fergus ('+(e&&e.message||e)+')','err');}
+  if(btn){btn.disabled=false;btn.textContent='Load from Fergus';}
+}
+function _tbxDayList(days){const d=(days||[]).slice().sort();const names=d.map(x=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(x+'T00:00:00').getDay()]);return names.length>2?names[0]+'–'+names[names.length-1]+' ('+names.length+'d)':names.join(', ');}
+function _tbxJobLabel(fg,id){if(id==='_none')return 'Toolbox / yard / other';const j=(fg.jobs||{})[id]||{};return (j.no?'#'+j.no+' ':'')+(j.name||('Job '+id));}
+// The section: Load button + status, last week per person, this week per job (logged so far · planned crew).
+function _tbxFergusHtml(ws,f,jobs){
+  const fg=f.fergus;
+  let h='<div class="tbx-np" style="padding:8px 12px 2px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="tbx-nb" id="tbx-fg" onclick="tbxLoadFergus(this)">Load from Fergus</button>'+
+    '<span class="mut" style="font-size:.66rem;">'+(fg?'Read '+esc(fg.at)+' · '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(fg.to))+' · '+fg.entries+' time entries':'Reads the time entries: who was on which job last week, and the hours logged so far this week')+'</span></div>';
+  if(fg&&fg.sched&&fg.sched.path&&fg.sched.rows&&fg.sched.rows.length){
+    h+='<div class="tbx-sub">Scheduled this week (Fergus)</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-sched"><thead><tr><th>Day</th><th>Who</th><th>Job</th></tr></thead><tbody>'+fg.sched.rows.map(r=>'<tr><td>'+esc(r.day?tbxShort(r.day):'')+'</td><td>'+esc(r.who)+'</td><td>'+esc(_tbxJobLabel(fg,r.job)||r.title)+'</td></tr>').join('')+'</tbody></table></div>';
+  }
+  // This week, job by job
+  const crew=f.crew||{};
+  const weekByJob={};if(fg)Object.keys(fg.week||{}).forEach(p=>Object.keys(fg.week[p].jobs).forEach(id=>{(weekByJob[id]||(weekByJob[id]=[])).push({n:p,h:fg.week[p].jobs[id].h});}));
+  const ids=jobs.map(j=>String(j.id));Object.keys(weekByJob).forEach(id=>{if(id!=='_none'&&ids.indexOf(id)<0)ids.push(id);});
+  const rowsW=ids.map(id=>{const j=jobs.find(x=>String(x.id)===id);const lab=j?((j.jobNo?'#'+esc(j.jobNo)+' ':'')+'<b>'+esc(j.client||j.job||'')+'</b>'+(j.site?'<div class="mut" style="font-size:.68rem;">'+esc(j.site)+'</div>':'')):esc(fg?_tbxJobLabel(fg,id):('Job '+id));
+    const lastCrew=tbxLastCrewOf(fg,id);const logged=(weekByJob[id]||[]).sort((a,b)=>b.h-a.h);
+    return '<tr><td>'+lab+'</td><td class="mut" style="font-size:.72rem;">'+(lastCrew.length?lastCrew.map(c=>esc(c.n)+' '+fmtH(c.h)+'h').join(', '):(fg?'—':''))+'</td><td style="font-size:.72rem;">'+(logged.length?logged.map(c=>'<b>'+esc(c.n)+'</b> '+fmtH(c.h)+'h').join(', '):(fg?'<span class="mut">nothing yet</span>':''))+'</td>'+
+      '<td><input type="text" class="tbx-in tbx-crew" placeholder="'+esc(lastCrew.length?lastCrew.map(c=>c.n).join(', '):'who’s on it')+'" value="'+esc(crew[id]||'')+'" oninput="tbxSetCrew(\''+esc(id)+'\',this.value)"></td></tr>';}).join('');
+  h+='<div class="tbx-sub">This week — '+esc(tbxShort(ws))+' – '+esc(tbxShort(tbxAddDays(ws,4)))+'</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-week"><thead><tr><th>Job</th><th>Last week’s crew</th><th>Logged this week</th><th style="min-width:150px;">Planned crew</th></tr></thead><tbody>'+(rowsW||'<tr><td colspan="4" class="empty">No active jobs synced yet — ⚙ → Refresh brings them in.</td></tr>')+'</tbody></table></div>'+
+    '<div class="tbx-np mut" style="padding:4px 12px 8px;font-size:.64rem;">Fergus’s API has no schedule, so <b>Planned crew</b> is typed here (shared with the team, the grey hint is last week’s crew); Logged this week fills in as the timesheets come through.</div>';
+  // Last week, person by person
+  if(fg){
+    const people=Object.keys(fg.last||{}).sort((a,b)=>fg.last[b].h-fg.last[a].h);
+    const rowsL=people.map(p=>{const P=fg.last[p];const js=Object.keys(P.jobs).sort((a,b)=>P.jobs[b].h-P.jobs[a].h);
+      return '<tr><td style="font-weight:800;white-space:nowrap;">'+esc(p)+'</td><td>'+js.map(id=>'<div>'+esc(_tbxJobLabel(fg,id))+' <span class="mut" style="font-size:.7rem;">'+fmtH(P.jobs[id].h)+'h · '+esc(_tbxDayList(P.jobs[id].days))+'</span></div>').join('')+'</td><td style="text-align:center;font-weight:700;white-space:nowrap;">'+fmtH(P.h)+'h</td></tr>';}).join('');
+    h+='<div class="tbx-sub">Last week — '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(tbxAddDays(fg.from,6)))+'</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-last"><thead><tr><th>Who</th><th>What they were on</th><th style="text-align:center;">Hours</th></tr></thead><tbody>'+(rowsL||'<tr><td colspan="3" class="empty">No hours logged last week.</td></tr>')+'</tbody></table></div>';
+  }
+  return h;
 }
 
 // ════════ BACK-COSTING REVIEW (sales-manager sit-down) ════════
