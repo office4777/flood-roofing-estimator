@@ -450,11 +450,29 @@ THE FILL:
    BOTH sides (a two-cut triangle, no square end) may come off anywhere on its
    sheet, not only the square end (`_pzOwnIsFree`) — that is what lets A7's
    and B7's offcuts reach on report 17 (33 sheets, 2 lengths, was 37 and 6).
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d,
+9e. A VALLEY RUN IS ONE COLOUR (the same day, report 17: "I don't like seeing
+   mismatched colors where I think the offcut would actually work there, and
+   I'm seeing too much wastage. Prioritize those two rules"; then exactly:
+   "B7 blue offcut should actually be the offcut to A8, and green D13 offcut
+   should actually be the offcut to B7. A8 offcut should actually be just a
+   full sheet on its own with a bit of wastage"). The offcut pieces on
+   neighbouring strips of one face, one hand, are a RUN; its colour is the
+   block most of it comes from (two or more, a clear majority). A stray piece
+   is re-cut from that colour's sheets (and a cut sheet of another face's
+   block ordered in among the run comes off the order the same way); a LONE
+   piece elsewhere sitting on an offcut the run needs is ordered as a full
+   sheet of its own (its face's block, else a block already on its face, else
+   the shortest that fits). Kept only when the roof's STRAYS go down (a piece
+   whose colour no strip beside it shares and is not its face's own colour),
+   no new length is ordered, and at most a sheet per two pieces put right.
+   `_pzOptimise` move 6. Report 17: 33 → 34 sheets, both valleys one colour;
+   it also moves the double cascade and report 77 (67 → 68) and report 50
+   (37 → 38).
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown
-   to the owner as "Sheet layout new rules v4" — waiting on his go. Ship with
+   to the owner as "Sheet layout new rules v5" — waiting on his go. Ship with
    `tests/sheetlayout.mjs`'s count pins re-taken (21 move, none a geometry
    rule). The slowest roof takes ~7 s to lay (report 76).
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one

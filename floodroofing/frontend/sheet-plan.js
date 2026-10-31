@@ -9446,7 +9446,7 @@ function _pzOptimise(pz){
   }
   var roofOf = function(p){ return p.roofIdx != null ? p.roofIdx : (p.face ? p.face.roofIdx : 0); };
   // Can these pieces all be cut from offcuts? -> Map piece -> sheet, or null.
-  var moveFrom = 0;
+  var moveFrom = 0, allowBlk = null;
   function share(M, sheets, override, snug){
     loose = M; stayMap = null; moveFrom = log.tried;
     var budget = { n: 0 };
@@ -9455,6 +9455,7 @@ function _pzOptimise(pz){
       var cur = m.from && byLabel[m.from], ma = (m.areaPx || 0) * pz.scaleM * pz.scaleM * 1e6;
       var cs = sheets.filter(function(sh){
         if (roofOf(sh.pc) !== roofOf(m) || sh.pc === m) return false;
+        if (allowBlk && allowBlk.has(m) && sh.pc.block !== allowBlk.get(m)) return false;
         var L = override && override.pc === sh.pc ? override.L : sh.L;
         if (sh.orig.indexOf(m) >= 0 && L === sh.L0) return true;
         if (mh > L - sh.minTop + _PZ_FIT_MM + 1) return false;
@@ -9808,7 +9809,139 @@ function _pzOptimise(pz){
       }
     });
   })();
-  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors){ pz.optLog = log; return pz; }
+  // 6. A VALLEY RUN IS ONE COLOUR (2026-10-31, the owner on report 17: "I
+  // don't like seeing mismatched colors where I think the offcut would
+  // actually work there ... B7 blue offcut should actually be the offcut to
+  // A8, and green D13 offcut should actually be the offcut to B7. A8 offcut
+  // should actually be just a full sheet on its own with a bit of wastage").
+  // A RUN is the pieces cut from offcuts on neighbouring strips of one face,
+  // one hand (so a hip end's two halves are two runs). Its colour is the
+  // block most of it comes from; a piece off another block's offcut is
+  // re-fed from that colour's sheets where they will carry it — the run's own
+  // pieces may shuffle along those sheets — and a LONE piece elsewhere that is
+  // sitting on an offcut the run needs is ordered as a full sheet of its own
+  // (its face's block where it fits, else a block already on that face, else
+  // the shortest that fits), a little waste rather than a stray colour.
+  // Kept where no run gets worse, no new length is ordered, and it costs at
+  // most one sheet for every two pieces put right.
+  (function(){
+    // (A cut sheet ordered in among a run is one of its pieces too: report
+    // 17's purple sheet at the foot of a run of blue offcuts.)
+    var cand = movable.filter(function(p){ return !p.strung && p.face && p.from && byLabel[p.from]; });
+    sheetPieces.concat(Array.from(S.keys())).forEach(function(pc){
+      if (cand.indexOf(pc) >= 0 || !S.has(pc) || pc.full || !pc.hand || !pc.face || !pc.block || pc.block.extra === 'push') return;
+      // (A sheet of its own face's block is that face's colour, never a stray.)
+      if (pc.block.face === pc.face) return;
+      if ((feetOf.get(pc) || []).length || pz.pieces.some(function(q){ return q.strung && q.strungTo === pc; })) return;
+      cand.push(pc);
+    });
+    var groups = {};
+    cand.forEach(function(p){ var k = roofOf(p) + '|' + (p.face.id != null ? p.face.id : '') + '|' + (p.hand || 0); (groups[k] = groups[k] || []).push(p); });
+    var runs = [];
+    Object.keys(groups).forEach(function(k){
+      var ps = groups[k].slice().sort(function(a, b){ return (a.k || 0) - (b.k || 0); }), cur = null;
+      ps.forEach(function(p){ if (cur && (p.k || 0) - (cur[cur.length - 1].k || 0) <= 1) cur.push(p); else { cur = [p]; runs.push(cur); } });
+    });
+    var blkOf = function(p){ if (p.ordered) return p.block; var d = byLabel[p.from]; return d ? d.block : null; };
+    var majOf = function(r){
+      var tally = new Map();
+      r.forEach(function(p){ var b = blkOf(p); if (!b || p.ordered) return; var t = tally.get(b) || { n: 0, L: 0 }; t.n++; t.L += p.longMm || 0; tally.set(b, t); });
+      var best = null, bt = null;
+      var second = 0;
+      tally.forEach(function(t, b){ if (!bt || t.n > bt.n || (t.n === bt.n && t.L > bt.L)) { if (bt) second = Math.max(second, bt.n); best = b; bt = t; } else second = Math.max(second, t.n); });
+      // (A colour only where most of the run is it: two of one and one of
+      // another is a run with a stray; one of each is not.)
+      return bt && bt.n >= 2 && bt.n > second ? best : null;
+    };
+    var misCount = function(){ var n = 0; runs.forEach(function(r){ if (r.length < 2 || !r.maj) return; var mj = r.maj; r.forEach(function(p){ if (blkOf(p) !== mj) n++; }); }); return n; };
+    var allow = new Map(), lone = [];
+    runs.forEach(function(r){ r.maj = majOf(r); if (r.length < 2 || !r.maj) { if (!r[0].ordered) lone.push(r[0]); r.maj = null; return; } r.forEach(function(p){ allow.set(p, r.maj); }); });
+    var mis = [];
+    runs.forEach(function(r){ if (r.length >= 2 && r.maj) r.forEach(function(p){ if (blkOf(p) !== r.maj && !p.scrap) mis.push(p); }); });
+    if (!mis.length) return;
+    var wasMis = misCount();
+    // A STRAY, the thing he sees: a piece whose colour none of the strips
+    // beside it on its face share, and not its face's own colour. A change
+    // that puts one stray right by making another is no change.
+    var strays = function(){
+      var colOf = function(p){
+        if (p.ordered) return p.block;
+        if (p.strung && p.strungTo) return p.strungTo.ordered ? p.strungTo.block : (byLabel[p.strungTo.from] || {}).block;
+        return (byLabel[p.from] || {}).block;
+      };
+      var byFace = new Map();
+      pz.pieces.forEach(function(p){ if (p.face && (p.ordered ? S.has(p) : true)) { if (!byFace.has(p.face)) byFace.set(p.face, []); byFace.get(p.face).push(p); } });
+      var n = 0;
+      byFace.forEach(function(ps, f){
+        ps.forEach(function(p){
+          var c = colOf(p); if (!c || p.scrap || c.face === f) return;
+          var mate = ps.some(function(q){ return q !== p && Math.abs((q.k || 0) - (p.k || 0)) <= 1 && colOf(q) === c; });
+          if (!mate) n++;
+        });
+      });
+      return n;
+    };
+    var wasStray = strays();
+    var countAll = function(){ var n = 0, ls = {}, st = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ n++; ls[lenOf(pc)] = 1; st += lenOf(pc); }); }); return { n: n, lens: Object.keys(ls).length, steel: st }; };
+    var was = countAll();
+    var snapP = pz.pieces.map(function(p){ return [p, p.ordered, p.from, p.block, p.label, p.Lmm, p.num, p.fromHand, p.series, p.fullSheet]; });
+    var snapB = pz.blocks.map(function(b){ return [b, b.pieces.slice()]; });
+    var snapM = movable.slice(), snapS = new Map(S), snapBL = Object.assign({}, byLabel);
+    var snapO = []; S.forEach(function(sh){ snapO.push([sh, sh.orig.slice()]); });
+    var needBlocks = new Set(mis.map(function(p){ return allow.get(p); }));
+    // The lone pieces sitting on a colour a run needs, nearest that run first.
+    var blockers = lone.filter(function(p){ return needBlocks.has(blkOf(p)) && !p.scrap; });
+    var mc0 = cen(mis[0]);
+    blockers.sort(function(a, b){ var ca = cen(a), cb = cen(b); return Math.hypot(ca[0] - mc0[0], ca[1] - mc0[1]) - Math.hypot(cb[0] - mc0[0], cb[1] - mc0[1]); });
+    blockers = blockers.slice(0, 3);
+    var orderAsSheet = function(X){
+      var need = groupOf(X).g.h, fits = pz.blocks.filter(function(b){
+        return !b.extra && b.pieces.length && roofOf(b.pieces[0]) === roofOf(X) && b.Lmm >= need - _PZ_FIT_MM && !b.pieces.some(function(q){ return q.Lmm && q.Lmm !== b.Lmm; });
+      }).sort(function(a, b){ return a.Lmm - b.Lmm; });
+      var tb = fits.filter(function(b){ return b.face === X.face; })[0]
+        || fits.filter(function(b){ return b.pieces.some(function(q){ return q.face === X.face; }); })[0]
+        || fits[0];
+      if (!tb) return false;
+      movable.splice(movable.indexOf(X), 1);
+      var d = byLabel[X.from]; if (d && S.get(d)){ var o = S.get(d).orig, i = o.indexOf(X); if (i >= 0) o.splice(i, 1); }
+      X.ordered = true; X.from = null; X.oc = null; X.block = tb; tb.pieces.push(X); X.Lmm = undefined; X.num = 5e6 + (X.k || 0); X.label = tb.letter + '#' + (X.k || 0) + '_' + X.face.id; X.fullSheet = true;
+      byLabel[X.label] = X;
+      var sh = mkSheet(X, tb.Lmm, tb.Lmm); if (sh) S.set(X, sh);
+      memo.clear();
+      return true;
+    };
+    var seed = mis.slice();
+    mis.forEach(function(X){
+      if (!X.ordered) return;
+      movable.forEach(function(q){ if (q.from === X.label && seed.indexOf(q) < 0) seed.push(q); });
+      X.block.pieces.splice(X.block.pieces.indexOf(X), 1); S.delete(X); delete byLabel[X.label]; X.Lmm = undefined;
+      if (movable.indexOf(X) < 0) movable.push(X);
+    });
+    memo.clear();
+    allowBlk = allow;
+    var asg = null, ordered = 0, capP = log.tried + _PZ_OPT_MOVE * 2;
+    for (var t = 0; t <= blockers.length && !asg; t++){
+      if (t > 0){ if (orderAsSheet(blockers[t - 1])) ordered++; else continue; }
+      var saveP = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP + _PZ_OPT_MOVE * t);
+      asg = share(near(seed), allSheets(), null, true);
+      _PZ_OPT_PACKS = saveP;
+    }
+    allowBlk = null;
+    var ok = false;
+    if (asg){
+      var keepFrom = new Map(); pz.pieces.forEach(function(p){ keepFrom.set(p, [p.from, p.block]); });
+      commit(asg); memo.clear();
+      var c = countAll(), nowMis = misCount();
+      var fixed = wasMis - nowMis;
+      ok = fixed > 0 && strays() < wasStray && c.lens <= was.lens && (c.n - was.n) * 2 <= fixed && c.steel - was.steel <= fixed * 0.5 * Math.max.apply(null, pz.blocks.map(function(b){ return b.Lmm || 0; }));
+    }
+    if (ok){ log.runs = (log.runs || 0) + (wasMis - misCount()); log.runSheets = ordered; return; }
+    snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; p.fullSheet = r[9]; });
+    snapB.forEach(function(r){ r[0].pieces = r[1]; });
+    snapO.forEach(function(r){ r[0].orig = r[1]; });
+    movable = snapM; S = snapS; byLabel = snapBL; memo.clear();
+  })();
+  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });
