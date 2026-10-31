@@ -571,6 +571,34 @@ THE FILL:
    template, 129 against 130) and `typesnap.json` regenerated (the two
    roofing quotes' sheets line only: 177.41 → 174.16 m and 168.82 →
    165.31 m). Report 76 takes ~16 s to lay — still the speed to look at.
+9k. THE SETS STAY TOGETHER, IN ORDER (2026-11-01, the owner on the sample
+   job's layout in the promo shots: "looks patchy and the offcuts aren't used
+   in order, main rule is keep the offcut sets used in the same area so the
+   colours and order is matched in their set"). Four changes in
+   `_pzOptimise`, rule 8d's first build: (a) a PART-WIDTH CORNER STRIP (under
+   0.6 of a cover) never starts an end's set in move 8 — the set lands on its
+   exact fits across the full strips (the sample's top end ↺D4, ↺D3, ↺D2,
+   ↺D1, was ↺D3 … ↺D1 then a blue ↺B1, every offcut one strip out) and the
+   corner is fed after it; such a trim is not counted as a stray or a colour
+   break when move 8 weighs its lay (`isTrim`, `straysNow(true)`); (b) move
+   9a, THE RUN READS IN ORDER: a rule-8c closer whose offcut carries a row of
+   its own face is undone when that row can be the sheet itself and the
+   corner sliver comes off a free offcut or packs onto a sheet — same count,
+   same steel (the sample's west slope C1–C19 straight down, was a hatched
+   ↺C19 between C14 and C15); (c) move 9, A TRIM COMES OFF THE NEAREST
+   OFFCUT: corner trims not already in a set (off their own face's sheet, or
+   the colour of a strip beside them) swap donors or take a free offcut when
+   that brings each nearer — nothing ordered or freed; (d) a block's sheets
+   are NUMBERED FACE BY FACE in the final renaming (C20 and C21 together on
+   the top end, C22 on the bottom — was C20, C22 / C21). Switches:
+   `window.__PZ_SET_CORNER`, `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`,
+   `__PZ_FACE_NUM` (false = off). Measured on every fixture: no roof orders
+   more steel; report 20 71 → 70 (one 2.74 m sheet less, the B run in
+   order); the sample, report 50, report 74 and the double-L the same count,
+   relabelled or a corner moved. `tests/fixtures-sample.json` (the shipped
+   sample job's roof) and four pins in `sheetlayout.mjs` (414). BUILT ON THE
+   SESSION BRANCH, NOT LIVE — before/after pictures sent to the owner,
+   waiting on his "go".
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be

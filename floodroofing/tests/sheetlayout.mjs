@@ -539,6 +539,30 @@ check('…81 sheets: the west end\'s junction strip cut straight and fed from D6
     !!wingS && own.length === 4 && wl.filter(p => !p.ordered && !p.scrap && p.cutBot).map(p => p.from).join(',') === own.join(','),
     JSON.stringify(wl.map(p => p.label)));
 }
+// THE SETS STAY TOGETHER AND IN ORDER (2026-11-01, the owner on the sample
+// job's layout: "looks patchy and the offcuts aren't used in order, main rule
+// is keep the offcut sets used in the same area so the colours and order is
+// matched in their set"). A narrow corner strip no longer starts an end's set
+// (the set lands on its exact fits, one colour), a closer's row is laid as the
+// sheet in its place when the corner can come off another offcut, the corner
+// trims come off the nearest offcut, and a block's sheets are numbered face by
+// face. Not one more sheet.
+{
+  const rs = await lay(fx('sample'));
+  check('the sample job: still 55 sheets, 41 × 4.26 and 14 × 3.85', tallyOf(rs) === '41x4260,14x3850', tallyOf(rs));
+  const fl = rs.faces.map(f => labels(rs, f));
+  const endSet = fl.find(l => l.includes('↺D4') && l.includes('↺D1')) || [];
+  const i4 = endSet.indexOf('↺D4');
+  check('…the top end\'s west half is one green set in order — ↺D4, ↺D3, ↺D2, ↺D1 on their exact fits, no blue B offcut among them (the corner trim aside)',
+    i4 >= 0 && endSet.slice(i4, i4 + 4).join(',') === '↺D4,↺D3,↺D2,↺D1' && !endSet.slice(i4, i4 + 6).some(x => /^↺B/.test(x)), endSet.join(' '));
+  const slope = fl.find(l => l.includes('C1') && l.includes('C19')) || [];
+  const run = slope.slice(slope.indexOf('C1'), slope.indexOf('C19') + 1);
+  check('…the west slope reads C1 to C19 straight down, no hatched row in the middle of the run',
+    run.length === 19 && run.every((x, i) => x === 'C' + (i + 1)), slope.join(' '));
+  const top = fl.find(l => l.includes('C20')) || [];
+  check('…the purple sheets on the top end are numbered together — C20 beside C21',
+    Math.abs(top.indexOf('C20') - top.indexOf('C21')) === 1, top.join(' '));
+}
 // And, 2026-10-22, on the same roof: "on the Z shape the green D20 is out of
 // place" — the east wing's own sheet, cut by the wing's hip and so at home on
 // the end face, sorted in by size between C21 and C20. A series is one run of
