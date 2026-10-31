@@ -440,6 +440,18 @@ THE PICTURE:
     each kept on one row where it fits, a gap between runs; uncut sheets last.
     `sheetlayout.mjs` pins every sheet once at its length and every piece
     inside its sheet with none overlapping on five shapes, and the page fitting.
+    A RUN IS ONE ROOF LINE, AND THE FIRST CUT IS RED (the same afternoon: "those
+    purple sheets, they're not cut in a continuous line, they're all staggered
+    ... prioritize the main first cut line, so it's all nicely in line ...
+    maybe show [a second cut] in a different line color"). On an L the main's
+    slope carries sheets cut by its hip AND sheets whose feet come off at the
+    wing's valley — two lines leaning the same way on one face, which a run
+    keyed on face + lean interleaved. `_pzCutLine(s, pz)` reads the cut back
+    into the face's own frame (`abs` = its intercept, through the centroids,
+    spun or not) and `_pzChalkRuns(sheets, pz)` clusters sheets whose cuts lie
+    within 120 mm of one line. The sheet's own pieces are outlined RED (the
+    first cut, one chalk line a run), everything cut out of an offcut BLUE
+    underneath (the second cut). Pinned on the Big-L and an L with a wing.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the

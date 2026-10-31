@@ -9109,7 +9109,8 @@ function _sheetPrecutPlan(pz){
     var g = _pzGroupOf(s.piece, feetOf.get(s.piece) || [], pz);
     // A fresh sheet is square at both ends: draw the end its piece is square
     // to at the bottom.
-    var items = (!_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true)) ? _pzSpin(g.items, g.w, g.h) : g.items;
+    s.spun = !_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true);
+    var items = s.spun ? _pzSpin(g.items, g.w, g.h) : g.items;
     items.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: true }); });
   });
   // The pieces cut from its offcut, spun end for end, from the far end down.
@@ -9171,7 +9172,15 @@ function _sheetPrecutPlan(pz){
 // across the sheets lying side by side — rising to the right, or falling —
 // and so the offcuts come off as one triangle set. The runs come first, in
 // sheet order; the sheets with no cut follow.
-function _pzCutLine(s){
+// A RUN IS ONE ROOF LINE (2026-10-31, the owner on the first version: "those
+// purple sheets, they're not cut in a continuous line, they're all
+// staggered"): two sets of sheets on one face can be cut by two different
+// lines leaning the same way — the main's hip across the top of one set, the
+// valley a wing's feet are cut off at across the other — and a run keyed on
+// the face and the lean alone interleaved them. The cut is read back into the
+// face's own frame (`abs`: y = slope·x + c, in millimetres along the gutter
+// and up the slope), and a run is the sheets whose cut lies on the SAME line.
+function _pzCutLine(s, pz){
   var own = null; s.items.forEach(function(it){ if (it.own && it.pc === s.piece) own = it; });
   if (!own) return null;
   var P = own.poly, best = null;
@@ -9180,22 +9189,32 @@ function _pzCutLine(s){
     if (Math.abs(dx) < 2 || Math.abs(dy) < 2) continue;
     var rr = Math.abs(dy / dx); if (rr < 0.2 || rr > 5) continue;   // a hip or valley cut, even a corner of one
     var my = (a[1] + b[1]) / 2;
-    if (!best || my > best.my) best = { my: my, slope: dy / dx, h0: a[1] - dy / dx * a[0] };
+    if (!best || my > best.my) best = { my: my, mx: (a[0] + b[0]) / 2, slope: dy / dx, h0: a[1] - dy / dx * a[0] };
+  }
+  if (best && pz){
+    // The sheet's own piece is its face's piece moved (and, spun, turned
+    // 180°): map the cut's midpoint back through the centroids.
+    var A = _pzLocalPoly(s.piece, pz), ca = _ccCentroid(A), cs = _ccCentroid(P);
+    var ax = s.spun ? ca[0] + cs[0] - best.mx : best.mx - cs[0] + ca[0];
+    var ay = s.spun ? ca[1] + cs[1] - best.my : best.my - cs[1] + ca[1];
+    best.abs = ay - best.slope * ax; best.ax = ax;
   }
   return best;
 }
-function _pzChalkRuns(sheets){
+function _pzChalkRuns(sheets, pz){
   var runs = {}, order = [], plain = [];
   sheets.forEach(function(s){
-    var c = _pzCutLine(s);
+    var c = _pzCutLine(s, pz);
     if (!c){ plain.push(s); return; }
-    var key = (s.piece.face ? s.piece.face.id : 0) + (c.slope > 0 ? '/' : '\\');
-    if (!runs[key]){ runs[key] = []; order.push(key); }
+    var base = (s.piece.face ? s.piece.face.id : 0) + (c.slope > 0 ? '/' : '\\') + (s.spun ? 's' : ''), key = null;
+    // One line: the same face, lean and turn, and an intercept within 120 mm.
+    order.forEach(function(k){ if (!key && runs[k].base === base && (c.abs == null || runs[k].abs == null || Math.abs(runs[k].abs - c.abs) < 120)) key = k; });
+    if (!key){ key = base + '#' + order.length; runs[key] = []; runs[key].base = base; runs[key].abs = c.abs; order.push(key); }
     runs[key].push({ s: s, c: c });
   });
   var out = order.map(function(k){
     var r = runs[k], sg = r[0].c.slope > 0 ? 1 : -1;
-    return r.sort(function(a, b){ return sg * (a.c.h0 - b.c.h0); }).map(function(x){ return x.s; });
+    return r.sort(function(a, b){ return a.c.ax != null && b.c.ax != null ? (sg * (a.c.h0 - b.c.h0) || a.c.ax - b.c.ax) : sg * (a.c.h0 - b.c.h0); }).map(function(x){ return x.s; });
   });
   if (plain.length) out.push(plain);
   return out;
@@ -9220,10 +9239,10 @@ function _renderSheetPrecutCanvas(opts){
   blocks.forEach(function(b, i){ b.color = _PZ_BLOCK_COLOURS[i % _PZ_BLOCK_COLOURS.length]; });
   var sheets = _sheetPrecutPlan(pz);
   ctx.fillStyle = '#475569'; ctx.font = '600 11.5px Inter, sans-serif';
-  ctx.fillText('Each sheet as ordered, square end at the bottom. Red = the cut lines; grey = waste. Pieces are labelled as on the sheet layout.', pad, 42);
+  ctx.fillText('Each sheet as ordered, square end down, laid side by side as cut. Red = the first cut, one chalk line a run; blue = the second cut, on the offcuts; grey = waste.', pad, 42);
   var top = 64, availW = W - pad*2, availH = H - top - pad;
   // One block a section: its header, then its sheets side by side, wrapping.
-  var groups = blocks.map(function(b){ var ss = sheets.filter(function(s){ return s.block === b; }); return { b: b, sheets: ss, runs: _pzChalkRuns(ss) }; }).filter(function(g){ return g.sheets.length; });
+  var groups = blocks.map(function(b){ var ss = sheets.filter(function(s){ return s.block === b; }); return { b: b, sheets: ss, runs: _pzChalkRuns(ss, pz) }; }).filter(function(g){ return g.sheets.length; });
   var HEAD = 20, GAP = 10, SG = 3;
   var layout = function(k){
     // Each block: its rows. A block of one row shares a shelf with the next
@@ -9308,10 +9327,19 @@ function _renderSheetPrecutCanvas(opts){
           else if (itm.pc.strung){ ctx.fillStyle = _pzTint(col, 0.22); ctx.fill(); }
           else { ctx.fillStyle = '#fff'; ctx.fill(); hatch(P, col); }
         });
-        s.items.forEach(function(itm){
-          var P = itm.poly.map(toC);
-          ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
-          ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 0.9; ctx.stroke();
+        // THE FIRST CUT IS RED, THE SECOND BLUE (2026-10-31, the owner: "the
+        // first sheet cut for the main sheets are all nicely in line, and then
+        // there could be a secondary cut line that could be marked on the
+        // offcuts"): the sheet's own pieces are cut off first, a whole run at
+        // one chalk line; what is then cut out of each offcut is drawn under
+        // them in blue, so where the two share an edge the red one shows.
+        [false, true].forEach(function(own){
+          s.items.forEach(function(itm){
+            if (!!itm.own !== own) return;
+            var P = itm.poly.map(toC);
+            ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
+            ctx.strokeStyle = own ? '#dc2626' : '#2563eb'; ctx.lineWidth = own ? 1.1 : 0.8; ctx.stroke();
+          });
         });
         ctx.restore();
         ctx.strokeStyle = _pzTint(b.color, 0.9); ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, by - c.h + 0.5, c.w - 1, c.h - 1);
