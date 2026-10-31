@@ -7822,6 +7822,27 @@ function _sheetPuzzleBuild(opts){
   }); });
   var res = { roofs: roofs, faces: faces, pieces: pieces, coverPx: coverPx, coverMm: coverMm, scaleM: scaleM, bbox: bb, tol: tol };
   if (!opts.noFill){ try { _sheetPuzzleFill(res); } catch(e){ try { console.warn('sheet fill:', e); } catch(e2){} } }
+  // A finished lay: the mono extension carried down, then the offcut search
+  // (only at the top, never inside a lay built to be compared).
+  // WHEN TWO LAYS ARE BOTH LEGITIMATE (rule 10, 2026-10-31, the owner: "the
+  // rule should not be fewer sheets first. It should be less steel first and
+  // utilizing most of the offcut"): each is finished, then the one ordering
+  // less steel is kept, then fewer sheets, then the first on a tie.
+  var fin = function(z){
+    if (opts.noFill || opts._monoDefer || !z || z._fin) return z;
+    z._fin = true;
+    try { _pzMonoExtend(z); } catch(e){ try { console.warn('sheet mono:', e); } catch(e2){} }
+    try { _pzOptimise(z); } catch(e){ try { console.warn('sheet search:', e); } catch(e2){} }
+    return z;
+  };
+  var better = function(a, b){
+    var st = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
+    var ns = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
+    // (Under a metre of steel either way is a tie, and then the fewer sheets
+    // win: three more sheets to save 230 mm is not less steel worth having.)
+    if (Math.abs(st(a) - st(b)) > _PZ_STEEL_TIE_MM) return st(a) < st(b);
+    return ns(a) < ns(b) || (ns(a) === ns(b) && st(a) < st(b));
+  };
   // "CAN start in a valley area … from the shortest first": a valley tail
   // laid from its point is only worth it where the valley across the way
   // has offcuts that fit it. Where it has none (an L's narrow arm meeting
@@ -7835,7 +7856,7 @@ function _sheetPuzzleBuild(opts){
     var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt = null;
     try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true, _monoDefer: true })); } catch(e){ alt = null; }
-    if (alt && alt.tally && res.tally && (nSheets(alt) < nSheets(res) || (nSheets(alt) === nSheets(res) && steel(alt) < steel(res)))) res = alt;
+    if (alt && alt.tally && res.tally){ fin(res); fin(alt); if (better(alt, res)) res = alt; }
   }
   // The same for a wing cut from the main's hip END: the plain hip's end
   // strips are fed from the slopes' offcuts, and where the wing has taken
@@ -7849,9 +7870,9 @@ function _sheetPuzzleBuild(opts){
     var steel2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt2 = null;
     try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true, _monoDefer: true })); } catch(e){ alt2 = null; }
-    if (alt2 && alt2.tally && res.tally && (nSheets2(alt2) < nSheets2(res) || (nSheets2(alt2) === nSheets2(res) && steel2(alt2) < steel2(res)))) res = alt2;
+    if (alt2 && alt2.tally && res.tally){ fin(res); fin(alt2); if (better(alt2, res)) res = alt2; }
   }
-  if (!opts.noFill && !opts._monoDefer){ try { _pzMonoExtend(res); } catch(e){ try { console.warn('sheet mono:', e); } catch(e2){} } }
+  fin(res);
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
 }
@@ -9111,16 +9132,35 @@ function _sheetPrecutPlan(pz){
   });
   // The sheet's own piece (and its feet) on its square end.
   sheets.forEach(function(s){
-    var g = _pzGroupOf(s.piece, feetOf.get(s.piece) || [], pz);
-    // A fresh sheet is square at both ends: draw the end its piece is square
-    // to at the bottom.
-    s.spun = !_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true);
-    var items = s.spun ? _pzSpin(g.items, g.w, g.h) : g.items;
-    items.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: true }); });
+    var o = _pzOwnSheet(s.piece, feetOf.get(s.piece) || [], pz);
+    s.spun = o.spun;
+    o.items.forEach(function(it){ s.items.push(it); });
+  });
+  // THE OFFCUT PIECES GO FLUSH AGAINST THE FIRST CUT (2026-10-31, the owner:
+  // "bring that small double cut C16 right to the edge of the main C16"):
+  // every piece a sheet's offcut feeds is packed together, as low as it
+  // fits — against the sheet's own cut — so what is left over is one clean
+  // piece at the far end; tried in every order, and from the far end down
+  // only where flush will not take them all. A sheet the packer cannot
+  // place whole falls back to the old one-at-a-time drawing below.
+  var fedOn = {};
+  pz.pieces.filter(function(p){ return !p.ordered && !p.strung && bySheet[p.from]; })
+    .forEach(function(p){ (fedOn[p.from] = fedOn[p.from] || []).push(p); });
+  var legacy = [];
+  Object.keys(fedOn).forEach(function(lbl){
+    var s = bySheet[lbl], list = fedOn[lbl];
+    var groups = list.map(function(p){ return { p: p, g: _pzGroupOf(p, feetOf.get(p) || [], pz) }; });
+    var got = _pzPackSheet(s.items, groups, s.Wmm, s.Lmm);
+    if (got){ got.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: false }); }); return; }
+    // The scraps last and anywhere: a sliver is trimmed off what is left.
+    var main = groups.filter(function(x){ return !x.p.scrap; });
+    var got2 = main.length < groups.length ? _pzPackSheet(s.items, main, s.Wmm, s.Lmm) : null;
+    if (got2){ got2.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: false }); }); groups.filter(function(x){ return x.p.scrap; }).forEach(function(x){ legacy.push(x.p); }); return; }
+    list.forEach(function(p){ legacy.push(p); });
   });
   // The pieces cut from its offcut, spun end for end, from the far end down.
   // Biggest first: a scrap trimmed off an offcut goes in what is left.
-  pz.pieces.filter(function(p){ return !p.ordered && !p.strung && bySheet[p.from]; })
+  legacy
     .sort(function(a, b){ return (a.scrap ? 1 : 0) - (b.scrap ? 1 : 0) || (b.areaPx || 0) - (a.areaPx || 0); })
     .forEach(function(p){
     var s = bySheet[p.from];
@@ -9166,6 +9206,396 @@ function _sheetPrecutPlan(pz){
   };
   sheets.forEach(function(s){ s.items.forEach(function(it){ it.poly = clipY(it.poly, 0, s.Lmm); }); });
   return sheets;
+}
+// A sheet's own piece and the feet carried under it, on the sheet's square
+// end: a fresh sheet is square at both ends, so the end its piece is square
+// to is drawn at the bottom.
+function _pzOwnSheet(pc, feet, pz){
+  var g = _pzGroupOf(pc, feet || [], pz);
+  var spun = !_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true);
+  var items = spun ? _pzSpin(g.items, g.w, g.h) : g.items;
+  return { spun: spun, h: g.h, items: items.map(function(it){ return { pc: it.pc, poly: it.poly, own: true }; }) };
+}
+// Place one group (a piece and any feet) on a sheet beside what is already
+// there: spun end for end or carried straight (never flipped), flush to
+// either side, as LOW as it fits (against the cut) or as high. The fill lets
+// an offcut be up to _PZ_FIT_MM short of its piece, so the fit is tried a lap
+// up as well and drawn where it lands.
+var _PZ_PACK_STEP = 5;
+// The packer's overlap test, done the way _pzPolysOverlap does it (each
+// piece pulled in 1.5 mm so a shared cut line is not a touch) but with the
+// pulled-in shapes worked out ONCE and slid along, rather than rebuilt at
+// every 5 mm step of the search.
+function _pzInsetOf(P){
+  var c = _ccCentroid(P);
+  var a = P.map(function(p){ var vx = p[0] - c[0], vy = p[1] - c[1], l = Math.hypot(vx, vy) || 1, s = Math.max(0, l - 1.5) / l; return [c[0] + vx*s, c[1] + vy*s]; });
+  return { a: a, bb: _pzBox(a), c: _ccCentroid(a) };
+}
+function _pzOvOff(A, dx, dy, B){
+  var ba = A.bb, bb = B.bb;
+  if (ba[2] + dx <= bb[0] || bb[2] <= ba[0] + dx || ba[3] + dy <= bb[1] || bb[3] <= ba[1] + dy) return false;
+  var a = A.a, b = B.a, i, j;
+  for (i = 0; i < a.length; i++){
+    var p0 = a[i][0] + dx, p1 = a[i][1] + dy, q0 = a[(i+1)%a.length][0] + dx, q1 = a[(i+1)%a.length][1] + dy;
+    for (j = 0; j < b.length; j++){
+      var r = b[j], t = b[(j+1)%b.length];
+      var d = (q0-p0)*(t[1]-r[1]) - (q1-p1)*(t[0]-r[0]);
+      if (Math.abs(d) < 1e-9) continue;
+      var u = ((r[0]-p0)*(t[1]-r[1]) - (r[1]-p1)*(t[0]-r[0])) / d;
+      var v = ((r[0]-p0)*(q1-p1) - (r[1]-p1)*(q0-p0)) / d;
+      if (u > 0 && u < 1 && v > 0 && v < 1) return true;
+    }
+  }
+  if (_spPointInPoly(a[0][0] + dx, a[0][1] + dy, b) || _spPointInPoly(b[0][0] - dx, b[0][1] - dy, a)) return true;
+  return _spPointInPoly(A.c[0] + dx, A.c[1] + dy, b) || _spPointInPoly(B.c[0] - dx, B.c[1] - dy, a);
+}
+// Place one group (a piece and any feet) on a sheet beside what is already
+// there: spun end for end or carried straight (never flipped), flush to
+// either side, as LOW as it fits (against the cut) or as high. The fill lets
+// an offcut be up to _PZ_FIT_MM short of its piece, so the fit is tried a lap
+// up as well and drawn where it lands.
+var _PZ_PACK_STEP = 5;
+function _pzPlaceOne(g, W, L, placed, low, floor){
+  var best = null;
+  var pins = placed.map(function(it){ if (!it._ins) it._ins = _pzInsetOf(it.poly); return it._ins; });
+  [0, _PZ_FIT_MM].forEach(function(lift){
+    if (best) return;
+    [_pzSpin(g.items, g.w, g.h), g.items].forEach(function(cand){
+      var cins = cand.map(function(it){ return _pzInsetOf(it.poly); });
+      [0, Math.max(0, W - g.w)].forEach(function(x){
+        var fits = function(yy){
+          for (var ci = 0; ci < cins.length; ci++) for (var pi = 0; pi < pins.length; pi++) if (_pzOvOff(cins[ci], x, yy + lift, pins[pi])) return false;
+          return true;
+        };
+        var lo = Math.max(-_PZ_FIT_MM - 6, (floor || 0) - _PZ_FIT_MM - 6), hi = L - g.h, y;
+        if (hi < lo) return;
+        if (low){
+          // (The far end itself is always tried: an offcut that is exactly
+          // the piece only fits flush with it.)
+          for (y = lo; y <= hi + _PZ_PACK_STEP; y += _PZ_PACK_STEP){
+            if (y > hi) y = hi;
+            if (fits(y)){ var n1 = 0; while (y - 1 >= lo && n1++ < _PZ_PACK_STEP && fits(y - 1)) y -= 1; if (!best || y < best.y - 1) best = { cand: cand, x: x, y: y }; break; }
+            if (y === hi) break;
+          }
+        } else {
+          for (y = hi; y >= lo; y -= _PZ_PACK_STEP){
+            if (fits(y)){ var n2 = 0; while (y + 1 <= hi && n2++ < _PZ_PACK_STEP && fits(y + 1)) y += 1; if (!best || y > best.y + 1) best = { cand: cand, x: x, y: y }; break; }
+          }
+        }
+      });
+    });
+  });
+  return best ? best.cand.map(function(it){ return { pc: it.pc, poly: _pzShift(it.poly, best.x, best.y) }; }) : null;
+}
+// The orders a sheet's pieces are tried in: biggest first, then every order
+// of up to three, scraps always last.
+function _pzPackOrders(groups){
+  var main = groups.filter(function(x){ return !x.p.scrap; }), scr = groups.filter(function(x){ return x.p.scrap; });
+  var area = function(x){ return x.p.areaPx || 0; };
+  main = main.slice().sort(function(a, b){ return area(b) - area(a); });
+  var out = [];
+  if (main.length <= 3){
+    var perm = function(arr){ if (arr.length < 2) return [arr]; var r = []; arr.forEach(function(x, i){ perm(arr.slice(0, i).concat(arr.slice(i + 1))).forEach(function(t){ r.push([x].concat(t)); }); }); return r; };
+    out = perm(main);
+  } else out = [main, main.slice().reverse()];
+  return out.map(function(o){ return o.concat(scr); });
+}
+// Pack every group on one sheet, or null: flush against the cut first, in
+// every order, and from the far end down only where flush will not do.
+// The lowest point of a sheet's own top edge: a piece out of its offcut
+// can sit no lower.
+function _pzFloorOf(items, W){
+  var minTop = Infinity;
+  for (var xi = 1; xi < 8; xi++){
+    var x = W * xi / 8, top = 0;
+    items.forEach(function(it){ var P = it.poly; for (var k = 0; k < P.length; k++){ var a1 = P[k], b1 = P[(k+1) % P.length];
+      if ((a1[0] - x) * (b1[0] - x) <= 0 && a1[0] !== b1[0]){ var yy = a1[1] + (b1[1] - a1[1]) * (x - a1[0]) / (b1[0] - a1[0]); if (yy > top) top = yy; } } });
+    if (top < minTop) minTop = top;
+  }
+  return minTop === Infinity ? 0 : minTop;
+}
+function _pzPackSheet(base, groups, W, L, floor, flushOnly){
+  if (!groups.length) return [];
+  if (floor == null) floor = _pzFloorOf(base, W);
+  var orders = _pzPackOrders(groups);
+  for (var mode = 0; mode < (flushOnly ? 1 : 2); mode++){
+    for (var oi = 0; oi < orders.length; oi++){
+      var placed = base.slice(), out = [], ok = true;
+      for (var gi = 0; gi < orders[oi].length && ok; gi++){
+        var r = _pzPlaceOne(orders[oi][gi].g, W, L, placed, mode === 0, floor);
+        if (!r){ ok = false; break; }
+        r.forEach(function(it){ placed.push(it); out.push(it); });
+      }
+      if (ok) return out;
+    }
+  }
+  return null;
+}
+
+// ── THE OFFCUT SEARCH (2026-10-31, the owner's rules 8d and 10) ───────
+// After the fill, the roof is looked at as a whole the way the owner looked
+// at the double cascade: "less steel first and utilizing most of the
+// offcut", "always try and bunch up the offcuts so they go next to each
+// other". Two moves, each kept only when it orders less steel and every
+// piece still fits an offcut for real (packed on the sheet, spun, never
+// flipped, beside everything else that sheet already gives):
+//  • AN EXTRA FROM AN OFFCUT — an extra sheet's piece is cut from an offcut
+//    with room ("e.g. G1 off E20's offcut").
+//  • A SHORTER SHEET — a sheet whose own piece is no longer than a shorter
+//    block's sheets on the same face is ordered as one of those ("the
+//    existing E17 blue sheet was F7"), and what its offcut fed goes on other
+//    offcuts.
+// Either may need the other loose pieces moved to make room (H1 off C15's
+// offcut once C15's corner triangle went onto C16's), so every piece fed by
+// the pool at large — not the owner's series, which keep their place — is
+// re-shared by a search over every offcut it fits, each piece trying its own
+// offcut first and then the nearest (rule 8d), every sheet's set packed in
+// every order. `_PZ_OPT_ON = false` turns the pass off.
+var _PZ_OPT_ON = true;
+var _PZ_STEEL_TIE_MM = 1000;
+var _PZ_OPT_BUDGET = 3000;
+var _PZ_OPT_NEAR = 16;
+var _PZ_OPT_LOOSE = 24;
+// A fixed amount of looking, the same on every machine: past it every
+// further fit reads as no fit, so a big roof is never slow and never
+// lays out differently on a slower computer.
+var _PZ_OPT_PACKS = 1500;
+var _PZ_OPT_TRIES = 12;
+var _PZ_OPT_MOVE = 400;
+function _pzOptimise(pz){
+  if (!_PZ_OPT_ON || !pz || !pz.blocks || !pz.pieces || !pz.blocks.length) return pz;
+  var log = { extras: 0, shorter: 0, savedMm: 0, tried: 0 };
+  var feetOf = new Map();
+  pz.pieces.forEach(function(p){ if (p.strung && p.strungTo){ if (!feetOf.has(p.strungTo)) feetOf.set(p.strungTo, []); feetOf.get(p.strungTo).push(p); } });
+  var cover = pz.coverMm;
+  var sheetPieces = [];
+  pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ sheetPieces.push(pc); }); });
+  var lenOf = function(pc){ return pc.Lmm || (pc.block && pc.block.Lmm) || 0; };
+  var cen = function(p){ return _ccCentroid(p.poly); };
+  // Each sheet: its own items, the series pieces it keeps, what else it gives.
+  var S = new Map();
+  sheetPieces.forEach(function(pc){
+    var o; try { o = _pzOwnSheet(pc, feetOf.get(pc) || [], pz); } catch(e){ return; }
+    // The lowest point of the sheet's own top edge: nothing longer than the
+    // sheet above it can come out of its offcut.
+    var sh0 = { pc: pc, own: o.items, ownH: o.h, L: lenOf(pc), L0: lenOf(pc), orig: [], fixed: [], c: cen(pc), minTop: _pzFloorOf(o.items, cover) };
+    sh0.ownArea = o.items.reduce(function(t, it){ return t + Math.abs(_ccPolyArea(it.poly)); }, 0);
+    sh0.fixedArea = function(){ return sh0.fixed.reduce(function(t, p){ return t + (p.areaPx || 0); }, 0) * pz.scaleM * pz.scaleM * 1e6; };
+    S.set(pc, sh0);
+  });
+  var byLabel = {}; sheetPieces.forEach(function(pc){ byLabel[pc.label] = pc; });
+  var groupCache = new Map();
+  var groupOf = function(p){ if (!groupCache.has(p)) groupCache.set(p, { p: p, g: _pzGroupOf(p, feetOf.get(p) || [], pz) }); return groupCache.get(p); };
+  var fed = pz.pieces.filter(function(p){ return !p.ordered && !p.strung && p.from && byLabel[p.from]; });
+  var movable = [];
+  fed.forEach(function(p){
+    var sh = S.get(byLabel[p.from]); if (!sh){ return; }
+    // Every fed piece may move — a series piece too, when moving it orders
+    // less steel (rule 10 comes before rule 8's order) — but each tries the
+    // offcut it comes off today first, so nothing moves for nothing.
+    movable.push(p);
+    sh.orig.push(p);
+  });
+  var memo = new Map(), ids = new Map(), nid = 0;
+  var idOf = function(p){ if (!ids.has(p)) ids.set(p, ++nid); return ids.get(p); };
+  // Does this set fit on this sheet (its series pieces always with it)?
+  // (A loose piece outside the search stays where it is, so it is part of
+  // its sheet's set like the series pieces.)
+  var loose = null, stayMap = null;
+  function staying(sh){
+    if (!stayMap){ stayMap = {}; movable.forEach(function(p){ if (!loose || loose.indexOf(p) < 0) (stayMap[p.from] = stayMap[p.from] || []).push(p); }); }
+    return stayMap[sh.pc.label] || [];
+  }
+  function packs(sh, list, L){
+    var Lm = L || sh.L, all = sh.fixed.concat(staying(sh)).concat(list), ok;
+    var key = idOf(sh.pc) + '@' + Lm + ':' + all.map(idOf).sort(function(a, b){ return a - b; }).join(',');
+    if (memo.has(key)) return memo.get(key);
+    // What the fill already cut from this offcut (or part of it) fits: the
+    // fill has its own tolerances, a lap short, a nick under a cap.
+    if (Lm === sh.L0 && all.every(function(p){ return sh.orig.indexOf(p) >= 0; })){ memo.set(key, true); return true; }
+    var area = all.reduce(function(t, p){ return t + (p.areaPx || 0); }, 0) * pz.scaleM * pz.scaleM * 1e6;
+    if (area + sh.ownArea > cover * Lm * 1.02){ memo.set(key, false); return false; }
+    // Past the looking allowed, a fit not yet tried reads as no fit (and is
+    // not remembered as one).
+    if (log.tried >= _PZ_OPT_PACKS || log.tried - moveFrom >= _PZ_OPT_MOVE) return false;
+    ok = !!_pzPackSheet(sh.own, all.map(groupOf), cover, Lm, sh.minTop);
+    log.tried++; memo.set(key, ok);
+    return ok;
+  }
+  var roofOf = function(p){ return p.roofIdx != null ? p.roofIdx : (p.face ? p.face.roofIdx : 0); };
+  // Can these pieces all be cut from offcuts? -> Map piece -> sheet, or null.
+  var moveFrom = 0;
+  function share(M, sheets, override){
+    loose = M; stayMap = null; moveFrom = log.tried;
+    var budget = { n: 0 };
+    var cands = M.map(function(m){
+      var mc = cen(m), mh = groupOf(m).g.h;
+      var cur = m.from && byLabel[m.from], ma = (m.areaPx || 0) * pz.scaleM * pz.scaleM * 1e6;
+      var cs = sheets.filter(function(sh){
+        if (roofOf(sh.pc) !== roofOf(m) || sh.pc === m) return false;
+        var L = override && override.pc === sh.pc ? override.L : sh.L;
+        if (sh.orig.indexOf(m) >= 0 && L === sh.L0) return true;
+        if (mh > L - sh.minTop + _PZ_FIT_MM + 1) return false;
+        return ma <= cover * L * 1.02 - sh.ownArea - sh.fixedArea();
+      });
+      // The nearest offcuts only (rule 8d: "bunch up the offcuts so they go
+      // next to each other"), the one it comes off today always among them.
+      cs.sort(function(a, b){ return Math.hypot(a.c[0] - mc[0], a.c[1] - mc[1]) - Math.hypot(b.c[0] - mc[0], b.c[1] - mc[1]); });
+      cs = cs.filter(function(sh, i){ return i < _PZ_OPT_NEAR || sh.pc === cur; });
+      cs = cs.filter(function(sh){ return packs(sh, [m], override && override.pc === sh.pc ? override.L : sh.L); });
+      cs.sort(function(a, b){
+        var ca = a.pc === cur ? -1 : 0, cb = b.pc === cur ? -1 : 0;
+        if (ca !== cb) return ca - cb;
+        return Math.hypot(a.c[0] - mc[0], a.c[1] - mc[1]) - Math.hypot(b.c[0] - mc[0], b.c[1] - mc[1]);
+      });
+      return cs;
+    });
+    if (cands.some(function(c){ return !c.length; })){ loose = null; stayMap = null; return null; }
+    var order = M.map(function(m, i){ return i; }).sort(function(a, b){ return cands[a].length - cands[b].length; });
+    var on = new Map(), asg = new Map();
+    function dfs(k){
+      if (k === order.length) return true;
+      if (++budget.n > _PZ_OPT_BUDGET || log.tried >= _PZ_OPT_PACKS || log.tried - moveFrom >= _PZ_OPT_MOVE) return false;
+      var i = order[k], m = M[i];
+      for (var j = 0; j < cands[i].length; j++){
+        var sh = cands[i][j], cur = on.get(sh) || [], nxt = cur.concat([m]);
+        var L = override && override.pc === sh.pc ? override.L : sh.L;
+        if (!packs(sh, nxt, L)) continue;
+        on.set(sh, nxt); asg.set(m, sh);
+        if (dfs(k + 1)) return true;
+        on.set(sh, cur); asg.delete(m);
+      }
+      return false;
+    }
+    var ok = dfs(0); loose = null; stayMap = null;
+    return ok ? asg : null;
+  }
+  // The loose pieces near a change: the ones it frees, then whatever sits
+  // on the offcuts those could go on, and on again (G1 onto E20 means E20's
+  // piece onto E17, and E17's onto C16 …), so a roof of 170 sheets is
+  // searched along the chain that matters, not everywhere at once.
+  function quick(m){
+    var mc = cen(m), mh = groupOf(m).g.h, ma = (m.areaPx || 0) * pz.scaleM * pz.scaleM * 1e6;
+    return allSheets().filter(function(sh){
+      return roofOf(sh.pc) === roofOf(m) && sh.pc !== m && (sh.orig.indexOf(m) >= 0 || (mh <= sh.L - sh.minTop + _PZ_FIT_MM + 1 && ma <= cover * sh.L * 1.02 - sh.ownArea));
+    }).sort(function(a, b){ return Math.hypot(a.c[0] - mc[0], a.c[1] - mc[1]) - Math.hypot(b.c[0] - mc[0], b.c[1] - mc[1]); }).slice(0, _PZ_OPT_NEAR);
+  }
+  function near(must){
+    var set = must.slice(), frontier = must.slice();
+    for (var depth = 0; depth < 4 && frontier.length && set.length < _PZ_OPT_LOOSE; depth++){
+      var next = [];
+      frontier.forEach(function(m){
+        quick(m).forEach(function(sh){
+          movable.forEach(function(p){
+            if (p.from === sh.pc.label && set.indexOf(p) < 0 && set.length < _PZ_OPT_LOOSE){ set.push(p); next.push(p); }
+          });
+        });
+      });
+      frontier = next;
+    }
+    return set;
+  }
+  var allSheets = function(){ return Array.from(S.values()); };
+  function commit(asg){
+    asg.forEach(function(sh, m){
+      // (The packer only slides a piece or turns it end for end — never
+      // mirrors it — so it keeps its hand.)
+      m.ordered = false; m.from = sh.pc.label; m.block = sh.pc.block; m.label = '↺' + sh.pc.label; m.oc = null; m.fromHand = m.hand; m.series = false;
+      (feetOf.get(m) || []).forEach(function(f){ f.from = sh.pc.label; f.block = sh.pc.block; });
+    });
+  }
+  // 1. Extras from offcuts, longest first.
+  var extras = [];
+  pz.blocks.forEach(function(b){ if (b.extra === true) b.pieces.forEach(function(pc){ extras.push(pc); }); });
+  // (An extra whose own offcut feeds something is a sheet doing a job.)
+  extras = extras.filter(function(X){ var shX = S.get(X); return shX && !movable.some(function(p){ return p.from === X.label; }); });
+  extras.sort(function(a, b){ return lenOf(b) - lenOf(a); });
+  extras = extras.slice(0, _PZ_OPT_TRIES);
+  extras.forEach(function(X){
+    var shX = S.get(X); if (!shX || log.tried >= _PZ_OPT_PACKS) return;
+    if (shX.fixed.length || movable.some(function(p){ return p.from === X.label; })) return;   // it gives offcuts of its own
+    var others = allSheets().filter(function(sh){ return sh !== shX; });
+    var M = near([X]);
+    var asg = share(M, others);
+    if (!asg) return;
+    var b = X.block, Lx = lenOf(X);
+    b.pieces.splice(b.pieces.indexOf(X), 1);
+    S.delete(X); X.Lmm = undefined;
+    commit(asg);
+    movable.push(X);
+    log.extras++; log.savedMm += Lx;
+  });
+  // 2. A sheet whose own piece is no longer than a shorter block's sheets
+  // on its face is one of those; its offcut's pieces go elsewhere.
+  var tries = sheetPieces.filter(function(pc){ return S.has(pc) && pc.block && !pc.block.extra && !(feetOf.get(pc) || []).length; });
+  var shortTo = function(pc){
+    var sh = S.get(pc), tb = null;
+    pz.blocks.forEach(function(b){
+      if (b === pc.block || b.extra || !b.pieces.length || b.face !== pc.face) return;
+      if (b.Lmm + 1 >= sh.L - 400 || b.Lmm < sh.ownH - _PZ_FIT_MM) return;
+      if (b.pieces.some(function(q){ return q.Lmm && q.Lmm !== b.Lmm; })) return;
+      if (!tb || b.Lmm < tb.Lmm) tb = b;
+    });
+    return tb;
+  };
+  tries = tries.filter(function(pc){ return shortTo(pc); })
+    .sort(function(a, b){ return (S.get(b).L - shortTo(b).Lmm) - (S.get(a).L - shortTo(a).Lmm); })
+    .slice(0, _PZ_OPT_TRIES);
+  tries.forEach(function(pc){
+    var sh = S.get(pc); if (!sh || log.tried >= _PZ_OPT_PACKS) return;
+    var f = pc.face, need = sh.ownH;
+    var tb = null;
+    pz.blocks.forEach(function(b){
+      if (b === pc.block || b.extra || !b.pieces.length || b.face !== f) return;
+      if (b.Lmm + 1 >= sh.L - 400 || b.Lmm < need - _PZ_FIT_MM) return;
+      if (b.pieces.some(function(q){ return q.Lmm && q.Lmm !== b.Lmm; })) return;
+      if (!tb || b.Lmm < tb.Lmm) tb = b;
+    });
+    if (!tb) return;
+    var gives = movable.filter(function(p){ return p.from === pc.label; }).concat(sh.fixed);
+    var keepFixed = sh.fixed; sh.fixed = [];
+    gives.forEach(function(p){ if (movable.indexOf(p) < 0) movable.push(p); });
+    var M = near(gives);
+    var asg = share(M, allSheets(), { pc: pc, L: tb.Lmm, ownH: need });
+    if (!asg) keepFixed.forEach(function(p){ var i = movable.indexOf(p); if (i >= 0) movable.splice(i, 1); });
+    if (!asg){ sh.fixed = keepFixed; return; }
+    var saved = sh.L - tb.Lmm;
+    pc.block.pieces.splice(pc.block.pieces.indexOf(pc), 1);
+    tb.pieces.push(pc); pc.block = tb; pc.Lmm = undefined; pc.num = 1e6 + pc.num; pc.shortened = true;
+    sh.L = tb.Lmm; memo.clear();
+    gives.forEach(function(p){ p.series = false; });
+    commit(asg);
+    log.shorter++; log.savedMm += saved;
+  });
+  if (!log.extras && !log.shorter){ pz.optLog = log; return pz; }
+  // The blocks close up, and every name follows its sheet.
+  pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
+  pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });
+  var ren = {};
+  pz.blocks.forEach(function(b, bi){
+    b.letter = _pzLetter(bi);
+    b.pieces.sort(function(x, y){ return (x.num || 0) - (y.num || 0); });
+    b.pieces.forEach(function(pc, i){ var nl = b.letter + (i + 1); if (pc.label !== nl) ren[pc.label] = nl; pc.num = i + 1; pc.label = nl; });
+  });
+  pz.pieces.forEach(function(p){
+    if (p.ordered) return;
+    if (p.from && ren[p.from]) p.from = ren[p.from];
+    if (p.label) p.label = p.label.replace(/^([↺✂]*)(.*)$/, function(_, pre, rest){ return pre + (ren[rest] || rest); });
+  });
+  var lbl = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ lbl[pc.label] = pc; }); });
+  pz.pieces.forEach(function(p){ if (!p.ordered && p.from && lbl[p.from]) p.block = lbl[p.from].block; });
+  var byLen = {};
+  pz.blocks.forEach(function(b){
+    b.count = b.pieces.length;
+    b.feeds = pz.pieces.filter(function(p){ return !p.ordered && !p.strung && p.block === b; }).length;
+    b.pieces.forEach(function(pc){ var L = pc.Lmm || b.Lmm; byLen[L] = (byLen[L] || 0) + 1; });
+    if (b.extra){ var ls = {}; b.pieces.forEach(function(pc){ ls[pc.Lmm || b.Lmm] = 1; }); b.lengths = Object.keys(ls).map(Number).sort(function(x, y){ return y - x; }); }
+  });
+  pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
+  pz.extraSheets = pz.blocks.filter(function(b){ return b.extra === true; }).reduce(function(t, b){ return t + b.count; }, 0);
+  pz.fedPieces = pz.pieces.filter(function(p){ return !p.ordered && !p.strung; }).length;
+  pz.optLog = log;
+  return pz;
 }
 // THE SHEETS LIE AS THEY ARE CUT ON THE GROUND (2026-10-31, the owner: "a lot
 // of the times the sheets would be laid out on the ground and the roofer would
