@@ -250,8 +250,9 @@ await pg.waitForTimeout(500);
       code: typeof _jpRenderCalcCheck === 'function' && typeof _jpCaptureCalcCheck === 'function' };
   });
   check('the Sheet calc check is not offered as a page type', !r.types.includes('calccheck'), r.types.join(','));
-  check('…a new job pack is the header and the cut lists', r.defaults.join(',') === 'header,cutlists', r.defaults.join(','));
-  check('…and page 1 carries the Detailed map with the Sheet layout under it', r.p1.join(',') === 'detailed,sheetplan', r.p1.join(','));
+  check('…a new job pack is the header, the sheet layout, the sheet pre-cut layout and the cut lists', r.defaults.join(',') === 'header,sheetplan,precut,cutlists', r.defaults.join(','));
+  check('…and the pre-cut layout is offered as a page type', r.types.includes('precut'), r.types.join(','));
+  check('…and page 1 carries the Detailed map alone, to fill the page', r.p1.join(',') === 'detailed', r.p1.join(','));
   check('…the check is withdrawn by one switch and its code is still there', r.hidden === true && r.code);
 
   const mig = await pg.evaluate(() => {
@@ -267,18 +268,38 @@ await pg.waitForTimeout(500);
       again:     run([{ type:'header', images:[{ id:'def_dt_1', mapKey:'detailed' }] }, { type:'cutlists' }], 8)
     };
   });
-  check('an old pack no longer gains a calc check page', mig.untouched.types.join(',') === 'header,cutlists', mig.untouched.types.join(','));
-  check('an untouched default map gets the Sheet layout under it', mig.withDef.imgs.join(',') === 'detailed,sheetplan', mig.withDef.imgs.join(','));
-  check('…a calc check page already in a pack is kept in the store (only hidden)', mig.withDef.types.join(',') === 'header,cutlists,calccheck', mig.withDef.types.join(','));
+  check('an old pack no longer gains a calc check page, and gains the pre-cut layout as page 2', mig.untouched.types.join(',') === 'header,precut,cutlists', mig.untouched.types.join(','));
+  check('an untouched default map keeps page 1 to itself, the Sheet layout its own page 2', mig.withDef.imgs.join(',') === 'detailed', mig.withDef.imgs.join(','));
+  check('…a calc check page already in a pack is kept in the store (only hidden)', mig.withDef.types.join(',') === 'header,sheetplan,precut,cutlists,calccheck', mig.withDef.types.join(','));
   check('a map the office moved is left alone', mig.moved.imgs.join(',') === 'detailed', mig.moved.imgs.join(','));
   check('the migration runs once', mig.again.imgs.join(',') === 'detailed');
-  check('the pack is stamped v8', mig.untouched.v === 8, String(mig.untouched.v));
+  check('the pack is stamped v10', mig.untouched.v === 10, String(mig.untouched.v));
+  // v9 → v10 (2026-10-31): the app's own Sheet layout leaves page 1 for a page
+  // of its own straight after the header; one the office sized stays put.
+  const mig10 = await pg.evaluate(() => {
+    const run = (pages) => { S.jobPack = { pages: JSON.parse(JSON.stringify(pages)), pagesVersion: 9 }; const st = _jpState();
+      return st.pages.map(p => p.type).join(',') + '|' + (st.pages[0].images || []).map(i => i.mapKey).join(','); };
+    const dt = { id:'def_dt_1', mapKey:'detailed', x:10, y:285, w:670, h:470 }, sl = { id:'def_sl_1', mapKey:'sheetplan', x:10, y:760, w:670, h:240 };
+    return { plain: run([{ type:'header', images:[dt, sl] }, { type:'precut' }, { type:'cutlists' }]),
+             sized: run([{ type:'header', images:[dt, Object.assign({}, sl, { userSized:true })] }, { type:'precut' }, { type:'cutlists' }]),
+             had:   run([{ type:'header', images:[dt, sl] }, { type:'precut' }, { type:'cutlists' }, { type:'sheetplan' }]) };
+  });
+  check('a pack from before gets the Sheet layout as page 2 and the pre-cut layout as page 3; a sized one is left; never two',
+    mig10.plain === 'header,sheetplan,precut,cutlists|detailed' && mig10.sized === 'header,precut,cutlists|detailed,sheetplan' && mig10.had === 'header,precut,cutlists,sheetplan|detailed', JSON.stringify(mig10));
+  const mig9 = await pg.evaluate(() => {
+    const run = (pages) => { S.jobPack = { pages: JSON.parse(JSON.stringify(pages)), pagesVersion: 8 }; return _jpState().pages.map(p => p.type).join(','); };
+    return { arranged: run([{ type:'notes' }, { type:'header', images:[] }, { type:'cutlists' }]),
+             has: run([{ type:'header', images:[] }, { type:'cutlists' }, { type:'precut' }]),
+             noHeader: run([{ type:'cutlists' }]) };
+  });
+  check('…the pre-cut layout goes straight after the job header wherever it is, never twice, and first on a pack with no header',
+    mig9.arranged === 'notes,header,precut,cutlists' && mig9.has === 'header,cutlists,precut' && mig9.noHeader === 'precut,cutlists', JSON.stringify(mig9));
   const shown = await pg.evaluate(() => {
     S.jobPack = { pages: [{ type:'header', images:[] }, { type:'cutlists' }, { type:'calccheck' }], pagesVersion: 8 };
     renderJobPack();
     return [...document.querySelectorAll('#jpPages .jp-page .jp-page-label')].map(e => e.textContent).join(',');
   });
-  check('…and a stored calc check page is not shown, the pages numbered without it', shown === 'Page 1,Page 2', shown);
+  check('…and a stored calc check page is not shown, the pages numbered without it', shown === 'Page 1,Page 2,Page 3', shown);
 
   // The page renders the SAME picture the Maps panel places, which is what
   // keeps the two from disagreeing — including the engine's own "nothing to

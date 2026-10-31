@@ -6792,8 +6792,187 @@ function _pzRoofGeom(idx, opts){
   if (!(+pitch > 0)) pitch = parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   outline = _pzDropRepeats(outline);
   if (outline.length < 3) return null;
-  return { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
+  var R = { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
            pitch: +pitch || 0, lowPitch: +low || 0 };
+  _pzMonoBase(R);
+  return R;
+}
+// A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31, the
+// owner: "inside of a step creating a whole hip and valley set, it simply
+// extends the roof plain down ... if it's in the middle of a ridge line
+// that's pretty simple, just those sheets would be longer, however if it's
+// on a hip area, the full lengths sheets would again need to be longer and
+// making sure the offcuts are sufficiently long enough to carry on a offcut
+// triangle set"). A bump on the outline with no hip, valley or ridge at its
+// two outer corners carries the main slope over it, its sides barges
+// (reports 78/79). Read as faces, those barges made a hip END with a bump a
+// barge-laid face of 7.73 m sheets — 16 of them, 36 offcuts thrown away —
+// and grouped a slope's ordinary sheets with the bump's longer ones. So the
+// roof is laid exactly as it would be without the bump (_pzMonoBase), and
+// then every strip standing over the bump is carried down onto it
+// (_pzMonoExtend): a sheet over it is that much longer, and a piece cut from
+// an offcut needs its DONOR that much longer, so the offcut reaches.
+function _pzMonoBumps(ol, lines){
+  if (typeof _outlineBumps !== 'function') return [];
+  var bs = [];
+  try { bs = _outlineBumps(ol) || []; } catch(e){ return []; }
+  var near = function(p, c){ return Math.hypot(p[0]-c[0], p[1]-c[1]) < 4; };
+  return bs.filter(function(b){
+    var A = ol[b.a], B = ol[b.b], C = ol[b.c], D = ol[b.d];
+    // No roof line runs into the bump: not to its outer corners (its own hip
+    // end), nor anywhere in it (a gable T's stem, its ridge out to the end).
+    var quad = [A, B, C, D];
+    var inBump = function(p){
+      if (near(p, B) || near(p, C)) return true;
+      if (_pzPtSeg(p, A, D).d < 3) return false;
+      if (_spPointInPoly(p[0], p[1], quad)) return true;
+      return _pzPtSeg(p, A, B).d < 3 || _pzPtSeg(p, B, C).d < 3 || _pzPtSeg(p, C, D).d < 3;
+    };
+    return !lines.some(function(l){
+      if (!/^(hip|valley|ridge|apron|changepitch)$/.test(l.type)) return false;
+      var a = l.pts[0], z = l.pts[l.pts.length - 1];
+      return [a, z, [(a[0]+z[0])/2, (a[1]+z[1])/2]].some(inBump);
+    });
+  }).map(function(b){ return { A: ol[b.a], B: ol[b.b], C: ol[b.c], D: ol[b.d], ia: b.a, ib: b.b, ic: b.c, id: b.d }; });
+}
+function _pzMonoBase(R){
+  var ol = R.outline, bumps = _pzMonoBumps(ol, R.lines);
+  if (!bumps.length) return;
+  var drop = {};
+  bumps.forEach(function(b){ drop[b.ib] = 1; drop[b.ic] = 1; });
+  var base = ol.filter(function(_, k){ return !drop[k]; });
+  // A and D now sit in the middle of one straight wall: take them out too.
+  var n = base.length, keep = [];
+  for (var i = 0; i < n; i++){
+    var a = base[(i - 1 + n) % n], p = base[i], c = base[(i + 1) % n];
+    var L = Math.hypot(c[0]-a[0], c[1]-a[1]) || 1;
+    var off = Math.abs((c[0]-a[0])*(p[1]-a[1]) - (c[1]-a[1])*(p[0]-a[0])) / L;
+    var onSeg = ((p[0]-a[0])*(c[0]-a[0]) + (p[1]-a[1])*(c[1]-a[1])) / (L*L);
+    if (off < 1.5 && onSeg > 0 && onSeg < 1) continue;
+    keep.push(p);
+  }
+  if (keep.length < 3) return;
+  var along = function(l, a, b){ return l.pts.every(function(q){ return _pzPtSeg(q, a, b).d < 4; }); };
+  R.fullOutline = ol; R.fullLines = R.lines;
+  R.monoBumps = bumps;
+  R.outline = keep;
+  R.lines = R.lines.filter(function(l){
+    if (l.type !== 'barge' && l.type !== 'gutter') return true;
+    return !bumps.some(function(b){ return along(l, b.A, b.B) || along(l, b.C, b.D) || along(l, b.B, b.C); });
+  });
+}
+function _pzMonoExtend(pz){
+  if (!pz || !pz.roofs || !pz.roofs.some(function(R){ return R.monoBumps; })) return pz;
+  var scaleM = pz.scaleM, tol = pz.tol, need = {}, any = false;
+  pz.roofs.forEach(function(R){
+    if (!R.monoBumps) return;
+    R.monoBumps.forEach(function(bp){
+      var wx = bp.D[0]-bp.A[0], wy = bp.D[1]-bp.A[1], wl = Math.hypot(wx, wy) || 1;
+      pz.faces.forEach(function(f){
+        if (f.roof !== R || !f.ref || !f.t || f.ref.kind !== 'gutter') return;
+        var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1];
+        if (Math.abs((wx*dx + wy*dy) / wl) > 0.02) return;
+        var gD = ((f.ref.a[0]+f.ref.b[0])/2)*dx + ((f.ref.a[1]+f.ref.b[1])/2)*dy;
+        var dOf = function(p){ return p[0]*dx + p[1]*dy; }, tOf = function(p){ return p[0]*tx + p[1]*ty; };
+        if (Math.abs(dOf(bp.A) - gD) > tol || Math.abs(dOf(bp.D) - gD) > tol) return;
+        var dep = gD - (dOf(bp.B) + dOf(bp.C)) / 2;
+        if (dep < tol * 0.5) return;   // the bump stands out from the gutter, away from the face
+        var o1 = Math.min(tOf(bp.A), tOf(bp.D)), o2 = Math.max(tOf(bp.A), tOf(bp.D));
+        var xy = function(t, d){ return [t*tx + d*dx, t*ty + d*dy]; };
+        // The face's own edges, for the picture: its gutter now steps out
+        // round the bump — a barge up each side, the gutter across its end.
+        var ne = [];
+        f.edges.forEach(function(e){
+          var onG = Math.abs(dOf(e.a) - gD) < tol*0.6 && Math.abs(dOf(e.b) - gD) < tol*0.6;
+          var ta = tOf(e.a), tb = tOf(e.b), lo = Math.max(Math.min(ta, tb), o1), hi = Math.min(Math.max(ta, tb), o2);
+          if (!onG || hi - lo < 1){ ne.push(e); return; }
+          var up = ta < tb, s1 = up ? lo : hi, s2 = up ? hi : lo;
+          var pts = [e.a, xy(s1, gD), xy(s1, gD - dep), xy(s2, gD - dep), xy(s2, gD), e.b];
+          var kinds = [e.kind, (Math.abs(s1 - o1) < 1 || Math.abs(s1 - o2) < 1) ? 'barge' : e.kind, e.kind, (Math.abs(s2 - o1) < 1 || Math.abs(s2 - o2) < 1) ? 'barge' : e.kind, e.kind];
+          for (var k = 0; k < 5; k++){
+            if (Math.hypot(pts[k+1][0]-pts[k][0], pts[k+1][1]-pts[k][1]) > 0.5) ne.push({ a: pts[k], b: pts[k+1], kind: kinds[k], len: Math.hypot(pts[k+1][0]-pts[k][0], pts[k+1][1]-pts[k][1]) });
+          }
+        });
+        f.edges = ne;
+        (f.pieces || []).forEach(function(p){
+          var poly = p.poly, m = poly.length, out = [], hit = false;
+          for (var i = 0; i < m; i++){
+            var P = poly[i], Q = poly[(i + 1) % m];
+            out.push(P);
+            if (Math.abs(dOf(P) - gD) > tol*0.6 || Math.abs(dOf(Q) - gD) > tol*0.6) continue;
+            var tP = tOf(P), tQ = tOf(Q), lo = Math.max(Math.min(tP, tQ), o1), hi = Math.min(Math.max(tP, tQ), o2);
+            if (hi - lo < Math.max(1, tol * 0.3)) continue;
+            var s1 = tP < tQ ? lo : hi, s2 = tP < tQ ? hi : lo;
+            out.push(xy(s1, gD), xy(s1, gD - dep), xy(s2, gD - dep), xy(s2, gD));
+            hit = true;
+          }
+          if (!hit) return;
+          var ext = dep * scaleM * (f.pf || 1) * 1000;
+          p.poly = out; p.monoExtMm = (p.monoExtMm || 0) + ext;
+          if (p.longMm != null) p.longMm += ext;
+          if (p.shortMm != null) p.shortMm += ext;
+          if (p.areaPx != null) p.areaPx = Math.abs(_pzSignedArea(out));
+          // The sheet that has to be longer: the piece's own, or the sheet
+          // whose offcut (or whose foot) it is.
+          var src = p.ordered ? p.label : p.from;
+          if (src){ need[src] = (need[src] || 0) + ext; any = true; }
+        });
+      });
+    });
+    R.outline = R.fullOutline; R.lines = R.fullLines;
+  });
+  var bb = null;
+  pz.roofs.forEach(function(R){ R.outline.forEach(function(p){
+    if (!bb) bb = [p[0], p[1], p[0], p[1]];
+    bb[0] = Math.min(bb[0], p[0]); bb[1] = Math.min(bb[1], p[1]); bb[2] = Math.max(bb[2], p[0]); bb[3] = Math.max(bb[3], p[1]);
+  }); });
+  if (bb) pz.bbox = bb;
+  if (!any) return pz;
+  var R10 = function(v){ return Math.ceil(v / _PZ_ROUND_MM - 1e-9) * _PZ_ROUND_MM; };
+  var out = [], used = {};
+  (pz.blocks || []).forEach(function(b){ if (b.letter) used[b.letter] = 1; });
+  var nextLetter = (function(){ var i = 0; return function(){ while (used[_pzLetter(i)]) i++; used[_pzLetter(i)] = 1; return _pzLetter(i++); }; })();
+  (pz.blocks || []).forEach(function(b){
+    var grow = b.pieces.filter(function(pc){ return need[pc.label] > 0; });
+    if (!grow.length){ out.push(b); return; }
+    if (b.extra){ grow.forEach(function(pc){ pc.Lmm = R10((pc.Lmm || b.Lmm) + need[pc.label]); }); out.push(b); return; }
+    var groups = {};
+    grow.forEach(function(pc){ var L = R10((pc.Lmm || b.Lmm) + need[pc.label]); (groups[L] = groups[L] || []).push(pc); });
+    b.pieces = b.pieces.filter(function(pc){ return !(need[pc.label] > 0); });
+    if (b.pieces.length) out.push(b);
+    Object.keys(groups).map(Number).sort(function(x, y){ return x - y; }).forEach(function(L){
+      out.push({ letter: nextLetter(), face: b.face, Lmm: L, pieces: groups[L], extra: false, feeds: 0, cutCount: 0, monoExt: true });
+    });
+  });
+  // Letter the blocks again in order, number every block's sheets again in
+  // the order they lie, and carry the new names onto the pieces cut from them.
+  var ren = {}, sheetOf = {};
+  out.forEach(function(b, bi){
+    b.letter = _pzLetter(bi);
+    b.pieces.sort(function(x, y){ return (x.num || 0) - (y.num || 0); });
+    b.pieces.forEach(function(pc, i){
+      var nl = b.letter + (i + 1);
+      if (pc.label !== nl) ren[pc.label] = nl;
+      pc.num = i + 1; pc.block = b; pc.label = nl; sheetOf[nl] = pc;
+      if (b.monoExt) delete pc.Lmm;
+    });
+  });
+  pz.pieces.forEach(function(p){
+    if (p.ordered) return;
+    if (p.from && ren[p.from]) p.from = ren[p.from];
+    if (p.label) p.label = p.label.replace(/^([↺✂]*)(.*)$/, function(_, pre, rest){ return pre + (ren[rest] || rest); });
+    if (p.from && sheetOf[p.from]) p.block = sheetOf[p.from].block;
+  });
+  out.forEach(function(b){ b.feeds = pz.pieces.filter(function(p){ return !p.ordered && p.block === b && !p.strung; }).length; });
+  var byLen = {};
+  out.forEach(function(b){
+    b.count = b.pieces.length;
+    b.pieces.forEach(function(pc){ var L = pc.Lmm || b.Lmm; byLen[L] = (byLen[L] || 0) + 1; });
+    if (b.extra){ var ls = {}; b.pieces.forEach(function(pc){ ls[pc.Lmm || b.Lmm] = 1; }); b.lengths = Object.keys(ls).map(Number).sort(function(x, y){ return y - x; }); }
+  });
+  pz.blocks = out;
+  pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
+  return pz;
 }
 // The planar arrangement of one roof: outline edges + cutting roof lines,
 // split where they cross or meet, noded, and walked into faces.
@@ -7655,7 +7834,7 @@ function _sheetPuzzleBuild(opts){
     var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt = null;
-    try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true })); } catch(e){ alt = null; }
+    try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true, _monoDefer: true })); } catch(e){ alt = null; }
     if (alt && alt.tally && res.tally && (nSheets(alt) < nSheets(res) || (nSheets(alt) === nSheets(res) && steel(alt) < steel(res)))) res = alt;
   }
   // The same for a wing cut from the main's hip END: the plain hip's end
@@ -7669,9 +7848,10 @@ function _sheetPuzzleBuild(opts){
     var nSheets2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt2 = null;
-    try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true })); } catch(e){ alt2 = null; }
+    try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true, _monoDefer: true })); } catch(e){ alt2 = null; }
     if (alt2 && alt2.tally && res.tally && (nSheets2(alt2) < nSheets2(res) || (nSheets2(alt2) === nSheets2(res) && steel2(alt2) < steel2(res)))) res = alt2;
   }
+  if (!opts.noFill && !opts._monoDefer){ try { _pzMonoExtend(res); } catch(e){ try { console.warn('sheet mono:', e); } catch(e2){} } }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
 }
@@ -8728,6 +8908,11 @@ function _renderSheetPuzzleCanvas(opts){
     });
   });
   cv._sheetPuzzle = pz;
+  // Where the key ends and how the roof sits, in canvas pixels, so the Job
+  // Pack can turn a wide roof a quarter turn and leave the key upright
+  // (_jpRotWidePuzzle in app.html).
+  cv._pzHeadH = Math.round((legendTop + (crow + 1) * 19 + 4) * scale);
+  cv._pzRoofW = bw * fit; cv._pzRoofH = drawH;
   return cv;
 }
 
@@ -8805,4 +8990,385 @@ function _sheetPuzzleTallyFor(roofIdxs){
   var sheets = 0, lm = 0;
   tally.forEach(function(g){ sheets += g.count; lm += g.count * g.Lmm / 1000; });
   return { groups: _pzGroupsOf(tally), tally: tally, sheets: sheets, lm: lm, m2: lm * cover / 1000 };
+}
+
+// ── THE SHEET PRE-CUT LAYOUT (2026-10-31, the owner: "another diagram ...
+// that shows each sheet set layed out in a full sheet for each of the colour
+// coded sheet (i.e. orange A 7 @ 5.01m show the 7 orange sheets of full 5.01m
+// length layed out in a rectangle format side by side, no over or in the
+// roofmap/roof shape, as they would be before they are cut, and show the
+// required cut lines and label each of the cut sheets as they are labeled on
+// the sheet layout diagram) and do this for each colour/different length
+// sheet set, call this the Sheet Pre-Cut Layout ... fit on one a4 sheet on the
+// job pack on the 2nd page"). Every ordered sheet of the sheet layout, full
+// length, square end at the bottom: its own piece sits on that end (a foot
+// cut off at the valley under it, as the column was before the cut), and
+// each piece cut from its offcut is drawn where it comes out of the sheet —
+// spun end for end, exactly as it is laid on the roof — labelled as on the
+// sheet layout. What is left over is waste, greyed.
+// Each piece is read in its own face's frame as a roofer stands at the
+// gutter looking up the slope (x to the right, y up the slope in sheet
+// millimetres); that frame is the same for every face, so a spin is a plain
+// 180° turn and an offcut is never flipped.
+function _pzLocalPoly(pc, pz){
+  var f = pc.face, k = pz.scaleM * 1000, pf = f.pf || 1;
+  var dx = f.d[0], dy = f.d[1], rx = -dy, ry = dx;
+  var P = pc.poly.map(function(p){ return [(p[0]*rx + p[1]*ry) * k, (p[0]*dx + p[1]*dy) * k * pf]; });
+  // THE STRAIGHT CUT (2026-10-22): a strip a hip runs into the end of a
+  // ridge is cut once along the hip, the ridge cap covering the level run —
+  // the piece that comes out of the sheet is the diagonal continued.
+  if (pc.cutShortPx != null && pc.cutShortMm != null && pc.shortMm != null && pc.cutShortMm < pc.shortMm - 5){
+    var best = null;
+    for (var i = 0; i < P.length; i++){
+      var a = P[i], b = P[(i+1) % P.length], ex = b[0]-a[0], ey = b[1]-a[1];
+      if (Math.abs(ex) < 1 || Math.abs(ey) < 1) continue;
+      var r = Math.abs(ey / ex); if (r < 0.2 || r > 5) continue;
+      if (!best || Math.abs(ex) > Math.abs(best[1][0]-best[0][0])) best = [a, b];
+    }
+    if (best){
+      var A = best[0], B = best[1], c = _ccCentroid(P);
+      var side = function(p){ return (B[0]-A[0])*(p[1]-A[1]) - (B[1]-A[1])*(p[0]-A[0]); };
+      var keep = side(c) >= 0 ? 1 : -1, out = [];
+      for (var j = 0; j < P.length; j++){
+        var p = P[j], q = P[(j+1) % P.length], sp = side(p) * keep, sq = side(q) * keep;
+        if (sp >= -1e-6) out.push(p);
+        if ((sp >= -1e-6) !== (sq >= -1e-6)){ var t = sp / (sp - sq); out.push([p[0] + (q[0]-p[0])*t, p[1] + (q[1]-p[1])*t]); }
+      }
+      if (out.length >= 3) P = out;
+    }
+  }
+  return P;
+}
+// Is the end of a group (its lowest or highest edge) a square end, cut
+// straight across most of the sheet's width?
+function _pzSquareAt(items, top){
+  var all = []; items.forEach(function(it){ all = all.concat(it.poly); });
+  var B = _pzBox(all), y = top ? B[3] : B[1], xs = all.filter(function(p){ return Math.abs(p[1] - y) < 3; }).map(function(p){ return p[0]; });
+  return xs.length >= 2 && (Math.max.apply(null, xs) - Math.min.apply(null, xs)) >= 0.5 * (B[2] - B[0]);
+}
+function _pzSpin(items, w, h){ return items.map(function(it){ return { pc: it.pc, poly: it.poly.map(function(q){ return [w - q[0], h - q[1]]; }) }; }); }
+function _pzBox(P){
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  P.forEach(function(p){ x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+  return [x0, y0, x1, y1];
+}
+function _pzShift(P, dx, dy){ return P.map(function(p){ return [p[0] + dx, p[1] + dy]; }); }
+// Do two pieces overlap? Each is pulled in a little first, so two pieces
+// sharing a cut line (a foot and its head) do not count as touching.
+function _pzPolysOverlap(A, B, ins){
+  var inset = function(P){
+    var c = _ccCentroid(P);
+    return P.map(function(p){ var vx = p[0] - c[0], vy = p[1] - c[1], l = Math.hypot(vx, vy) || 1, s = Math.max(0, l - (ins || 1.5)) / l; return [c[0] + vx*s, c[1] + vy*s]; });
+  };
+  var a = inset(A), b = inset(B), ba = _pzBox(a), bb = _pzBox(b);
+  if (ba[2] <= bb[0] || bb[2] <= ba[0] || ba[3] <= bb[1] || bb[3] <= ba[1]) return false;
+  var cross = function(p, q, r, s){
+    var d = (q[0]-p[0])*(s[1]-r[1]) - (q[1]-p[1])*(s[0]-r[0]);
+    if (Math.abs(d) < 1e-9) return false;
+    var u = ((r[0]-p[0])*(s[1]-r[1]) - (r[1]-p[1])*(s[0]-r[0])) / d;
+    var v = ((r[0]-p[0])*(q[1]-p[1]) - (r[1]-p[1])*(q[0]-p[0])) / d;
+    return u > 0 && u < 1 && v > 0 && v < 1;
+  };
+  for (var i = 0; i < a.length; i++) for (var j = 0; j < b.length; j++)
+    if (cross(a[i], a[(i+1)%a.length], b[j], b[(j+1)%b.length])) return true;
+  if (_spPointInPoly(a[0][0], a[0][1], b) || _spPointInPoly(b[0][0], b[0][1], a)) return true;
+  var ca = _ccCentroid(a), cb = _ccCentroid(b);
+  return _spPointInPoly(ca[0], ca[1], b) || _spPointInPoly(cb[0], cb[1], a);
+}
+function _pzFits(P, placed, ins){ for (var i = 0; i < placed.length; i++) if (_pzPolysOverlap(P, placed[i].poly, ins)) return false; return true; }
+// A head and the feet carried under it, stacked as the column was before the
+// cut (lowest first), in the head's own frame.
+function _pzGroupOf(head, feet, pz){
+  var items = [];
+  var hp = _pzLocalPoly(head, pz), hb = _pzBox(hp);
+  var fl = feet.map(function(p){ var q = _pzLocalPoly(p, pz), b = _pzBox(q); return { pc: p, poly: _pzShift(q, hb[0] - b[0], -b[1]) }; })
+               .sort(function(x, y){ return _pzBox(x.poly)[3] - _pzBox(y.poly)[3]; });
+  var placed = [];
+  fl.forEach(function(it){
+    var y = 0, P = it.poly;
+    for (var g = 0; g < 4000 && !_pzFits(_pzShift(P, 0, y), placed); g++) y += 5;
+    while (y > 0 && _pzFits(_pzShift(P, 0, y - 1), placed)) y -= 1;
+    placed.push({ pc: it.pc, poly: _pzShift(P, 0, y) });
+  });
+  var H = _pzShift(hp, 0, -hb[1]), y0 = 0;
+  for (var g2 = 0; g2 < 4000 && !_pzFits(_pzShift(H, 0, y0), placed); g2++) y0 += 5;
+  while (y0 > 0 && _pzFits(_pzShift(H, 0, y0 - 1), placed)) y0 -= 1;
+  placed.push({ pc: head, poly: _pzShift(H, 0, y0) });
+  var all = []; placed.forEach(function(it){ all = all.concat(it.poly); });
+  var B = _pzBox(all);
+  placed.forEach(function(it){ it.poly = _pzShift(it.poly, -B[0], -B[1]); });
+  return { items: placed, w: B[2] - B[0], h: B[3] - B[1] };
+}
+// Every ordered sheet with its pieces placed in sheet millimetres.
+function _sheetPrecutPlan(pz){
+  var cover = pz.coverMm, sheets = [], bySheet = {}, feetOf = new Map();
+  pz.pieces.forEach(function(p){ if (p.strung && p.strungTo){ if (!feetOf.has(p.strungTo)) feetOf.set(p.strungTo, []); feetOf.get(p.strungTo).push(p); } });
+  (pz.blocks || []).forEach(function(b){
+    b.pieces.slice().sort(function(x, y){ return (x.num || 0) - (y.num || 0); }).forEach(function(pc){
+      var s = { block: b, piece: pc, label: pc.label, Lmm: pc.Lmm || b.Lmm, Wmm: cover, items: [], over: false };
+      sheets.push(s); bySheet[pc.label] = s;
+    });
+  });
+  // The sheet's own piece (and its feet) on its square end.
+  sheets.forEach(function(s){
+    var g = _pzGroupOf(s.piece, feetOf.get(s.piece) || [], pz);
+    // A fresh sheet is square at both ends: draw the end its piece is square
+    // to at the bottom.
+    s.spun = !_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true);
+    var items = s.spun ? _pzSpin(g.items, g.w, g.h) : g.items;
+    items.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: true }); });
+  });
+  // The pieces cut from its offcut, spun end for end, from the far end down.
+  // Biggest first: a scrap trimmed off an offcut goes in what is left.
+  pz.pieces.filter(function(p){ return !p.ordered && !p.strung && bySheet[p.from]; })
+    .sort(function(a, b){ return (a.scrap ? 1 : 0) - (b.scrap ? 1 : 0) || (b.areaPx || 0) - (a.areaPx || 0); })
+    .forEach(function(p){
+    var s = bySheet[p.from];
+    var g = _pzGroupOf(p, feetOf.get(p) || [], pz);
+    // Spun end for end (a piece square at its gutter end, out of the far end
+    // of the sheet) or carried straight (a piece square at its top): the fill
+    // never flips a sheet, so one of the two is the fit.
+    // Strict first, then within the fill's own fit (an offcut may be up to
+    // _PZ_FIT_MM short of its piece — the lap covers it).
+    var best = null;
+    [0, _PZ_FIT_MM].forEach(function(lift){
+      if (best) return;
+      [_pzSpin(g.items, g.w, g.h), g.items].forEach(function(cand){
+        [0, Math.max(0, s.Wmm - g.w)].forEach(function(x){
+          for (var y = s.Lmm - g.h, n = 0; y >= -_PZ_FIT_MM - 6 && n < 4000; y -= 5, n++){
+            var fits = function(yy){ return cand.every(function(it){ return _pzFits(_pzShift(it.poly, x, yy + lift), s.items); }); };
+            if (fits(y)){
+              while (y + 1 <= s.Lmm - g.h && fits(y + 1)) y += 1;
+              if (!best || y > best.y + 1) best = { cand: cand, x: x, y: y };
+              break;
+            }
+          }
+        });
+      });
+    });
+    // A scrap is a sliver trimmed off what is left; where the drawing has no
+    // clean gap for it, it goes in the far end, where it was trimmed from.
+    if (!best){ best = { cand: _pzSpin(g.items, g.w, g.h), x: 0, y: s.Lmm - g.h }; if (!p.scrap) s.over = true; }
+    best.cand.forEach(function(it){ s.items.push({ pc: it.pc, poly: _pzShift(it.poly, best.x, best.y), own: false }); });
+  });
+  // What runs past the sheet is within a tolerance the fill allows (a hip
+  // cap over a corner, an offcut a lap short): the drawing is the sheet.
+  var clipY = function(P, lo, hi){
+    var out1 = [], i, a, b, t;
+    for (i = 0; i < P.length; i++){ a = P[i]; b = P[(i+1) % P.length];
+      if (a[1] <= hi) out1.push(a);
+      if ((a[1] <= hi) !== (b[1] <= hi)){ t = (hi - a[1]) / (b[1] - a[1]); out1.push([a[0] + (b[0]-a[0])*t, hi]); } }
+    var out2 = [];
+    for (i = 0; i < out1.length; i++){ a = out1[i]; b = out1[(i+1) % out1.length];
+      if (a[1] >= lo) out2.push(a);
+      if ((a[1] >= lo) !== (b[1] >= lo)){ t = (lo - a[1]) / (b[1] - a[1]); out2.push([a[0] + (b[0]-a[0])*t, lo]); } }
+    return out2.length >= 3 ? out2 : P;
+  };
+  sheets.forEach(function(s){ s.items.forEach(function(it){ it.poly = clipY(it.poly, 0, s.Lmm); }); });
+  return sheets;
+}
+// THE SHEETS LIE AS THEY ARE CUT ON THE GROUND (2026-10-31, the owner: "a lot
+// of the times the sheets would be laid out on the ground and the roofer would
+// use a chalk line to ping the lines of the sheets as they're laid out next to
+// each other ... it's possible for the roofer to lay out, say, 10 sheets and
+// cut the corner so they're all in line ... so all the offcuts ... makes
+// perfect triangles"). A block's sheets cut by one hip or valley (one face,
+// one cut direction) are a RUN, ordered so its cuts make one straight line
+// across the sheets lying side by side — rising to the right, or falling —
+// and so the offcuts come off as one triangle set. The runs come first, in
+// sheet order; the sheets with no cut follow.
+// A RUN IS ONE ROOF LINE (2026-10-31, the owner on the first version: "those
+// purple sheets, they're not cut in a continuous line, they're all
+// staggered"): two sets of sheets on one face can be cut by two different
+// lines leaning the same way — the main's hip across the top of one set, the
+// valley a wing's feet are cut off at across the other — and a run keyed on
+// the face and the lean alone interleaved them. The cut is read back into the
+// face's own frame (`abs`: y = slope·x + c, in millimetres along the gutter
+// and up the slope), and a run is the sheets whose cut lies on the SAME line.
+function _pzCutLine(s, pz){
+  var own = null; s.items.forEach(function(it){ if (it.own && it.pc === s.piece) own = it; });
+  if (!own) return null;
+  var P = own.poly, best = null;
+  for (var i = 0; i < P.length; i++){
+    var a = P[i], b = P[(i+1) % P.length], dx = b[0]-a[0], dy = b[1]-a[1];
+    if (Math.abs(dx) < 2 || Math.abs(dy) < 2) continue;
+    var rr = Math.abs(dy / dx); if (rr < 0.2 || rr > 5) continue;   // a hip or valley cut, even a corner of one
+    var my = (a[1] + b[1]) / 2;
+    if (!best || my > best.my) best = { my: my, mx: (a[0] + b[0]) / 2, slope: dy / dx, h0: a[1] - dy / dx * a[0] };
+  }
+  if (best && pz){
+    // The sheet's own piece is its face's piece moved (and, spun, turned
+    // 180°): map the cut's midpoint back through the centroids.
+    var A = _pzLocalPoly(s.piece, pz), ca = _ccCentroid(A), cs = _ccCentroid(P);
+    var ax = s.spun ? ca[0] + cs[0] - best.mx : best.mx - cs[0] + ca[0];
+    var ay = s.spun ? ca[1] + cs[1] - best.my : best.my - cs[1] + ca[1];
+    best.abs = ay - best.slope * ax; best.ax = ax;
+  }
+  return best;
+}
+function _pzChalkRuns(sheets, pz){
+  var runs = {}, order = [], plain = [];
+  sheets.forEach(function(s){
+    var c = _pzCutLine(s, pz);
+    if (!c){ plain.push(s); return; }
+    var base = (s.piece.face ? s.piece.face.id : 0) + (c.slope > 0 ? '/' : '\\') + (s.spun ? 's' : ''), key = null;
+    // One line: the same face, lean and turn, and an intercept within 120 mm.
+    order.forEach(function(k){ if (!key && runs[k].base === base && (c.abs == null || runs[k].abs == null || Math.abs(runs[k].abs - c.abs) < 120)) key = k; });
+    if (!key){ key = base + '#' + order.length; runs[key] = []; runs[key].base = base; runs[key].abs = c.abs; order.push(key); }
+    runs[key].push({ s: s, c: c });
+  });
+  var out = order.map(function(k){
+    var r = runs[k], sg = r[0].c.slope > 0 ? 1 : -1;
+    return r.sort(function(a, b){ return a.c.ax != null && b.c.ax != null ? (sg * (a.c.h0 - b.c.h0) || a.c.ax - b.c.ax) : sg * (a.c.h0 - b.c.h0); }).map(function(x){ return x.s; });
+  });
+  if (plain.length) out.push(plain);
+  return out;
+}
+function _renderSheetPrecutCanvas(opts){
+  opts = opts || {};
+  var pz = opts.pz || _sheetPuzzleBuild(opts);
+  var scale = opts.thumb ? 1 : 2;
+  var W = opts.W || 960, H = opts.H || Math.round(960 * 1014 / 690), pad = 24;
+  var cv = document.createElement('canvas'); cv.width = W*scale; cv.height = H*scale;
+  var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
+  ctx.fillText('SHEET PRE-CUT LAYOUT', pad, 16);
+  var blocks = pz.blocks || [];
+  if (!pz.faces || !pz.faces.length || !blocks.length){
+    ctx.fillStyle = '#6b7280'; ctx.font = '500 13px Inter, sans-serif';
+    ctx.fillText('Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.', pad, 52);
+    cv._precut = []; return cv;
+  }
+  blocks.forEach(function(b, i){ b.color = _PZ_BLOCK_COLOURS[i % _PZ_BLOCK_COLOURS.length]; });
+  var sheets = _sheetPrecutPlan(pz);
+  ctx.fillStyle = '#475569'; ctx.font = '600 11.5px Inter, sans-serif';
+  ctx.fillText('Each sheet as ordered, square end down, laid side by side as cut. Red = the first cut, one chalk line a run; blue = the second cut, on the offcuts; grey = waste.', pad, 42);
+  var top = 64, availW = W - pad*2, availH = H - top - pad;
+  // One block a section: its header, then its sheets side by side, wrapping.
+  var groups = blocks.map(function(b){ var ss = sheets.filter(function(s){ return s.block === b; }); return { b: b, sheets: ss, runs: _pzChalkRuns(ss, pz) }; }).filter(function(g){ return g.sheets.length; });
+  var HEAD = 20, GAP = 10, SG = 3;
+  var layout = function(k){
+    // Each block: its rows. A block of one row shares a shelf with the next
+    // one-row block when they fit side by side.
+    var built = groups.map(function(g){
+      // Rows of runs: a run stays on one row where it fits (a run longer
+      // than a row is split evenly), a gap between runs.
+      var w0 = g.sheets[0].Wmm * k, RG = 3 * SG;
+      var chunks = [];
+      g.runs.forEach(function(run){
+        var cap = Math.max(1, Math.floor((availW + SG) / (w0 + SG)));
+        var n = Math.ceil(run.length / cap), per = Math.ceil(run.length / n);
+        for (var i = 0; i < run.length; i += per) chunks.push(run.slice(i, i + per));
+      });
+      var rowsS = [], cur = [], cw = 0;
+      chunks.forEach(function(ch){
+        var w = ch.length * (w0 + SG) - SG;
+        if (cur.length && cw + RG + w > availW){ rowsS.push(cur); cur = []; cw = 0; }
+        cw += (cur.length ? RG : 0) + w; cur.push(ch);
+      });
+      if (cur.length) rowsS.push(cur);
+      var rows = [], yy = HEAD, bw = 0;
+      rowsS.forEach(function(rch){
+        var x = 0, rowH = 0, row = [];
+        rch.forEach(function(ch, ci){
+          if (ci) x += RG - SG;
+          ch.forEach(function(s){
+            var w = s.Wmm * k, h = s.Lmm * k;
+            row.push({ s: s, x: x, w: w, h: h }); x += w + SG; rowH = Math.max(rowH, h);
+          });
+        });
+        bw = Math.max(bw, x - SG);
+        rows.push({ items: row, h: rowH, y: yy }); yy += rowH + SG + 2;
+      });
+      var hdW = 18 + 7.2 * (g.b.letter.length + 24);   // room for the block's heading
+      return { g: g, rows: rows, w: Math.max(bw, hdW), h: yy };
+    });
+    var out = [], y = 0, shelfX = 0, shelfH = 0, shelfOpen = false;
+    built.forEach(function(B){
+      var single = B.rows.length === 1;
+      if (single && shelfOpen && shelfX + 18 + B.w <= availW){
+        B.x = shelfX + 18; B.y = y; shelfX = B.x + B.w; shelfH = Math.max(shelfH, B.h);
+      } else {
+        if (shelfOpen){ y += shelfH + GAP; }
+        B.x = 0; B.y = y; shelfX = B.w; shelfH = B.h; shelfOpen = true;
+        if (!single){ y += B.h + GAP; shelfOpen = false; shelfH = 0; }
+      }
+      out.push(B);
+    });
+    if (shelfOpen) y += shelfH + GAP;
+    return { h: y, groups: out };
+  };
+  // (The height is not monotonic in the scale — a row wraps — so walk down.)
+  var k = 0.0005;
+  for (var kk = 1; kk > 0.0005; kk *= 0.985){ if (layout(kk).h <= availH){ k = kk; break; } }
+  var L = layout(k);
+  var hatch = function(P, col){
+    ctx.save(); ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.clip();
+    var b = _pzBox(P); ctx.strokeStyle = _pzTint(col, 0.65); ctx.lineWidth = 0.9; ctx.beginPath();
+    for (var hx = b[0] - (b[3] - b[1]); hx < b[2]; hx += 5){ ctx.moveTo(hx, b[1]); ctx.lineTo(hx + (b[3] - b[1]), b[3]); }
+    ctx.stroke(); ctx.restore();
+  };
+  L.groups.forEach(function(G){
+    var b = G.g.b, gy = top + G.y, gx = pad + G.x;
+    ctx.fillStyle = _pzTint(b.color, 0.30); _roundRect(ctx, gx, gy + 2, 12, 12, 3); ctx.fill();
+    ctx.strokeStyle = _pzTint(b.color, 0.9); ctx.lineWidth = 0.8; _roundRect(ctx, gx, gy + 2, 12, 12, 3); ctx.stroke();
+    var lens = {}; G.g.sheets.forEach(function(s){ lens[s.Lmm] = (lens[s.Lmm] || 0) + 1; });
+    var head = b.letter + '   ' + Object.keys(lens).map(Number).sort(function(x, y){ return y - x; }).map(function(l){ return lens[l] + ' × ' + _pzM(l) + ' m'; }).join(', ') + (b.extra === 'push' ? ' (pushed in)' : b.extra ? ' (extra)' : '');
+    ctx.fillStyle = '#0a1628'; ctx.font = '800 12.5px Inter, sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText(head, gx + 18, gy + 1);
+    G.rows.forEach(function(r){
+      var by = gy + r.y + r.h;   // every sheet's square end on one line
+      r.items.forEach(function(c){
+        var s = c.s, x0 = gx + c.x;
+        var toC = function(p){ return [x0 + p[0]*k, by - p[1]*k]; };
+        ctx.fillStyle = '#e5e7eb'; ctx.fillRect(x0, by - c.h, c.w, c.h);
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, by - c.h, c.w, c.h); ctx.clip();
+        s.items.forEach(function(itm){
+          var P = itm.poly.map(toC), col = (itm.pc.block && itm.pc.block.color) || b.color;
+          ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
+          if (itm.pc.ordered){ ctx.fillStyle = _pzTint(col, 0.30); ctx.fill(); }
+          else if (itm.pc.strung){ ctx.fillStyle = _pzTint(col, 0.22); ctx.fill(); }
+          else { ctx.fillStyle = '#fff'; ctx.fill(); hatch(P, col); }
+        });
+        // THE FIRST CUT IS RED, THE SECOND BLUE (2026-10-31, the owner: "the
+        // first sheet cut for the main sheets are all nicely in line, and then
+        // there could be a secondary cut line that could be marked on the
+        // offcuts"): the sheet's own pieces are cut off first, a whole run at
+        // one chalk line; what is then cut out of each offcut is drawn under
+        // them in blue, so where the two share an edge the red one shows.
+        [false, true].forEach(function(own){
+          s.items.forEach(function(itm){
+            if (!!itm.own !== own) return;
+            var P = itm.poly.map(toC);
+            ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
+            ctx.strokeStyle = own ? '#dc2626' : '#2563eb'; ctx.lineWidth = own ? 1.1 : 0.8; ctx.stroke();
+          });
+        });
+        ctx.restore();
+        ctx.strokeStyle = _pzTint(b.color, 0.9); ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, by - c.h + 0.5, c.w - 1, c.h - 1);
+        // Labels up each piece, as on the sheet layout.
+        s.items.forEach(function(itm){
+          var txt = itm.pc.label || ''; if (!txt) return;
+          var bx = _pzBox(itm.poly.map(toC)), ph = bx[3] - bx[1];
+          var cpt = _ccCentroid(itm.poly.map(toC));
+          if (cpt[1] < by - c.h - 1 || cpt[1] > by + 1) return;
+          for (var n = Math.min(13, Math.floor(c.w * 0.62)); n >= 5; n--){
+            ctx.font = '800 ' + n + 'px Inter, sans-serif';
+            var tw = ctx.measureText(txt).width;
+            if (tw + 4 <= ph * 0.92 && n <= c.w * 0.8){
+              ctx.save(); ctx.translate(Math.min(Math.max(cpt[0], x0 + n*0.55), x0 + c.w - n*0.55), cpt[1]); ctx.rotate(-Math.PI/2);
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              if (n < 8){ ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.strokeText(txt, 0, 0); }
+              ctx.fillStyle = '#0a1628'; ctx.fillText(txt, 0, 0); ctx.restore();
+              break;
+            }
+          }
+        });
+      });
+    });
+  });
+  cv._precut = sheets; cv._precutScale = k;
+  return cv;
 }

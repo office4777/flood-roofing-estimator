@@ -3534,10 +3534,15 @@ html.qp-phone-preview .qe-inline{ font-size:12px; }
    the thing it edits and pointing at it (_qeRailSync). The in-page button
    stays in the DOM as the anchor the rail measures from, made invisible
    and taken out of the flow. Narrow screens keep the buttons on the page. */
-html.qe-rail-on #quoteProposal{ position:relative; padding-left:186px !important; }
+/* ONE COLUMN, ONE LINE EACH (2026-10-30, the owner: "tidy up those buttons,
+   make them in line and single row (wider if they have to)"): every rail button
+   is the width of the widest, on one line, in one column with its hand beside
+   it; the gutter is as wide as that column needs (--qe-gutter, set by
+   _qeRailSync), never under the old 186px. */
+html.qe-rail-on #quoteProposal{ position:relative; padding-left:var(--qe-gutter, 186px) !important; }
 html.qe-rail-on #qpRoot .qe-inline{ position:absolute; visibility:hidden; pointer-events:none; margin:0; }
-#qeRail{ position:absolute; left:0; top:0; bottom:0; width:186px; overflow:visible; pointer-events:none; z-index:5; }
-.qe-rail-btn{ position:absolute; left:10px; max-width:150px; min-width:120px; display:block; padding:6px 11px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:normal; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; }
+#qeRail{ position:absolute; left:0; top:0; bottom:0; width:var(--qe-gutter, 186px); overflow:visible; pointer-events:none; z-index:5; }
+.qe-rail-btn{ position:absolute; left:10px; min-width:120px; display:block; padding:7px 12px; border:1px solid #0099cc; border-radius:12px; background:#fff; color:#0077a3; font-family:inherit; font-size:11.5px; font-weight:700; line-height:1.25; text-align:left; cursor:pointer; white-space:nowrap; pointer-events:auto; box-shadow:0 1px 4px rgba(10,22,40,.08); transition:top .15s ease; box-sizing:border-box; }
 .qe-rail-btn:hover{ background:#f0f8ff; }
 .qe-rail-line{ position:absolute; width:26px; height:26px; line-height:26px; font-size:20px; text-align:center; pointer-events:none; font-family:"Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif; animation:qeHandNudge 1.6s ease-in-out infinite; }
 @keyframes qeHandNudge{ 0%,100%{ transform:translateX(0); } 50%{ transform:translateX(4px); } }
@@ -5196,7 +5201,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-28T23:20:29Z';
+  window.APP_BUILT_AT = '2026-10-31T01:58:56Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5661,7 +5666,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
        it says whose account this is. -->
   <div class="hdr-logo">
     <img class="hdr-logo-mark" src="brand/roofmap_logo.png" alt="RoofMap">
-    <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span></div><div class="hdr-logo-sub" id="hdrLogoSub">Map. Price. Quote. Order.</div></div>
+    <div><div class="hdr-logo-text" id="hdrLogoText">Roof<span style="color:var(--accent)">Map</span><sup class="tm" style="font-size:.45em;font-weight:700;margin-left:2px;vertical-align:super;line-height:0;color:var(--accent)">™</sup></div><div class="hdr-logo-sub" id="hdrLogoSub">Map. Price. Quote. Order.</div></div>
   </div>
   <!-- Whose account this is. Filled by applyBranding(); stays empty, and takes
        up no room, until a company has been set up. -->
@@ -27246,6 +27251,8 @@ function _profitSelectionItems(){
       it.hrs = f(gl.leadHrs) + f(gl.appHrs);
       it.cost = matBase + f(gl.leadHrs) * f(gl.leadCost) + f(gl.appHrs) * f(gl.appCost);
       it.sub = lm.toFixed(1) + ' lm \u00b7 ' + it.hrs.toFixed(1) + ' hrs labour + material';
+    } else if (ch.inclx){
+      it.key = 'inclx'; it.sub = 'included extra \u00b7 at cost';
     } else if (/ steel$/.test(L) || / gauge steel$/.test(L) || /profile \(supplied in/.test(L)){
       it.sub = 'materials at cost';
     } else {
@@ -31331,7 +31338,8 @@ function _qpSelectionChanges(){
     var d = _selExtraDelta(g, row);
     if (d) out.push({ label: (g.title || 'Option') + ' — ' + (row.name || row.id), delta: d });
   });
-  return out;
+  // …and the quote's included extras (_ixItems), every one of them in.
+  return out.concat(_ixChanges(_ixItems()));
 }
 // ── SELL PRICES, NOT COST AND MARKUP ────────────────────────────────
 // The customer's page runs this same file, and it used to recompute every
@@ -31429,6 +31437,9 @@ function _qpBuildPriced(){
     });
     out.extras[g.id] = { title: g.title || '', first: (g.rows[0] || {}).id || '', rows: rows };
   });
+  // The quote's included extras, at the prices they were sent at — only
+  // where there are any, so a quote without them stamps the same block.
+  if (_ixItems().length) out.inclx = _ixItems().map(function(x){ return { id: x.id, name: String(x.name || '').trim(), desc: String(x.desc || ''), price: _ixPrice(x) }; });
   return out;
 }
 // The priced block a customer page should read, if this quote carries one.
@@ -31501,7 +31512,9 @@ function _qpSelectionChangesPriced(P){
     if (!row || !(+row.price)) return;
     out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
   });
-  return out;
+  // The included extras: from the block stamped at send, else (a quote sent
+  // before they existed) off the quote itself.
+  return out.concat(_ixChanges(Array.isArray(P.inclx) ? P.inclx : _ixItems()));
 }
 
 function _qpSelectionDeltaSum(){
@@ -32600,7 +32613,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -33820,10 +33833,13 @@ function _customerSelections(){
   var er = (p.extraRoofsSel && typeof p.extraRoofsSel === 'object') ? p.extraRoofsSel : {};
   var erOut = {};
   Object.keys(er).forEach(function(k){ if (/^\d+$/.test(String(k)) && er[k]) erOut[k] = true; });
-  return {
-    options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
-    gutterChoice: S.quote.gutterChoice || 'none',
-    proposalOptions: {
+  // The office's own options and a gutters job's colour ride too (2026-10-30):
+  // the server has always taken them, and a choice the customer changed there
+  // was never sent, so the job and the acceptance email kept the office's pick.
+  var exOut = {};
+  var ex = (p.extras && typeof p.extras === 'object') ? p.extras : {};
+  Object.keys(ex).forEach(function(k){ if (ex[k] != null && ex[k] !== '') exOut[k] = String(ex[k]); });
+  var po = {
       profile:        p.profile || '',
       steelGrade:     p.steelGrade || '',
       steelThickness: p.steelThickness || '',
@@ -33832,8 +33848,14 @@ function _customerSelections(){
       downpipes:      p.downpipes || '',
       disposal:       p.disposal || '',
       colour:         p.colour || '',
-      extraRoofsSel:  erOut
-    }
+      extraRoofsSel:  erOut,
+      extras:         exOut
+  };
+  if (p.gutterColour) po.gutterColour = String(p.gutterColour);
+  return {
+    options: (S.quote.options||[]).map(function(o){ return { id:o.id, selected:o.selected!==false, selectedUpgrade:o.selectedUpgrade||'' }; }),
+    gutterChoice: S.quote.gutterChoice || 'none',
+    proposalOptions: po
   };
 }
 // The fingerprint of the prices a customer's page was opened with. The server
@@ -34141,7 +34163,7 @@ function _qbPages(){
     });
   } catch(e){}
   pages.push({ key:'summary', label:'Your total', html:_qbSummary });
-  pages = _qModernApply(pages);
+  pages = _qModernApply(_ixAppend(pages));
   // Brackets & downpipes are a decision ABOUT the gutter: they sit right
   // after it wherever it lands, and go when it goes.
   var gi = pages.findIndex(function(x){ return x.key === 'gutter'; });
@@ -34200,7 +34222,7 @@ function _qbRender(){
       '</div>'+
       '<div class="qb-scroll-hint" id="qbScrollHint" aria-hidden="true">Scroll<svg viewBox="0 0 24 24" width="13" height="13"><path d="M12 5v14M6 13l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
       // The office's phone preview: the pages taken out, each with its Insert.
-      (function(){ var pk = _qbParkedForOffice(); if (!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE)) pk = pk.concat(['__addopt']); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
+      (function(){ var pk = _qbParkedForOffice(); if (!(window.__CUSTOMER_MODE || window.__PRINTING_QUOTE)) pk = pk.concat(['__addopt']).concat(_ixItems().length ? [] : ['__addinclx']); return pk.length ? '<div class="qb-parked no-print">'+pk.map(_qbInsertBtnHtml).join('')+'</div>' : ''; })()+
     '</div>';
   try { _qbBindSwipe(); } catch(e){}
   try { _qbGalSync(); } catch(e){}
@@ -35246,14 +35268,26 @@ function _qeRailSync(){
   // The button sits right beside the block it edits with a pointing hand
   // between them (the owner: "bring the edit button in closer"). The hand
   // stops short of the block's card, which paints over the rail.
+  // One column: every button as wide as the widest, on one line, the hands in
+  // a column beside them, and the gutter as wide as that needs.
   var btns = rail.querySelectorAll('.qe-rail-btn'), lines = rail.querySelectorAll('.qe-rail-line');
-  items.forEach(function(it, i){
-    var bw = btns[i] ? btns[i].offsetWidth : 160;
-    var handLeft = Math.max(8, it.x - 30 - 26);
-    var btnLeft = Math.max(4, handLeft - 6 - bw);
-    if (btns[i]) btns[i].style.left = btnLeft + 'px';
-    if (lines[i]) lines[i].style.left = handLeft + 'px';
-  });
+  var bw = 0;
+  for (var k = 0; k < btns.length; k++) bw = Math.max(bw, Math.ceil(btns[k].getBoundingClientRect().width));
+  if (!bw) bw = 150;
+  var gutter = Math.max(186, 10 + bw + 6 + 26 + 30);
+  var curG = parseFloat(wrap.style.getPropertyValue('--qe-gutter')) || 0;
+  if (Math.abs(curG - gutter) > 1){
+    // The blocks move when the gutter does: lay the rail out again once they have.
+    wrap.style.setProperty('--qe-gutter', gutter + 'px');
+    try { _qeRailQueue(); } catch(e){}
+  }
+  // The column stands right beside the blocks (the owner: "bring the edit
+  // button in closer"), all at the nearest block's edge so they line up.
+  var minX = Infinity; items.forEach(function(it){ if (it.x < minX) minX = it.x; });
+  var handLeft = isFinite(minX) ? Math.max(10 + bw + 6, minX - 30 - 26) : 10 + bw + 6;
+  var btnLeft = Math.max(4, handLeft - 6 - bw);
+  for (var j = 0; j < btns.length; j++){ btns[j].style.width = bw + 'px'; btns[j].style.left = btnLeft + 'px'; }
+  for (var m = 0; m < lines.length; m++) lines[m].style.left = handLeft + 'px';
 }
 // Hovering a rail button lights the block its anchor sits in.
 function _qeRailHover(i, on){
@@ -36036,7 +36070,7 @@ function _gjSections(book){
     });
   } catch(e){}
   list.push(book ? { key:'summary', label:'Your total', html:_qbSummary } : { key:'review', label:'Review', html:_qdReview });
-  return list;
+  return _ixAppend(list);
 }
 // The colour of the new gutter: the Colorsteel chart for a Colorsteel box
 // gutter, Marley's Typhoon range for Typhoon, and white for Marley Classic.
@@ -36397,6 +36431,128 @@ async function _qcoSave(id){
   try { if (typeof saveSettings === 'function') await saveSettings(); } catch(e){ ok = false; }
   try { _siteToast(ok ? '\u201c' + (g.title || 'Option') + '\u201d saved \u2014 Insert custom option \u2192 Select from saved' : 'The option could not be saved \u2014 try again'); } catch(e){}
 }
+// ── EXTRAS: INCLUDED ITEMS (2026-10-30, the owner: "add another optional add
+// in section into the quotes in all job types ... each line is an included
+// item, for instance the customer want customer coloured downpipes and leaf
+// diverters ... they both show as included as show the price ... make sure
+// the price effects the overall quote price and make sure they show in the
+// quote summary"). Not a choice: every line is IN the quote. `S.quote.
+// inclExtras` = [{id, name, desc, price}] (price ex GST). One list read by
+// the three totals — the roofing/gutters selection list (live and from the
+// priced block stamped at send, `P.inclx`, so a customer holding a sent quote
+// keeps the figures they were sent) and the shed's _poleShedSelItems — so the
+// section, the summary rows and the total cannot disagree. The office adds,
+// edits and removes them (never on an accepted quote); the customer only sees.
+function _ixItems(q){
+  q = q || (window.S && S.quote) || {};
+  return Array.isArray(q.inclExtras) ? q.inclExtras.filter(function(x){ return x && x.id && String(x.name || '').trim(); }) : [];
+}
+// What the quote SHOWS and CHARGES: the list stamped at send where the quote
+// is read from its priced block (the customer, an accepted quote), else live.
+function _ixView(){
+  var P = null; try { P = _qpPriced(); } catch(e){}
+  if (P && Array.isArray(P.inclx)) return P.inclx.filter(function(x){ return x && String(x.name || '').trim(); })
+    .map(function(x, i){ return { id: x.id || ('ixp' + i), name: x.name, desc: x.desc || '', price: x.price }; });
+  return _ixItems();
+}
+function _ixPrice(x){ return Math.round((parseFloat(x && x.price) || 0) * 100) / 100; }
+function _ixEditable(){ return _psAddonEditable(); }
+// The summary/total rows, from a list of {name, price}.
+function _ixChanges(list){
+  return (list || []).map(function(x){ return { label: 'Extras — ' + String(x.name || '').trim(), delta: _ixPrice(x), inclx: true }; })
+    .filter(function(c){ return c.delta; });
+}
+// Where the section goes: just ahead of the last section (Review / Your total).
+function _ixAppend(list){
+  if (!_ixView().length || !list || !list.length) return list;
+  if (list.some(function(x){ return x.key === 'inclx'; })) return list;
+  var at = list.length - 1;
+  list.splice(at, 0, { key:'inclx', label:'Extras', html:_ixSection });
+  return list;
+}
+function _ixSection(){
+  var list = _ixView(), edit = _ixEditable();
+  var tick = '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var rows = list.map(function(x){
+    var pr = _ixPrice(x);
+    return '<div class="qb-opt ps-ao ix-row on" data-ix="'+esc2(x.id)+'">'+
+        '<div class="ps-ao-hit" style="cursor:default">'+
+          '<span class="qb-tick sq">'+tick+'</span>'+
+          '<span class="qb-opt-txt"><b>'+esc2(x.name)+'</b>'+(x.desc ? '<span class="qb-opt-desc">'+esc2(x.desc)+'</span>' : '')+'</span>'+
+          '<span class="qb-opt-price"><span class="qb-up">'+(pr ? '+' + _qbMoney(_qbIncl(pr)) : 'Included')+'</span></span>'+
+        '</div>'+
+        (edit
+          ? '<span class="ps-ao-tools no-print">'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-ed" title="Change this extra’s name, words or price" onclick="_ixEdit(\''+esc2(x.id)+'\')">✎ Edit</button>'+
+              '<button type="button" class="ps-ao-tool ps-ao-tool-del" title="Take this extra off the quote" onclick="_ixDelete(\''+esc2(x.id)+'\')">✕</button>'+
+            '</span>'
+          : '')+
+      '</div>';
+  }).join('');
+  var tot = list.reduce(function(s, x){ return s + _ixPrice(x); }, 0);
+  return '<div class="qb-body ix-body">'+
+    '<span class="qb-eyebrow">Included in your price</span>'+
+    '<h2 class="qb-h2">Extras</h2>'+
+    (edit ? '<div class="qco-tools no-print" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 8px">'+
+        '<button type="button" class="qe-inline ix-add" onclick="_ixEdit(null)" title="Add another included item to this quote">+ Add an extra</button>'+
+        '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_ixClear()" title="Take every extra off this quote">Delete this page from this quote</button></div>' : '')+
+    _qSecPara('inclx', 'These extras are included in your quote, and their prices are in your total.')+
+    '<div class="qb-opts">'+rows+'</div>'+
+    (list.length > 1 && tot ? '<div class="qb-chosen ix-tot">Extras in total: <b>+'+_qbMoney(_qbIncl(tot))+'</b></div>' : '')+
+  '</div>';
+}
+function _ixWrite(list){
+  if (!S.quote) return;
+  if (list && list.length) S.quote.inclExtras = list; else delete S.quote.inclExtras;
+  _qcoChanged();
+}
+function _ixEdit(id){
+  if (!S.quote || !_ixEditable()) return;
+  var cur = id ? _ixItems().filter(function(x){ return x.id === id; })[0] : null;
+  if (id && !cur) return;
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>'+(cur ? 'Edit this extra' : 'Add an extra')+'</b><span>An item included in this quote — e.g. Coloured downpipes, Leaf diverters. It shows as included with its price, and the price is added to the quote’s total, excl. GST.</span></div>'+
+    '<div class="qco-bd">'+
+      '<label class="qco-l" for="ixName">Item name</label><input type="text" id="ixName" maxlength="70" placeholder="e.g. Leaf diverters" value="'+esc2(cur ? cur.name || '' : '')+'">'+
+      '<label class="qco-l" for="ixDesc">Description <span style="text-transform:none;font-weight:400">(shown under it, optional)</span></label>'+
+      '<input type="text" id="ixDesc" maxlength="240" value="'+esc2(cur ? cur.desc || '' : '')+'">'+
+      '<label class="qco-l" for="ixPrice">Price <span style="text-transform:none;font-weight:400">($ excl. GST)</span></label>'+
+      '<input type="text" id="ixPrice" inputmode="decimal" value="'+esc2(cur ? String(_ixPrice(cur)) : '')+'" placeholder="0.00">'+
+      '<div class="qco-msg" id="ixMsg"></div>'+
+    '</div>'+
+    '<div class="qco-ft"><span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>'+
+      '<button type="button" class="qa-btn qa-btn-primary" id="ixSave" onclick="_ixSave()">'+(cur ? 'Save' : 'Add to quote')+'</button></div>');
+  host._ixId = cur ? cur.id : null;
+  setTimeout(function(){ try { document.getElementById('ixName').focus(); } catch(e){} }, 30);
+}
+function _ixSave(){
+  var host = document.getElementById('qcoModal'); if (!host || !_ixEditable()) return;
+  var msg = document.getElementById('ixMsg');
+  var name = String(document.getElementById('ixName').value || '').trim().slice(0, 70);
+  var desc = String(document.getElementById('ixDesc').value || '').trim().slice(0, 240);
+  var price = parseFloat(String(document.getElementById('ixPrice').value || '').replace(/[^0-9.\-]/g, ''));
+  if (!isFinite(price)) price = 0;
+  price = Math.round(price * 100) / 100;
+  if (!name){ if (msg) msg.textContent = 'Give the extra a name.'; return; }
+  var id = host._ixId;
+  _qcoClose();
+  var list = _ixItems().slice();
+  if (id) list = list.map(function(x){ return x.id === id ? Object.assign({}, x, { name:name, desc:desc, price:price }) : x; });
+  else list.push({ id: _qcoNewId('ix'), name:name, desc:desc, price:price });
+  _ixWrite(list);
+  try { _siteToast(id ? 'Extra saved' : '“' + name + '” added to this quote’s extras'); } catch(e){}
+}
+function _ixDelete(id){
+  if (!_ixEditable()) return;
+  var cur = _ixItems().filter(function(x){ return x.id === id; })[0]; if (!cur) return;
+  if (!confirm('Take “' + cur.name + '” off this quote’s extras?')) return;
+  _ixWrite(_ixItems().filter(function(x){ return x.id !== id; }));
+}
+function _ixClear(){
+  if (!_ixEditable() || !_ixItems().length) return;
+  if (!confirm('Take every extra off this quote?')) return;
+  _ixWrite([]);
+}
 // ── taking a section out of this quote, and putting it back ─────────
 // The same store the template editor uses (`S.quote.modernParked`; the
 // condition page is the A4's page, so it is toggled in the document), from
@@ -36452,6 +36608,7 @@ function _qbParkedForOffice(){
 }
 function _qbInsertBtnHtml(key){
   if (key === '__addopt') return '<button type="button" class="qe-inline qe-insert qco-insert no-print" onclick="_qcoInsertMenu()" title="Add an option of your own to this quote \u2014 new, or one you saved">+ Insert custom option</button>';
+  if (key === '__addinclx') return '<button type="button" class="qe-inline qe-insert ix-insert no-print" onclick="_ixEdit(null)" title="Add items included in this quote, each with its price \u2014 e.g. coloured downpipes, leaf diverters">+ Insert Extras</button>';
   return '<button type="button" class="qe-inline qe-insert no-print" onclick="_qbSectionInsert(\''+esc2(key)+'\')" title="Put this section back into this quote">+ Insert '+esc2(_qModernLabel(key))+' page</button>';
 }
 // Mark the recommended row of a fixed group: the office's pick, else the base.
@@ -36625,7 +36782,9 @@ function _psPicksAuto(){
   } catch(e){}
   return out.filter(function(r){ return r[1]; });
 }
-function _qbPicksAuto(){
+// The included extras close every list of picks, each "Included".
+function _qbPicksAuto(){ return _qbPicksAutoBase().concat(_ixView().map(function(x){ return [String(x.name).trim(), 'Included', 'ix:' + x.id]; })); }
+function _qbPicksAutoBase(){
   if (typeof _psIsShed === 'function' && _psIsShed()) { try { return _psPicksAuto(); } catch(e){} }
   if (_isGutterJob()) { try { return _gjPicksAuto(); } catch(e){} }
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -36727,7 +36886,7 @@ function _fergusJobSummary(){
 // the sections card and the editor all agree.
 var QD_LABELS = { psplans:'Plans & elevations', psdetails:'Your shed', psplan:'Plan option', psgrade:'Steel grade', psprofile:'Profile',
   psthickness:'Thickness', pscolour:'Colour', psgutter:'Guttering', psroller:'Roller door', psaddons:'Add-ons', psincluded:"What's included",
-  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total' };
+  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total', inclx:'Extras' };
 function _qModernLabel(key){ return QD_LABELS[key] || (/^extra\d+$/.test(key) ? 'Options' : key); }
 function _qModernFixed(key, lastKey){ return key === 'cover' || key === 'proposal' || key === lastKey; }
 function _qModernApply(list){
@@ -36800,7 +36959,7 @@ function _qdSectionsRaw(){
     });
   } catch(e){}
   list.push({ key:'review', label:'Review', html:_qdReview });
-  return list;
+  return _ixAppend(list);
 }
 // The office's preview shows an "Insert … page" placeholder where a
 // section was taken out, at the place the default order puts it.
@@ -36821,6 +36980,10 @@ function _qcoWithInsert(list){
   if (at < 0) out.forEach(function(x, i){ if (at < 0 && (x.key === 'review' || x.key === 'summary')) at = i; });
   if (at < 0) at = out.length;
   out.splice(at, 0, { key:'__addopt', parked:true, label:'Custom option' });
+  // "+ Insert Extras" beside it while the quote has none (the section carries
+  // its own "+ Add an extra" once it has one).
+  // Above it, so "+ Insert custom option" stays straight above the colour.
+  if (!_ixItems().length) out.splice(at, 0, { key:'__addinclx', parked:true, label:'Extras' });
   return out;
 }
 function _qdWithParked(secs){
@@ -36847,7 +37010,7 @@ function _qdRender(){
   var logo = br.logo_url || br.logo || '';
   var q = S.quote || {};
   var main = _qdWithPlaceholders(secs).map(function(sc){
-    if (sc.key === '__addopt') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
+    if (sc.key === '__addopt' || sc.key === '__addinclx') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
     if (sc.parked) return '<section class="qd-sec qd-parked no-print" data-qd-parked="'+esc2(sc.key)+'">'+_qbInsertBtnHtml(sc.key)+'</section>';
     var inner = '';
     try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
@@ -41709,7 +41872,8 @@ function _poleShedSelItems(){
       if (d) out.push({ label: (g.title || 'Option') + ' \u2014 ' + (row.name || row.id), delta: d });
     });
   } catch(e){}
-  return out;
+  // The included extras, every one of them in the price.
+  return out.concat(_ixChanges(_ixView()));
 }
 function _poleShedSelDelta(){
   return _poleShedSelItems().reduce(function(d, r){ return d + r.delta; }, 0);
@@ -43756,7 +43920,7 @@ function _psModernSections(){
   // narrow screen's bottom bar both scroll to #qd-review, so a shed with its
   // own key had a Review button that went nowhere.
   list.push({ key:'review',      label:'Review',      html:_psmReview });
-  return list;
+  return _ixAppend(list);
 }
 // The customer's quote is locked once they've accepted it — selections are
 // frozen at what they signed off. Blocks the option/roof/colour setters (the
@@ -46275,7 +46439,7 @@ function _qtSnapshot(){
       var w = {};
       ['proposalTitle','summaryBaseLabel'].forEach(function(k){ if (q[k] != null && q[k] !== '') w[k] = q[k]; });
       if (q.summaryRowLabels && typeof q.summaryRowLabels === 'object') w.summaryRowLabels = JSON.parse(JSON.stringify(q.summaryRowLabels));
-      ['custDesc','custExcl','custNotes','summaryPicks','customExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
+      ['custDesc','custExcl','custNotes','summaryPicks','customExtras','inclExtras'].forEach(function(k){ if (Array.isArray(q[k])) w[k] = JSON.parse(JSON.stringify(q[k])); });
       if (q.selHide && typeof q.selHide === 'object') w.selHide = JSON.parse(JSON.stringify(q.selHide));
       if (q.sectionDesc && typeof q.sectionDesc === 'object') w.sectionDesc = JSON.parse(JSON.stringify(q.sectionDesc));
       return w;
@@ -46298,7 +46462,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras','inclExtras'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -46464,7 +46628,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
@@ -67674,6 +67838,43 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 8;
   }
+  // v8 → v9: THE SHEET PRE-CUT LAYOUT IS PAGE 2 (2026-10-31, the owner: "call
+  // this the Sheet Pre-Cut Layout, this make these diagrams fit on one a4
+  // sheet on the job pack on the 2nd page (first page as existing)"). Every
+  // pack that has none gets it straight after its job header (else first).
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 9) {
+    try {
+      var _pp9 = S.jobPack.pages || [];
+      if (!_pp9.some(function(p){ return p && p.type === 'precut'; })){
+        var _h9 = -1; _pp9.forEach(function(p, i){ if (_h9 < 0 && p && p.type === 'header') _h9 = i; });
+        _pp9.splice(_h9 + 1, 0, { type:'precut' });
+      }
+    } catch(e){}
+    S.jobPack.pagesVersion = 9;
+  }
+  // v9 → v10: THE SHEET LAYOUT LEAVES PAGE 1 FOR A PAGE OF ITS OWN (2026-10-31,
+  // the owner: "made the details roofmap fit the whole page, then move the
+  // sheet layout to the 2nd page, then the sheet cut layout to the third
+  // page"). The app's own untouched Sheet layout picture comes off the job
+  // header, and a Sheet layout page goes straight after that header (so the
+  // pre-cut layout follows it). A picture the office moved or sized stays
+  // where they put it, and a pack that already has the page is not given two.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 10) {
+    try {
+      var _pp10 = S.jobPack.pages || [];
+      var _moved = false, _h10 = -1;
+      _pp10.forEach(function(p, i){
+        if (!p || p.type !== 'header' || !Array.isArray(p.images)) return;
+        var n0 = p.images.length;
+        p.images = p.images.filter(function(im){
+          return !(im && /^(def|mig)_/.test(im.id || '') && String(im.mapKey || '').split(':')[0] === 'sheetplan' && !im.userSized);
+        });
+        if (p.images.length < n0 && _h10 < 0){ _moved = true; _h10 = i; }
+      });
+      if (_moved && !_pp10.some(function(p){ return p && p.type === 'sheetplan'; })) _pp10.splice(_h10 + 1, 0, { type:'sheetplan' });
+    } catch(e){}
+    S.jobPack.pagesVersion = 10;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -67686,12 +67887,17 @@ function _jpDefaultPages(){
   // Header strip (client + tile row) eats ~y:0..270, leaving the rest
   // of the page for the map.
   return [
-    // The Sheet layout sits under the Detailed map on page 1 (2026-10-27),
-    // the two fitted together to the page by _jpFitDefaults.
+    // PAGE 1 IS THE DETAILED MAP ALONE, PAGE 2 THE SHEET LAYOUT, PAGE 3 THE
+    // PRE-CUT LAYOUT (2026-10-31, the owner: "made the details roofmap fit the
+    // whole page, then move the sheet layout to the 2nd page, then the sheet
+    // cut layout to the third page, make them fit to the page"). Each fills
+    // its page (_jpFitDefaults for the map) and a wide roof is turned.
     { type:'header', images:[
-      { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:470 },
-      { id:'def_sl_'+Date.now(), mapKey:'sheetplan', x: 10, y:760, w:670, h:240 }
+      { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:720 }
     ] },
+    { type:'sheetplan'   },
+    // Every ordered sheet laid out whole, with its cuts (2026-10-31).
+    { type:'precut'      },
     { type:'cutlists'    }
     // The Sheet calc check page went after the cut lists until 2026-10-27;
     // it is withdrawn (CALC_CHECK_HIDDEN) and the sheet layout is the count.
@@ -67710,6 +67916,7 @@ function _jpPageTypes(){
     { value:'roofmap',     label:'Roof map' },
     CALC_CHECK_HIDDEN ? null : { value:'calccheck',   label:'Sheet calc check' },
     SHEET_LAYOUT_HIDDEN ? null : { value:'sheetplan',   label:'Sheet plan' },
+    SHEET_LAYOUT_HIDDEN ? null : { value:'precut',      label:'Sheet pre-cut layout' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
     { value:'consumables', label:'Consumables' },
@@ -68171,7 +68378,7 @@ function _jpCaptureSheetPlanCombined(vis, opts){
   var cv = null;
   try { cv = _renderSheetPuzzleCanvas(o); } catch(e){ cv = null; }
   if (!cv || !cv.width) return null;
-  return cv.toDataURL('image/png');
+  return (o.rotWide ? _jpRotWidePuzzle(cv) : cv).toDataURL('image/png');
 }
 // Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
 // [{color, count, orderedMm}] array. Reads the input elements that
@@ -68199,6 +68406,10 @@ function _jpExtractLegendFrom(scope){
 // the auto-fit below can blow it up to fill the page without dead
 // margins.  Samples every 2nd pixel — a ~1MP canvas scans in a few ms.
 function _cropCanvasToContent(srcCanvas, padPx){
+  var c = _cropCanvasToContentCv(srcCanvas, padPx);
+  return c ? c.toDataURL('image/png') : null;
+}
+function _cropCanvasToContentCv(srcCanvas, padPx){
   try {
     var W = srcCanvas.width, H = srcCanvas.height;
     var data = srcCanvas.getContext('2d').getImageData(0, 0, W, H).data;
@@ -68222,8 +68433,48 @@ function _cropCanvasToContent(srcCanvas, padPx){
     var cx = c.getContext('2d');
     cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
     cx.drawImage(srcCanvas, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
-    return c.toDataURL('image/png');
+    return c;
   } catch(e){ return null; }
+}
+// A WIDE ROOF IS TURNED TO FIT THE PAGE (2026-10-31, the owner: "if the roof
+// is longer east/west than it is north/south, rotate it automatically 90deg
+// to fit the screen better"). A Job Pack page is portrait, so a roof wider
+// than it is tall printed small with half the page empty under it. The
+// picture is given a quarter turn anticlockwise (north to the left) when its
+// width is more than JP_ROT_WIDE times its height; a roof near square is left
+// as drawn. Only the app's own fitted pictures are turned (opts.rotWide) — a
+// picture the office has placed or sized is theirs.
+var JP_ROT_WIDE = 1.05;
+function _cvRotCCW(cv){
+  var r = document.createElement('canvas'); r.width = cv.height; r.height = cv.width;
+  var x = r.getContext('2d'); x.translate(0, r.height); x.rotate(-Math.PI / 2); x.drawImage(cv, 0, 0);
+  return r;
+}
+function _cvRotIfWide(cv){
+  return (cv && cv.width > cv.height * JP_ROT_WIDE) ? _cvRotCCW(cv) : cv;
+}
+// The sheet layout keeps its title and colour key upright: only the roof
+// under the key is turned, and the key sits over it as before.
+function _jpRotWidePuzzle(cv){
+  try {
+    var hh = cv && cv._pzHeadH;
+    if (!hh || !(cv._pzRoofW > cv._pzRoofH * JP_ROT_WIDE)) return cv;
+    var reg = document.createElement('canvas'); reg.width = cv.width; reg.height = cv.height - hh;
+    reg.getContext('2d').drawImage(cv, 0, hh, cv.width, reg.height, 0, 0, cv.width, reg.height);
+    var rot = _cvRotCCW(_cropCanvasToContentCv(reg, 16) || reg);
+    // Grown to fill the page under the key: an A4 content box is 182 × 262 mm.
+    var Wout = cv.width, room = Math.round(Wout * 262 / 182) - hh;
+    var k = Math.max(1, Math.min(Wout / rot.width, room / rot.height));
+    var rw = Math.round(rot.width * k), rh = Math.round(rot.height * k);
+    var out = document.createElement('canvas');
+    out.width = Wout; out.height = hh + rh;
+    var o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, out.width, out.height);
+    o.drawImage(cv, 0, 0, cv.width, hh, 0, 0, cv.width, hh);
+    o.imageSmoothingQuality = 'high';
+    o.drawImage(rot, Math.round((Wout - rw) / 2), hh, rw, rh);
+    out._pzRotated = true;
+    return out;
+  } catch(e){ return cv; }
 }
 
 // A picture for a PDF is drawn at up to three times the screen's pixel
@@ -68286,7 +68537,9 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
       DRAW.showAllRoofs = false;
     }
     redrawAll();
-    return _cropCanvasToContent(src, 30) || src.toDataURL('image/png');
+    var _cc = _cropCanvasToContentCv(src, 30);
+    if (_cc && opts && opts.rotWide) _cc = _cvRotIfWide(_cc);
+    return _cc ? _cc.toDataURL('image/png') : src.toDataURL('image/png');
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -68346,7 +68599,7 @@ function _jpCaptureSheetPlan(opts, roofIdx){
   try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
   if (typeof roofIdx === 'number' && roofIdx >= 0) o.roofIdxs = [roofIdx];
   else if (!(DRAW.roofs && DRAW.roofs.length)) o.roofIdxs = [-1];
-  try { return _renderSheetPuzzleCanvas(o).toDataURL('image/png'); } catch(e){ return null; }
+  try { var _cv = _renderSheetPuzzleCanvas(o); return (o.rotWide ? _jpRotWidePuzzle(_cv) : _cv).toDataURL('image/png'); } catch(e){ return null; }
 }
 // Flashing reference map — same clean-canvas capture as the Detailed
 // map but with the A/B/C letter overlays force-drawn on top regardless
@@ -68469,7 +68722,7 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
   var defs = [];
   page.images.forEach(function(im, ii){
     if (_jpMapKindHidden(String(im.mapKey || '').split(':')[0])) return;
-    var src = _jpCaptureMap(im.mapKey, {});
+    var src = _jpCaptureMap(im.mapKey, (/^(def|mig)_/.test(im.id || '') && !im.userSized) ? { rotWide: true } : {});
     if (!src) return;
     var wrap = document.createElement('div');
     wrap.className = 'jp-page-imgwrap';
@@ -69178,6 +69431,7 @@ function _jpRenderBlock(content, page, idx){
     case 'header':      return _jpRenderHeader(content, page, idx);
     case 'roofmap':     return _jpRenderRoofMap(content, page, idx);
     case 'sheetplan':   return _jpRenderSheetPlan(content, page, idx);
+    case 'precut':      return _jpRenderPrecut(content, page, idx);
     case 'calccheck':   return _jpRenderCalcCheck(content, page, idx);
     case 'cutlists':    return _jpRenderCutLists(content, page, idx);
     case 'flashings':   return _jpRenderFlashings(content, page, idx);
@@ -69595,17 +69849,18 @@ function _jpRenderCalcCheck(content, page, idx){
 function _jpRenderSheetPlan(content, page, idx){
   // The same picture the Maps panel places, as a page of its own: the
   // roofs the pack covers, in one frame, each face divided at sheet cover.
+  // THE SHEET LAYOUT IS PAGE 2, FITTED TO THE PAGE (2026-10-31): the picture
+  // carries its own title, so the page adds none; a wide roof is turned.
   content.innerHTML =
-    '<div class="jp-block-title">Sheet layout</div>' +
-    '<div class="jp-sl-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden"></div>';
+    '<div class="jp-sl-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;min-height:0"></div>';
   var out = content.querySelector('.jp-sl-out');
   var src = null;
   try {
     if (SHEET_LAYOUT_HIDDEN) src = null;
     else {
       var vis = _jpMapRoofFilter();
-      src = (vis && vis.length) ? _jpCaptureSheetPlanCombined(vis, {})
-                                : _jpCaptureCombined('sheetplan', {});
+      src = (vis && vis.length) ? _jpCaptureSheetPlanCombined(vis, { rotWide: true })
+                                : _jpCaptureCombined('sheetplan', { rotWide: true });
     }
   } catch(e){}
   if (!src){
@@ -69613,7 +69868,32 @@ function _jpRenderSheetPlan(content, page, idx){
       'Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.</div>';
     return;
   }
-  out.innerHTML = '<img src="' + src + '" alt="Sheet layout" style="max-width:100%;height:auto;display:block">';
+  out.innerHTML = '<img class="jp-sl-img" src="' + src + '" alt="Sheet layout" style="display:block;width:auto;height:auto;max-width:100%;max-height:262mm;object-fit:contain">';
+}
+// THE SHEET PRE-CUT LAYOUT (2026-10-31): every sheet the sheet layout
+// orders, whole and side by side by its colour block, with the cuts drawn on
+// it and every piece labelled as on the sheet layout — _renderSheetPrecutCanvas
+// in sheet-plan.js. Drawn to the shape of the page's own content area, so the
+// whole set always lands on one A4 sheet.
+function _jpRenderPrecut(content, page, idx){
+  content.innerHTML = '<div class="jp-pc-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;min-height:0"></div>';
+  var out = content.querySelector('.jp-pc-out');
+  var src = null;
+  try {
+    if (!SHEET_LAYOUT_HIDDEN && typeof _renderSheetPrecutCanvas === 'function'){
+      var vis = _jpMapRoofFilter();
+      try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
+      // The A4's content box: 182 × 269 mm, less a little for the page tools.
+      var cv = _renderSheetPrecutCanvas({ roofIdxs: (vis && vis.length) ? vis.slice() : [-1], W: 960, H: Math.round(960 * 262 / 182) });
+      if (cv && cv.width) src = cv.toDataURL('image/png');
+    }
+  } catch(e){ try { console.warn('precut:', e); } catch(e2){} }
+  if (!src){
+    out.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);font-style:italic">' +
+      'Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.</div>';
+    return;
+  }
+  out.innerHTML = '<img class="jp-precut-img" src="' + src + '" alt="Sheet pre-cut layout" style="width:100%;height:auto;max-height:100%;object-fit:contain;display:block">';
 }
 // One "Roof sheets" section: the rows for `sc` (a roof's own counts, or the
 // job's), edited through the job-level slots — inside _jpSheetScope when a

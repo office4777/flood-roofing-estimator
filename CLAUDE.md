@@ -26,7 +26,7 @@ accordingly.
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
 - `floodroofing/tests/*.mjs` — self-contained suites. `run.mjs` runs them all
-  (292 as of 2026-10-29 — 66 in its `API` list, 226 in `UI` — four at a time,
+  (293 as of 2026-10-30 — 66 in its `API` list, 227 in `UI` — four at a time,
   plus the sheet-layout gate on a full run; `JOBS=1` for one at a time), or
   one by name: `node floodroofing/tests/run.mjs inboxui`, or a whole half:
   `run.mjs api` is the exact command CI's Backend job runs, 66 suites in
@@ -349,6 +349,23 @@ THE LAY:
    its gutter (hip-cut strips included), its offcuts feeding the slopes'
    corners across its hips, the corners laid as complements (the gablet from
    its corners in, the slope from the gablet's wall out).
+7b. A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31,
+   "inside of a step creating a whole hip and valley set, it simply extends
+   the roof plain down ... if it's in the middle of a ridge line that's
+   pretty simple, just those sheets would be longer, however if it's on a hip
+   area, the full lengths sheets would again need to be longer and making
+   sure the offcuts are sufficiently long enough to carry on a offcut
+   triangle set"). A bump no roof line runs into (reports 78/79's mono
+   extension, or a shallow bump left unchosen) is laid as if it were not
+   there (`_pzMonoBase`, in `_pzRoofGeom`), then every strip over it is
+   carried down onto it (`_pzMonoExtend`, last in `_sheetPuzzleBuild`): a
+   sheet over it is longer by the bump's depth up the slope (its own block,
+   never grouping the slope's other sheets with it), and a piece cut from an
+   offcut makes its DONOR that much longer, so the offcut still reaches — on
+   a hip end the corner sheets feeding the rows over the bump. 18 × 12 hip
+   with a 1 × 4 m bump anywhere: 48 sheets, 6 × 7.74 + 42 × 6.63, nothing
+   extra (was 48–64 sheets with up to 16 × 7.73 and 36 offcuts wasted on a
+   hip end). Report 78's roof as mono: 47 → 44 sheets, 202 → 186 m.
 
 THE FILL:
 8. Feed each side of an end IN ORDER from its home offcuts (the same face, or
@@ -406,6 +423,67 @@ THE PICTURE:
     hatch, the ✂ chip the 22% tint with a dashed edge — the first block's
     colour on the two examples. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
+11b. THE SHEET PRE-CUT LAYOUT IS THE JOB PACK'S PAGE 2 (2026-10-31: "show
+    the 7 orange sheets of full 5.01m length layed out in a rectangle format
+    side by side ... as they would be before they are cut, and show the
+    required cut lines and label each of the cut sheets as they are labeled on
+    the sheet layout diagram ... call this the Sheet Pre-Cut Layout ... fit on
+    one a4 sheet on the job pack on the 2nd page"). `_renderSheetPrecutCanvas`
+    / `_sheetPrecutPlan` in sheet-plan.js: every ordered sheet of the layout's
+    blocks, full length, square end at the bottom, block by block in the
+    layout's colours (one-row blocks share a shelf, rows evened out, one scale
+    for the page, the largest that fits). On each sheet: its own piece on the
+    square end (spun end for end if that piece is square at its top), the feet
+    carried under it (✂), then every piece cut from its offcut — tried spun
+    and straight, flush either side, the highest place it fits (a scrap last)
+    — red cut lines, grey waste, labels as on the layout. Pieces are read in
+    one frame for every face (standing at the gutter looking up the slope), so
+    a spin is a plain 180° turn and nothing is flipped; a straight-cut piece
+    (rule 8's `cutShortPx`) is drawn as cut; what the fill's own tolerances
+    let run past the sheet (a hip cap over a corner, an offcut up to
+    `_PZ_FIT_MM` short) is clipped to it. Page type `precut`
+    (`_jpRenderPrecut`), in `_jpDefaultPages` after the header; the v9
+    migration puts it after the first job header of every pack without one.
+    THE SHEETS LIE AS THEY ARE CUT ON THE GROUND (the same day: "the sheets
+    would be laid out on the ground and the roofer would use a chalk line to
+    ping the lines ... lay out, say, 10 sheets and cut the corner so they're
+    all in line ... so all the offcuts ... makes perfect triangles"): a
+    block's sheets cut by one hip or valley (one face, one cut direction, a
+    corner nick included) are a RUN (`_pzChalkRuns`, `_pzCutLine`), ordered so
+    the cut is one straight line across them, rising or falling — so on a
+    north slope numbered from the west the run reads A8 … A1. Runs first,
+    each kept on one row where it fits, a gap between runs; uncut sheets last.
+    `sheetlayout.mjs` pins every sheet once at its length and every piece
+    inside its sheet with none overlapping on five shapes, and the page fitting.
+    A RUN IS ONE ROOF LINE, AND THE FIRST CUT IS RED (the same afternoon: "those
+    purple sheets, they're not cut in a continuous line, they're all staggered
+    ... prioritize the main first cut line, so it's all nicely in line ...
+    maybe show [a second cut] in a different line color"). On an L the main's
+    slope carries sheets cut by its hip AND sheets whose feet come off at the
+    wing's valley — two lines leaning the same way on one face, which a run
+    keyed on face + lean interleaved. `_pzCutLine(s, pz)` reads the cut back
+    into the face's own frame (`abs` = its intercept, through the centroids,
+    spun or not) and `_pzChalkRuns(sheets, pz)` clusters sheets whose cuts lie
+    within 120 mm of one line. The sheet's own pieces are outlined RED (the
+    first cut, one chalk line a run), everything cut out of an offcut BLUE
+    underneath (the second cut). Pinned on the Big-L and an L with a wing.
+11c. ONE PICTURE A PAGE, FITTED, A WIDE ROOF TURNED (2026-10-31: "made the
+    details roofmap fit the whole page, then move the sheet layout to the 2nd
+    page, then the sheet cut layout to the third page, make them fit to the
+    page and if the roof in longer east/west than it is north/south, rotate it
+    automatically 90deg to fit the screen better"). `_jpDefaultPages` is
+    header (the Detailed map alone, fitted by `_jpFitDefaults`), `sheetplan`,
+    `precut`, cutlists; the v10 migration takes the app's own untouched Sheet
+    layout picture off page 1 and puts a `sheetplan` page straight after the
+    header (a sized one stays, never two). A picture wider than
+    `JP_ROT_WIDE` (1.05) × its height is turned a quarter ANTICLOCKWISE
+    (north to the left): the map whole (`_cvRotIfWide`, `opts.rotWide` on the
+    app's own untouched pictures only), the sheet layout with its title and
+    key left upright and only the roof under them turned and grown to fill the
+    page (`_jpRotWidePuzzle`, reading `cv._pzHeadH` / `_pzRoofW` / `_pzRoofH`
+    from `_renderSheetPuzzleCanvas`). The pre-cut layout is not turned.
+    `quickwins.mjs` pins the order and the migration, `sheetlayout.mjs` the
+    fit and the turn on the 18 × 12 m hip.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
@@ -1089,6 +1167,35 @@ not a saving, and 49 purple to 48 orange.
   Delete this page (`_qcoDelete`: removes a quote option, hides a Settings
   one via `selHide.extras`). `customExtras` is in Q_CONTENT_KEYS,
   Q_FRESH_DROP and a template's `wording`. `tests/sendexact.mjs` sends one.
+- EXTRAS — INCLUDED ITEMS, ON EVERY JOB TYPE (2026-10-30, the owner: "each
+  line is an included item, for instance the customer want customer coloured
+  downpipes and leaf diverters ... both show as included as show the price ...
+  make sure the price effects the overall quote price and make sure they show
+  in the quote summary"). `S.quote.inclExtras` = [{id, name, desc, price ex
+  GST}] (`_ix*`): not a choice, every line is IN. The section `inclx` ("Extras")
+  goes just ahead of Review / Your total (`_ixAppend`, in `_qdSectionsRaw`,
+  `_qbPages`, `_gjSections`, `_psModernSections`); "+ Insert Extras"
+  (`__addinclx`, office only, while there are none) stands above "+ Insert
+  custom option"; the window is `_ixEdit` / `_ixSave` (name, words, price);
+  ✎ / ✕ per row, Delete this page clears them; never on an accepted quote.
+  THE PRICE is in `_qpSelectionChanges` (live), `_qpSelectionChangesPriced`
+  (from `share.priced.inclx`, stamped by `_qpBuildPriced` only when there are
+  any, so a quote without extras stamps the same block — typesnap pins it) and
+  `_poleShedSelItems`, as "Extras — <name>" rows; `_ixView()` is what is SHOWN
+  and charged (the stamped list where `_qpPriced()` answers, else live), so the
+  section, the summary rows, the picks ("<name>: Included", `_qbPicksAuto`
+  wraps `_qbPicksAutoBase`) and the total agree. Profitability counts them at
+  cost (`inclx`). The server lists them in `_quoteChoiceLines` ("Extra
+  (included): …", the stamped list first) — the acceptance email and the
+  Fergus description. In Q_CONTENT_KEYS, Q_FRESH_DROP and a template's
+  `wording`. `tests/inclextras.mjs` (29, UI; roofing, pole shed, gutters),
+  `custevents.mjs`.
+  THE EDIT RAIL IS ONE COLUMN (the same day: "tidy up those buttons, make them
+  in line and single row (wider if they have to)"): `_qeRailSync` makes every
+  rail button the widest one's width, one line each (`white-space:nowrap`),
+  all at one left edge beside the nearest block with the hands in a column,
+  and widens the gutter to fit (`--qe-gutter` on `#quoteProposal`, never
+  under 186px). `tests/quoteeditor.mjs`.
 - THE "UPDATED …" LINE (2026-10-02): `window.APP_BUILT_AT` (UTC ISO) in
   app.html, rendered by `_appUpdatedRender` as "Updated 7:48 am 2/10" (NZ
   time, light grey, full date on hover) in the sidebar's `.hdr-right` band
@@ -3445,7 +3552,9 @@ not a saving, and 49 purple to 48 orange.
   Fixtures 71–76; `sheetlayout.mjs` 369.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
-- THE JOB PACK'S PAGE 1 CARRIES THE SHEET LAYOUT (2026-10-27, the owner: "add
+- SUPERSEDED 2026-10-31 BY RULE 11c (the sheet layout is page 2 now, the
+  pre-cut layout page 3, a wide roof turned) — kept for the v8 migration's sake.
+  THE JOB PACK'S PAGE 1 CARRIED THE SHEET LAYOUT (2026-10-27, the owner: "add
   the sheet layout diagram to the job pack by default, always fit to size so
   both pictures can fit inside the screen ... for the display maps, have them
   all default clicked ... detailed map at the top, then sheet layout below,
@@ -5228,6 +5337,35 @@ not a saving, and 49 purple to 48 orange.
   marker), keeping `accepted.totalCorrected {from, to, at, why}`, setting the
   frozen Accepted copy's total too, and re-writing the Fergus description.
   The office emails already sent still say $35,252.82. `tests/acceptstale.mjs`.
+- THE CUSTOMER'S PICKS ARE THE QUOTE'S OWN PRODUCTS (2026-10-30, job 3338:
+  "I added color coat MagnaFlow as a steel grade option. The customer selected
+  that MagnaFlow, but then the confirmation quote acceptance email still says
+  color steel ... the choice between corrugate and fiber rib isn't showing").
+  THREE HOLES. The accept handler's allow-list knew only the four built-in
+  grades, two profiles and four gutters, so a grade, profile or gutter the
+  office ADDED was dropped and the job kept the office's recommended pick; it
+  now also takes every id the quote carries (`_quoteProductIds`: the priced
+  block's keys, `selectablesSnapshot`, `customProfiles`). The email named
+  picks from a fixed word list (`QUOTE_SELECTION_LABELS`); `_quoteSelectionLines`
+  reads the quote's own names first (`_quoteProductName`, priced `*Label` then
+  the snapshot) and lists the grade and PROFILE even when the customer never
+  touched them (`baseGrade` / `baseProfile` / the first profile). And
+  `_customerSelections` never SENT `extras` (the office's own options) or a
+  gutters job's `gutterColour`, which the server had always taken. JOB 3338
+  ITSELF: `ACCEPTED_PICK_FIXES` (55 s after boot, `POST /admin/accepted-pick-
+  fixes/run`), acting only while it still reads MAXAM: MagnaFlow + Corrugate in
+  the job and the frozen Accepted copy, a "Corrected:" office email
+  (`_acceptOfficeNotify(…, {corrected})`) and the Fergus description rewritten.
+  THE FERGUS VERSION PUSHED ON ACCEPT CARRIES THE ACCEPTED PRICE (the same day:
+  "the latest quote version that was pushed automatically, totals to around
+  59,000"): `_fergusAutoVersionNow` did run, but priced the dropped MAXAM and
+  `_fergusSelectionChanges` knew nothing of the included Extras — $62,920.95
+  less both is the $59,044.57 he saw. The extras are an "Extras" section now
+  (ahead of the word-matching rules, so "Flaxpod Downpipes" is not filed under
+  Downpipes); an accepted version whose total misses `accepted.total` by over
+  $1 is recorded (`plan.auto.mismatch`, recordError); and the 3338 repair
+  pushes a fresh accepted version (v4) at the accepted price, voiding the old.
+  `tests/custevents.mjs` (51), `tests/inclextras.mjs`.
 - AN EMAILED TOKEN LANDS ON /app, NEVER THE ROOT (2026-10-22, a customer's
   reply to his own reset email, forwarded by the owner — tyler@tgmroofing
   .co.nz: "This keeps just taking me back to the home page"). `/auth/forgot`

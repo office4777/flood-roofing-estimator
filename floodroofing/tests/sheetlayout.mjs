@@ -753,6 +753,147 @@ async function labelsOf(g){
   check('a roof with no pitch of its own is laid at the job\'s pitch box, as the engine and the barges are', pit.L > 0 && pit.L === pit.L20, JSON.stringify(pit));
 }
 
+// ── A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31, the
+// owner: "it simply extends the roof plain down ... if it's in the middle of
+// a ridge line ... just those sheets would be longer, however if it's on a hip
+// area, the full lengths sheets would again need to be longer and making sure
+// the offcuts are sufficiently long enough to carry on a offcut triangle set").
+// The plain 18 × 12 m hip is 48 × 6.63; a 1 m × 4 m bump carried over by the
+// main slope adds 1.1 m to the six sheets over it and nothing else, wherever
+// it stands — a hip END with a bump stopped reading as one (16 × 7.73, 36
+// offcuts thrown away), and a slope's ordinary sheets were grouped with the
+// bump's at 7.73.
+{
+  const mono = async (ol, mode) => pg.evaluate(([ol, mode]) => {
+    gotoTab('roof');
+    DRAW.roofs = []; DRAW.activeRoofIdx = -1; DRAW.showAllRoofs = true;
+    DRAW.scaleMetresPerPx = 0.05; DRAW.calPitch = 25; DRAW.lowPitch = 0;
+    DRAW.outline = ol.map(p => p.slice()); DRAW.outlineDone = true; DRAW.lines = [];
+    DRAW.roofType = 'hip'; DRAW.bumpModes = {};
+    _outlineBumps(DRAW.outline).forEach(b => DRAW.bumpModes[b.key] = mode);
+    autoGenerateRoof('hip'); renderRoofSheetPlan();
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const o = pz.roofs[0].outline; let inR = 0, cov = 0, dbl = 0;
+    const bb = pz.bbox, st = pz.coverPx / 5;
+    for (let y = bb[1] + st/2; y < bb[3]; y += st) for (let x = bb[0] + st/2; x < bb[2]; x += st){
+      if (!_spPointInPoly(x, y, o)) continue; inR++;
+      let n = 0; pz.pieces.forEach(p => { if (_spPointInPoly(x, y, p.poly)) n++; }); if (n) cov++; if (n > 1) dbl++; }
+    const ext = pz.pieces.filter(p => p.monoExtMm > 0);
+    return { tally: pz.tally.map(t => t.count + '@' + t.Lmm).join(' '), extras: pz.extraSheets, pushed: pz.pushSheets,
+             fed: pz.fedPieces, unused: pz.unusedOffcuts, cover: cov / inR, overlap: dbl / inR, mono: !!pz.roofs[0].monoBumps,
+             extOrdered: ext.filter(p => p.ordered).length, extFed: ext.filter(p => !p.ordered).length,
+             bboxH: Math.round(bb[3] - bb[1]), bboxW: Math.round(bb[2] - bb[0]),
+             blocks: pz.blocks.map(b => b.letter).join('') };
+  }, [ol, mode]);
+  const N = (x1, x2, d) => [[ox,oy],[x1,oy],[x1,oy-d],[x2,oy-d],[x2,oy],[ox+360,oy],[ox+360,oy+240],[ox,oy+240]];
+  const Wt = (y1, y2, d) => [[ox,oy],[ox+360,oy],[ox+360,oy+240],[ox,oy+240],[ox,y2],[ox-d,y2],[ox-d,y1],[ox,y1]];
+  const ok48 = (v, long) => v.mono && v.tally === '6@' + long + ' 42@6630' && v.extras === 0 && v.pushed === 0 && v.cover > 0.999 && v.overlap < 0.001;
+  let v = await mono(N(ox+140, ox+220, 20), 'mono');
+  check('mono bump mid-slope: the six sheets over it are 1.1 m longer, the other 42 the plain hip\'s 6.63', ok48(v, 7740) && v.extOrdered === 6 && v.extFed === 0, JSON.stringify(v));
+  check('…and the picture takes the bump in (frame and letters in order)', v.bboxH === 260 && v.blocks === 'ABC', JSON.stringify(v));
+  v = await mono(N(ox+10, ox+90, 20), 'mono');
+  check('mono bump on a slope under the hip: its hip-cut sheets are longer, so their offcuts still feed the hip end — 48, nothing extra', ok48(v, 7740) && v.fed === 32 && v.unused === 2, JSON.stringify(v));
+  v = await mono(N(ox+10, ox+90, 40), 'mono');
+  check('…2 m deep: 6 × 8.84, still 48 and nothing extra', ok48(v, 8840), JSON.stringify(v));
+  v = await mono(Wt(oy+80, oy+160, 20), 'mono');
+  check('mono bump on a hip END: still a hip end, its rows over the bump cut from offcuts whose sheets are 1.1 m longer — 48, nothing extra', ok48(v, 7740) && v.extFed === 6 && v.fed === 32 && v.bboxW === 380, JSON.stringify(v));
+  v = await mono(Wt(oy+10, oy+90, 20), 'mono');
+  check('…near the hip end\'s corner, the same', ok48(v, 7740) && v.extFed === 6, JSON.stringify(v));
+  v = await mono([[ox,oy],[ox+10,oy],[ox+10,oy-20],[ox+90,oy-20],[ox+90,oy],[ox+360,oy],[ox+360,oy+240],[ox+280,oy+240],[ox+280,oy+260],[ox+200,oy+260],[ox+200,oy+240],[ox,oy+240]], 'mono');
+  check('two mono bumps, one each side: 12 × 7.74 + 36 × 6.63, nothing extra', v.mono && v.tally === '12@7740 36@6630' && v.extras === 0 && v.cover > 0.999 && v.overlap < 0.001, JSON.stringify(v));
+  v = await mono(N(ox+140, ox+220, 20), 'hv');
+  check('a hip & valley bump is not a mono extension: laid as its own roof', !v.mono && v.cover > 0.999 && v.overlap < 0.001, JSON.stringify(v));
+}
+
+// ── THE SHEET PRE-CUT LAYOUT (2026-10-31, the owner: "show the 7 orange sheets
+// of full 5.01m length layed out in a rectangle format side by side ... as they
+// would be before they are cut, and show the required cut lines and label each
+// of the cut sheets as they are labeled on the sheet layout diagram ... on one
+// a4 sheet on the job pack on the 2nd page"). Every ordered sheet once, at its
+// ordered length; every piece of the layout inside the sheet it is cut from,
+// no two overlapping; and the page fits.
+{
+  const pre = async (g) => { await lay(g); return pg.evaluate(() => {
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const cv = _renderSheetPrecutCanvas({ pz, W: 960, H: 1382 });
+    const sheets = cv._precut;
+    const nT = pz.tally.reduce((a, t) => a + t.count, 0);
+    const lens = {}; sheets.forEach(s => { lens[s.Lmm] = (lens[s.Lmm] || 0) + 1; });
+    const lensOk = pz.tally.every(t => lens[t.Lmm] === t.count);
+    const placed = new Set(); let outside = 0, overlaps = 0;
+    sheets.forEach(s => {
+      s.items.forEach(it => { placed.add(it.pc);
+        it.poly.forEach(p => { if (p[0] < -6 || p[0] > s.Wmm + 6 || p[1] < -6 || p[1] > s.Lmm + 6) outside++; }); });
+      for (let i = 0; i < s.items.length; i++) for (let j = i + 1; j < s.items.length; j++)
+        if (!s.items[i].pc.scrap && !s.items[j].pc.scrap && _pzPolysOverlap(s.items[i].poly, s.items[j].poly, _PZ_FIT_MM)) overlaps++;   // within the fill's own fit
+    });
+    const own = sheets.every(s => s.items.some(it => it.pc === s.piece && it.own));
+    const labels = sheets.every(s => s.items.every(it => it.pc.label));
+    return { n: sheets.length, nT, lensOk, all: placed.size === pz.pieces.length, pieces: pz.pieces.length, placed: placed.size,
+             over: sheets.filter(s => s.over).map(s => s.label), outside, overlaps, own, labels, scale: cv._precutScale };
+  }); };
+  for (const [name, g] of [['the plain hip', { scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' }],
+                           ['the Big-L', { scaleMetresPerPx: 0.05, calPitch: 25, outline: L(160, 120, 360, 240), autoType: 'hip' }],
+                           ['report 70', fx('report70')], ['report 76', fx('report76')], ['the double cascade', fx('report77')]]){
+    const v = await pre(g);
+    check('pre-cut layout, ' + name + ': every ordered sheet once at its own length, every piece inside the sheet it is cut from, none overlapping',
+      v.n === v.nT && v.lensOk && v.all && v.own && v.labels && !v.over.length && v.outside === 0 && v.overlaps === 0, JSON.stringify(v));
+  }
+  // THE CHALK LINE: in each run, the next sheet's cut carries on the last one's
+  // line — its cut height at its own left edge is where the line it continues
+  // meets that edge (one sheet cover on).
+  const chalkOf = async (g) => { await lay(g); return pg.evaluate(() => {
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const out = [];
+    pz.blocks.forEach(b => {
+      const ss = _sheetPrecutPlan(pz).filter(s => s.block.letter === b.letter);
+      _pzChalkRuns(ss, pz).forEach(run => {
+        const cs = run.map(s => _pzCutLine(s, pz)); if (!cs[0]) return;
+        let worst = 0;
+        // (The closer lapped at the hip corner overlaps its neighbour on the
+        // roof, so laid edge to edge its cut sits a lap off the line.)
+        for (let i = 1; i < cs.length; i++){ if (run[i].piece.lapped || run[i-1].piece.lapped) continue; const want = cs[i-1].h0 + cs[i-1].slope * run[i-1].Wmm; worst = Math.max(worst, Math.abs(cs[i].h0 - want)); }
+        out.push({ block: b.letter, n: run.length, labels: run.map(s => s.label).join(' '), worstMm: Math.round(worst) });
+      });
+    });
+    return out;
+  }); };
+  const chalk = await chalkOf({ scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' });
+  const runs = chalk.filter(r => r.n > 1);
+  check('pre-cut layout, the plain hip: four runs of hip-cut sheets, each cut by ONE chalk line across them (A8 … A1 on the north slope)',
+    runs.length === 4 && runs.every(r => r.worstMm <= 30) && runs.some(r => r.labels.startsWith('A8 A7 A6 A5 A4 A3 A2 A1')), JSON.stringify(chalk));
+  // A RUN IS ONE ROOF LINE (the owner, 2026-10-31: "those purple sheets ...
+  // they're all staggered"): on an L the main's slope carries sheets cut by
+  // its hip AND sheets whose feet are cut off at the wing's valley — two lines
+  // leaning the same way. Each is its own run, every run one straight line.
+  for (const [name, g] of [['the Big-L', { scaleMetresPerPx: 0.05, calPitch: 25, outline: L(160, 120, 360, 240), autoType: 'hip' }],
+                           ['an L with a wing', { scaleMetresPerPx: 0.0265, calPitch: 20, outline: [[100,100],[780,100],[780,550],[540,550],[540,780],[100,780]], autoType: 'hip' }]]){
+    const ch = await chalkOf(g), rr = ch.filter(r => r.n > 1);
+    check('pre-cut layout, ' + name + ': every run of sheets is cut by ONE straight chalk line — the hip-cut sheets and the valley-cut ones never interleaved',
+      rr.length >= 4 && rr.every(r => r.worstMm <= 30), JSON.stringify(ch));
+  }
+  await lay({ scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' });
+  await pg.evaluate(() => { gotoTab('roof'); try { fitDrawingToCanvas(); redrawAll(); } catch(e){} });
+  const page = await pg.evaluate(async () => {
+    S.jobPack = null; gotoTab('materials'); renderJobPack();
+    await new Promise(r => setTimeout(r, 300));
+    const pages = [...document.querySelectorAll('#jpPages .jp-page')];
+    const fit = (pg, sel) => { const img = pg && pg.querySelector(sel); const pr = pg && pg.getBoundingClientRect(), ir = img && img.getBoundingClientRect();
+      return { img: !!img, loaded: !!(img && img.complete && img.naturalWidth), nw: img && img.naturalWidth, nh: img && img.naturalHeight,
+               fits: !!(pr && ir && ir.bottom <= pr.bottom + 1 && ir.right <= pr.right + 1), fill: pr && ir ? Math.round(100 * Math.max(ir.width / pr.width, ir.height / pr.height)) : 0 }; };
+    const p1 = pages[0] && pages[0].querySelector('.jp-page-imgwrap img');
+    return { types: _jpState().pages.map(p => p.type).join(','), pre: fit(pages[2], 'img.jp-precut-img'), sl: fit(pages[1], 'img.jp-sl-img'),
+             p1imgs: pages[0] ? pages[0].querySelectorAll('.jp-page-imgwrap').length : 0, p1w: p1 && p1.naturalWidth, p1h: p1 && p1.naturalHeight };
+  });
+  // PAGE 1 THE MAP, PAGE 2 THE SHEET LAYOUT, PAGE 3 THE PRE-CUT LAYOUT, each
+  // fitted to its page and a wide roof turned (2026-10-31). This roof is
+  // 18 m east-west by 12 m north-south, so both pictures are turned upright.
+  check('the job pack is the map, then the sheet layout, then the pre-cut layout, each inside one A4 page', page.types.startsWith('header,sheetplan,precut,')
+    && page.p1imgs === 1 && page.sl.img && page.sl.loaded && page.sl.fits && page.pre.img && page.pre.loaded && page.pre.fits, JSON.stringify(page));
+  check('…a roof wider than it is tall is turned a quarter: the map and the sheet layout come out taller than wide, the sheet layout filling its page',
+    page.p1h > page.p1w && page.sl.nh > page.sl.nw && page.sl.fill >= 75, JSON.stringify(page));
+}
+
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

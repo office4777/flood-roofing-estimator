@@ -65,7 +65,7 @@ const { db, port } = await startFakePostgrest({
   comms_tasks: [], job_messages: [],
   jobs: [
     // 3305's shape: accepted, and the browser never called accept-email.
-    job('j-acc', quote()),
+    job('j-acc', quote({ inclExtras: [ { id: 'ix1', name: 'Leaf diverters', price: 180 } ] })),
     // the same again, where the browser DOES manage the PDF call
     job('j-pdf', quote({ ref: '3306', share: { token: 'tok-pdf', status: 'sent', sentAt: ago(1),
       sentTo: 'richard@example.com', sentTotal: 24500.5, events: [] } })),
@@ -84,7 +84,37 @@ const { db, port } = await startFakePostgrest({
       share: { token: 'tok-fg', status: 'sent', sentAt: ago(1), sentTo: 'fg@example.com',
                sentTotal: 40000, events: [],
                fergus: { jobId: 'FJ-77', rev: 1, title: 'Quote 3310' },
-               priced: { v: 1, gstRate: 15 } } })),
+               priced: { v: 1, gstRate: 15, inclx: [ { id: 'ix2', name: 'Coloured downpipes', price: 320 } ] } },
+      // the live list moved after the send; the stamped one is what was accepted
+      inclExtras: [ { id: 'ix2', name: 'Coloured downpipes', price: 999 } ] })),
+    // A grade the office ADDED (2026-10-30, job 3338's shape): the customer
+    // takes it over the recommended MAXAM, and never touches the profile.
+    job('j-mf', quote({ ref: '3401', client: 'Mag Flow',
+      proposalOptions: { steelGrade: 'maxam', steelThickness: '55', gutterType: 'marley_typhoon' },
+      baseGrade: 'magnaflow',
+      selectablesSnapshot: { grades: [ { id: 'maxam', name: 'Colorsteel® MAXAM' }, { id: 'magnaflow', name: 'COLORCOTE MAGNAFLOW®' } ],
+                             profiles: [ { id: 'corrugate', name: 'Corrugate' }, { id: 'ri925', name: 'RI-925' } ] },
+      share: { token: 'tok-mf', status: 'sent', sentAt: ago(1), sentTo: 'mf@example.com', sentTotal: 62920.95, events: [],
+               priced: { v: 1, gstRate: 15, grade: { maxam: -2458.77, magnaflow: 0 },
+                         gradeLabel: { maxam: 'Colorsteel® MAXAM', magnaflow: 'COLORCOTE MAGNAFLOW®' },
+                         profile: { corrugate: 0, ri925: 0 }, profileLabel: { corrugate: 'Corrugate', ri925: 'RI-925' } } } })),
+    // job 3338 itself, as it was written: accepted, still reading MAXAM.
+    job('j-3338', quote({ ref: '3338', client: 'Ed Higgins', addr: '17 Pine Tree Lane, Russell',
+      proposalOptions: { steelGrade: 'maxam', steelThickness: '40' },
+      accepted: { name: 'Ed Higgins', at: '2026-10-30T02:13:19.170Z', total: 62920.95 },
+      baseGrade: 'gmagna',
+      inclExtras: [ { id: 'i1', name: 'Leaf Diverters', price: 782 }, { id: 'i2', name: 'Flaxpod Downpipes', price: 130 } ],
+      versions: { accepted: { id: 'va1', total: 62920.95, quote: { proposalOptions: { steelGrade: 'maxam' } } } },
+      selectablesSnapshot: { grades: [ { id: 'maxam', name: 'Colorsteel® MAXAM' }, { id: 'gmagna', name: 'COLORCOTE MAGNAFLOW®' } ],
+                             profiles: [ { id: 'corrugate', name: 'Corrugate' } ] },
+      share: { token: 'tok-3338', status: 'accepted', sentAt: ago(7), acceptedAt: ago(0), acceptOfficeAt: ago(0),
+               sentTo: 'ed@example.com', sentTotal: 62920.95, events: [],
+               priced: { v: 1, gstRate: 15, base: 53801.87, grade: { maxam: -2458.77, gmagna: 0 },
+                         gradeLabel: { maxam: 'Colorsteel® MAXAM', gmagna: 'COLORCOTE MAGNAFLOW®' },
+                         inclx: [ { id: 'i1', name: 'Leaf Diverters', price: 782 }, { id: 'i2', name: 'Flaxpod Downpipes', price: 130 } ] },
+               // the version pushed on the day: MAXAM and no extras
+               fergus: { jobId: 'FJ-38', rev: 3, title: 'Quote 3338', baseSections: [ { name: 'Roof Material', lineItems: [] } ], template: {},
+                         auto: { acceptedAt: '2026-10-30T02:13:19.170Z', total: 59044.57, selKey: 'x' } } } })),
     // 3303's shape: a question
     job('j-q', quote({ ref: '3303', client: 'Dot Bolous', email: 'dot@example.com',
       share: { token: 'tok-q', status: 'sent', sentAt: ago(1), sentTo: 'dot@example.com', events: [] } })),
@@ -108,7 +138,7 @@ db.jobs.find(j => j.id === 'j-decoff').user_id = 'u2';
 // Fergus is reached two ways and both need a seam: the job read and the
 // description write go through httpsRequest (__TEST_HTTPS), and the attachment
 // upload uses global fetch directly, because it is multipart.
-const fergus = { desc: [], files: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
+const fergus = { desc: [], files: [], versions: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
 globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
   if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
   if (method === 'GET' && /^\/jobs\/FJ-77$/.test(path))
@@ -119,6 +149,7 @@ globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
   }
   // the auto-version's quote create / list, which rides along on an accept
+  if (method === 'POST' && /\/jobs\/[^/]+\/quotes$/.test(path)) fergus.versions.push(body || {});
   return Promise.resolve({ status: 200, body: JSON.stringify({ data: [] }) });
 };
 const _realFetch = globalThis.fetch;
@@ -180,6 +211,9 @@ check('…with the accepted total, the selections and replies going to the custo
   /\$24,500\.50/.test(one(office).text || '') && /Colour: Mist Green/.test(one(office).text || '') &&
   one(office).replyTo === 'richard@example.com',
   JSON.stringify({ rt: one(office).replyTo, text: (one(office).text || '').slice(0, 220) }));
+check('…and it lists the quote\u2019s included extras with their prices (2026-10-30)',
+  /Extra \(included\): Leaf diverters \$180\.00 \+ GST/.test(one(office).text || ''),
+  (one(office).text || '').slice(0, 600));
 check('…copied to the master copy, and named for the business',
   /boss@flood\.nz/.test(one(office).cc || '') && /Flood Roofing Ltd/.test(one(office).fromName || ''),
   JSON.stringify({ cc: one(office).cc, from: one(office).fromName }));
@@ -347,6 +381,8 @@ check('the job description carries every choice the customer made',
   /Guttering: 125mm Colorsteel box gutter/.test(desc) && /Gutter brackets: External/.test(desc) &&
   /Downpipes: Included/.test(desc) && /Existing material: We dispose of it/.test(desc),
   desc.slice(0, 500));
+check('…and the included extras, at the price stamped at send',
+  /Extra \(included\): Coloured downpipes \$320\.00/.test(desc) && !/999/.test(desc), desc.slice(0, 700));
 check('…with the total and who accepted it, above RoofMap\u2019s own marked block',
   /\$40,000\.00/.test(desc) && /Accepted by Fergus Linked/.test(desc) &&
   /Customer rang about a leak\./.test(desc),
@@ -369,6 +405,59 @@ check('a job that is not linked to Fergus is untouched',
   !shareOf('j-acc').fergusAcceptDescAt && !shareOf('j-acc').fergusAcceptFileAt,
   JSON.stringify({ d: shareOf('j-acc').fergusAcceptDescAt, f: shareOf('j-acc').fergusAcceptFileAt }));
 
+// ── A GRADE THE OFFICE ADDED, AND THE PROFILE (2026-10-30, job 3338) ─────
+sent.length = 0;
+r = await post('/q/tok-mf/event?job=j-mf', { type: 'accepted', name: 'Mag Flow', total: 62920.95,
+  selections: { proposalOptions: { steelGrade: 'magnaflow', steelThickness: '55', gutterType: 'marley_typhoon' } } });
+await settle();
+const mfPo = ((db.jobs.find(j => j.id === 'j-mf') || {}).draw_state || {}).state.quote.proposalOptions || {};
+check('a grade the office added is kept as the customer\u2019s pick, not dropped back to MAXAM',
+  mfPo.steelGrade === 'magnaflow', JSON.stringify(mfPo));
+const mfMail = one(to('office@flood.nz'));
+check('…and the office\u2019s acceptance email names it, and lists the profile they never changed',
+  /Steel grade: COLORCOTE MAGNAFLOW/.test(mfMail.text || '') && !/MAXAM/.test(mfMail.text || '') &&
+  /Roof profile: Corrugate/.test(mfMail.text || ''),
+  (mfMail.text || '').slice(0, 600));
+sent.length = 0;
+r = await post('/q/tok-x/event?job=j-acc', { type: 'opened',
+  selections: { proposalOptions: { steelGrade: 'madeup', profile: 'nope' } } });
+check('a grade or profile this quote never offered is still refused',
+  ((db.jobs.find(j => j.id === 'j-acc').draw_state.state.quote.proposalOptions) || {}).steelGrade === 'maxam',
+  JSON.stringify(db.jobs.find(j => j.id === 'j-acc').draw_state.state.quote.proposalOptions));
+
+// job 3338 itself, put right once and the office told again.
+sent.length = 0;
+let fx = await (await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {})).json().catch(() => ({}));
+const q3338 = db.jobs.find(j => j.id === 'j-3338').draw_state.state.quote;
+check('job 3338 now reads MagnaFlow and Corrugate, in the job and the frozen accepted copy',
+  q3338.proposalOptions.steelGrade === 'gmagna' && q3338.proposalOptions.profile === 'corrugate' &&
+  q3338.versions.accepted.quote.proposalOptions.steelGrade === 'gmagna',
+  JSON.stringify({ fx, po: q3338.proposalOptions }));
+const fxMail = one(to('office@flood.nz'));
+check('…and the office gets a corrected acceptance email saying so',
+  /^Corrected: Quote accepted/.test(fxMail.subject || '') && /Steel grade: COLORCOTE MAGNAFLOW/.test(fxMail.text || '') &&
+  /Roof profile: Corrugate/.test(fxMail.text || ''),
+  JSON.stringify({ s: fxMail.subject, t: (fxMail.text || '').slice(0, 400) }));
+sent.length = 0;
+await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
+check('…once only', to('office@flood.nz').length === 0, String(to('office@flood.nz').length));
+// An earlier server (picks fixed, no Fergus re-push) got there first: the
+// next boot still re-pushes, because the Fergus version misses the total.
+{
+  const q38 = db.jobs.find(j => j.id === 'j-3338').draw_state.state.quote;
+  q38.share.fergus.auto = { acceptedAt: q38.accepted.at, total: 59044.57, selKey: 'x' };
+  fergus.versions.length = 0;
+  await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
+}
+const v38 = fergus.versions.filter(b => /Quote 3338/.test(b.title || '')).pop() || {};
+check('…and Fergus gets a new accepted version at the ACCEPTED price, MagnaFlow and the extras in it — whichever boot fixed the picks',
+  Math.abs((+v38.total || 0) - 62920.95) < 0.02 && JSON.stringify(v38.sections || []).indexOf('Leaf Diverters') >= 0 &&
+  JSON.stringify(v38.sections || []).indexOf('MAXAM') < 0 &&
+  (v38.sections || []).some(s2 => s2.name === 'Extras' && (s2.lineItems || []).length === 2),
+  JSON.stringify({ n: fergus.versions.length, total: v38.total, secs: (v38.sections || []).map(s2 => s2.name + ':' + (s2.lineItems || []).map(l => l.itemName + '=' + l.itemPrice).join('|')) }));
+
+await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
+check('…and never again once Fergus carries the accepted price', fergus.versions.length === 1, String(fergus.versions.length));
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

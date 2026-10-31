@@ -929,19 +929,54 @@ const QUOTE_SELECTION_LABELS = {
   downpipes:      { _t:'Downpipes',      yes:'Included', no:'Not included' },
   disposal:       { _t:'Existing material', dispose:'We dispose of it', keep:'Kept on site' },
 };
+// THE QUOTE'S OWN PRODUCTS (2026-10-30, job 3338: the customer took COLORCOTE
+// MAGNAFLOW, a grade the office added in Settings, and the acceptance email
+// said "Colorsteel MAXAM"). A grade, profile or gutter is whatever THIS quote
+// offered — the names stamped at send (share.priced.*Label), else the product
+// list that rode with it (selectablesSnapshot, customProfiles), else the
+// built-in words above. _quoteProductIds is the same list, for the accept
+// handler's allow-list.
+const _QSEL_SRC = { steelGrade: ['grade', 'grades'], profile: ['profile', 'profiles'], gutterType: ['gutter', 'gutters'] };
+function _quoteProductRows(quote, k){
+  const src = _QSEL_SRC[k]; if (!src) return [];
+  const q = quote || {}, P = ((q.share || {}).priced) || {}, out = [];
+  const lab = P[src[0] + 'Label'] || {};
+  Object.keys(P[src[0]] || {}).concat(Object.keys(lab)).forEach(function (id) { out.push({ id: id, name: lab[id] || '' }); });
+  const snap = (q.selectablesSnapshot && Array.isArray(q.selectablesSnapshot[src[1]])) ? q.selectablesSnapshot[src[1]] : [];
+  snap.concat(k === 'profile' && Array.isArray(q.customProfiles) ? q.customProfiles : []).forEach(function (r) {
+    if (r && r.id != null) out.push({ id: String(r.id), name: String(r.name || r.label || '') });
+  });
+  return out;
+}
+function _quoteProductIds(quote, k){
+  const ID = /^[A-Za-z0-9_.-]{1,60}$/;
+  return _quoteProductRows(quote, k).map(function (r) { return r.id; }).filter(function (id) { return ID.test(id); });
+}
+function _quoteProductName(quote, k, id){
+  const hit = _quoteProductRows(quote, k).filter(function (r) { return r.id === String(id) && r.name; })[0];
+  return hit ? String(hit.name).slice(0, 80) : '';
+}
 function _quoteSelectionLines(quote){
-  const po = (quote && quote.proposalOptions) || {};
+  const po = Object.assign({}, (quote && quote.proposalOptions) || {});
   const out = [];
   // A Gutters only quote (2026-10-28) chose a gutter and its colour; the
   // roofing picks it never offered are not listed.
   const gj = quote && quote.quoteKind === 'gutters';
+  const shed = quote && quote.quoteKind === 'poleshed';
   const GJ = { gutterType: 1, gutterBracket: 1, downpipes: 1 };
+  // A pick the customer never touched is the one the quote was priced at — the
+  // profile above all, which on job 3338 was never listed at all.
+  if (!gj && !shed) {
+    if (po.steelGrade == null || po.steelGrade === '') po.steelGrade = (quote && quote.baseGrade) || '';
+    if (po.profile == null || po.profile === '')
+      po.profile = (quote && quote.baseProfile) || ((_quoteProductRows(quote, 'profile')[0] || {}).id) || 'corrugate';
+  }
   for (const k of Object.keys(QUOTE_SELECTION_LABELS)) {
     if (gj && !GJ[k]) continue;
     const v = po[k];
     if (v == null || v === '') continue;
     const L = QUOTE_SELECTION_LABELS[k];
-    out.push(L._t + ': ' + (L[String(v)] || String(v)));
+    out.push(L._t + ': ' + (_quoteProductName(quote, k, v) || L[String(v)] || String(v)));
   }
   if (po.colour && !gj) out.push('Colour: ' + String(po.colour).slice(0, 60));
   if (gj) {
@@ -2739,7 +2774,7 @@ function _trialEndedMail(p, sub){
     'Either way, thanks for giving it a go. Reply to this email and it comes straight to me.\n\nAron\nRoofMap';
   const btn = (href, label, bg) => '<a href="' + href + '" style="display:inline-block;padding:13px 22px;border-radius:9px;background:' + bg + ';color:#fff;font-weight:800;text-decoration:none;font-size:15px;margin:6px 8px 6px 0">' + label + '</a>';
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
     '<h2 style="margin:8px 0 12px;font-size:22px">Your trial has ended</h2>' +
     '<p>Hi ' + _esc(first) + ',</p>' +
     '<p>Your free RoofMap trial has ended. Everything you measured, drew and quoted is still there.</p>' +
@@ -5587,6 +5622,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
           downpipes:      ['yes', 'no'],
           disposal:       ['dispose', 'keep'],
         };
+        // …plus every grade, profile and gutter THIS quote offered (2026-10-30,
+        // job 3338: a grade the office added was dropped here, so the job kept
+        // the recommended MAXAM while the customer had taken MagnaFlow).
+        ['steelGrade', 'profile', 'gutterType'].forEach(function (k) { ALLOW[k] = ALLOW[k].concat(_quoteProductIds(quote, k)); });
         if (!quote.proposalOptions || typeof quote.proposalOptions !== 'object') quote.proposalOptions = {};
         Object.keys(ALLOW).forEach(function (k) {
           const v = String(po[k] == null ? '' : po[k]);
@@ -5914,12 +5953,14 @@ async function _questionNotify(job, quote, message){
 // So this is a function now, called from three places: that route (with the
 // PDF, when it does arrive), a short timer after the accept, and an hourly
 // sweep. `share.acceptOfficeAt` is the claim that keeps it to one email.
-async function _acceptOfficeNotify(job, quote, attachment){
+async function _acceptOfficeNotify(job, quote, attachment, opts){
+  opts = opts || {};
   const acc = quote.accepted || {};
   const client = job.client_name || quote.client || acc.name || 'Customer';
   const addr = job.site_address || quote.addr || '';
   const ref = quote.ref || '';
   const lines = ['A customer has accepted their quote online.', ''];
+  if (opts.corrected) lines.unshift('CORRECTED — ' + opts.corrected, '');
   if (ref) lines.push('Quote reference: ' + ref);
   lines.push('Customer: ' + client);
   if (addr) lines.push('Address: ' + addr);
@@ -5944,7 +5985,7 @@ async function _acceptOfficeNotify(job, quote, attachment){
   lines.push('', attachment
     ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
     : '(The quote PDF could not be attached automatically — see the customer link in the app.)');
-  const subject = 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
+  const subject = (opts.corrected ? 'Corrected: ' : '') + 'Quote accepted' + (ref ? ' — ' + ref : '') + ' — ' + client;
   // Who hears about this acceptance. It has to be the business that SENT the
   // quote — a fixed address here mailed every subscriber's acceptances to one
   // inbox, which is a leak between competitors, not just a wrong recipient.
@@ -5965,8 +6006,9 @@ async function _acceptOfficeNotify(job, quote, attachment){
     const _v = _acceptVars(job, quote, ((_st || {}).branding) || {}, '');
     _v.pdf_note = attachment ? 'The accepted quote PDF (showing the customer\'s selections) is attached.'
                              : '(The quote PDF could not be attached automatically — see the customer link in the app.)';
-    if (_em.accept_office_subject) _subject = _fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject;
+    if (_em.accept_office_subject) _subject = (opts.corrected ? 'Corrected: ' : '') + (_fillTpl(_em.accept_office_subject, _v).replace(/\s{2,}/g, ' ').trim() || subject.replace(/^Corrected: /, ''));
     _text = _fillTpl(_em.accept_office_body || ACCEPT_OFFICE_EMAIL_DEFAULT.body, _v).replace(/\n{3,}/g, '\n\n');
+    if (opts.corrected) _text = 'CORRECTED — ' + opts.corrected + '\n\n' + _text;
   }
   const _cust = _emailList((quote.share || {}).sentTo || quote.email || '')[0];
   await _dispatchMail({ to: acceptTo, cc: _emailCopies(_st, _em.accept_office_cc, _emailList(acceptTo)), subject: _subject, text: _text, attachment,
@@ -6466,7 +6508,7 @@ async function _sendCancelMail(req, endsAt){
     'Changed your mind? Settings → Billing will start it up again.', '',
     'If something went wrong that we could have fixed, reply to this email — it reaches a person.'].join('\n');
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6b7a">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#5f6b7a">RoofMap&trade;</div>' +
     '<h2 style="font-size:19px;margin:8px 0 14px">Your subscription is cancelled</h2>' +
     '<p>You will not be charged again.' + (when ? (' Your plan stays on until <strong>' + esc(when) +
       '</strong> — the month you have already paid for — and everything keeps working until then.') : '') + '</p>' +
@@ -6718,7 +6760,7 @@ function _newPayerEmail(row, d, o){
   const h = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
   const row2 = (k, v) => v ? '<tr><td style="padding:4px 14px 4px 0;color:#5f6b7a">' + h(k) + '</td><td style="padding:4px 0"><b>' + h(v) + '</b></td></tr>' : '';
   const html = '<div style="font:15px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#0a1628;max-width:560px">' +
-    '<div style="background:#0a1628;color:#fff;border-radius:12px;padding:18px 20px"><div style="font-size:13px;color:#9fb3c8">RoofMap</div>' +
+    '<div style="background:#0a1628;color:#fff;border-radius:12px;padding:18px 20px"><div style="font-size:13px;color:#9fb3c8">RoofMap&trade;</div>' +
     '<div style="font-size:21px;font-weight:800;margin-top:2px">🎉 New paying subscriber</div>' +
     '<div style="margin-top:4px;color:#cfe3f5">' + h(who) + ' has started paying on ' + h(plan) + '.</div></div>' +
     '<table style="margin:14px 0;border-collapse:collapse;font-size:14px">' +
@@ -7751,6 +7793,14 @@ function _quoteChoiceLines(quote){
   const sel = (po.extraRoofsSel && typeof po.extraRoofsSel === 'object') ? po.extraRoofsSel : {};
   const xr = Array.isArray(quote && quote.extraRoofs) ? quote.extraRoofs : [];
   Object.keys(sel).forEach(function(k){ if (sel[k] && xr[+k]) out.push('Additional roof: ' + String(xr[+k].name || ('Roof ' + (+k + 2))).slice(0, 60)); });
+  // The quote's included extras (2026-10-30): every one is IN the price.
+  // The list stamped at send is what the customer accepted; the live one otherwise.
+  const _pix = ((((quote || {}).share || {}).priced) || {}).inclx;
+  (Array.isArray(_pix) ? _pix : Array.isArray(quote && quote.inclExtras) ? quote.inclExtras : []).forEach(function(x){
+    const nm = String((x && x.name) || '').trim().slice(0, 70);
+    const pr = parseFloat(x && x.price) || 0;
+    if (nm) out.push('Extra (included): ' + nm + (pr ? ' ' + _money(pr) + ' + GST' : ''));
+  });
   const acc = (quote && quote.accepted) || {};
   (Array.isArray(acc.options) ? acc.options : []).forEach(function(o){
     o = o || {};
@@ -8138,6 +8188,87 @@ async function _acceptedTotalFixesOnce(){
   }
   return out;
 }
+// ── A RECORDED PICK PUT RIGHT (2026-10-30, job 3338) ────────────────────
+// The customer took COLORCOTE MAGNAFLOW, a grade the office had added; the
+// accept handler's allow-list knew only the four built-in grades, so the job
+// kept the recommended MAXAM and the office's acceptance email said so. The
+// handler takes the quote's own products now (_quoteProductIds); this puts the
+// one job already written right, only while it still reads the old grade, then
+// tells the office again (marked Corrected) and rewrites the Fergus job.
+const ACCEPTED_PICK_FIXES = [
+  { ref: '3338', client: 'Ed Higgins', site: '17 pine tree lane', from: 'maxam', grade: /magnaflow/i, profile: /corrugate/i,
+    why: 'the customer chose COLORCOTE MAGNAFLOW and Corrugate; the first email said Colorsteel MAXAM and left the profile out.' },
+];
+async function _acceptedPickFixesOnce(){
+  const out = [];
+  for (const f of ACCEPTED_PICK_FIXES){
+    const r = { ref: f.ref, fixed: 0 };
+    out.push(r);
+    try {
+      const c = await supabase.from('jobs').select('id, client_name, site_address, job_no:draw_state->state->quote->ref')
+        .ilike('client_name', f.client);
+      if (c.error) { r.error = c.error.message; continue; }
+      for (const row of (c.data || [])){
+        if (String(row.job_no == null ? '' : row.job_no).trim() !== f.ref) continue;
+        if (String(row.site_address || '').toLowerCase().indexOf(f.site) < 0) continue;
+        const j = await supabase.from('jobs')
+          .select('id, user_id, company_id, client_name, site_address, quote:draw_state->state->quote').eq('id', row.id).single();
+        if (j.error || !j.data || !j.data.quote) continue;
+        const quote = j.data.quote, sh = quote.share || {};
+        if (!quote.accepted || sh.status !== 'accepted') continue;
+        const po = quote.proposalOptions || (quote.proposalOptions = {});
+        if (String(po.steelGrade || '') !== f.from){
+          // Picks already right (an earlier boot fixed them): the Fergus
+          // version may still carry the old price — put that right on its own.
+          const fp0 = sh.fergus;
+          if (fp0 && fp0.jobId && fp0.auto && isFinite(+fp0.auto.total) && Math.abs((+fp0.auto.total) - (+quote.accepted.total)) > 1){
+            try { r.fergus = await _acceptedPickRepush(j.data.id); } catch (e) { r.fergusError = e && e.message; }
+          }
+          continue;
+        }
+        const g = _quoteProductRows(quote, 'steelGrade').filter(function (x) { return f.grade.test(x.name || x.id); })[0];
+        if (!g) { r.error = 'grade not on this quote'; continue; }
+        const pr = _quoteProductRows(quote, 'profile').filter(function (x) { return f.profile.test(x.name || x.id); })[0];
+        const fix = function (o) {
+          if (!o || typeof o !== 'object') return;
+          o.steelGrade = g.id;
+          if (!o.profile) o.profile = pr ? pr.id : 'corrugate';
+        };
+        fix(po);
+        const va = quote.versions && quote.versions.accepted;
+        if (va && va.quote && typeof va.quote === 'object') fix(va.quote.proposalOptions || (va.quote.proposalOptions = {}));
+        quote.accepted.picksCorrected = { at: new Date().toISOString(), from: f.from, to: g.id, why: f.why };
+        delete sh.fergusAcceptDescAt;          // the description lists the picks: write it again
+        quote.share = sh;
+        await _saveQuoteBack({ id: j.data.id }, quote);
+        try { _quoteFeedInvalidate(j.data.company_id || null); _quoteFeedInvalidate(null); } catch (e) {}
+        r.fixed++; r.job = j.data.id; r.grade = g.id;
+        console.log('[accepted-pick-fix] job ' + f.ref + ': steelGrade ' + f.from + ' -> ' + g.id);
+        try { await _acceptOfficeNotify(j.data, quote, null, { corrected: f.why }); } catch (e) { r.mailError = e && e.message; }
+        try { await _fergusOnAccept(j.data.id, null); } catch (e) {}
+        // …and the accepted version in Fergus again, at the accepted price: the
+        // one pushed on the day carried MAXAM and none of the extras.
+        try { r.fergus = await _acceptedPickRepush(j.data.id); } catch (e) { r.fergusError = e && e.message; }
+      }
+    } catch (e) { r.error = e && e.message; console.warn('[accepted-pick-fix] ' + f.ref + ' failed: ' + r.error); }
+  }
+  return out;
+}
+async function _acceptedPickRepush(jobId){
+  const fj = await supabase.from('jobs').select('id, quote:draw_state->state->quote').eq('id', jobId).single();
+  const fq = fj.data && fj.data.quote, fp = fq && fq.share && fq.share.fergus;
+  if (!fp || !fp.jobId) return null;
+  if (fp.auto) { fp.auto.acceptedAt = null; fp.auto.selKey = ''; }
+  fp.selKey = '';
+  await _saveQuoteBack({ id: jobId }, fq);
+  const v = await _fergusAutoVersionNow(jobId);
+  return v ? { rev: v.rev, total: v.total, mismatch: v.mismatch || null } : null;
+}
+app.post('/admin/accepted-pick-fixes/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _acceptedPickFixesOnce()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/accepted-total-fixes/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _acceptedTotalFixesOnce()); }
@@ -10448,6 +10579,14 @@ function _fergusSelectionChanges(P, quote){
     if (!row || !(+row.price)) return;
     out.push({ label: (g.title || 'Option') + ' — ' + (row.name || pickId), delta: +row.price });
   });
+  // The quote's included extras (2026-10-30, job 3338: Leaf Diverters and
+  // Flaxpod Downpipes were in the accepted total and missing from the Fergus
+  // version) — the list stamped at send, else the quote's own.
+  const ix = Array.isArray(P.inclx) ? P.inclx : (Array.isArray(quote && quote.inclExtras) ? quote.inclExtras : []);
+  ix.forEach(function (x) {
+    const nm = String((x && x.name) || '').trim(), pr = Math.round((parseFloat(x && x.price) || 0) * 100) / 100;
+    if (nm && pr) out.push({ label: 'Extras — ' + nm, delta: pr, inclx: true });
+  });
   return out;
 }
 function _fergusComposeSections(plan, P, quote){
@@ -10475,6 +10614,8 @@ function _fergusComposeSections(plan, P, quote){
   changes.forEach(c => {
     if (!c.delta || Math.abs(c.delta) <= 0.005) return;
     const low = String(c.label || '').toLowerCase();
+    // An included extra is the office's own line, whatever its words say.
+    if (c.inclx){ section('Extras').lineItems.push(mk('mat', c.label.replace(/^Extras — /, ''), 1, c.delta)); return; }
     if (c.gutter){ section('Guttering').lineItems.push(mk('mat', 'Guttering — ' + c.label, 1, c.delta)); return; }
     if (low.indexOf('downpipe') >= 0){ section('Downpipes').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (low.indexOf('bracket') >= 0){ section('Guttering').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
@@ -10548,6 +10689,14 @@ async function _fergusAutoVersionNow(jobId){
   plan.rev = rev;
   plan.auto = { at: new Date().toISOString(), selKey, quoteId: newId, rev, voided, published, publishResult, sentResult,
                 acceptedAt: quote.accepted ? quote.accepted.at : null, total: +(built.sub + gst).toFixed(2) };
+  // The accepted version must carry the accepted figure. A gap means a pick or
+  // a priced item the composer does not know — say so, rather than leave the
+  // office to find a Fergus quote $3,800 short (job 3338, 2026-10-30).
+  if (quote.accepted && isFinite(+quote.accepted.total) && Math.abs(plan.auto.total - (+quote.accepted.total)) > 1){
+    plan.auto.mismatch = { accepted: +quote.accepted.total, fergus: plan.auto.total };
+    try { recordError('server', new Error('Fergus accepted version ' + _money(plan.auto.total) + ' does not match the accepted total ' +
+      _money(quote.accepted.total) + ' on quote ' + (quote.ref || jobId)), { route: 'fergus-auto-version', company: job.company_id || '' }); } catch (e) {}
+  }
   quote.share.fergus = plan;
   if (!Array.isArray(quote.share.events)) quote.share.events = [];
   quote.share.events.push({ type: 'fergus-version', at: plan.auto.at,
@@ -12883,7 +13032,7 @@ async function _waitlistInvite(row){
         'and material order before you do your own.\n\n' +
         'Reply to this email if anything is in your way.\n\n— RoofMap\n',
       html: '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.65;color:#0a1628;max-width:560px">' +
-        '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+        '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
         '<h2 style="font-size:21px;margin:10px 0 14px">You are in' + (row.name ? (', ' + esc(row.name)) : '') + '.</h2>' +
         '<p style="margin:0 0 18px">Setting your business up takes about a minute — business name, your name, a password. There is a finished sample job waiting inside, so you can see a completed quote, cut list and material order before you do your own.</p>' +
         '<p style="margin:0 0 16px"><a href="' + esc(link) + '" style="display:inline-block;background:#0099cc;color:#fff;padding:13px 26px;border-radius:9px;text-decoration:none;font-weight:700">Set up your business</a></p>' +
@@ -12923,7 +13072,7 @@ app.get('/admin/waitlist/:id/invite', async (req, res) => {
     '<title>RoofMap</title>' +
     '<body style="font-family:-apple-system,Segoe UI,sans-serif;background:#f4f7fa;margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh">' +
     '<div style="background:#fff;border-radius:14px;padding:34px 38px;max-width:440px;box-shadow:0 12px 40px rgba(10,22,40,.12)">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.13em;text-transform:uppercase;color:#0099cc">RoofMap&trade;</div>' +
     '<h2 style="color:' + colour + ';margin:10px 0 8px;font-size:20px">' + title + '</h2>' +
     '<p style="color:#43556a;font-size:14.5px;line-height:1.6;margin:0">' + body + '</p></div></body>';
   const esc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -14987,6 +15136,9 @@ app.listen(PORT, () => {
   // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
   const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
   if (_atKick.unref) _atKick.unref();
+  // …and the accepted picks (ACCEPTED_PICK_FIXES).
+  const _apKick = setTimeout(function(){ _acceptedPickFixesOnce().catch(function(){}); }, 55e3);
+  if (_apKick.unref) _apKick.unref();
   // The trial-ended email: same shape — hourly check, DB watermark, not on boot.
   const _teKick = setTimeout(function(){ _trialEndedTick(); }, 7 * 60e3);
   if (_teKick.unref) _teKick.unref();
