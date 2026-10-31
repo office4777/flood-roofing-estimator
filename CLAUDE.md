@@ -503,7 +503,25 @@ THE FILL:
    Hip T: the stem's end ↺E1–↺E4 in order, 73 → 72 sheets, 221.94 m; the tee
    fixture 73 → 72, 216.94 m, its bar's top end orange like its bottom (A22,
    not a stray blue E17). No other test roof moves.
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g,
+9h. IN ORDER, NO PATCHES (the same day, on reports 70 and 71: "The two on the
+   right are looking patchy and sheets aren't in order"). Two causes. Move 2
+   swapped a hip-cut sheet in the MIDDLE of a run to a shorter block's length
+   (report 71's west slope read C1, C2, B7, C3, B8, C4, B1 …): a sheet now
+   joins the shorter block only where the strip beside it on its face is
+   already that block (`besideBlock`, repeated until nothing moves), so the
+   short sheets grow as one run from its end — C1–C4, then B1–B7. And 9f's
+   valley move is kept only when it leaves the roof NO PATCHIER than it found
+   it (`straysNow` — move 6's stray, now at the function's top: a piece whose
+   colour no strip beside it shares, not its face's own). Every sheet the
+   optimiser orders is numbered in its place along its face's run. Measured
+   against v5: reports 70 and 71 back to v5's sheets; report 19 32 sheets not
+   31 (one more 1.00 m, each arm one colour); reports 50 and 74 the same count
+   for 1.4 m and 6.0 m more steel, no stray green in the purple runs; the T's
+   a sheet cheaper; report 17, the double cascade and the Big-L unchanged.
+   Left as v5: report 70's one green ↺D1 strip on the purple slope (purple
+   costs a sheet). Report 76 takes ~16 s to lay — speed to look at. Shown as
+   "Sheet layout v7 - in order, no patches".
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown

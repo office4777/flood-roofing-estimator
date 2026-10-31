@@ -9552,6 +9552,27 @@ function _pzOptimise(pz){
     return set;
   }
   var allSheets = function(){ return Array.from(S.values()); };
+  // A STRAY — what the owner sees as patchy (2026-10-31, on reports 70 and
+  // 71: "looking patchy and sheets aren't in order"): a piece whose colour
+  // none of the strips beside it on its face share, and not its face's own
+  // colour. No move may leave the roof with more of them than it found.
+  var colOfP = function(p){
+    if (p.ordered) return p.block;
+    if (p.strung && p.strungTo) return p.strungTo.ordered ? p.strungTo.block : (byLabel[p.strungTo.from] || {}).block;
+    return (byLabel[p.from] || {}).block;
+  };
+  var straysNow = function(){
+    var byFace = new Map();
+    pz.pieces.forEach(function(p){ if (p.face && (p.ordered ? S.has(p) : true)) { if (!byFace.has(p.face)) byFace.set(p.face, []); byFace.get(p.face).push(p); } });
+    var n = 0;
+    byFace.forEach(function(ps, f){
+      ps.forEach(function(p){
+        var c = colOfP(p); if (!c || p.scrap || c.face === f) return;
+        if (!ps.some(function(q){ return q !== p && Math.abs((q.k || 0) - (p.k || 0)) <= 1 && colOfP(q) === c; })) n++;
+      });
+    });
+    return n;
+  };
   function commit(asg){
     asg.forEach(function(sh, m){
       // (The packer only slides a piece or turns it end for end — never
@@ -9597,7 +9618,20 @@ function _pzOptimise(pz){
   tries = tries.filter(function(pc){ return shortTo(pc); })
     .sort(function(a, b){ return (S.get(b).L - shortTo(b).Lmm) - (S.get(a).L - shortTo(a).Lmm); })
     .slice(0, _PZ_OPT_TRIES);
+  // A SHEET JOINS THE SHORTER BLOCK ONLY BESIDE IT (2026-10-31, the owner
+  // on report 71's C2, B7, C3, B8, C4: "looking patchy and sheets aren't in
+  // order"): a hip-cut sheet in the middle of the long run swapped to the
+  // short block's length is a stray of another colour. It may go only where
+  // the strip beside it on its face is already that block — a run of short
+  // sheets grows from its end, in order — so the colours stay in runs.
+  var besideBlock = function(pc, tb){
+    return pz.pieces.some(function(q){ return q !== pc && q.face === pc.face && Math.abs((q.k || 0) - (pc.k || 0)) === 1 && colOfP(q) === tb; });
+  };
+  var moved2 = true;
+  while (moved2){
+    moved2 = false;
   tries.forEach(function(pc){
+    if (pc.shortened) return;
     var sh = S.get(pc); if (!sh || log.tried >= _PZ_OPT_PACKS) return;
     var f = pc.face, need = sh.ownH;
     var tb = null;
@@ -9607,7 +9641,7 @@ function _pzOptimise(pz){
       if (b.pieces.some(function(q){ return q.Lmm && q.Lmm !== b.Lmm; })) return;
       if (!tb || b.Lmm < tb.Lmm) tb = b;
     });
-    if (!tb) return;
+    if (!tb || !besideBlock(pc, tb)) return;
     var gives = movable.filter(function(p){ return p.from === pc.label; }).concat(sh.fixed);
     var keepFixed = sh.fixed; sh.fixed = [];
     gives.forEach(function(p){ if (movable.indexOf(p) < 0) movable.push(p); });
@@ -9621,8 +9655,9 @@ function _pzOptimise(pz){
     sh.L = tb.Lmm; memo.clear();
     gives.forEach(function(p){ p.series = false; });
     commit(asg);
-    log.shorter++; log.savedMm += saved;
+    log.shorter++; log.savedMm += saved; moved2 = true;
   });
+  }
   // 3. A VALLEY SHEET IN FULL (2026-10-31, the owner on report 17: "there
   // are four valley sections, so there should be four valley offcuts. One
   // side of the valley should have full sheets, and the offcuts to those full
@@ -9751,7 +9786,7 @@ function _pzOptimise(pz){
     // wider pass as it was — every cut strip on the short faces put to the
     // long sheets' offcuts.
     var attempt = function(rk, narrow){
-      var before = log.donors || 0;
+      var before = log.donors || 0, stray0 = straysNow();
       if (log.tried >= _PZ_OPT_PACKS + _PZ_OPT_MOVE * 4) return;
       var bl = roofs[rk], longL = Math.max.apply(null, bl.map(function(b){ return b.Lmm; }));
       if (!bl.some(function(b){ return b.Lmm < longL; })) return;
@@ -9992,8 +10027,11 @@ function _pzOptimise(pz){
       allowFn = null;
       if (ok && simpler){
         if (final) commit(final);
-        memo.clear(); log.donors = (log.donors || 0) + 1;
-      } else {
+        // (never patchier than it found the roof)
+        if (straysNow() > stray0) simpler = false;
+        else { memo.clear(); log.donors = (log.donors || 0) + 1; }
+      }
+      if (!(ok && simpler)){
         snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; });
         snapB.forEach(function(r){ r[0].pieces = r[1]; });
         movable = snapM; S = snapS; memo.clear();
@@ -10212,17 +10250,18 @@ function _pzOptimise(pz){
     // E2, E3 along the gutter), not a number after the rest — the sheets
     // are laid in order.
     b.pieces.forEach(function(pc){
-      if ((pc.num || 0) < 4e6 || (pc.num || 0) >= 5e6) return;
+      if ((pc.num || 0) < 1e6) return;
       var prev = null, next = null;
       b.pieces.forEach(function(q){
         if (q === pc || q.face !== pc.face || (q.num || 0) >= 1e6) return;
         if ((q.k || 0) < (pc.k || 0) && (!prev || q.k > prev.k)) prev = q;
         if ((q.k || 0) > (pc.k || 0) && (!next || q.k < next.k)) next = q;
       });
-      if (prev && next && next.num > prev.num) pc.num = prev.num + 0.5;
-      else if (prev && next) pc.num = next.num + 0.5;
-      else if (prev) pc.num = prev.num + 0.5;
-      else if (next) pc.num = next.num - 0.5;
+      var kk = (pc.k || 0) * 1e-4;
+      if (prev && next && next.num > prev.num) pc.num = prev.num + 0.5 + kk;
+      else if (prev && next) pc.num = next.num + 0.5 - kk;
+      else if (prev) pc.num = prev.num + 0.5 + kk;
+      else if (next) pc.num = next.num - 0.5 + kk;
     });
     b.pieces.sort(function(x, y){ return (x.num || 0) - (y.num || 0); });
     b.pieces.forEach(function(pc, i){ pc.num = i + 1; pc.label = b.letter + (i + 1); });
