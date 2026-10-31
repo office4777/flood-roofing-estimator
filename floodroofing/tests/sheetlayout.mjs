@@ -839,6 +839,29 @@ async function labelsOf(g){
     check('pre-cut layout, ' + name + ': every ordered sheet once at its own length, every piece inside the sheet it is cut from, none overlapping',
       v.n === v.nT && v.lensOk && v.all && v.own && v.labels && !v.over.length && v.outside === 0 && v.overlaps === 0, JSON.stringify(v));
   }
+  // THE CHALK LINE: in each run, the next sheet's cut carries on the last one's
+  // line — its cut height at its own left edge is where the line it continues
+  // meets that edge (one sheet cover on).
+  await lay({ scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' });
+  const chalk = await pg.evaluate(() => {
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const out = [];
+    pz.blocks.forEach(b => {
+      const ss = _sheetPrecutPlan(pz).filter(s => s.block.letter === b.letter);
+      _pzChalkRuns(ss).forEach(run => {
+        const cs = run.map(s => _pzCutLine(s)); if (!cs[0]) return;
+        let worst = 0;
+        // (The closer lapped at the hip corner overlaps its neighbour on the
+        // roof, so laid edge to edge its cut sits a lap off the line.)
+        for (let i = 1; i < cs.length; i++){ if (run[i].piece.lapped || run[i-1].piece.lapped) continue; const want = cs[i-1].h0 + cs[i-1].slope * run[i-1].Wmm; worst = Math.max(worst, Math.abs(cs[i].h0 - want)); }
+        out.push({ block: b.letter, n: run.length, labels: run.map(s => s.label).join(' '), worstMm: Math.round(worst) });
+      });
+    });
+    return out;
+  });
+  const runs = chalk.filter(r => r.n > 1);
+  check('pre-cut layout, the plain hip: four runs of hip-cut sheets, each cut by ONE chalk line across them (A8 … A1 on the north slope)',
+    runs.length === 4 && runs.every(r => r.worstMm <= 30) && runs.some(r => r.labels.startsWith('A8 A7 A6 A5 A4 A3 A2 A1')), JSON.stringify(chalk));
   const page = await pg.evaluate(async () => {
     S.jobPack = null; gotoTab('materials'); renderJobPack();
     await new Promise(r => setTimeout(r, 300));
