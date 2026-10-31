@@ -563,23 +563,22 @@ THE FILL:
    37 → 36. Double-L: the same 85, +0.54 m, its stray blue B9 a purple C18 (an
    orange ↺A12 lands in that corner — flagged to the owner). Every other test
    roof as v8. Shown as "Sheet layout v9 - smallest offcut starts the set".
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i, 9j,
-   rule 10's new order and the flush pre-cut are `_pzOptimise` in
-   sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
-   different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown
-   to the owner as "Sheet layout new rules v5" — waiting on his go
-   (report 17 passed as perfect; the double cascade restored to 67). Ship with
-   `tests/sheetlayout.mjs`'s count pins re-taken (21 move, none a geometry
-   rule). The slowest roof takes ~7 s to lay (report 76).
+   LIVE 2026-11-01 on the owner's "Go live on everything" (he had the v5–v9
+   pictures): 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i, 9j, rule 10's new order (less
+   steel first) and the flush pre-cut are `_pzOptimise` in sheet-plan.js,
+   shipped as v9. `tests/sheetlayout.mjs`'s 21 count pins were re-taken with
+   it (none a geometry rule; report 75 now keeps the lay WITHOUT the
+   template, 129 against 130) and `typesnap.json` regenerated (the two
+   roofing quotes' sheets line only: 177.41 → 174.16 m and 168.82 →
+   165.31 m). Report 76 takes ~16 s to lay — still the speed to look at.
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
     fewer sheets first. It should be less steel first and utilizing most of
     the offcut"; before that, "it should go which ever way is most
-    efficient"). NOT YET BUILT: the engine still keeps fewer sheets, then
-    less steel (`opts.noTipLay`, `opts.noApexTmpl` and the late-step
-    comparisons in `_sheetPuzzleFill`). Changing it moves fixtures, so it
-    ships with the efficiency moves below and before/after pictures.
+    efficient"). LIVE since 2026-11-01: `_sheetPuzzleBuild` finishes each lay
+    (`fin`: the mono extension, then `_pzOptimise`) and `better` keeps the one
+    ordering less steel, then fewer sheets, then the first on a tie.
     WHAT IT DECIDED ON THE DOUBLE CASCADE (report 77 redrawn at a true 45°,
     tested as a mock, not built): today 69 sheets / 295.02 m with extras
     G1 and H1. Moves he asked for, each a real fit (spin, never flip): G1

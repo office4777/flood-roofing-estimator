@@ -230,15 +230,19 @@ const fg = await pg.evaluate(async () => {
   window.fetch = realFetch;
   const fc = TBX_DAYS.map(d => document.querySelector('#tbx-body input[oninput*="forecast' + d + '"]').value);
   const kept = JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {};
-  // the week after next is past open-meteo's 16 days: no request, a plain message
+  // a week well past open-meteo's 16 days: no request, a plain message. FOUR
+  // weeks on, not three: the sheet's Monday comes from the browser's clock (UTC
+  // on CI) and "today" from Auckland's, so on a NZ Sunday — still Saturday in
+  // UTC — three weeks on is day 15, inside the window, and the pin failed by
+  // the calendar (2026-11-01)
   let far = 0; window.fetch = async () => { far++; return { ok: true, json: async () => ({}) }; };
-  tbxStep(3); await tbxForecast(document.getElementById('tbx-fc')); window.fetch = realFetch;
+  tbxStep(4); await tbxForecast(document.getElementById('tbx-fc')); window.fetch = realFetch;
   // and another week's sheet asks the calendar for ITS window (filterDateFrom / filterDateTo, full date-times): nothing booked there yet
   calls.length = 0;
   await tbxLoadFergus(document.getElementById('tbx-fg'));
   const calCall = calls.find(c => /^\/calendarEvents/.test(c)) || '';
   const otherWeek = { cal: document.querySelectorAll('#tbx-cal').length, note: (document.querySelector('#tbx-body .tbx-np.mut') || {}).textContent || '', err: ((JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[_tbxWk] || {}).fergus || {}).calErr, call: calCall, from: tbxAddDays(_tbxWk, -1), to: tbxAddDays(_tbxWk, 8) };
-  tbxStep(-3);
+  tbxStep(-4);
   closeToolbox(); delete window.fergusApiFetch; S.set('fergus_proxy_url', '');
   return { lastRows, weekRows, calHead, calRows, calJobs, crew: stored.crew, fergusKept: !!(stored.fergus && stored.fergus.cal && stored.fergus.cal.length), calCalls, url, fc, fcKept: kept.forecastTue, far, otherWeek, A, B };
 });
