@@ -459,7 +459,9 @@ check('…its slopes run the plain hip\'s way, flush at one real corner and lapp
   r.faces.filter(f => f.lay === 'run' && Math.abs(f.T1 - f.T0) * r.scaleM > 17).filter(f => Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).length === 2 &&
   r.faces.filter(f => f.lay === 'run' && Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).every(f => r.pieces.some(p => p.face === f.id && p.lapped && p.ordered)),
   JSON.stringify(r.faces.filter(f => f.lay === 'run').map(f => [+(Math.abs(f.T1 - f.T0) * r.scaleM).toFixed(1), +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1), r.pieces.filter(p => p.face === f.id && p.lapped).length])));
-check('…81 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,33x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
+// (80 since rule 9k, 2026-11-01: the A set carries on to the strip beside the
+// valley — ↺A1 where a whole A9 stood — as the B set beside it always did)
+check('…80 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,32x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
 rules('the cross', r);
 // THE GABLE + HIP & VALLEY T (2026-10-23, the owner: "The offcuts to blue
 // B9, B10 and purple C9, C10, they're not being utilized anywhere. They could
@@ -549,19 +551,24 @@ check('…81 sheets: the west end\'s junction strip cut straight and fed from D6
 // face. Not one more sheet.
 {
   const rs = await lay(fx('sample'));
-  check('the sample job: still 55 sheets, 41 × 4.26 and 14 × 3.85', tallyOf(rs) === '41x4260,14x3850', tallyOf(rs));
+  check('the sample job: 54 sheets, 41 × 4.26 and 13 × 3.85 (one blue sheet less: B8\'s strip comes off B1\'s offcut)', tallyOf(rs) === '41x4260,13x3850', tallyOf(rs));
   const fl = rs.faces.map(f => labels(rs, f));
   const endSet = fl.find(l => l.includes('↺D4') && l.includes('↺D1')) || [];
-  const i4 = endSet.indexOf('↺D4');
-  check('…the top end\'s west half is one green set in order — ↺D4, ↺D3, ↺D2, ↺D1 on their exact fits, no blue B offcut among them (the corner trim aside)',
-    i4 >= 0 && endSet.slice(i4, i4 + 4).join(',') === '↺D4,↺D3,↺D2,↺D1' && !endSet.slice(i4, i4 + 6).some(x => /^↺B/.test(x)), endSet.join(' '));
+  const i5 = endSet.indexOf('↺D5');
+  check('…the top end\'s west half is one green set in order — ↺D5 … ↺D1 on their exact fits, no blue offcut among them (the corner trim aside)',
+    i5 >= 0 && endSet.slice(i5, i5 + 5).join(',') === '↺D5,↺D4,↺D3,↺D2,↺D1', endSet.join(' '));
   const slope = fl.find(l => l.includes('C1') && l.includes('C19')) || [];
-  const run = slope.slice(slope.indexOf('C1'), slope.indexOf('C19') + 1);
-  check('…the west slope reads C1 to C19 straight down, no hatched row in the middle of the run',
-    run.length === 19 && run.every((x, i) => x === 'C' + (i + 1)), slope.join(' '));
-  const top = fl.find(l => l.includes('C20')) || [];
-  check('…the purple sheets on the top end are numbered together — C20 beside C21',
-    Math.abs(top.indexOf('C20') - top.indexOf('C21')) === 1, top.join(' '));
+  const run = slope.slice(slope.indexOf('C1'), slope.indexOf('C20') + 1);
+  check('…the west slope reads C1 to C19 straight down, and C20 is the full donor sheet on the corner beside C19',
+    run.length === 20 && run.every((x, i) => x === 'C' + (i + 1)), slope.join(' '));
+  const south = fl.find(l => l.includes('↺C20') && l.includes('↺C16')) || [];
+  const j0 = south.indexOf('↺C16');
+  check('…the bottom end\'s set carries on off C20 — ↺C16 … ↺C20 side by side — no whole sheet in the middle',
+    j0 >= 0 && south.slice(j0, j0 + 5).join(',') === '↺C16,↺C17,↺C18,↺C19,↺C20', south.join(' '));
+  const valley = fl.find(l => l.includes('↺B2') && l.includes('↺B3')) || [];
+  const k1 = valley.indexOf('↺B1');
+  check('…the blue valley set reads in order — ↺B1, ↺B2, ↺B3, ↺B4 off B1 … B4, where a whole B8 stood',
+    k1 >= 0 && valley.slice(k1, k1 + 4).join(',') === '↺B1,↺B2,↺B3,↺B4', valley.join(' '));
 }
 // And, 2026-10-22, on the same roof: "on the Z shape the green D20 is out of
 // place" — the east wing's own sheet, cut by the wing's hip and so at home on

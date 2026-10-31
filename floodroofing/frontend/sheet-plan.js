@@ -10532,6 +10532,128 @@ function _pzOptimise(pz){
       else restore();
     });
   })();
+  // 10. THE SET CARRIES ON (2026-11-01, the owner on the sample job: "B8
+  // should be the offcut to b1, and C22 should be the offcut [of] a full donor
+  // sheet c20 (c20 full donor sheet should be next to c19 donor sheet)"). A
+  // run of offcuts in order — ↺B2 ↺B3 ↺B4 ↺B5 off B2 B3 B4 B5, ↺C16 … ↺C19
+  // off C16 … C19 — has a next strip at each end and a next sheet in its
+  // donors' order. Where that next strip is a whole sheet, it is cut from the
+  // next donor's offcut instead: the donor's own strip a sheet of the set's
+  // colour if it was not one already (the corner sliver C20, beside C19), the
+  // whole sheet off the order. What either gave up moves to the nearest free
+  // offcut, packs onto a sheet, or is ordered beside its own colour. Kept only
+  // when the order is no bigger and the roof no patchier.
+  (function(){
+    if (window.__PZ_SET_ON === false) return;
+    var one = function(q){ return !!(q.sheetOneCut || q.cutTop !== q.cutBot); };
+    var fitsL = function(X, D, L){
+      if (D.longMm == null || !one(D) || !one(X) || X.longMm == null) return false;
+      if (D.hand && X.hand && D.hand !== X.hand) return false;
+      if ((X.widthPx || 0) > (D.sheetPx || D.widthPx || 0) + 0.6) return false;
+      return L - (D.shortMm || 0) >= X.longMm - _PZ_FIT_MM && L - D.longMm >= (X.shortMm || 0) - _PZ_FIT_MM;
+    };
+    var countAll = function(){ var n = 0, st = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ n++; st += lenOf(pc); }); }); return { n: n, steel: st }; };
+    var at = function(face, k){ return pz.pieces.filter(function(q){ return q.face === face && (q.k || 0) === k && !q.strung; })[0] || null; };
+    var runsNow = function(){
+      var out = [];
+      pz.faces.forEach(function(F){
+        [1, -1].forEach(function(h){
+          var fed = pz.pieces.filter(function(p){ return p.face === F && p.hand === h && !p.ordered && !p.strung && !p.scrap && !isTrim(p) && byLabel[p.from]; })
+            .sort(function(a, b){ return (a.k || 0) - (b.k || 0); });
+          var cur = null;
+          fed.forEach(function(p){
+            var D = byLabel[p.from];
+            if (cur){
+              var last = cur.ps[cur.ps.length - 1], LD = byLabel[last.from];
+              var step = (D.k || 0) - (LD.k || 0);
+              if ((p.k || 0) === (last.k || 0) + 1 && D.block === LD.block && D.face === LD.face && Math.abs(step) === 1 && (cur.s == null || cur.s === step)){
+                cur.s = step; cur.ps.push(p); return;
+              }
+              if (cur.ps.length >= 2) out.push(cur);
+            }
+            cur = { F: F, h: h, ps: [p], s: null };
+          });
+          if (cur && cur.ps.length >= 2) out.push(cur);
+        });
+      });
+      return out;
+    };
+    var tried = new Set();
+    for (var round = 0; round < 8; round++){
+      var did = false;
+      var runs = runsNow();
+      for (var ri = 0; ri < runs.length && !did; ri++){
+        var R = runs[ri], first = R.ps[0], last = R.ps[R.ps.length - 1];
+        var ends = [
+          { Y: at(R.F, (last.k || 0) + 1), D: byLabel[last.from], s: R.s },
+          { Y: at(R.F, (first.k || 0) - 1), D: byLabel[first.from], s: -R.s }
+        ];
+        for (var ei = 0; ei < 2 && !did; ei++){
+          var Y = ends[ei].Y, D0 = ends[ei].D; if (!Y || !D0 || !Y.ordered || !S.has(Y) || Y.hand !== R.h) continue;
+          var Z = at(D0.face, (D0.k || 0) + ends[ei].s); if (!Z || Z === Y || Z.hand !== D0.hand || Z.scrap) continue;
+          var B = D0.block, key = Y.label + '|' + (Z.label || '') + '|' + B.letter; if (tried.has(key)) continue; tried.add(key);
+          if (B.extra) continue;
+          if (Z.ordered ? (Z.block !== B || !S.has(Z) || (S.get(Z).fixed || []).length) : (Z.strung || (feetOf.get(Z) || []).length)) continue;
+          if ((feetOf.get(Y) || []).length || (S.get(Y).fixed || []).length) continue;
+          if (!fitsL(Y, Z, B.Lmm)) continue;
+          var before = countAll(), stray0 = straysNow(true);
+          var snapP = pz.pieces.map(function(p){ return [p, p.ordered, p.from, p.block, p.label, p.Lmm, p.num, p.fromHand, p.series, p.fullSheet]; });
+          var snapB = pz.blocks.map(function(bb){ return [bb, bb.pieces.slice()]; });
+          var snapM = movable.slice(), snapS = new Map(S), snapBL = Object.assign({}, byLabel);
+          var restore = function(){
+            snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; p.fullSheet = r[9]; });
+            snapB.forEach(function(r){ r[0].pieces = r[1]; });
+            movable = snapM; S = snapS; byLabel = snapBL; memo.clear(); stayMap = null;
+          };
+          var displaced = [];
+          // the next donor: a sheet of the set's colour, in its place
+          if (!Z.ordered){
+            movable.splice(movable.indexOf(Z), 1);
+            Z.ordered = true; Z.from = null; Z.block = B; B.pieces.push(Z); Z.Lmm = undefined; Z.num = 1e6 + (Z.k || 0);
+            Z.label = B.letter + '¤' + Z.face.id + '_' + (Z.k || 0); Z.fullSheet = false;
+            byLabel[Z.label] = Z; var shZ = mkSheet(Z, B.Lmm, B.Lmm); if (!shZ){ restore(); continue; } S.set(Z, shZ);
+          } else {
+            movable.filter(function(q){ return q.from === Z.label; }).forEach(function(q){ displaced.push(q); });
+          }
+          // the whole sheet comes off the order; what its offcut fed moves
+          movable.filter(function(q){ return q.from === Y.label && q !== Z; }).forEach(function(q){ if (displaced.indexOf(q) < 0) displaced.push(q); });
+          Y.block.pieces.splice(Y.block.pieces.indexOf(Y), 1); S.delete(Y); delete byLabel[Y.label];
+          Y.ordered = false; Y.Lmm = undefined; Y.fullSheet = false; movable.push(Y);
+          displaced.forEach(function(q){ q.from = '~'; });
+          commit(new Map([[Y, S.get(Z)]]));
+          memo.clear(); stayMap = null;
+          var ok = true, usedD = new Set([Z]);
+          displaced.sort(function(a, b){ return (b.longMm || 0) - (a.longMm || 0); }).forEach(function(q){
+            if (!ok) return;
+            var qc = cen(q), nearQ = function(a, b){ var ca = cen(a), cb = cen(b); return Math.hypot(ca[0]-qc[0], ca[1]-qc[1]) - Math.hypot(cb[0]-qc[0], cb[1]-qc[1]); };
+            var depsN = function(D){ return movable.filter(function(m){ return m !== q && m.from === D.label; }).length; };
+            var free = Array.from(S.keys()).filter(function(D){ var sh = S.get(D); return D.ordered && !usedD.has(D) && !(sh.fixed || []).length && !(feetOf.get(D) || []).length && !depsN(D) && fitsL(q, D, sh.L); }).sort(nearQ)[0];
+            if (free){ commit(new Map([[q, S.get(free)]])); usedD.add(free); return; }
+            var shs = allSheets().filter(function(sh){ return sh.pc.ordered && sh.pc !== q; }).sort(function(a, b){ return nearQ(a.pc, b.pc); }).slice(0, 24);
+            for (var i = 0; i < shs.length; i++){
+              var sh = shs[i], list = sh.fixed.concat(movable.filter(function(m){ return m !== q && m.from === sh.pc.label; })).concat([q]);
+              var area = list.reduce(function(t, p){ return t + (p.areaPx || 0); }, 0) * pz.scaleM * pz.scaleM * 1e6;
+              if (area + sh.ownArea > cover * sh.L * 1.02) continue;
+              var ok0 = false; try { ok0 = _pzPackSheet(sh.own, (sh.free ? [sh.pc] : []).concat(list).map(groupOf), cover, sh.L, sh.minTop); } catch(e){}
+              if (ok0){ commit(new Map([[q, sh]])); return; }
+            }
+            var mate = pz.pieces.filter(function(p2){ return p2 !== q && p2.face === q.face && Math.abs((p2.k || 0) - (q.k || 0)) === 1; })
+              .map(function(p2){ return colOfP(p2); }).filter(function(b){ return b && !b.extra && b.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; })[0];
+            var b = mate || pz.blocks.filter(function(b2){ return !b2.extra && b2.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; }).sort(function(x, y){ return x.Lmm - y.Lmm; })[0];
+            if (!b){ ok = false; return; }
+            movable.splice(movable.indexOf(q), 1);
+            q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '¤' + q.face.id + '_' + (q.k || 0) + 'x'; q.fullSheet = true;
+            byLabel[q.label] = q; var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq); else ok = false;
+          });
+          memo.clear(); stayMap = null;
+          var after = countAll();
+          if (ok && after.n <= before.n && after.steel <= before.steel + 1 && straysNow(true) <= stray0){ log.carry = (log.carry || 0) + 1; did = true; }
+          else restore();
+        }
+      }
+      if (!did) break;
+    }
+  })();
   // 9. A TRIM COMES OFF THE NEAREST OFFCUT (2026-11-01, the owner on the
   // sample job: "keep the offcut sets used in the same area"). The narrow
   // corner strips — the trims a set leaves at each end — swap donors, or take
@@ -10584,7 +10706,7 @@ function _pzOptimise(pz){
     }
     memo.clear(); stayMap = null;
   })();
-  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets && !log.endSets && !log.trims && !log.runOrder){ pz.optLog = log; return pz; }
+  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets && !log.endSets && !log.trims && !log.runOrder && !log.carry){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });

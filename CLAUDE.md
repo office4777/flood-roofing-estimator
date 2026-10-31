@@ -592,13 +592,29 @@ THE FILL:
    are NUMBERED FACE BY FACE in the final renaming (C20 and C21 together on
    the top end, C22 on the bottom — was C20, C22 / C21). Switches:
    `window.__PZ_SET_CORNER`, `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`,
-   `__PZ_FACE_NUM` (false = off). Measured on every fixture: no roof orders
-   more steel; report 20 71 → 70 (one 2.74 m sheet less, the B run in
-   order); the sample, report 50, report 74 and the double-L the same count,
-   relabelled or a corner moved. `tests/fixtures-sample.json` (the shipped
-   sample job's roof) and four pins in `sheetlayout.mjs` (414). BUILT ON THE
-   SESSION BRANCH, NOT LIVE — before/after pictures sent to the owner,
-   waiting on his "go".
+   `__PZ_FACE_NUM` (false = off).
+   (e) THE SET CARRIES ON, move 10 (the same day, on the pictures: "B8 should
+   be the offcut to b1, and C22 should be the offcut [of] a full donor sheet
+   c20 (c20 full donor sheet should be next to c19 donor sheet)"): a run of
+   offcuts in order (↺B2 ↺B3 ↺B4 ↺B5 off B2 … B5) has a next strip at each
+   end and a next sheet in its donors' order; where that next strip is a
+   whole sheet it is cut from the next donor's offcut instead — the donor's
+   own strip made a sheet of the set's colour if it was not one (the corner
+   sliver C20 beside C19), the whole sheet off the order; what either gave up
+   moves to the nearest free offcut, packs onto a sheet, or is ordered beside
+   its own colour; kept only when the order is no bigger and the roof no
+   patchier. `window.__PZ_SET_ON`. Sample job: ↺B1 … ↺B4 by the valley
+   (B8 gone), C20 the corner donor and ↺C16 … ↺C20 across the bottom end
+   (C22 gone), the top end ↺D5 … ↺D1 off the wing end's D sheets — 55 → 54
+   sheets; the cross 81 → 80 (↺A1 where A9 stood, as the B side always was);
+   the double-L the same 85 (C17/C22 swapped so ↺C16 ↺C17 run together).
+   Measured on every fixture: no roof orders more steel; report 20 71 → 70
+   (one 2.74 m sheet less, the B run in order); report 50 and report 74 the
+   same count, a corner moved. `typesnap.json` regenerated (the sample
+   quote's sheets line 174.16 → 171.23 m only). `tests/fixtures-sample.json`
+   (the shipped sample job's roof) and five pins in `sheetlayout.mjs` (415).
+   BUILT ON THE SESSION BRANCH, NOT LIVE — before/after pictures sent to the
+   owner, waiting on his "go".
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
