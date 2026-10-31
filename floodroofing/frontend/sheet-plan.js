@@ -9364,7 +9364,7 @@ var _PZ_OPT_TRIES = 12;
 var _PZ_OPT_MOVE = 400;
 function _pzOptimise(pz){
   if (!_PZ_OPT_ON || !pz || !pz.blocks || !pz.pieces || !pz.blocks.length) return pz;
-  var log = { extras: 0, shorter: 0, full: 0, savedMm: 0, tried: 0 };
+  var log = { extras: 0, shorter: 0, full: 0, stair: 0, stairFed: 0, savedMm: 0, tried: 0 };
   var feetOf = new Map();
   pz.pieces.forEach(function(p){ if (p.strung && p.strungTo){ if (!feetOf.has(p.strungTo)) feetOf.set(p.strungTo, []); feetOf.get(p.strungTo).push(p); } });
   var cover = pz.coverMm;
@@ -9635,7 +9635,58 @@ function _pzOptimise(pz){
       S.delete(P); movable.push(P); memo.clear();
     }
   });
-  if (!log.extras && !log.shorter && !log.full){ pz.optLog = log; return pz; }
+  // 4. ONE LENGTH, NOT A STAIRCASE (2026-10-31, the owner on report 17's
+  // pink 3.28 / 2.44 / 1.60 m extras: "sheets ... ordered to step down, so
+  // they went down in size, which is just too confusing for the guys on site
+  // ... rather than them stepping down, they should have been full length,
+  // and then either cut at the valley to create a full off cut set to be used
+  // somewhere, or they would be made up of an off cut set ... Always try to
+  // keep the same size, the same length sheets as the full length. We don't
+  // want too many different size sheets in an order"). Every sheet still
+  // ordered at a length of its own (an extra, a pushed-in sheet) is ordered
+  // at its face's full length instead (else the shortest of the roof's block
+  // lengths it fits), and then each, shortest piece first, is tried off an
+  // offcut set — the full sheets just made included — and comes off the
+  // order where one fits.
+  var stair = [];
+  pz.blocks.forEach(function(b){ if (b.extra) b.pieces.forEach(function(pc){ if (S.has(pc)) stair.push(pc); }); });
+  stair.forEach(function(X){
+    var sh = S.get(X), need = sh.ownH, tb = null;
+    var pick = function(sameFace){
+      pz.blocks.forEach(function(b){
+        if (b.extra || !b.pieces.length || roofOf(b.pieces[0]) !== roofOf(X) || (sameFace && b.face !== X.face)) return;
+        if (b.Lmm < need - _PZ_FIT_MM || b.pieces.some(function(q){ return q.Lmm && q.Lmm !== b.Lmm; })) return;
+        if (!tb || b.Lmm < tb.Lmm) tb = b;
+      });
+    };
+    pick(true); if (!tb) pick(false);
+    if (!tb) return;
+    var was = lenOf(X);
+    X.block.pieces.splice(X.block.pieces.indexOf(X), 1);
+    tb.pieces.push(X); X.block = tb; X.Lmm = undefined; X.num = 3e6 + (X.k || 0); X.fullSheet = true;
+    sh.L = tb.Lmm; sh.L0 = tb.Lmm;
+    log.stair++; log.savedMm -= (tb.Lmm - was);
+  });
+  if (log.stair){
+    memo.clear();
+    stair.filter(function(X){ return S.has(X) && X.block && !X.block.extra; })
+      .sort(function(a, b){ return S.get(a).ownH - S.get(b).ownH; })
+      .forEach(function(X){
+        if (log.tried >= _PZ_OPT_PACKS + _PZ_OPT_MOVE * 2) return;
+        var gives = movable.filter(function(q){ return q.from === X.label; });
+        var must = [X].concat(gives);
+        var saveTried = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, log.tried + _PZ_OPT_MOVE);
+        var asg = share(near(must), allSheets().filter(function(sh){ return sh.pc !== X; }), null, true);
+        _PZ_OPT_PACKS = saveTried;
+        if (!asg) return;
+        var L = lenOf(X);
+        X.block.pieces.splice(X.block.pieces.indexOf(X), 1); S.delete(X); X.Lmm = undefined; X.fullSheet = false;
+        if (movable.indexOf(X) < 0) movable.push(X);
+        commit(asg); memo.clear();
+        log.stairFed++; log.savedMm += L;
+      });
+  }
+  if (!log.extras && !log.shorter && !log.full && !log.stair){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });
