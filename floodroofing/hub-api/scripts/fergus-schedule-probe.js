@@ -80,6 +80,21 @@ async function main() {
     console.log('\nPer-job shapes (job ' + id + '):');
     for (const c of per) { const p = c.replace('{id}', encodeURIComponent(id)); const r = await probe(p); console.log(pad(r.status, 5) + pad(c, 62) + ' ' + describe(r).slice(0, 420)); }
   }
+  // 3b. THE CALENDAR (found 2026-10-31): /calendarEvents?from&to answers. Its shape, window and clock.
+  for (const p of ['/calendarEvents?from=' + mon + '&to=' + end, '/calendarEvents?from=' + mon + '&to=' + end + '&pageSize=500', '/calendarEvents?from=' + mon + '&to=' + end + '&page=2', '/calendarEvents?startDate=' + mon + '&endDate=' + end, '/calendarEvents?from=' + lastMon + '&to=' + lastMon, '/calendarEvents']) {
+    const r = await probe(p); let j = null; try { j = JSON.parse(r.body); } catch (e) {}
+    const a = arr(j) || [];
+    const days = {}; let lo = null, hi = null, withJob = 0, allDay = 0; const types = {}, users = new Set();
+    a.forEach(ev => { const t = String(ev.startTime || ''); const d = t.slice(0, 10); days[d] = (days[d] || 0) + 1; if (!lo || t < lo) lo = t; if (!hi || t > hi) hi = t; if (ev.jobId != null) withJob++; if (ev.isAllDay) allDay++; types[ev.eventType] = (types[ev.eventType] || 0) + 1; if (ev.userName) users.add(ev.userName); });
+    console.log('\n' + pad(r.status, 5) + p + '  rows ' + a.length + ' · paging ' + JSON.stringify(j && j.paging || null) + ' · span ' + lo + ' → ' + hi + ' · withJob ' + withJob + ' · allDay ' + allDay + ' · types ' + JSON.stringify(types) + ' · people ' + users.size);
+    console.log('  by day: ' + JSON.stringify(days));
+  }
+  // every event this week, one line each (title, who, job, start, end, allDay, type) — this is the toolbox's own sheet
+  { const r = await probe('/calendarEvents?from=' + mon + '&to=' + end); let j = null; try { j = JSON.parse(r.body); } catch (e) {}
+    const a = (arr(j) || []).slice().sort((x, y) => String(x.startTime).localeCompare(String(y.startTime)));
+    console.log('\nThis week + next, every event (' + a.length + '):');
+    a.slice(0, 120).forEach(ev => console.log('  ' + pad(ev.startTime, 20) + pad(ev.endTime, 20) + pad(ev.isAllDay ? 'allday' : '', 7) + pad(ev.eventType, 12) + pad(ev.userName || '', 18) + pad(ev.jobId == null ? '' : 'job ' + ev.jobId, 14) + pad(ev.jobPhaseId == null ? '' : 'ph ' + ev.jobPhaseId, 12) + String(ev.title || '').slice(0, 40) + (ev.isRecurring ? '  ↻' + JSON.stringify(ev.recurringEventDetails).slice(0, 80) : '') + '  links:' + JSON.stringify(ev.links || []).slice(0, 120)));
+  }
   // 4. a time entry's own fields (the fallback the hub already uses) — field names only
   const te = await probe('/timeEntries?pageSize=1');
   console.log('\n' + pad(te.status, 5) + '/timeEntries?pageSize=1  ' + describe(te).slice(0, 600));
