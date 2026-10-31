@@ -405,8 +405,28 @@ THE FILL:
 9. An extra is a sheet at its OWN length — never two extras cut from one
    sheet ("e1 should just be a full sheet with a small amount of wasteage").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
-    ordering FEWER SHEETS is kept, then LESS STEEL ("it should go which ever
-    way is most efficient").
+    ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
+    (2026-10-31, the owner correcting the old order: "The rule should not be
+    fewer sheets first. It should be less steel first and utilizing most of
+    the offcut"; before that, "it should go which ever way is most
+    efficient"). NOT YET BUILT: the engine still keeps fewer sheets, then
+    less steel (`opts.noTipLay`, `opts.noApexTmpl` and the late-step
+    comparisons in `_sheetPuzzleFill`). Changing it moves fixtures, so it
+    ships with the efficiency moves below and before/after pictures.
+    WHAT IT DECIDED ON THE DOUBLE CASCADE (report 77 redrawn at a true 45°,
+    tested as a mock, not built): today 69 sheets / 295.02 m with extras
+    G1 and H1. Moves he asked for, each a real fit (spin, never flip): G1
+    off E20's offcut; H1 off C15's offcut; C15's two-cut corner triangle off
+    C6's leftover; C16's offcut carrying the far-north valley piece beside
+    its own triangle; the blue E17 (a 5.13 m sheet with a 2.20 m piece)
+    ordered as a red F7 at 2.20; the one piece nothing else can carry (the
+    1.26 m corner by C5) an extra at its own length → 68 sheets, 286.18 m.
+    Under the old order 67 sheets / 287.85 m would have been kept.
+    THE PRE-CUT PACKS AGAINST THE FIRST CUT (asked the same day: "bring that
+    small double cut C16 right to the edge of the main C16"): the mock places
+    each offcut piece as LOW as it fits, flush with the sheet's own cut, so
+    the leftover is one clean piece at the far end; `_sheetPrecutPlan` still
+    places it as high as it fits.
 
 THE PICTURE:
 11. EVERY LABEL STARTS AT THE GUTTER (2026-10-27: "start all the sheet
