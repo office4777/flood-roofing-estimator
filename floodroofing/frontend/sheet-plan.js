@@ -8986,3 +8986,300 @@ function _sheetPuzzleTallyFor(roofIdxs){
   tally.forEach(function(g){ sheets += g.count; lm += g.count * g.Lmm / 1000; });
   return { groups: _pzGroupsOf(tally), tally: tally, sheets: sheets, lm: lm, m2: lm * cover / 1000 };
 }
+
+// ── THE SHEET PRE-CUT LAYOUT (2026-10-31, the owner: "another diagram ...
+// that shows each sheet set layed out in a full sheet for each of the colour
+// coded sheet (i.e. orange A 7 @ 5.01m show the 7 orange sheets of full 5.01m
+// length layed out in a rectangle format side by side, no over or in the
+// roofmap/roof shape, as they would be before they are cut, and show the
+// required cut lines and label each of the cut sheets as they are labeled on
+// the sheet layout diagram) and do this for each colour/different length
+// sheet set, call this the Sheet Pre-Cut Layout ... fit on one a4 sheet on the
+// job pack on the 2nd page"). Every ordered sheet of the sheet layout, full
+// length, square end at the bottom: its own piece sits on that end (a foot
+// cut off at the valley under it, as the column was before the cut), and
+// each piece cut from its offcut is drawn where it comes out of the sheet —
+// spun end for end, exactly as it is laid on the roof — labelled as on the
+// sheet layout. What is left over is waste, greyed.
+// Each piece is read in its own face's frame as a roofer stands at the
+// gutter looking up the slope (x to the right, y up the slope in sheet
+// millimetres); that frame is the same for every face, so a spin is a plain
+// 180° turn and an offcut is never flipped.
+function _pzLocalPoly(pc, pz){
+  var f = pc.face, k = pz.scaleM * 1000, pf = f.pf || 1;
+  var dx = f.d[0], dy = f.d[1], rx = -dy, ry = dx;
+  var P = pc.poly.map(function(p){ return [(p[0]*rx + p[1]*ry) * k, (p[0]*dx + p[1]*dy) * k * pf]; });
+  // THE STRAIGHT CUT (2026-10-22): a strip a hip runs into the end of a
+  // ridge is cut once along the hip, the ridge cap covering the level run —
+  // the piece that comes out of the sheet is the diagonal continued.
+  if (pc.cutShortPx != null && pc.cutShortMm != null && pc.shortMm != null && pc.cutShortMm < pc.shortMm - 5){
+    var best = null;
+    for (var i = 0; i < P.length; i++){
+      var a = P[i], b = P[(i+1) % P.length], ex = b[0]-a[0], ey = b[1]-a[1];
+      if (Math.abs(ex) < 1 || Math.abs(ey) < 1) continue;
+      var r = Math.abs(ey / ex); if (r < 0.2 || r > 5) continue;
+      if (!best || Math.abs(ex) > Math.abs(best[1][0]-best[0][0])) best = [a, b];
+    }
+    if (best){
+      var A = best[0], B = best[1], c = _ccCentroid(P);
+      var side = function(p){ return (B[0]-A[0])*(p[1]-A[1]) - (B[1]-A[1])*(p[0]-A[0]); };
+      var keep = side(c) >= 0 ? 1 : -1, out = [];
+      for (var j = 0; j < P.length; j++){
+        var p = P[j], q = P[(j+1) % P.length], sp = side(p) * keep, sq = side(q) * keep;
+        if (sp >= -1e-6) out.push(p);
+        if ((sp >= -1e-6) !== (sq >= -1e-6)){ var t = sp / (sp - sq); out.push([p[0] + (q[0]-p[0])*t, p[1] + (q[1]-p[1])*t]); }
+      }
+      if (out.length >= 3) P = out;
+    }
+  }
+  return P;
+}
+// Is the end of a group (its lowest or highest edge) a square end, cut
+// straight across most of the sheet's width?
+function _pzSquareAt(items, top){
+  var all = []; items.forEach(function(it){ all = all.concat(it.poly); });
+  var B = _pzBox(all), y = top ? B[3] : B[1], xs = all.filter(function(p){ return Math.abs(p[1] - y) < 3; }).map(function(p){ return p[0]; });
+  return xs.length >= 2 && (Math.max.apply(null, xs) - Math.min.apply(null, xs)) >= 0.5 * (B[2] - B[0]);
+}
+function _pzSpin(items, w, h){ return items.map(function(it){ return { pc: it.pc, poly: it.poly.map(function(q){ return [w - q[0], h - q[1]]; }) }; }); }
+function _pzBox(P){
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  P.forEach(function(p){ x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+  return [x0, y0, x1, y1];
+}
+function _pzShift(P, dx, dy){ return P.map(function(p){ return [p[0] + dx, p[1] + dy]; }); }
+// Do two pieces overlap? Each is pulled in a little first, so two pieces
+// sharing a cut line (a foot and its head) do not count as touching.
+function _pzPolysOverlap(A, B, ins){
+  var inset = function(P){
+    var c = _ccCentroid(P);
+    return P.map(function(p){ var vx = p[0] - c[0], vy = p[1] - c[1], l = Math.hypot(vx, vy) || 1, s = Math.max(0, l - (ins || 1.5)) / l; return [c[0] + vx*s, c[1] + vy*s]; });
+  };
+  var a = inset(A), b = inset(B), ba = _pzBox(a), bb = _pzBox(b);
+  if (ba[2] <= bb[0] || bb[2] <= ba[0] || ba[3] <= bb[1] || bb[3] <= ba[1]) return false;
+  var cross = function(p, q, r, s){
+    var d = (q[0]-p[0])*(s[1]-r[1]) - (q[1]-p[1])*(s[0]-r[0]);
+    if (Math.abs(d) < 1e-9) return false;
+    var u = ((r[0]-p[0])*(s[1]-r[1]) - (r[1]-p[1])*(s[0]-r[0])) / d;
+    var v = ((r[0]-p[0])*(q[1]-p[1]) - (r[1]-p[1])*(q[0]-p[0])) / d;
+    return u > 0 && u < 1 && v > 0 && v < 1;
+  };
+  for (var i = 0; i < a.length; i++) for (var j = 0; j < b.length; j++)
+    if (cross(a[i], a[(i+1)%a.length], b[j], b[(j+1)%b.length])) return true;
+  if (_spPointInPoly(a[0][0], a[0][1], b) || _spPointInPoly(b[0][0], b[0][1], a)) return true;
+  var ca = _ccCentroid(a), cb = _ccCentroid(b);
+  return _spPointInPoly(ca[0], ca[1], b) || _spPointInPoly(cb[0], cb[1], a);
+}
+function _pzFits(P, placed, ins){ for (var i = 0; i < placed.length; i++) if (_pzPolysOverlap(P, placed[i].poly, ins)) return false; return true; }
+// A head and the feet carried under it, stacked as the column was before the
+// cut (lowest first), in the head's own frame.
+function _pzGroupOf(head, feet, pz){
+  var items = [];
+  var hp = _pzLocalPoly(head, pz), hb = _pzBox(hp);
+  var fl = feet.map(function(p){ var q = _pzLocalPoly(p, pz), b = _pzBox(q); return { pc: p, poly: _pzShift(q, hb[0] - b[0], -b[1]) }; })
+               .sort(function(x, y){ return _pzBox(x.poly)[3] - _pzBox(y.poly)[3]; });
+  var placed = [];
+  fl.forEach(function(it){
+    var y = 0, P = it.poly;
+    for (var g = 0; g < 4000 && !_pzFits(_pzShift(P, 0, y), placed); g++) y += 5;
+    while (y > 0 && _pzFits(_pzShift(P, 0, y - 1), placed)) y -= 1;
+    placed.push({ pc: it.pc, poly: _pzShift(P, 0, y) });
+  });
+  var H = _pzShift(hp, 0, -hb[1]), y0 = 0;
+  for (var g2 = 0; g2 < 4000 && !_pzFits(_pzShift(H, 0, y0), placed); g2++) y0 += 5;
+  while (y0 > 0 && _pzFits(_pzShift(H, 0, y0 - 1), placed)) y0 -= 1;
+  placed.push({ pc: head, poly: _pzShift(H, 0, y0) });
+  var all = []; placed.forEach(function(it){ all = all.concat(it.poly); });
+  var B = _pzBox(all);
+  placed.forEach(function(it){ it.poly = _pzShift(it.poly, -B[0], -B[1]); });
+  return { items: placed, w: B[2] - B[0], h: B[3] - B[1] };
+}
+// Every ordered sheet with its pieces placed in sheet millimetres.
+function _sheetPrecutPlan(pz){
+  var cover = pz.coverMm, sheets = [], bySheet = {}, feetOf = new Map();
+  pz.pieces.forEach(function(p){ if (p.strung && p.strungTo){ if (!feetOf.has(p.strungTo)) feetOf.set(p.strungTo, []); feetOf.get(p.strungTo).push(p); } });
+  (pz.blocks || []).forEach(function(b){
+    b.pieces.slice().sort(function(x, y){ return (x.num || 0) - (y.num || 0); }).forEach(function(pc){
+      var s = { block: b, piece: pc, label: pc.label, Lmm: pc.Lmm || b.Lmm, Wmm: cover, items: [], over: false };
+      sheets.push(s); bySheet[pc.label] = s;
+    });
+  });
+  // The sheet's own piece (and its feet) on its square end.
+  sheets.forEach(function(s){
+    var g = _pzGroupOf(s.piece, feetOf.get(s.piece) || [], pz);
+    // A fresh sheet is square at both ends: draw the end its piece is square
+    // to at the bottom.
+    var items = (!_pzSquareAt(g.items, false) && _pzSquareAt(g.items, true)) ? _pzSpin(g.items, g.w, g.h) : g.items;
+    items.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: true }); });
+  });
+  // The pieces cut from its offcut, spun end for end, from the far end down.
+  // Biggest first: a scrap trimmed off an offcut goes in what is left.
+  pz.pieces.filter(function(p){ return !p.ordered && !p.strung && bySheet[p.from]; })
+    .sort(function(a, b){ return (a.scrap ? 1 : 0) - (b.scrap ? 1 : 0) || (b.areaPx || 0) - (a.areaPx || 0); })
+    .forEach(function(p){
+    var s = bySheet[p.from];
+    var g = _pzGroupOf(p, feetOf.get(p) || [], pz);
+    // Spun end for end (a piece square at its gutter end, out of the far end
+    // of the sheet) or carried straight (a piece square at its top): the fill
+    // never flips a sheet, so one of the two is the fit.
+    // Strict first, then within the fill's own fit (an offcut may be up to
+    // _PZ_FIT_MM short of its piece — the lap covers it).
+    var best = null;
+    [0, _PZ_FIT_MM].forEach(function(lift){
+      if (best) return;
+      [_pzSpin(g.items, g.w, g.h), g.items].forEach(function(cand){
+        [0, Math.max(0, s.Wmm - g.w)].forEach(function(x){
+          for (var y = s.Lmm - g.h, n = 0; y >= -_PZ_FIT_MM - 6 && n < 4000; y -= 5, n++){
+            var fits = function(yy){ return cand.every(function(it){ return _pzFits(_pzShift(it.poly, x, yy + lift), s.items); }); };
+            if (fits(y)){
+              while (y + 1 <= s.Lmm - g.h && fits(y + 1)) y += 1;
+              if (!best || y > best.y + 1) best = { cand: cand, x: x, y: y };
+              break;
+            }
+          }
+        });
+      });
+    });
+    // A scrap is a sliver trimmed off what is left; where the drawing has no
+    // clean gap for it, it goes in the far end, where it was trimmed from.
+    if (!best){ best = { cand: _pzSpin(g.items, g.w, g.h), x: 0, y: s.Lmm - g.h }; if (!p.scrap) s.over = true; }
+    best.cand.forEach(function(it){ s.items.push({ pc: it.pc, poly: _pzShift(it.poly, best.x, best.y), own: false }); });
+  });
+  // What runs past the sheet is within a tolerance the fill allows (a hip
+  // cap over a corner, an offcut a lap short): the drawing is the sheet.
+  var clipY = function(P, lo, hi){
+    var out1 = [], i, a, b, t;
+    for (i = 0; i < P.length; i++){ a = P[i]; b = P[(i+1) % P.length];
+      if (a[1] <= hi) out1.push(a);
+      if ((a[1] <= hi) !== (b[1] <= hi)){ t = (hi - a[1]) / (b[1] - a[1]); out1.push([a[0] + (b[0]-a[0])*t, hi]); } }
+    var out2 = [];
+    for (i = 0; i < out1.length; i++){ a = out1[i]; b = out1[(i+1) % out1.length];
+      if (a[1] >= lo) out2.push(a);
+      if ((a[1] >= lo) !== (b[1] >= lo)){ t = (lo - a[1]) / (b[1] - a[1]); out2.push([a[0] + (b[0]-a[0])*t, lo]); } }
+    return out2.length >= 3 ? out2 : P;
+  };
+  sheets.forEach(function(s){ s.items.forEach(function(it){ it.poly = clipY(it.poly, 0, s.Lmm); }); });
+  return sheets;
+}
+function _renderSheetPrecutCanvas(opts){
+  opts = opts || {};
+  var pz = opts.pz || _sheetPuzzleBuild(opts);
+  var scale = opts.thumb ? 1 : 2;
+  var W = opts.W || 960, H = opts.H || Math.round(960 * 1014 / 690), pad = 24;
+  var cv = document.createElement('canvas'); cv.width = W*scale; cv.height = H*scale;
+  var ctx = cv.getContext('2d'); ctx.scale(scale, scale);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+  ctx.fillStyle = '#0a1628'; ctx.font = '800 18px Inter, -apple-system, sans-serif';
+  ctx.fillText('SHEET PRE-CUT LAYOUT', pad, 16);
+  var blocks = pz.blocks || [];
+  if (!pz.faces || !pz.faces.length || !blocks.length){
+    ctx.fillStyle = '#6b7280'; ctx.font = '500 13px Inter, sans-serif';
+    ctx.fillText('Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.', pad, 52);
+    cv._precut = []; return cv;
+  }
+  blocks.forEach(function(b, i){ b.color = _PZ_BLOCK_COLOURS[i % _PZ_BLOCK_COLOURS.length]; });
+  var sheets = _sheetPrecutPlan(pz);
+  ctx.fillStyle = '#475569'; ctx.font = '600 11.5px Inter, sans-serif';
+  ctx.fillText('Each sheet as ordered, square end at the bottom. Red = the cut lines; grey = waste. Pieces are labelled as on the sheet layout.', pad, 42);
+  var top = 64, availW = W - pad*2, availH = H - top - pad;
+  // One block a section: its header, then its sheets side by side, wrapping.
+  var groups = blocks.map(function(b){ return { b: b, sheets: sheets.filter(function(s){ return s.block === b; }) }; }).filter(function(g){ return g.sheets.length; });
+  var HEAD = 20, GAP = 10, SG = 3;
+  var layout = function(k){
+    // Each block: its rows. A block of one row shares a shelf with the next
+    // one-row block when they fit side by side.
+    var built = groups.map(function(g){
+      var w0 = g.sheets[0].Wmm * k, cap = Math.max(1, Math.floor((availW + SG) / (w0 + SG)));
+      var nRows = Math.ceil(g.sheets.length / cap), per = Math.ceil(g.sheets.length / nRows);
+      var rows = [], yy = HEAD, bw = 0;
+      for (var i = 0; i < g.sheets.length; i += per){
+        var x = 0, rowH = 0, row = [];
+        g.sheets.slice(i, i + per).forEach(function(s){
+          var w = s.Wmm * k, h = s.Lmm * k;
+          row.push({ s: s, x: x, w: w, h: h }); x += w + SG; rowH = Math.max(rowH, h);
+        });
+        bw = Math.max(bw, x - SG);
+        rows.push({ items: row, h: rowH, y: yy }); yy += rowH + SG + 2;
+      }
+      var hdW = 18 + 7.2 * (g.b.letter.length + 24);   // room for the block's heading
+      return { g: g, rows: rows, w: Math.max(bw, hdW), h: yy };
+    });
+    var out = [], y = 0, shelfX = 0, shelfH = 0, shelfOpen = false;
+    built.forEach(function(B){
+      var single = B.rows.length === 1;
+      if (single && shelfOpen && shelfX + 18 + B.w <= availW){
+        B.x = shelfX + 18; B.y = y; shelfX = B.x + B.w; shelfH = Math.max(shelfH, B.h);
+      } else {
+        if (shelfOpen){ y += shelfH + GAP; }
+        B.x = 0; B.y = y; shelfX = B.w; shelfH = B.h; shelfOpen = true;
+        if (!single){ y += B.h + GAP; shelfOpen = false; shelfH = 0; }
+      }
+      out.push(B);
+    });
+    if (shelfOpen) y += shelfH + GAP;
+    return { h: y, groups: out };
+  };
+  // (The height is not monotonic in the scale — a row wraps — so walk down.)
+  var k = 0.0005;
+  for (var kk = 1; kk > 0.0005; kk *= 0.985){ if (layout(kk).h <= availH){ k = kk; break; } }
+  var L = layout(k);
+  var hatch = function(P, col){
+    ctx.save(); ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.clip();
+    var b = _pzBox(P); ctx.strokeStyle = _pzTint(col, 0.65); ctx.lineWidth = 0.9; ctx.beginPath();
+    for (var hx = b[0] - (b[3] - b[1]); hx < b[2]; hx += 5){ ctx.moveTo(hx, b[1]); ctx.lineTo(hx + (b[3] - b[1]), b[3]); }
+    ctx.stroke(); ctx.restore();
+  };
+  L.groups.forEach(function(G){
+    var b = G.g.b, gy = top + G.y, gx = pad + G.x;
+    ctx.fillStyle = _pzTint(b.color, 0.30); _roundRect(ctx, gx, gy + 2, 12, 12, 3); ctx.fill();
+    ctx.strokeStyle = _pzTint(b.color, 0.9); ctx.lineWidth = 0.8; _roundRect(ctx, gx, gy + 2, 12, 12, 3); ctx.stroke();
+    var lens = {}; G.g.sheets.forEach(function(s){ lens[s.Lmm] = (lens[s.Lmm] || 0) + 1; });
+    var head = b.letter + '   ' + Object.keys(lens).map(Number).sort(function(x, y){ return y - x; }).map(function(l){ return lens[l] + ' × ' + _pzM(l) + ' m'; }).join(', ') + (b.extra === 'push' ? ' (pushed in)' : b.extra ? ' (extra)' : '');
+    ctx.fillStyle = '#0a1628'; ctx.font = '800 12.5px Inter, sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText(head, gx + 18, gy + 1);
+    G.rows.forEach(function(r){
+      var by = gy + r.y + r.h;   // every sheet's square end on one line
+      r.items.forEach(function(c){
+        var s = c.s, x0 = gx + c.x;
+        var toC = function(p){ return [x0 + p[0]*k, by - p[1]*k]; };
+        ctx.fillStyle = '#e5e7eb'; ctx.fillRect(x0, by - c.h, c.w, c.h);
+        ctx.save(); ctx.beginPath(); ctx.rect(x0, by - c.h, c.w, c.h); ctx.clip();
+        s.items.forEach(function(itm){
+          var P = itm.poly.map(toC), col = (itm.pc.block && itm.pc.block.color) || b.color;
+          ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
+          if (itm.pc.ordered){ ctx.fillStyle = _pzTint(col, 0.30); ctx.fill(); }
+          else if (itm.pc.strung){ ctx.fillStyle = _pzTint(col, 0.22); ctx.fill(); }
+          else { ctx.fillStyle = '#fff'; ctx.fill(); hatch(P, col); }
+        });
+        s.items.forEach(function(itm){
+          var P = itm.poly.map(toC);
+          ctx.beginPath(); P.forEach(function(p, i){ i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }); ctx.closePath();
+          ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 0.9; ctx.stroke();
+        });
+        ctx.restore();
+        ctx.strokeStyle = _pzTint(b.color, 0.9); ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, by - c.h + 0.5, c.w - 1, c.h - 1);
+        // Labels up each piece, as on the sheet layout.
+        s.items.forEach(function(itm){
+          var txt = itm.pc.label || ''; if (!txt) return;
+          var bx = _pzBox(itm.poly.map(toC)), ph = bx[3] - bx[1];
+          var cpt = _ccCentroid(itm.poly.map(toC));
+          if (cpt[1] < by - c.h - 1 || cpt[1] > by + 1) return;
+          for (var n = Math.min(13, Math.floor(c.w * 0.62)); n >= 5; n--){
+            ctx.font = '800 ' + n + 'px Inter, sans-serif';
+            var tw = ctx.measureText(txt).width;
+            if (tw + 4 <= ph * 0.92 && n <= c.w * 0.8){
+              ctx.save(); ctx.translate(Math.min(Math.max(cpt[0], x0 + n*0.55), x0 + c.w - n*0.55), cpt[1]); ctx.rotate(-Math.PI/2);
+              ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+              if (n < 8){ ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.strokeText(txt, 0, 0); }
+              ctx.fillStyle = '#0a1628'; ctx.fillText(txt, 0, 0); ctx.restore();
+              break;
+            }
+          }
+        });
+      });
+    });
+  });
+  cv._precut = sheets; cv._precutScale = k;
+  return cv;
+}

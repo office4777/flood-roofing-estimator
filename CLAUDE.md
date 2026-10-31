@@ -408,6 +408,29 @@ THE PICTURE:
     hatch, the ✂ chip the 22% tint with a dashed edge — the first block's
     colour on the two examples. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
+11b. THE SHEET PRE-CUT LAYOUT IS THE JOB PACK'S PAGE 2 (2026-10-31: "show
+    the 7 orange sheets of full 5.01m length layed out in a rectangle format
+    side by side ... as they would be before they are cut, and show the
+    required cut lines and label each of the cut sheets as they are labeled on
+    the sheet layout diagram ... call this the Sheet Pre-Cut Layout ... fit on
+    one a4 sheet on the job pack on the 2nd page"). `_renderSheetPrecutCanvas`
+    / `_sheetPrecutPlan` in sheet-plan.js: every ordered sheet of the layout's
+    blocks, full length, square end at the bottom, block by block in the
+    layout's colours (one-row blocks share a shelf, rows evened out, one scale
+    for the page, the largest that fits). On each sheet: its own piece on the
+    square end (spun end for end if that piece is square at its top), the feet
+    carried under it (✂), then every piece cut from its offcut — tried spun
+    and straight, flush either side, the highest place it fits (a scrap last)
+    — red cut lines, grey waste, labels as on the layout. Pieces are read in
+    one frame for every face (standing at the gutter looking up the slope), so
+    a spin is a plain 180° turn and nothing is flipped; a straight-cut piece
+    (rule 8's `cutShortPx`) is drawn as cut; what the fill's own tolerances
+    let run past the sheet (a hip cap over a corner, an offcut up to
+    `_PZ_FIT_MM` short) is clipped to it. Page type `precut`
+    (`_jpRenderPrecut`), in `_jpDefaultPages` after the header; the v9
+    migration puts it after the first job header of every pack without one.
+    `sheetlayout.mjs` pins every sheet once at its length and every piece
+    inside its sheet with none overlapping on five shapes, and the page fitting.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the

@@ -5201,7 +5201,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-30T20:47:48Z';
+  window.APP_BUILT_AT = '2026-10-31T00:38:13Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -67838,6 +67838,20 @@ function _jpState(){
     });
     S.jobPack.pagesVersion = 8;
   }
+  // v8 → v9: THE SHEET PRE-CUT LAYOUT IS PAGE 2 (2026-10-31, the owner: "call
+  // this the Sheet Pre-Cut Layout, this make these diagrams fit on one a4
+  // sheet on the job pack on the 2nd page (first page as existing)"). Every
+  // pack that has none gets it straight after its job header (else first).
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 9) {
+    try {
+      var _pp9 = S.jobPack.pages || [];
+      if (!_pp9.some(function(p){ return p && p.type === 'precut'; })){
+        var _h9 = -1; _pp9.forEach(function(p, i){ if (_h9 < 0 && p && p.type === 'header') _h9 = i; });
+        _pp9.splice(_h9 + 1, 0, { type:'precut' });
+      }
+    } catch(e){}
+    S.jobPack.pagesVersion = 9;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -67856,6 +67870,8 @@ function _jpDefaultPages(){
       { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:470 },
       { id:'def_sl_'+Date.now(), mapKey:'sheetplan', x: 10, y:760, w:670, h:240 }
     ] },
+    // Page 2: every ordered sheet laid out whole, with its cuts (2026-10-31).
+    { type:'precut'      },
     { type:'cutlists'    }
     // The Sheet calc check page went after the cut lists until 2026-10-27;
     // it is withdrawn (CALC_CHECK_HIDDEN) and the sheet layout is the count.
@@ -67874,6 +67890,7 @@ function _jpPageTypes(){
     { value:'roofmap',     label:'Roof map' },
     CALC_CHECK_HIDDEN ? null : { value:'calccheck',   label:'Sheet calc check' },
     SHEET_LAYOUT_HIDDEN ? null : { value:'sheetplan',   label:'Sheet plan' },
+    SHEET_LAYOUT_HIDDEN ? null : { value:'precut',      label:'Sheet pre-cut layout' },
     { value:'cutlists',    label:'Cut lists' },
     { value:'flashings',   label:'Flashings' },
     { value:'consumables', label:'Consumables' },
@@ -69342,6 +69359,7 @@ function _jpRenderBlock(content, page, idx){
     case 'header':      return _jpRenderHeader(content, page, idx);
     case 'roofmap':     return _jpRenderRoofMap(content, page, idx);
     case 'sheetplan':   return _jpRenderSheetPlan(content, page, idx);
+    case 'precut':      return _jpRenderPrecut(content, page, idx);
     case 'calccheck':   return _jpRenderCalcCheck(content, page, idx);
     case 'cutlists':    return _jpRenderCutLists(content, page, idx);
     case 'flashings':   return _jpRenderFlashings(content, page, idx);
@@ -69778,6 +69796,31 @@ function _jpRenderSheetPlan(content, page, idx){
     return;
   }
   out.innerHTML = '<img src="' + src + '" alt="Sheet layout" style="max-width:100%;height:auto;display:block">';
+}
+// THE SHEET PRE-CUT LAYOUT (2026-10-31): every sheet the sheet layout
+// orders, whole and side by side by its colour block, with the cuts drawn on
+// it and every piece labelled as on the sheet layout — _renderSheetPrecutCanvas
+// in sheet-plan.js. Drawn to the shape of the page's own content area, so the
+// whole set always lands on one A4 sheet.
+function _jpRenderPrecut(content, page, idx){
+  content.innerHTML = '<div class="jp-pc-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;min-height:0"></div>';
+  var out = content.querySelector('.jp-pc-out');
+  var src = null;
+  try {
+    if (!SHEET_LAYOUT_HIDDEN && typeof _renderSheetPrecutCanvas === 'function'){
+      var vis = _jpMapRoofFilter();
+      try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
+      // The A4's content box: 182 × 269 mm, less a little for the page tools.
+      var cv = _renderSheetPrecutCanvas({ roofIdxs: (vis && vis.length) ? vis.slice() : [-1], W: 960, H: Math.round(960 * 262 / 182) });
+      if (cv && cv.width) src = cv.toDataURL('image/png');
+    }
+  } catch(e){ try { console.warn('precut:', e); } catch(e2){} }
+  if (!src){
+    out.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);font-style:italic">' +
+      'Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.</div>';
+    return;
+  }
+  out.innerHTML = '<img class="jp-precut-img" src="' + src + '" alt="Sheet pre-cut layout" style="width:100%;height:auto;max-height:100%;object-fit:contain;display:block">';
 }
 // One "Roof sheets" section: the rows for `sc` (a roof's own counts, or the
 // job's), edited through the job-level slots — inside _jpSheetScope when a

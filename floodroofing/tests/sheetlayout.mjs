@@ -805,6 +805,52 @@ async function labelsOf(g){
   check('a hip & valley bump is not a mono extension: laid as its own roof', !v.mono && v.cover > 0.999 && v.overlap < 0.001, JSON.stringify(v));
 }
 
+// ── THE SHEET PRE-CUT LAYOUT (2026-10-31, the owner: "show the 7 orange sheets
+// of full 5.01m length layed out in a rectangle format side by side ... as they
+// would be before they are cut, and show the required cut lines and label each
+// of the cut sheets as they are labeled on the sheet layout diagram ... on one
+// a4 sheet on the job pack on the 2nd page"). Every ordered sheet once, at its
+// ordered length; every piece of the layout inside the sheet it is cut from,
+// no two overlapping; and the page fits.
+{
+  const pre = async (g) => { await lay(g); return pg.evaluate(() => {
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const cv = _renderSheetPrecutCanvas({ pz, W: 960, H: 1382 });
+    const sheets = cv._precut;
+    const nT = pz.tally.reduce((a, t) => a + t.count, 0);
+    const lens = {}; sheets.forEach(s => { lens[s.Lmm] = (lens[s.Lmm] || 0) + 1; });
+    const lensOk = pz.tally.every(t => lens[t.Lmm] === t.count);
+    const placed = new Set(); let outside = 0, overlaps = 0;
+    sheets.forEach(s => {
+      s.items.forEach(it => { placed.add(it.pc);
+        it.poly.forEach(p => { if (p[0] < -6 || p[0] > s.Wmm + 6 || p[1] < -6 || p[1] > s.Lmm + 6) outside++; }); });
+      for (let i = 0; i < s.items.length; i++) for (let j = i + 1; j < s.items.length; j++)
+        if (!s.items[i].pc.scrap && !s.items[j].pc.scrap && _pzPolysOverlap(s.items[i].poly, s.items[j].poly, _PZ_FIT_MM)) overlaps++;   // within the fill's own fit
+    });
+    const own = sheets.every(s => s.items.some(it => it.pc === s.piece && it.own));
+    const labels = sheets.every(s => s.items.every(it => it.pc.label));
+    return { n: sheets.length, nT, lensOk, all: placed.size === pz.pieces.length, pieces: pz.pieces.length, placed: placed.size,
+             over: sheets.filter(s => s.over).map(s => s.label), outside, overlaps, own, labels, scale: cv._precutScale };
+  }); };
+  for (const [name, g] of [['the plain hip', { scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' }],
+                           ['the Big-L', { scaleMetresPerPx: 0.05, calPitch: 25, outline: L(160, 120, 360, 240), autoType: 'hip' }],
+                           ['report 70', fx('report70')], ['report 76', fx('report76')], ['the double cascade', fx('report77')]]){
+    const v = await pre(g);
+    check('pre-cut layout, ' + name + ': every ordered sheet once at its own length, every piece inside the sheet it is cut from, none overlapping',
+      v.n === v.nT && v.lensOk && v.all && v.own && v.labels && !v.over.length && v.outside === 0 && v.overlaps === 0, JSON.stringify(v));
+  }
+  const page = await pg.evaluate(async () => {
+    S.jobPack = null; gotoTab('materials'); renderJobPack();
+    await new Promise(r => setTimeout(r, 300));
+    const pages = [...document.querySelectorAll('#jpPages .jp-page')];
+    const p2 = pages[1], img = p2 && p2.querySelector('img.jp-precut-img');
+    const pr = p2 && p2.getBoundingClientRect(), ir = img && img.getBoundingClientRect();
+    return { types: _jpState().pages.map(p => p.type).join(','), img: !!img, loaded: !!(img && img.complete && img.naturalWidth),
+             fits: !!(pr && ir && ir.bottom <= pr.bottom + 1 && ir.right <= pr.right + 1), ph: pr && Math.round(pr.height), ih: ir && Math.round(ir.height) };
+  });
+  check('the job pack\'s page 2 is the pre-cut layout, one picture inside one A4 page', page.types.startsWith('header,precut,') && page.img && page.loaded && page.fits, JSON.stringify(page));
+}
+
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;
