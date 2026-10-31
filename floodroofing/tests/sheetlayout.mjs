@@ -753,6 +753,58 @@ async function labelsOf(g){
   check('a roof with no pitch of its own is laid at the job\'s pitch box, as the engine and the barges are', pit.L > 0 && pit.L === pit.L20, JSON.stringify(pit));
 }
 
+// ── A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31, the
+// owner: "it simply extends the roof plain down ... if it's in the middle of
+// a ridge line ... just those sheets would be longer, however if it's on a hip
+// area, the full lengths sheets would again need to be longer and making sure
+// the offcuts are sufficiently long enough to carry on a offcut triangle set").
+// The plain 18 × 12 m hip is 48 × 6.63; a 1 m × 4 m bump carried over by the
+// main slope adds 1.1 m to the six sheets over it and nothing else, wherever
+// it stands — a hip END with a bump stopped reading as one (16 × 7.73, 36
+// offcuts thrown away), and a slope's ordinary sheets were grouped with the
+// bump's at 7.73.
+{
+  const mono = async (ol, mode) => pg.evaluate(([ol, mode]) => {
+    gotoTab('roof');
+    DRAW.roofs = []; DRAW.activeRoofIdx = -1; DRAW.showAllRoofs = true;
+    DRAW.scaleMetresPerPx = 0.05; DRAW.calPitch = 25; DRAW.lowPitch = 0;
+    DRAW.outline = ol.map(p => p.slice()); DRAW.outlineDone = true; DRAW.lines = [];
+    DRAW.roofType = 'hip'; DRAW.bumpModes = {};
+    _outlineBumps(DRAW.outline).forEach(b => DRAW.bumpModes[b.key] = mode);
+    autoGenerateRoof('hip'); renderRoofSheetPlan();
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1] });
+    const o = pz.roofs[0].outline; let inR = 0, cov = 0, dbl = 0;
+    const bb = pz.bbox, st = pz.coverPx / 5;
+    for (let y = bb[1] + st/2; y < bb[3]; y += st) for (let x = bb[0] + st/2; x < bb[2]; x += st){
+      if (!_spPointInPoly(x, y, o)) continue; inR++;
+      let n = 0; pz.pieces.forEach(p => { if (_spPointInPoly(x, y, p.poly)) n++; }); if (n) cov++; if (n > 1) dbl++; }
+    const ext = pz.pieces.filter(p => p.monoExtMm > 0);
+    return { tally: pz.tally.map(t => t.count + '@' + t.Lmm).join(' '), extras: pz.extraSheets, pushed: pz.pushSheets,
+             fed: pz.fedPieces, unused: pz.unusedOffcuts, cover: cov / inR, overlap: dbl / inR, mono: !!pz.roofs[0].monoBumps,
+             extOrdered: ext.filter(p => p.ordered).length, extFed: ext.filter(p => !p.ordered).length,
+             bboxH: Math.round(bb[3] - bb[1]), bboxW: Math.round(bb[2] - bb[0]),
+             blocks: pz.blocks.map(b => b.letter).join('') };
+  }, [ol, mode]);
+  const N = (x1, x2, d) => [[ox,oy],[x1,oy],[x1,oy-d],[x2,oy-d],[x2,oy],[ox+360,oy],[ox+360,oy+240],[ox,oy+240]];
+  const Wt = (y1, y2, d) => [[ox,oy],[ox+360,oy],[ox+360,oy+240],[ox,oy+240],[ox,y2],[ox-d,y2],[ox-d,y1],[ox,y1]];
+  const ok48 = (v, long) => v.mono && v.tally === '6@' + long + ' 42@6630' && v.extras === 0 && v.pushed === 0 && v.cover > 0.999 && v.overlap < 0.001;
+  let v = await mono(N(ox+140, ox+220, 20), 'mono');
+  check('mono bump mid-slope: the six sheets over it are 1.1 m longer, the other 42 the plain hip\'s 6.63', ok48(v, 7740) && v.extOrdered === 6 && v.extFed === 0, JSON.stringify(v));
+  check('…and the picture takes the bump in (frame and letters in order)', v.bboxH === 260 && v.blocks === 'ABC', JSON.stringify(v));
+  v = await mono(N(ox+10, ox+90, 20), 'mono');
+  check('mono bump on a slope under the hip: its hip-cut sheets are longer, so their offcuts still feed the hip end — 48, nothing extra', ok48(v, 7740) && v.fed === 32 && v.unused === 2, JSON.stringify(v));
+  v = await mono(N(ox+10, ox+90, 40), 'mono');
+  check('…2 m deep: 6 × 8.84, still 48 and nothing extra', ok48(v, 8840), JSON.stringify(v));
+  v = await mono(Wt(oy+80, oy+160, 20), 'mono');
+  check('mono bump on a hip END: still a hip end, its rows over the bump cut from offcuts whose sheets are 1.1 m longer — 48, nothing extra', ok48(v, 7740) && v.extFed === 6 && v.fed === 32 && v.bboxW === 380, JSON.stringify(v));
+  v = await mono(Wt(oy+10, oy+90, 20), 'mono');
+  check('…near the hip end\'s corner, the same', ok48(v, 7740) && v.extFed === 6, JSON.stringify(v));
+  v = await mono([[ox,oy],[ox+10,oy],[ox+10,oy-20],[ox+90,oy-20],[ox+90,oy],[ox+360,oy],[ox+360,oy+240],[ox+280,oy+240],[ox+280,oy+260],[ox+200,oy+260],[ox+200,oy+240],[ox,oy+240]], 'mono');
+  check('two mono bumps, one each side: 12 × 7.74 + 36 × 6.63, nothing extra', v.mono && v.tally === '12@7740 36@6630' && v.extras === 0 && v.cover > 0.999 && v.overlap < 0.001, JSON.stringify(v));
+  v = await mono(N(ox+140, ox+220, 20), 'hv');
+  check('a hip & valley bump is not a mono extension: laid as its own roof', !v.mono && v.cover > 0.999 && v.overlap < 0.001, JSON.stringify(v));
+}
+
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');
 await ctx.close(); await b.close();
 const bad = results.filter(x => !x).length;

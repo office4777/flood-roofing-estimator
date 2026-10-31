@@ -6792,8 +6792,187 @@ function _pzRoofGeom(idx, opts){
   if (!(+pitch > 0)) pitch = parseFloat((document.getElementById('pitchDeg')||{}).value) || 0;
   outline = _pzDropRepeats(outline);
   if (outline.length < 3) return null;
-  return { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
+  var R = { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
            pitch: +pitch || 0, lowPitch: +low || 0 };
+  _pzMonoBase(R);
+  return R;
+}
+// A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31, the
+// owner: "inside of a step creating a whole hip and valley set, it simply
+// extends the roof plain down ... if it's in the middle of a ridge line
+// that's pretty simple, just those sheets would be longer, however if it's
+// on a hip area, the full lengths sheets would again need to be longer and
+// making sure the offcuts are sufficiently long enough to carry on a offcut
+// triangle set"). A bump on the outline with no hip, valley or ridge at its
+// two outer corners carries the main slope over it, its sides barges
+// (reports 78/79). Read as faces, those barges made a hip END with a bump a
+// barge-laid face of 7.73 m sheets — 16 of them, 36 offcuts thrown away —
+// and grouped a slope's ordinary sheets with the bump's longer ones. So the
+// roof is laid exactly as it would be without the bump (_pzMonoBase), and
+// then every strip standing over the bump is carried down onto it
+// (_pzMonoExtend): a sheet over it is that much longer, and a piece cut from
+// an offcut needs its DONOR that much longer, so the offcut reaches.
+function _pzMonoBumps(ol, lines){
+  if (typeof _outlineBumps !== 'function') return [];
+  var bs = [];
+  try { bs = _outlineBumps(ol) || []; } catch(e){ return []; }
+  var near = function(p, c){ return Math.hypot(p[0]-c[0], p[1]-c[1]) < 4; };
+  return bs.filter(function(b){
+    var A = ol[b.a], B = ol[b.b], C = ol[b.c], D = ol[b.d];
+    // No roof line runs into the bump: not to its outer corners (its own hip
+    // end), nor anywhere in it (a gable T's stem, its ridge out to the end).
+    var quad = [A, B, C, D];
+    var inBump = function(p){
+      if (near(p, B) || near(p, C)) return true;
+      if (_pzPtSeg(p, A, D).d < 3) return false;
+      if (_spPointInPoly(p[0], p[1], quad)) return true;
+      return _pzPtSeg(p, A, B).d < 3 || _pzPtSeg(p, B, C).d < 3 || _pzPtSeg(p, C, D).d < 3;
+    };
+    return !lines.some(function(l){
+      if (!/^(hip|valley|ridge|apron|changepitch)$/.test(l.type)) return false;
+      var a = l.pts[0], z = l.pts[l.pts.length - 1];
+      return [a, z, [(a[0]+z[0])/2, (a[1]+z[1])/2]].some(inBump);
+    });
+  }).map(function(b){ return { A: ol[b.a], B: ol[b.b], C: ol[b.c], D: ol[b.d], ia: b.a, ib: b.b, ic: b.c, id: b.d }; });
+}
+function _pzMonoBase(R){
+  var ol = R.outline, bumps = _pzMonoBumps(ol, R.lines);
+  if (!bumps.length) return;
+  var drop = {};
+  bumps.forEach(function(b){ drop[b.ib] = 1; drop[b.ic] = 1; });
+  var base = ol.filter(function(_, k){ return !drop[k]; });
+  // A and D now sit in the middle of one straight wall: take them out too.
+  var n = base.length, keep = [];
+  for (var i = 0; i < n; i++){
+    var a = base[(i - 1 + n) % n], p = base[i], c = base[(i + 1) % n];
+    var L = Math.hypot(c[0]-a[0], c[1]-a[1]) || 1;
+    var off = Math.abs((c[0]-a[0])*(p[1]-a[1]) - (c[1]-a[1])*(p[0]-a[0])) / L;
+    var onSeg = ((p[0]-a[0])*(c[0]-a[0]) + (p[1]-a[1])*(c[1]-a[1])) / (L*L);
+    if (off < 1.5 && onSeg > 0 && onSeg < 1) continue;
+    keep.push(p);
+  }
+  if (keep.length < 3) return;
+  var along = function(l, a, b){ return l.pts.every(function(q){ return _pzPtSeg(q, a, b).d < 4; }); };
+  R.fullOutline = ol; R.fullLines = R.lines;
+  R.monoBumps = bumps;
+  R.outline = keep;
+  R.lines = R.lines.filter(function(l){
+    if (l.type !== 'barge' && l.type !== 'gutter') return true;
+    return !bumps.some(function(b){ return along(l, b.A, b.B) || along(l, b.C, b.D) || along(l, b.B, b.C); });
+  });
+}
+function _pzMonoExtend(pz){
+  if (!pz || !pz.roofs || !pz.roofs.some(function(R){ return R.monoBumps; })) return pz;
+  var scaleM = pz.scaleM, tol = pz.tol, need = {}, any = false;
+  pz.roofs.forEach(function(R){
+    if (!R.monoBumps) return;
+    R.monoBumps.forEach(function(bp){
+      var wx = bp.D[0]-bp.A[0], wy = bp.D[1]-bp.A[1], wl = Math.hypot(wx, wy) || 1;
+      pz.faces.forEach(function(f){
+        if (f.roof !== R || !f.ref || !f.t || f.ref.kind !== 'gutter') return;
+        var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1];
+        if (Math.abs((wx*dx + wy*dy) / wl) > 0.02) return;
+        var gD = ((f.ref.a[0]+f.ref.b[0])/2)*dx + ((f.ref.a[1]+f.ref.b[1])/2)*dy;
+        var dOf = function(p){ return p[0]*dx + p[1]*dy; }, tOf = function(p){ return p[0]*tx + p[1]*ty; };
+        if (Math.abs(dOf(bp.A) - gD) > tol || Math.abs(dOf(bp.D) - gD) > tol) return;
+        var dep = gD - (dOf(bp.B) + dOf(bp.C)) / 2;
+        if (dep < tol * 0.5) return;   // the bump stands out from the gutter, away from the face
+        var o1 = Math.min(tOf(bp.A), tOf(bp.D)), o2 = Math.max(tOf(bp.A), tOf(bp.D));
+        var xy = function(t, d){ return [t*tx + d*dx, t*ty + d*dy]; };
+        // The face's own edges, for the picture: its gutter now steps out
+        // round the bump — a barge up each side, the gutter across its end.
+        var ne = [];
+        f.edges.forEach(function(e){
+          var onG = Math.abs(dOf(e.a) - gD) < tol*0.6 && Math.abs(dOf(e.b) - gD) < tol*0.6;
+          var ta = tOf(e.a), tb = tOf(e.b), lo = Math.max(Math.min(ta, tb), o1), hi = Math.min(Math.max(ta, tb), o2);
+          if (!onG || hi - lo < 1){ ne.push(e); return; }
+          var up = ta < tb, s1 = up ? lo : hi, s2 = up ? hi : lo;
+          var pts = [e.a, xy(s1, gD), xy(s1, gD - dep), xy(s2, gD - dep), xy(s2, gD), e.b];
+          var kinds = [e.kind, (Math.abs(s1 - o1) < 1 || Math.abs(s1 - o2) < 1) ? 'barge' : e.kind, e.kind, (Math.abs(s2 - o1) < 1 || Math.abs(s2 - o2) < 1) ? 'barge' : e.kind, e.kind];
+          for (var k = 0; k < 5; k++){
+            if (Math.hypot(pts[k+1][0]-pts[k][0], pts[k+1][1]-pts[k][1]) > 0.5) ne.push({ a: pts[k], b: pts[k+1], kind: kinds[k], len: Math.hypot(pts[k+1][0]-pts[k][0], pts[k+1][1]-pts[k][1]) });
+          }
+        });
+        f.edges = ne;
+        (f.pieces || []).forEach(function(p){
+          var poly = p.poly, m = poly.length, out = [], hit = false;
+          for (var i = 0; i < m; i++){
+            var P = poly[i], Q = poly[(i + 1) % m];
+            out.push(P);
+            if (Math.abs(dOf(P) - gD) > tol*0.6 || Math.abs(dOf(Q) - gD) > tol*0.6) continue;
+            var tP = tOf(P), tQ = tOf(Q), lo = Math.max(Math.min(tP, tQ), o1), hi = Math.min(Math.max(tP, tQ), o2);
+            if (hi - lo < Math.max(1, tol * 0.3)) continue;
+            var s1 = tP < tQ ? lo : hi, s2 = tP < tQ ? hi : lo;
+            out.push(xy(s1, gD), xy(s1, gD - dep), xy(s2, gD - dep), xy(s2, gD));
+            hit = true;
+          }
+          if (!hit) return;
+          var ext = dep * scaleM * (f.pf || 1) * 1000;
+          p.poly = out; p.monoExtMm = (p.monoExtMm || 0) + ext;
+          if (p.longMm != null) p.longMm += ext;
+          if (p.shortMm != null) p.shortMm += ext;
+          if (p.areaPx != null) p.areaPx = Math.abs(_pzSignedArea(out));
+          // The sheet that has to be longer: the piece's own, or the sheet
+          // whose offcut (or whose foot) it is.
+          var src = p.ordered ? p.label : p.from;
+          if (src){ need[src] = (need[src] || 0) + ext; any = true; }
+        });
+      });
+    });
+    R.outline = R.fullOutline; R.lines = R.fullLines;
+  });
+  var bb = null;
+  pz.roofs.forEach(function(R){ R.outline.forEach(function(p){
+    if (!bb) bb = [p[0], p[1], p[0], p[1]];
+    bb[0] = Math.min(bb[0], p[0]); bb[1] = Math.min(bb[1], p[1]); bb[2] = Math.max(bb[2], p[0]); bb[3] = Math.max(bb[3], p[1]);
+  }); });
+  if (bb) pz.bbox = bb;
+  if (!any) return pz;
+  var R10 = function(v){ return Math.ceil(v / _PZ_ROUND_MM - 1e-9) * _PZ_ROUND_MM; };
+  var out = [], used = {};
+  (pz.blocks || []).forEach(function(b){ if (b.letter) used[b.letter] = 1; });
+  var nextLetter = (function(){ var i = 0; return function(){ while (used[_pzLetter(i)]) i++; used[_pzLetter(i)] = 1; return _pzLetter(i++); }; })();
+  (pz.blocks || []).forEach(function(b){
+    var grow = b.pieces.filter(function(pc){ return need[pc.label] > 0; });
+    if (!grow.length){ out.push(b); return; }
+    if (b.extra){ grow.forEach(function(pc){ pc.Lmm = R10((pc.Lmm || b.Lmm) + need[pc.label]); }); out.push(b); return; }
+    var groups = {};
+    grow.forEach(function(pc){ var L = R10((pc.Lmm || b.Lmm) + need[pc.label]); (groups[L] = groups[L] || []).push(pc); });
+    b.pieces = b.pieces.filter(function(pc){ return !(need[pc.label] > 0); });
+    if (b.pieces.length) out.push(b);
+    Object.keys(groups).map(Number).sort(function(x, y){ return x - y; }).forEach(function(L){
+      out.push({ letter: nextLetter(), face: b.face, Lmm: L, pieces: groups[L], extra: false, feeds: 0, cutCount: 0, monoExt: true });
+    });
+  });
+  // Letter the blocks again in order, number every block's sheets again in
+  // the order they lie, and carry the new names onto the pieces cut from them.
+  var ren = {}, sheetOf = {};
+  out.forEach(function(b, bi){
+    b.letter = _pzLetter(bi);
+    b.pieces.sort(function(x, y){ return (x.num || 0) - (y.num || 0); });
+    b.pieces.forEach(function(pc, i){
+      var nl = b.letter + (i + 1);
+      if (pc.label !== nl) ren[pc.label] = nl;
+      pc.num = i + 1; pc.block = b; pc.label = nl; sheetOf[nl] = pc;
+      if (b.monoExt) delete pc.Lmm;
+    });
+  });
+  pz.pieces.forEach(function(p){
+    if (p.ordered) return;
+    if (p.from && ren[p.from]) p.from = ren[p.from];
+    if (p.label) p.label = p.label.replace(/^([↺✂]*)(.*)$/, function(_, pre, rest){ return pre + (ren[rest] || rest); });
+    if (p.from && sheetOf[p.from]) p.block = sheetOf[p.from].block;
+  });
+  out.forEach(function(b){ b.feeds = pz.pieces.filter(function(p){ return !p.ordered && p.block === b && !p.strung; }).length; });
+  var byLen = {};
+  out.forEach(function(b){
+    b.count = b.pieces.length;
+    b.pieces.forEach(function(pc){ var L = pc.Lmm || b.Lmm; byLen[L] = (byLen[L] || 0) + 1; });
+    if (b.extra){ var ls = {}; b.pieces.forEach(function(pc){ ls[pc.Lmm || b.Lmm] = 1; }); b.lengths = Object.keys(ls).map(Number).sort(function(x, y){ return y - x; }); }
+  });
+  pz.blocks = out;
+  pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
+  return pz;
 }
 // The planar arrangement of one roof: outline edges + cutting roof lines,
 // split where they cross or meet, noded, and walked into faces.
@@ -7655,7 +7834,7 @@ function _sheetPuzzleBuild(opts){
     var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt = null;
-    try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true })); } catch(e){ alt = null; }
+    try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true, _monoDefer: true })); } catch(e){ alt = null; }
     if (alt && alt.tally && res.tally && (nSheets(alt) < nSheets(res) || (nSheets(alt) === nSheets(res) && steel(alt) < steel(res)))) res = alt;
   }
   // The same for a wing cut from the main's hip END: the plain hip's end
@@ -7669,9 +7848,10 @@ function _sheetPuzzleBuild(opts){
     var nSheets2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt2 = null;
-    try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true })); } catch(e){ alt2 = null; }
+    try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true, _monoDefer: true })); } catch(e){ alt2 = null; }
     if (alt2 && alt2.tally && res.tally && (nSheets2(alt2) < nSheets2(res) || (nSheets2(alt2) === nSheets2(res) && steel2(alt2) < steel2(res)))) res = alt2;
   }
+  if (!opts.noFill && !opts._monoDefer){ try { _pzMonoExtend(res); } catch(e){ try { console.warn('sheet mono:', e); } catch(e2){} } }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
 }

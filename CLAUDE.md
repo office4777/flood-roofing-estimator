@@ -334,6 +334,23 @@ THE LAY:
    its gutter (hip-cut strips included), its offcuts feeding the slopes'
    corners across its hips, the corners laid as complements (the gablet from
    its corners in, the slope from the gablet's wall out).
+7b. A MONO EXTENSION IS THE PLAIN ROOF WITH LONGER SHEETS (2026-10-31,
+   "inside of a step creating a whole hip and valley set, it simply extends
+   the roof plain down ... if it's in the middle of a ridge line that's
+   pretty simple, just those sheets would be longer, however if it's on a hip
+   area, the full lengths sheets would again need to be longer and making
+   sure the offcuts are sufficiently long enough to carry on a offcut
+   triangle set"). A bump no roof line runs into (reports 78/79's mono
+   extension, or a shallow bump left unchosen) is laid as if it were not
+   there (`_pzMonoBase`, in `_pzRoofGeom`), then every strip over it is
+   carried down onto it (`_pzMonoExtend`, last in `_sheetPuzzleBuild`): a
+   sheet over it is longer by the bump's depth up the slope (its own block,
+   never grouping the slope's other sheets with it), and a piece cut from an
+   offcut makes its DONOR that much longer, so the offcut still reaches — on
+   a hip end the corner sheets feeding the rows over the bump. 18 × 12 hip
+   with a 1 × 4 m bump anywhere: 48 sheets, 6 × 7.74 + 42 × 6.63, nothing
+   extra (was 48–64 sheets with up to 16 × 7.73 and 36 offcuts wasted on a
+   hip end). Report 78's roof as mono: 47 → 44 sheets, 202 → 186 m.
 
 THE FILL:
 8. Feed each side of an end IN ORDER from its home offcuts (the same face, or
