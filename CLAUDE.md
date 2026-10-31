@@ -402,6 +402,20 @@ THE FILL:
    one sheet for one, never more steel. Report 76: E1 is now ↺C49 (49
    purple, 48 orange, 176, nothing extra); report 20's small hip, 74 and 50
    lose an extra each the same way; no tally moves anywhere.
+8d. OFFCUTS GO NEXT TO EACH OTHER, NEXT TO THE SHEETS THEY CAME FROM
+   (2026-10-31, the owner: "always try and bunch up the offcuts so they go
+   next to each other rather than used in opposite areas of the roof.
+   Because a roofer is likely to focus on one lot of sheets, cut them, lay
+   those first lots of sheets, and then straight away lay the offcut sheets
+   ... prioritize laying offcuts in order next to each other. It makes it
+   simple and easy and utilizes the right offcuts in the right spot").
+   Rule 8's series made general: when more than one offcut fits a piece,
+   prefer the one whose sheet lies nearest to it and whose neighbours feed
+   the pieces beside it, so a run of offcuts lands as a run. It ranks after
+   rule 10's less steel — a lay that is nearer but orders more steel loses —
+   and decides between lays and fits that tie on steel. On the double
+   cascade mock it is already as close as the steel allows: the corner by
+   C5 and the triangle by C7 can only come off C6 or C16. NOT YET BUILT.
 9. An extra is a sheet at its OWN length — never two extras cut from one
    sheet ("e1 should just be a full sheet with a small amount of wasteage").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
