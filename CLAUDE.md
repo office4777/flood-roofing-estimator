@@ -545,7 +545,25 @@ THE FILL:
    stray green ↺D1 strip gone, the purple slope C1–C29 unbroken; report 75 132 →
    129 sheets (42 m less); the 13 m wing L's stray ↺D1 a purple C14. Shown as
    "Sheet layout v8 - ends as one set". Report 76 ~16 s.
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i,
+9j. THE SMALLEST OFFCUT STARTS THE SET (the same day: "Make sure it's always
+   utilizing the smallest of the offcut to start an offcut set. Make that a
+   rule, should stop patchyness"). Move 8 now pairs the half's strips and the
+   donor colour's offcuts BOTH SMALLEST FIRST, in order, the most strips fed,
+   each as tight as it goes — the smallest offcut that fits starts the set at
+   its small end, a sliver that fits nothing is passed over, what is left
+   falls at the head. A shorter block's hip-cut sheet on the same slope may be
+   ordered at the set's length (`promo`) so the set is not broken by its
+   missing offcut (report 71's B1/B2 as C sheets — the option offered under
+   9i, now taken: ↺C1–↺C9 one purple set, ↺D5/↺D4 gone, 70 sheets, +7.2 m).
+   A SET RUNS UNBROKEN ON THE GROUND (`unbroken`: no other run's strip lies
+   across it between its first and last strip, whichever face it is on) — a
+   pairing that only fits by jumping a blue run falls back on v8's pairing;
+   and one that orders a whole sheet INSIDE its own span is kept only if it
+   saves a sheet (`inSpan`). Report 50: the whole D13 among the D offcuts gone,
+   37 → 36. Double-L: the same 85, +0.54 m, its stray blue B9 a purple C18 (an
+   orange ↺A12 lands in that corner — flagged to the owner). Every other test
+   roof as v8. Shown as "Sheet layout v9 - smallest offcut starts the set".
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i, 9j,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown

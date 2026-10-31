@@ -10279,30 +10279,102 @@ function _pzOptimise(pz){
         // The colours already feeding this half, each tried as the set.
         var blocks = [];
         strips.forEach(function(p){ var b = p.ordered ? null : (byLabel[p.from] || {}).block; if (b && blocks.indexOf(b) < 0) blocks.push(b); });
+        // THE SET STARTS FROM ITS SMALLEST OFFCUT (2026-10-31, the owner:
+        // "Make sure it's always utilizing the smallest of the offcut to start
+        // an offcut set. Make that a rule, should stop patchyness"). The
+        // strips and offcuts both smallest first, paired in order, the most
+        // strips fed and each as tight a fit as it goes — the smallest offcut
+        // that fits starts the set at its small end, an offcut that fits
+        // nothing is a sliver and is passed over, and whatever is left over
+        // falls at the head. A shorter block's hip-cut sheet on the same
+        // slope may be ordered at the set's length so the set is not broken.
+        var asc = strips.slice().sort(function(a, b){ return a.longMm - b.longMm; });
+        // (on the ground: no strip of another run lies across the set
+        // between its first strip and its last — whichever face it is on)
+        var dot8 = function(a, b){ return a[0] * b[0] + a[1] * b[1]; };
+        var spanOf = function(prs){
+          var set = new Set(prs.map(function(pr){ return pr[0]; }));
+          var tMin = Infinity, tMax = -Infinity, sMin = Infinity, sMax = -Infinity;
+          set.forEach(function(p){
+            var t = dot8(cen(p), f.t); if (t < tMin) tMin = t; if (t > tMax) tMax = t;
+            (p.poly || []).forEach(function(q){ var s0 = dot8(q, f.d); if (s0 < sMin) sMin = s0; if (s0 > sMax) sMax = s0; });
+          });
+          return { set: set, inside: function(q){
+            if (set.has(q) || !q.face || q.scrap || q.strung) return false;
+            if (Math.abs(dot8(q.face.d, f.d)) < 0.95) return false;
+            var c = cen(q), t = dot8(c, f.t), s0 = dot8(c, f.d);
+            return t > tMin + 1 && t < tMax - 1 && s0 > sMin && s0 < sMax;
+          } };
+        };
+        var unbroken = function(prs){
+          if (prs.length < 2) return true;
+          var sp = spanOf(prs);
+          return !pz.pieces.some(function(q){ return !(q.ordered && !S.has(q)) && sp.inside(q); });
+        };
         var best = null;
+        var homeOk = function(D){ return Object.keys(D.touch || {}).some(function(k){ return hipKeys[k]; }); };
         blocks.forEach(function(B){
-          var donors = Array.from(S.keys()).filter(function(D){
+          var base = Array.from(S.keys()).filter(function(D){
             var sh = S.get(D);
-            return D.ordered && D.block === B && D.face !== f && D.hand === h && one(D) && sh && !sh.fixed.length && !(feetOf.get(D) || []).length && offOf(D) &&
-              Object.keys(D.touch || {}).some(function(k){ return hipKeys[k]; });
-          }).sort(function(a, b){ return offOf(b).a - offOf(a).a; });
-          var n = strips.length, m = donors.length; if (!m) return;
-          var memo8 = {};
-          var sc = function(i, j){
-            if (i >= n || j >= m) return { v: 0, pairs: [] };
-            var key = i + ',' + j; if (memo8[key]) return memo8[key];
-            var r = sc(i + 1, j), r2 = sc(i, j + 1); var bestR = r.v >= r2.v ? r : r2;
-            if (fitsOff(strips[i], donors[j])){
-              var X = strips[i], D = donors[j], o = offOf(D);
-              var w = 1e7 + (X.ordered ? freedOf(X) * 10 : 0) + ((!X.ordered && X.from === D.label) ? 500 : 0) - (o.a - X.longMm);
-              var r3 = sc(i + 1, j + 1);
-              if (w + r3.v > bestR.v) bestR = { v: w + r3.v, pairs: [[X, D]].concat(r3.pairs) };
+            return D.ordered && D.face !== f && D.hand === h && one(D) && sh && !sh.fixed.length && !(feetOf.get(D) || []).length && D.longMm != null && homeOk(D);
+          });
+          var own = base.filter(function(D){ return D.block === B && offOf(D); });
+          if (!own.length) return;
+          // (a hip-cut sheet of a shorter block on the same slope, ordered at
+          // the set's length so the set is not broken by its missing offcut)
+          var faces0 = new Set(own.map(function(D){ return D.face; }));
+          var promo = base.filter(function(D){ return D.block !== B && !D.block.extra && faces0.has(D.face) && D.block.Lmm < B.Lmm && D.longMm <= B.Lmm - _PZ_FIT_MM; });
+          [false, true].forEach(function(withPromo){
+            if (withPromo && !promo.length) return;
+            var dons = own.map(function(D){ var o = offOf(D); return { D: D, a: o.a, b: o.b, promo: false }; });
+            if (withPromo) promo.forEach(function(D){ dons.push({ D: D, a: B.Lmm - (D.shortMm || 0), b: B.Lmm - D.longMm, promo: true }); });
+            dons.sort(function(x, y){ return x.a - y.a; });
+            var fitsD = function(X, d){
+              if (!one(X) || X.longMm == null) return false;
+              if (d.D.hand && X.hand && d.D.hand !== X.hand) return false;
+              if ((X.widthPx || 0) > (d.D.sheetPx || d.D.widthPx || 0) + 0.6) return false;
+              return d.a >= X.longMm - _PZ_FIT_MM && d.b >= (X.shortMm || 0) - _PZ_FIT_MM;
+            };
+            // In order both ways, the most strips fed, each as tight as it
+            // goes — so no offcut jumps a strip and leaves a hole in the set.
+            var n8 = asc.length, m8 = dons.length, memo8 = {};
+            var sc = function(i, j){
+              if (i >= n8 || j >= m8) return { v: 0, pairs: [] };
+              var key = i * 1000 + j; if (memo8[key]) return memo8[key];
+              var r = sc(i + 1, j), r2 = sc(i, j + 1), bestR = r.v >= r2.v ? r : r2;
+              if (fitsD(asc[i], dons[j])){
+                var X = asc[i], d = dons[j];
+                var w = 1e7 + (X.ordered ? freedOf(X) * 10 : 0) - (d.a - X.longMm) - (d.promo ? 1e3 : 0);
+                var r3 = sc(i + 1, j + 1);
+                if (w + r3.v > bestR.v) bestR = { v: w + r3.v, pairs: [[X, d.D, d.promo ? B : null]].concat(r3.pairs) };
+              }
+              memo8[key] = bestR; return bestR;
+            };
+            var pairs = sc(0, 0).pairs, v = sc(0, 0).v;
+            // A set runs unbroken along its face. One that only fits by
+            // jumping another colour's run is not a set — the v8 pairing
+            // (biggest offcut on the longest strip) stands instead.
+            if (!unbroken(pairs)){
+              if (withPromo) return;
+              var dsc = asc.slice().reverse(), dd = dons.slice().reverse(), memoO = {};
+              var so = function(i, j){
+                if (i >= dsc.length || j >= dd.length) return { v: 0, pairs: [] };
+                var key = i * 1000 + j; if (memoO[key]) return memoO[key];
+                var r = so(i + 1, j), r2 = so(i, j + 1), bestR = r.v >= r2.v ? r : r2;
+                if (fitsD(dsc[i], dd[j])){
+                  var X = dsc[i], d = dd[j];
+                  var w = 1e7 + (X.ordered ? freedOf(X) * 10 : 0) + ((!X.ordered && X.from === d.D.label) ? 500 : 0) - (d.a - X.longMm);
+                  var r3 = so(i + 1, j + 1);
+                  if (w + r3.v > bestR.v) bestR = { v: w + r3.v, pairs: [[X, d.D, null]].concat(r3.pairs) };
+                }
+                memoO[key] = bestR; return bestR;
+              };
+              pairs = so(0, 0).pairs; v = so(0, 0).v - 1;
             }
-            memo8[key] = bestR; return bestR;
-          };
-          var res = sc(0, 0);
-          var changes = res.pairs.filter(function(pr){ return pr[0].ordered || pr[0].from !== pr[1].label; }).length;
-          if (changes && (!best || res.v > best.v)) best = res;
+            var changes = pairs.filter(function(pr){ return pr[0].ordered || pr[0].from !== pr[1].label || pr[2]; }).length;
+            if (!changes) return;
+            if (!best || v > best.v) best = { v: v, pairs: pairs, B: B };
+          });
         });
         if (!best) return;
         // Lay it, then see.
@@ -10315,6 +10387,18 @@ function _pzOptimise(pz){
           snapB.forEach(function(r){ r[0].pieces = r[1]; });
           movable = snapM; S = snapS; byLabel = snapBL; feetOf = snapF; memo.clear(); stayMap = null;
         };
+        var breaksOf = function(){
+          var row = pz.pieces.filter(function(p){ return p.face === f && p.hand === h && !p.scrap && !p.strung; }).sort(function(a, b){ return (a.k || 0) - (b.k || 0); });
+          var n = 0; for (var q = 1; q < row.length; q++) if (colOfP(row[q]) !== colOfP(row[q - 1])) n++;
+          return n;
+        };
+        var breaks0 = breaksOf();
+        best.pairs.forEach(function(pr){
+          if (!pr[2]) return;
+          var D = pr[1], B = pr[2];
+          D.block.pieces.splice(D.block.pieces.indexOf(D), 1); B.pieces.push(D); D.block = B; D.Lmm = undefined; D.num = 1e6 + (D.k || 0);
+          var shD = mkSheet(D, B.Lmm, B.Lmm); if (shD){ shD.orig = (S.get(D) || {}).orig || []; S.set(D, shD); }
+        });
         var matched = new Set(best.pairs.map(function(pr){ return pr[0]; }));
         var usedD = new Set(best.pairs.map(function(pr){ return pr[1]; }));
         var displaced = [];
@@ -10332,7 +10416,7 @@ function _pzOptimise(pz){
         var asg = new Map(); best.pairs.forEach(function(pr){ asg.set(pr[0], S.get(pr[1])); if (movable.indexOf(pr[0]) < 0) movable.push(pr[0]); });
         displaced.forEach(function(q){ q.from = '~'; });
         commit(asg); memo.clear(); stayMap = null;
-        var ok = true;
+        var ok = true, newSheets = 0, span8 = spanOf(best.pairs), inSpan = function(q){ return span8.inside(q); };
         displaced.sort(function(a, b){ return (b.longMm || 0) - (a.longMm || 0); }).forEach(function(q){
           if (!ok) return;
           if (movable.indexOf(q) < 0) movable.push(q);
@@ -10354,12 +10438,21 @@ function _pzOptimise(pz){
             .map(function(p2){ return colOfP(p2); }).filter(function(b){ return b && b.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; })[0];
           var b = mate || pz.blocks.filter(function(b2){ return !b2.extra && b2.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; }).sort(function(x, y){ return x.Lmm - y.Lmm; })[0];
           if (!b){ ok = false; return; }
+          if (inSpan(q)) newSheets++;
           movable.splice(movable.indexOf(q), 1);
           q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '§' + q.face.id + '_' + (q.k || 0); q.fullSheet = true;
           byLabel[q.label] = q; var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq);
         });
         var after = countAll(), stray1 = ok ? straysNow() : 1e9;
-        if (ok && after.n <= before.n && stray1 <= stray0 && (after.n < before.n || stray1 < stray0) && after.steel <= before.steel + 1000){
+        // (a set that only works by ordering a whole sheet in its own run,
+        // where an offcut stood, is not in order — it just moves the patch;
+        // kept only if it saves a sheet)
+        if (newSheets && after.n >= before.n) ok = false;
+        var breaks1 = ok ? breaksOf() : 1e9;
+        // (a colour break taken out of the set may cost up to half a sheet of
+        // the set's length — the owner's clean look over a little steel)
+        var allow = 1000 + Math.max(0, breaks0 - breaks1) * (best.B ? best.B.Lmm : 0) / 2;
+        if (ok && after.n <= before.n && stray1 <= stray0 && breaks1 <= breaks0 && (after.n < before.n || stray1 < stray0 || breaks1 < breaks0) && after.steel <= before.steel + allow){
           log.endSets = (log.endSets || 0) + 1; memo.clear();
         } else restore();
       });
