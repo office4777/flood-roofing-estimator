@@ -9863,12 +9863,12 @@ function _pzOptimise(pz){
     // A STRAY, the thing he sees: a piece whose colour none of the strips
     // beside it on its face share, and not its face's own colour. A change
     // that puts one stray right by making another is no change.
+    var colOf = function(p){
+      if (p.ordered) return p.block;
+      if (p.strung && p.strungTo) return p.strungTo.ordered ? p.strungTo.block : (byLabel[p.strungTo.from] || {}).block;
+      return (byLabel[p.from] || {}).block;
+    };
     var strays = function(){
-      var colOf = function(p){
-        if (p.ordered) return p.block;
-        if (p.strung && p.strungTo) return p.strungTo.ordered ? p.strungTo.block : (byLabel[p.strungTo.from] || {}).block;
-        return (byLabel[p.from] || {}).block;
-      };
       var byFace = new Map();
       pz.pieces.forEach(function(p){ if (p.face && (p.ordered ? S.has(p) : true)) { if (!byFace.has(p.face)) byFace.set(p.face, []); byFace.get(p.face).push(p); } });
       var n = 0;
@@ -9919,9 +9919,9 @@ function _pzOptimise(pz){
     });
     memo.clear();
     allowBlk = allow;
-    var asg = null, ordered = 0, capP = log.tried + _PZ_OPT_MOVE * 2;
+    var asg = null, madeSheets = [], ordered = 0, capP = log.tried + _PZ_OPT_MOVE * 2;
     for (var t = 0; t <= blockers.length && !asg; t++){
-      if (t > 0){ if (orderAsSheet(blockers[t - 1])) ordered++; else continue; }
+      if (t > 0){ if (orderAsSheet(blockers[t - 1])) { ordered++; madeSheets.push(blockers[t - 1]); } else continue; }
       var saveP = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP + _PZ_OPT_MOVE * t);
       asg = share(near(seed), allSheets(), null, true);
       _PZ_OPT_PACKS = saveP;
@@ -9933,7 +9933,16 @@ function _pzOptimise(pz){
       commit(asg); memo.clear();
       var c = countAll(), nowMis = misCount();
       var fixed = wasMis - nowMis;
-      ok = fixed > 0 && strays() < wasStray && c.lens <= was.lens && (c.n - was.n) * 2 <= fixed && c.steel - was.steel <= fixed * 0.5 * Math.max.apply(null, pz.blocks.map(function(b){ return b.Lmm || 0; }));
+      // A full sheet ordered to free an offcut must sit beside a strip of its
+      // own colour (report 17's A9 beside A6), or it is only a new stray —
+      // the double cascade's green sheet among purple offcuts, which the
+      // owner had already passed at 67 sheets ("fix that double cascade back
+      // to how it was before when it was good").
+      var mated = madeSheets.every(function(X){
+        var c0 = colOf(X);
+        return pz.pieces.some(function(q){ return q !== X && q.face === X.face && Math.abs((q.k || 0) - (X.k || 0)) <= 1 && colOf(q) === c0; });
+      });
+      ok = fixed > 0 && mated && strays() < wasStray && c.lens <= was.lens && (c.n - was.n) * 2 <= fixed && c.steel - was.steel <= fixed * 0.5 * Math.max.apply(null, pz.blocks.map(function(b){ return b.Lmm || 0; }));
     }
     if (ok){ log.runs = (log.runs || 0) + (wasMis - misCount()); log.runSheets = ordered; return; }
     snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; p.fullSheet = r[9]; });
