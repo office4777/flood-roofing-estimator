@@ -429,6 +429,15 @@ THE PICTURE:
     `_PZ_FIT_MM` short) is clipped to it. Page type `precut`
     (`_jpRenderPrecut`), in `_jpDefaultPages` after the header; the v9
     migration puts it after the first job header of every pack without one.
+    THE SHEETS LIE AS THEY ARE CUT ON THE GROUND (the same day: "the sheets
+    would be laid out on the ground and the roofer would use a chalk line to
+    ping the lines ... lay out, say, 10 sheets and cut the corner so they're
+    all in line ... so all the offcuts ... makes perfect triangles"): a
+    block's sheets cut by one hip or valley (one face, one cut direction, a
+    corner nick included) are a RUN (`_pzChalkRuns`, `_pzCutLine`), ordered so
+    the cut is one straight line across them, rising or falling — so on a
+    north slope numbered from the west the run reads A8 … A1. Runs first,
+    each kept on one row where it fits, a gap between runs; uncut sheets last.
     `sheetlayout.mjs` pins every sheet once at its length and every piece
     inside its sheet with none overlapping on five shapes, and the page fitting.
 

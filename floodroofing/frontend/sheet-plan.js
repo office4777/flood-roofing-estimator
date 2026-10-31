@@ -9161,6 +9161,45 @@ function _sheetPrecutPlan(pz){
   sheets.forEach(function(s){ s.items.forEach(function(it){ it.poly = clipY(it.poly, 0, s.Lmm); }); });
   return sheets;
 }
+// THE SHEETS LIE AS THEY ARE CUT ON THE GROUND (2026-10-31, the owner: "a lot
+// of the times the sheets would be laid out on the ground and the roofer would
+// use a chalk line to ping the lines of the sheets as they're laid out next to
+// each other ... it's possible for the roofer to lay out, say, 10 sheets and
+// cut the corner so they're all in line ... so all the offcuts ... makes
+// perfect triangles"). A block's sheets cut by one hip or valley (one face,
+// one cut direction) are a RUN, ordered so its cuts make one straight line
+// across the sheets lying side by side — rising to the right, or falling —
+// and so the offcuts come off as one triangle set. The runs come first, in
+// sheet order; the sheets with no cut follow.
+function _pzCutLine(s){
+  var own = null; s.items.forEach(function(it){ if (it.own && it.pc === s.piece) own = it; });
+  if (!own) return null;
+  var P = own.poly, best = null;
+  for (var i = 0; i < P.length; i++){
+    var a = P[i], b = P[(i+1) % P.length], dx = b[0]-a[0], dy = b[1]-a[1];
+    if (Math.abs(dx) < 2 || Math.abs(dy) < 2) continue;
+    var rr = Math.abs(dy / dx); if (rr < 0.2 || rr > 5) continue;   // a hip or valley cut, even a corner of one
+    var my = (a[1] + b[1]) / 2;
+    if (!best || my > best.my) best = { my: my, slope: dy / dx, h0: a[1] - dy / dx * a[0] };
+  }
+  return best;
+}
+function _pzChalkRuns(sheets){
+  var runs = {}, order = [], plain = [];
+  sheets.forEach(function(s){
+    var c = _pzCutLine(s);
+    if (!c){ plain.push(s); return; }
+    var key = (s.piece.face ? s.piece.face.id : 0) + (c.slope > 0 ? '/' : '\\');
+    if (!runs[key]){ runs[key] = []; order.push(key); }
+    runs[key].push({ s: s, c: c });
+  });
+  var out = order.map(function(k){
+    var r = runs[k], sg = r[0].c.slope > 0 ? 1 : -1;
+    return r.sort(function(a, b){ return sg * (a.c.h0 - b.c.h0); }).map(function(x){ return x.s; });
+  });
+  if (plain.length) out.push(plain);
+  return out;
+}
 function _renderSheetPrecutCanvas(opts){
   opts = opts || {};
   var pz = opts.pz || _sheetPuzzleBuild(opts);
@@ -9184,24 +9223,41 @@ function _renderSheetPrecutCanvas(opts){
   ctx.fillText('Each sheet as ordered, square end at the bottom. Red = the cut lines; grey = waste. Pieces are labelled as on the sheet layout.', pad, 42);
   var top = 64, availW = W - pad*2, availH = H - top - pad;
   // One block a section: its header, then its sheets side by side, wrapping.
-  var groups = blocks.map(function(b){ return { b: b, sheets: sheets.filter(function(s){ return s.block === b; }) }; }).filter(function(g){ return g.sheets.length; });
+  var groups = blocks.map(function(b){ var ss = sheets.filter(function(s){ return s.block === b; }); return { b: b, sheets: ss, runs: _pzChalkRuns(ss) }; }).filter(function(g){ return g.sheets.length; });
   var HEAD = 20, GAP = 10, SG = 3;
   var layout = function(k){
     // Each block: its rows. A block of one row shares a shelf with the next
     // one-row block when they fit side by side.
     var built = groups.map(function(g){
-      var w0 = g.sheets[0].Wmm * k, cap = Math.max(1, Math.floor((availW + SG) / (w0 + SG)));
-      var nRows = Math.ceil(g.sheets.length / cap), per = Math.ceil(g.sheets.length / nRows);
+      // Rows of runs: a run stays on one row where it fits (a run longer
+      // than a row is split evenly), a gap between runs.
+      var w0 = g.sheets[0].Wmm * k, RG = 3 * SG;
+      var chunks = [];
+      g.runs.forEach(function(run){
+        var cap = Math.max(1, Math.floor((availW + SG) / (w0 + SG)));
+        var n = Math.ceil(run.length / cap), per = Math.ceil(run.length / n);
+        for (var i = 0; i < run.length; i += per) chunks.push(run.slice(i, i + per));
+      });
+      var rowsS = [], cur = [], cw = 0;
+      chunks.forEach(function(ch){
+        var w = ch.length * (w0 + SG) - SG;
+        if (cur.length && cw + RG + w > availW){ rowsS.push(cur); cur = []; cw = 0; }
+        cw += (cur.length ? RG : 0) + w; cur.push(ch);
+      });
+      if (cur.length) rowsS.push(cur);
       var rows = [], yy = HEAD, bw = 0;
-      for (var i = 0; i < g.sheets.length; i += per){
+      rowsS.forEach(function(rch){
         var x = 0, rowH = 0, row = [];
-        g.sheets.slice(i, i + per).forEach(function(s){
-          var w = s.Wmm * k, h = s.Lmm * k;
-          row.push({ s: s, x: x, w: w, h: h }); x += w + SG; rowH = Math.max(rowH, h);
+        rch.forEach(function(ch, ci){
+          if (ci) x += RG - SG;
+          ch.forEach(function(s){
+            var w = s.Wmm * k, h = s.Lmm * k;
+            row.push({ s: s, x: x, w: w, h: h }); x += w + SG; rowH = Math.max(rowH, h);
+          });
         });
         bw = Math.max(bw, x - SG);
         rows.push({ items: row, h: rowH, y: yy }); yy += rowH + SG + 2;
-      }
+      });
       var hdW = 18 + 7.2 * (g.b.letter.length + 24);   // room for the block's heading
       return { g: g, rows: rows, w: Math.max(bw, hdW), h: yy };
     });
