@@ -10323,7 +10323,9 @@ function _pzOptimise(pz){
           // (a hip-cut sheet of a shorter block on the same slope, ordered at
           // the set's length so the set is not broken by its missing offcut)
           var faces0 = new Set(own.map(function(D){ return D.face; }));
-          var promo = base.filter(function(D){ return D.block !== B && !D.block.extra && faces0.has(D.face) && D.block.Lmm < B.Lmm && D.longMm <= B.Lmm - _PZ_FIT_MM; });
+          // (never a mono extension's longer sheets, rule 7b: they are the
+          // plain roof's own sheets run down over the bump, not a set colour)
+          var promo = B.monoExt ? [] : base.filter(function(D){ return D.block !== B && !D.block.extra && !D.block.monoExt && faces0.has(D.face) && D.block.Lmm < B.Lmm && D.longMm <= B.Lmm - _PZ_FIT_MM; });
           [false, true].forEach(function(withPromo){
             if (withPromo && !promo.length) return;
             var dons = own.map(function(D){ var o = offOf(D); return { D: D, a: o.a, b: o.b, promo: false }; });
