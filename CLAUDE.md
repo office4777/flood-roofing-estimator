@@ -437,11 +437,26 @@ THE FILL:
    valley should be full length so that the offcuts work on the other
    valley"). A sheet is never flipped, so a valley's offcuts fit the OTHER
    valley's far side (the same hand, one cut), not their own.
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31, `a82438e`): 8d, 9b, 9c,
+9d. THE LONGER SHEETS ARE THE VALLEY DONORS (the same day, report 17: "because
+   blue and orange sheets are longer, they should be full sheets all the way to
+   the edge, and the offcuts to those should fill in where the purple and red
+   sheets are at the valleys ... making the longer sheets the donor sheets to
+   create longer offcuts"; on the T: "one side of the valleys should be donor
+   and one side of the valley should be the offcuts ... make the donor sheets
+   the longer sheets"). Where a valley runs between a long block and a short
+   one, the long block's sheets run full to the valley and their offcuts fill
+   the short side (`_pzOptimise` move 5, kept only if it orders no more
+   sheets or lengths and at most one donor sheet more steel). A piece cut on
+   BOTH sides (a two-cut triangle, no square end) may come off anywhere on its
+   sheet, not only the square end (`_pzOwnIsFree`) — that is what lets A7's
+   and B7's offcuts reach on report 17 (33 sheets, 2 lengths, was 37 and 6).
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
-   sheet-plan.js; 22 of 43 test roofs change (all fewer or equal different
-   lengths), shown to the owner as "Sheet layout new rules v3" — waiting on his
-   go. Ship with `tests/sheetlayout.mjs`'s count pins re-taken (20 move).
+   sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
+   different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown
+   to the owner as "Sheet layout new rules v4" — waiting on his go. Ship with
+   `tests/sheetlayout.mjs`'s count pins re-taken (21 move, none a geometry
+   rule). The slowest roof takes ~7 s to lay (report 76).
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be

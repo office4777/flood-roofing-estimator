@@ -9134,7 +9134,9 @@ function _sheetPrecutPlan(pz){
   sheets.forEach(function(s){
     var o = _pzOwnSheet(s.piece, feetOf.get(s.piece) || [], pz);
     s.spun = o.spun;
-    o.items.forEach(function(it){ s.items.push(it); });
+    s.free = _pzOwnIsFree(s.piece, feetOf.get(s.piece) || [], pz);
+    if (s.free) s.ownItems = o.items;
+    else o.items.forEach(function(it){ s.items.push(it); });
   });
   // THE OFFCUT PIECES GO FLUSH AGAINST THE FIRST CUT (2026-10-31, the owner:
   // "bring that small double cut C16 right to the edge of the main C16"):
@@ -9147,9 +9149,16 @@ function _sheetPrecutPlan(pz){
   pz.pieces.filter(function(p){ return !p.ordered && !p.strung && bySheet[p.from]; })
     .forEach(function(p){ (fedOn[p.from] = fedOn[p.from] || []).push(p); });
   var legacy = [];
+  sheets.forEach(function(s){ if (s.free && !fedOn[s.label]){ s.ownItems.forEach(function(it){ s.items.push(it); }); s.ownItems = null; } });
   Object.keys(fedOn).forEach(function(lbl){
     var s = bySheet[lbl], list = fedOn[lbl];
     var groups = list.map(function(p){ return { p: p, g: _pzGroupOf(p, feetOf.get(p) || [], pz) }; });
+    if (s.free){
+      // The sheet's own two-cut piece goes in with them, from wherever it fits.
+      var gotF = _pzPackSheet([], groups.concat([{ p: s.piece, g: _pzGroupOf(s.piece, [], pz) }]), s.Wmm, s.Lmm, 0);
+      if (gotF){ gotF.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: it.pc === s.piece }); }); s.ownItems = null; return; }
+      s.ownItems.forEach(function(it){ s.items.push(it); }); s.ownItems = null;
+    }
     var got = _pzPackSheet(s.items, groups, s.Wmm, s.Lmm);
     if (got){ got.forEach(function(it){ s.items.push({ pc: it.pc, poly: it.poly, own: false }); }); return; }
     // The scraps last and anywhere: a sliver is trimmed off what is left.
@@ -9206,6 +9215,16 @@ function _sheetPrecutPlan(pz){
   };
   sheets.forEach(function(s){ s.items.forEach(function(it){ it.poly = clipY(it.poly, 0, s.Lmm); }); });
   return sheets;
+}
+// A PIECE CUT ON BOTH SIDES MAY COME FROM ANYWHERE ON ITS SHEET (2026-10-31,
+// the owner on report 17: "orange sheet A7 should still produce a long enough
+// offcut to replace purple sheet C6"). A two-cut triangle where a hip meets a
+// valley has no square end, so nothing ties it to the end of its sheet: it
+// is cut from whatever corner the sheet's other pieces leave.
+function _pzOwnIsFree(pc, feet, pz){
+  if (feet && feet.length) return false;
+  var g = _pzGroupOf(pc, [], pz);
+  return !_pzSquareAt(g.items, false) && !_pzSquareAt(g.items, true);
 }
 // A sheet's own piece and the feet carried under it, on the sheet's square
 // end: a fresh sheet is square at both ends, so the end its piece is square
@@ -9374,15 +9393,18 @@ function _pzOptimise(pz){
   var cen = function(p){ return _ccCentroid(p.poly); };
   // Each sheet: its own items, the series pieces it keeps, what else it gives.
   var S = new Map();
-  sheetPieces.forEach(function(pc){
-    var o; try { o = _pzOwnSheet(pc, feetOf.get(pc) || [], pz); } catch(e){ return; }
-    // The lowest point of the sheet's own top edge: nothing longer than the
-    // sheet above it can come out of its offcut.
-    var sh0 = { pc: pc, own: o.items, ownH: o.h, L: lenOf(pc), L0: lenOf(pc), orig: [], fixed: [], c: cen(pc), minTop: _pzFloorOf(o.items, cover) };
+  // A sheet: its own piece (on its square end, or — a two-cut piece — packed
+  // in with the rest, from wherever it fits), the lowest point of its own top
+  // edge (nothing longer than the sheet above it comes out of its offcut).
+  function mkSheet(pc, L, L0){
+    var o; try { o = _pzOwnSheet(pc, feetOf.get(pc) || [], pz); } catch(e){ return null; }
+    var free = false; try { free = _pzOwnIsFree(pc, feetOf.get(pc) || [], pz); } catch(e){}
+    var sh0 = { pc: pc, own: free ? [] : o.items, free: free, ownH: o.h, L: L, L0: L0, orig: [], fixed: [], c: cen(pc), minTop: free ? 0 : _pzFloorOf(o.items, cover) };
     sh0.ownArea = o.items.reduce(function(t, it){ return t + Math.abs(_ccPolyArea(it.poly)); }, 0);
     sh0.fixedArea = function(){ return sh0.fixed.reduce(function(t, p){ return t + (p.areaPx || 0); }, 0) * pz.scaleM * pz.scaleM * 1e6; };
-    S.set(pc, sh0);
-  });
+    return sh0;
+  }
+  sheetPieces.forEach(function(pc){ var sh0 = mkSheet(pc, lenOf(pc), lenOf(pc)); if (sh0) S.set(pc, sh0); });
   var byLabel = {}; sheetPieces.forEach(function(pc){ byLabel[pc.label] = pc; });
   var groupCache = new Map();
   var groupOf = function(p){ if (!groupCache.has(p)) groupCache.set(p, { p: p, g: _pzGroupOf(p, feetOf.get(p) || [], pz) }); return groupCache.get(p); };
@@ -9418,7 +9440,7 @@ function _pzOptimise(pz){
     // Past the looking allowed, a fit not yet tried reads as no fit (and is
     // not remembered as one).
     if (log.tried >= _PZ_OPT_PACKS || log.tried - moveFrom >= _PZ_OPT_MOVE) return false;
-    ok = !!_pzPackSheet(sh.own, all.map(groupOf), cover, Lm, sh.minTop);
+    ok = !!_pzPackSheet(sh.own, (sh.free ? [sh.pc] : []).concat(all).map(groupOf), cover, Lm, sh.minTop);
     log.tried++; memo.set(key, ok);
     return ok;
   }
@@ -9600,10 +9622,7 @@ function _pzOptimise(pz){
     var bP = null;
     pz.blocks.forEach(function(b){ if (b.face === P.face && !b.extra && b.pieces.length && b.Lmm >= groupOf(P).g.h - _PZ_FIT_MM && (!bP || b.Lmm < bP.Lmm)) bP = b; });
     if (!bP) return;
-    var o; try { o = _pzOwnSheet(P, [], pz); } catch(e){ return; }
-    var shP = { pc: P, own: o.items, ownH: o.h, L: bP.Lmm, L0: -1, orig: [], fixed: [], c: cen(P), minTop: _pzFloorOf(o.items, cover) };
-    shP.ownArea = o.items.reduce(function(t, it){ return t + Math.abs(_ccPolyArea(it.poly)); }, 0);
-    shP.fixedArea = function(){ return 0; };
+    var shP = mkSheet(P, bP.Lmm, -1); if (!shP) return;
     S.set(P, shP); movable.splice(movable.indexOf(P), 1); memo.clear();
     var removed = [], gain = 0, best = null;
     // (Not P's own face: feeding the strip beside it off P is a swap, not a
@@ -9675,7 +9694,7 @@ function _pzOptimise(pz){
         if (log.tried >= _PZ_OPT_PACKS + _PZ_OPT_MOVE * 2) return;
         var gives = movable.filter(function(q){ return q.from === X.label; });
         var must = [X].concat(gives);
-        var saveTried = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, log.tried + _PZ_OPT_MOVE);
+        var saveTried = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, Math.min(log.tried + _PZ_OPT_MOVE, _PZ_OPT_PACKS + _PZ_OPT_MOVE * 2));
         var asg = share(near(must), allSheets().filter(function(sh){ return sh.pc !== X; }), null, true);
         _PZ_OPT_PACKS = saveTried;
         if (!asg) return;
@@ -9686,20 +9705,134 @@ function _pzOptimise(pz){
         log.stairFed++; log.savedMm += L;
       });
   }
-  if (!log.extras && !log.shorter && !log.full && !log.stair){ pz.optLog = log; return pz; }
+  // 5. THE LONGER SHEETS ARE THE VALLEY DONORS (2026-10-31, the owner on
+  // report 17: "because blue and orange sheets are longer, they should be full
+  // sheets all the way to the edge, and the offcuts to those should fill in
+  // where the purple and red sheets are at the valleys ... making the longer
+  // sheets the donor sheets to create longer offcuts, that's an easier and
+  // simpler way to do it for the roofer, rather than having mismatch colors";
+  // then on the T: "one side of the valleys should be donor and one side of
+  // the valley should be the offcuts ... make the donor sheets the longer
+  // sheets so that the offcuts will be longer"). On a roof whose blocks come
+  // in more than one length, every strip on the faces of the LONGEST sheets is
+  // ordered full to the edge, every valley-cut sheet on the other faces (and
+  // every extra) is taken off the order, and the loose pieces are cut from the
+  // offcuts — the longest piece first, each put back as a full sheet of its
+  // face where nothing fits. Kept where the order then has no more sheets and
+  // no more lengths than before: simpler for the roofer is the point.
+  (function(){
+    var roofs = {};
+    pz.blocks.forEach(function(b){ if (!b.extra && b.pieces.length && b.pieces.some(function(p){ return p.full; })) (roofs[roofOf(b.pieces[0])] = roofs[roofOf(b.pieces[0])] || []).push(b); });
+    Object.keys(roofs).forEach(function(rk){
+      if (log.tried >= _PZ_OPT_PACKS + _PZ_OPT_MOVE * 4) return;
+      var bl = roofs[rk], longL = Math.max.apply(null, bl.map(function(b){ return b.Lmm; }));
+      if (!bl.some(function(b){ return b.Lmm < longL; })) return;
+      var donorFaces = new Set(bl.filter(function(b){ return b.Lmm === longL; }).map(function(b){ return b.face; }));
+      var faceBlock = function(f){ return bl.filter(function(b){ return b.face === f && b.Lmm === longL; })[0]; };
+      var count = function(){ var n = 0, ls = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ if (roofOf(pc) == rk){ n++; ls[lenOf(pc)] = 1; } }); }); return { n: n, lens: Object.keys(ls).length }; };
+      var was = count();
+      var wasSteel = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ if (roofOf(pc) == rk) wasSteel += lenOf(pc); }); });
+      // The roof as it stands, to put back if this lays it no simpler.
+      var snapP = pz.pieces.map(function(p){ return [p, p.ordered, p.from, p.block, p.label, p.Lmm, p.num, p.fromHand, p.series]; });
+      var snapB = pz.blocks.map(function(b){ return [b, b.pieces.slice()]; });
+      var snapM = movable.slice(), snapS = new Map(S);
+      // The donors: every strip on the longest sheets' faces a full sheet.
+      var promoted = movable.filter(function(p){ return roofOf(p) == rk && donorFaces.has(p.face) && !p.scrap && !p.strung && !(feetOf.get(p) || []).length && p.widthMm >= cover * 0.3; });
+      promoted.forEach(function(p){
+        var b = faceBlock(p.face); if (!b) return;
+        movable.splice(movable.indexOf(p), 1);
+        p.ordered = true; p.from = null; p.block = b; b.pieces.push(p); p.Lmm = undefined; p.num = 4e6 + (p.k || 0); p.label = b.letter + '~' + (p.face.id) + '_' + (p.k || 0); p.fullSheet = true;
+        byLabel[p.label] = p;
+        var sh = mkSheet(p, b.Lmm, -1); if (sh) S.set(p, sh);
+      });
+      // The receivers: the valley-cut sheets on the other faces, and extras.
+      var loose = sheetPieces.concat(promoted).filter(function(pc){
+        if (!S.has(pc) || roofOf(pc) != rk || donorFaces.has(pc.face) || !pc.block) return false;
+        if (pc.full && !pc.block.extra) return false;
+        return !(feetOf.get(pc) || []).length && !pz.pieces.some(function(q){ return q.strung && q.strungTo === pc; });
+      }).sort(function(a, b){ return b.longMm - a.longMm; });
+      loose.forEach(function(X){ X._origBlock = X.block; X._origLmm = X.Lmm; X.block.pieces.splice(X.block.pieces.indexOf(X), 1); S.delete(X); delete byLabel[X.label]; if (movable.indexOf(X) < 0) movable.push(X); });
+      memo.clear();
+      // Each loose sheet, longest first, off an offcut where the whole set
+      // still fits; where not, a full sheet of its face again.
+      var kept = [], back = [];
+      // (A sheet nothing takes goes back exactly as it was: its own block,
+      // its own length, still giving what its offcut gave.)
+      var putBack = function(X){
+        var b = X._origBlock;
+        if (!b || !snapS.get(X)) return false;
+        movable.splice(movable.indexOf(X), 1);
+        X.ordered = true; X.from = null; X.block = b; b.pieces.push(X); X.Lmm = X._origLmm;
+        S.set(X, snapS.get(X));
+        byLabel[X.label] = X; memo.clear();
+        return true;
+      };
+      var final = null, ok = true, capP = log.tried + _PZ_OPT_MOVE * 2;
+      for (var i = 0; i < loose.length && ok; i++){
+        var X = loose[i];
+        var gives = movable.filter(function(q){ return loose.indexOf(q) < 0 && q.from && !byLabel[q.from]; });
+        var M = near(kept.concat([X]).concat(gives.filter(function(q){ return kept.indexOf(q) < 0; })));
+        var saveP = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP);
+        var asg = share(M, allSheets(), null, true);
+        _PZ_OPT_PACKS = saveP;
+        if (asg){ kept.push(X); final = asg; }
+        else if (!putBack(X)) ok = false;
+      }
+      // Whatever the loose sheets fed must have a home too.
+      if (ok){
+        var orphans = movable.filter(function(q){ return roofOf(q) == rk && q.from && !byLabel[q.from] && kept.indexOf(q) < 0; });
+        if (orphans.length || kept.length){
+          var saveP2 = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP + _PZ_OPT_MOVE);
+          final = share(near(kept.concat(orphans)), allSheets(), null, true);
+          _PZ_OPT_PACKS = saveP2;
+          if (!final) ok = false;
+        }
+      }
+      var now = ok ? (function(){ var keepState = []; if (final) final.forEach(function(sh, m){ keepState.push([m, sh]); }); return keepState; })() : null;
+      var simpler = false;
+      if (ok){
+        // Count as it would stand: the kept loose ones are fed, not sheets.
+        var c = count();
+        var steelOf = function(){ var t = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ if (roofOf(pc) == rk) t += lenOf(pc); }); }); return t; };
+        // (and never more than one donor sheet's worth of steel for it)
+        simpler = c.n <= was.n && c.lens <= was.lens && (c.n < was.n || c.lens < was.lens || kept.length > 0) && steelOf() <= wasSteel + longL;
+      }
+      if (ok && simpler){
+        if (final) commit(final);
+        memo.clear(); log.donors = (log.donors || 0) + 1;
+      } else {
+        snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; });
+        snapB.forEach(function(r){ r[0].pieces = r[1]; });
+        movable = snapM; S = snapS; memo.clear();
+        byLabel = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ byLabel[pc.label] = pc; }); });
+      }
+    });
+  })();
+  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });
-  var ren = {};
+  // Every cut piece is tied to its SHEET first, then the sheets are renamed,
+  // then the cut pieces take their sheet's new name — renaming through a map
+  // of old names to new ones can hand a new name out before the sheet that
+  // had it is renamed, and point a piece at the wrong sheet.
+  var lbl0 = {};
+  pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ lbl0[pc.label] = pc; }); });
+  pz.pieces.forEach(function(p){
+    if (p.ordered) return;
+    p._donorPc = p.strung && p.strungTo ? null : (p.from ? lbl0[p.from] || null : null);
+    if (p.from && !p._donorPc && !p.strung) log.orphans = (log.orphans || 0) + 1;
+  });
   pz.blocks.forEach(function(b, bi){
     b.letter = _pzLetter(bi);
     b.pieces.sort(function(x, y){ return (x.num || 0) - (y.num || 0); });
-    b.pieces.forEach(function(pc, i){ var nl = b.letter + (i + 1); if (pc.label !== nl) ren[pc.label] = nl; pc.num = i + 1; pc.label = nl; });
+    b.pieces.forEach(function(pc, i){ pc.num = i + 1; pc.label = b.letter + (i + 1); });
   });
   pz.pieces.forEach(function(p){
     if (p.ordered) return;
-    if (p.from && ren[p.from]) p.from = ren[p.from];
-    if (p.label) p.label = p.label.replace(/^([↺✂]*)(.*)$/, function(_, pre, rest){ return pre + (ren[rest] || rest); });
+    if (p.strung && p.strungTo){ var h = p.strungTo; p.block = h.block; p.label = '✂' + (h.label || ''); p.from = h.ordered ? h.label : (h.from || h.label); return; }
+    if (p._donorPc){ p.from = p._donorPc.label; p.label = '↺' + p.from; p.block = p._donorPc.block; }
+    delete p._donorPc;
   });
   var lbl = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ lbl[pc.label] = pc; }); });
   pz.pieces.forEach(function(p){ if (!p.ordered && p.from && lbl[p.from]) p.block = lbl[p.from].block; });
