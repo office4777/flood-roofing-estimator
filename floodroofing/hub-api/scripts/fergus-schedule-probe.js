@@ -39,6 +39,7 @@ function describe(r) {
   return 'top ' + top + ' · ' + JSON.stringify(j).slice(0, 320);
 }
 const pad = (s, n) => (String(s) + ' '.repeat(n)).slice(0, n);
+const tbxEnd = ds => { const d = new Date(ds + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 6); return d.toISOString().slice(0, 10); };
 async function main() {
   const today = new Date(); const d = new Date(today); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
   const mon = d.toISOString().slice(0, 10); const e = new Date(d); e.setDate(e.getDate() + 13); const end = e.toISOString().slice(0, 10);
@@ -88,6 +89,23 @@ async function main() {
     a.forEach(ev => { const t = String(ev.startTime || ''); const d = t.slice(0, 10); days[d] = (days[d] || 0) + 1; if (!lo || t < lo) lo = t; if (!hi || t > hi) hi = t; if (ev.jobId != null) withJob++; if (ev.isAllDay) allDay++; types[ev.eventType] = (types[ev.eventType] || 0) + 1; if (ev.userName) users.add(ev.userName); });
     console.log('\n' + pad(r.status, 5) + p + '  rows ' + a.length + ' · paging ' + JSON.stringify(j && j.paging || null) + ' · span ' + lo + ' → ' + hi + ' · withJob ' + withJob + ' · allDay ' + allDay + ' · types ' + JSON.stringify(types) + ' · people ' + users.size);
     console.log('  by day: ' + JSON.stringify(days));
+  }
+  // 3c. does ANY parameter move the calendar's window off the current week? (last week's Monday, one day)
+  { const base = {}; const r0 = await probe('/calendarEvents'); try { (arr(JSON.parse(r0.body)) || []).forEach(ev => { base[ev.id + '|' + ev.startTime] = 1; }); } catch (e) {}
+    const names = [['from', 'to'], ['start', 'end'], ['fromDate', 'toDate'], ['dateFrom', 'dateTo'], ['startTime', 'endTime'], ['filterFrom', 'filterTo'], ['filterStartDate', 'filterEndDate'], ['filterDateFrom', 'filterDateTo'], ['minDate', 'maxDate'], ['since', 'until'], ['weekStart', 'weekEnd'], ['date', null], ['week', null], ['weekOf', null], ['startDate', null]];
+    console.log('\nCalendar window parameters (last week ' + lastMon + ' → ' + tbxEnd(lastMon) + '):');
+    for (const [a, b] of names) {
+      for (const fmt of ['date', 'iso']) {
+        const v1 = fmt === 'date' ? lastMon : lastMon + 'T00:00:00Z', v2 = fmt === 'date' ? tbxEnd(lastMon) : tbxEnd(lastMon) + 'T23:59:59Z';
+        const p = '/calendarEvents?' + a + '=' + encodeURIComponent(v1) + (b ? '&' + b + '=' + encodeURIComponent(v2) : '');
+        const r = await probe(p); let n = 0, moved = 0, lo = null, hi = null; try { (arr(JSON.parse(r.body)) || []).forEach(ev => { n++; if (!base[ev.id + '|' + ev.startTime]) moved++; const t = String(ev.startTime); if (!lo || t < lo) lo = t; if (!hi || t > hi) hi = t; }); } catch (e) {}
+        console.log('  ' + pad(r.status, 5) + pad(p, 80) + ' rows ' + n + ' · not in the default set ' + moved + ' · ' + lo + ' → ' + hi + (r.status >= 400 ? ' · ' + r.body.slice(0, 120) : ''));
+      }
+    }
+    for (const p of ['/calendarEvents?pageSize=10', '/calendarEvents?page=2&pageSize=50', '/calendarEvents?pageCursor=x', '/calendarEvents?userId=135003', '/calendarEvents?jobId=22393288', '/calendarEvents/45385188', '/calendarEvents?eventType=JOB_PHASE', '/calendarEvents?includePast=true', '/calendarEvents?weeks=2']) {
+      const r = await probe(p); let n = 0; try { const j = JSON.parse(r.body); n = (arr(j) || (j && j.data ? [j.data] : [])).length; } catch (e) {}
+      console.log('  ' + pad(r.status, 5) + pad(p, 80) + ' rows ' + n + (r.status >= 400 ? ' · ' + r.body.slice(0, 120) : ''));
+    }
   }
   // every event this week, one line each (title, who, job, start, end, allDay, type) — this is the toolbox's own sheet
   { const r = await probe('/calendarEvents?from=' + mon + '&to=' + end); let j = null; try { j = JSON.parse(r.body); } catch (e) {}
