@@ -521,7 +521,31 @@ THE FILL:
    Left as v5: report 70's one green ↺D1 strip on the purple slope (purple
    costs a sheet). Report 76 takes ~16 s to lay — speed to look at. Shown as
    "Sheet layout v7 - in order, no patches".
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h,
+9i. EACH HALF OF A HIP END IS ONE SET, IN ORDER (the same day, on report 71:
+   "L-shapes still too patchy, i want a clean look ... it should use offcut to
+   purple sheet C9, instead it starts from C8 meaning green d28 should actually
+   be C1"). The north end's east half read C27, D28 (a whole green sheet),
+   ↺C1 … ↺C8 — every offcut one strip further out than its exact fit. Move 8
+   in `_pzOptimise`: per hip end (`lay` apex), per hand, per colour already
+   feeding it, the strips longest first are paired IN ORDER with that colour's
+   hip-cut sheets whose cut is a HIP of this end or of a wing's end laid on it
+   (`adoptedBy` / `template`, rule 4b) — never another end's sheets — biggest
+   offcut first (an LCS-style search: most strips fed, then the sheets freed
+   wasting most, then the tightest fits). What it moves off an offcut (a foot
+   carried under a freed sheet, a piece elsewhere) goes to the nearest free
+   offcut it fits, else onto a sheet it packs on, else a sheet of the colour
+   beside it. Kept only when the order is no bigger, the roof no patchier
+   (`straysNow`), one of them better, and at most a metre more steel. Report
+   71: ↺C1–↺C8 each on its exact fit, D28 off the order, the purple ↺C4
+   stranded on the wing's orange end an orange A8 (70 sheets, 3.6 m less).
+   C9's offcut is a 0.49 m sliver, too short for the corner strip. ↺D5 / ↺D4
+   stay green in that run: rows B1 / B2 are cut by the same hip but are 5.18 m
+   B sheets; as 8.80 m C sheets they would feed those two strips exactly (7.2 m
+   more steel, same count) — offered to the owner, not built. Report 70: its
+   stray green ↺D1 strip gone, the purple slope C1–C29 unbroken; report 75 132 →
+   129 sheets (42 m less); the 13 m wing L's stray ↺D1 a purple C14. Shown as
+   "Sheet layout v8 - ends as one set". Report 76 ~16 s.
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown

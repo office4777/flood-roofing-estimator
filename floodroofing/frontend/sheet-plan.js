@@ -10229,7 +10229,143 @@ function _pzOptimise(pz){
       }
     });
   })();
-  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets){ pz.optLog = log; return pz; }
+  // 8. AN END IS FED AS A SET, IN ORDER (2026-10-31, the owner on report 71:
+  // "L-shapes still too patchy, i want a clean look ... it should use offcut
+  // to purple sheet C9, instead it starts from C8 meaning green d28 should
+  // actually be C1"). Rule 8 at the end of the run: each half of a hip end
+  // is fed IN ORDER from one slope's hip-cut sheets — the biggest offcut on
+  // the longest strip, the next beside it, one colour, the same hand. The
+  // passes above can leave a half one strip out of step (a whole sheet at the
+  // apex, every offcut one strip further out than its fit, a stray colour in
+  // the middle). Per half and per donor colour, the in-order pairing with the
+  // most strips fed (the sheets it frees wasting the most, then the tightest
+  // fits) is laid; whatever it moves off an offcut — a foot carried under a
+  // freed sheet, a piece elsewhere — goes to the nearest free offcut it fits,
+  // else a sheet of its neighbours' colour. Kept only when the order is no
+  // bigger and the roof no patchier, and at least one of them better.
+  (function(){
+    var one = function(q){ return !!(q.sheetOneCut || q.cutTop !== q.cutBot); };
+    var offOf = function(D){ var sh = S.get(D); return sh && D.longMm != null ? { a: sh.L - (D.shortMm || 0), b: sh.L - D.longMm } : null; };
+    var fitsOff = function(X, D){
+      var o = offOf(D); if (!o || !one(D) || !one(X) || X.longMm == null) return false;
+      if (D.hand && X.hand && D.hand !== X.hand) return false;
+      if ((X.widthPx || 0) > (D.sheetPx || D.widthPx || 0) + 0.6) return false;
+      return o.a >= X.longMm - _PZ_FIT_MM && o.b >= (X.shortMm || 0) - _PZ_FIT_MM;
+    };
+    var depsOf = function(D){ return movable.filter(function(p){ return p.from === D.label; }); };
+    var areaMm = function(q){ return ((q.longMm || 0) + (q.shortMm || 0)) / 2; };
+    var freedOf = function(X){
+      var sh = S.get(X); if (!sh) return 0;
+      var used = areaMm(X); (feetOf.get(X) || []).forEach(function(ft){ used += areaMm(ft); });
+      return Math.max(0, sh.L - used);
+    };
+    var countAll = function(){ var n = 0, st = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ n++; st += lenOf(pc); }); }); return { n: n, steel: st }; };
+    pz.faces.forEach(function(f){
+      if (f.lay !== 'apex') return;
+      // Its home: the slopes across its own hips, and across the hips of a
+      // wing's end laid on it (rule 4b) — never another end's sheets.
+      var hipKeys = {};
+      pz.faces.forEach(function(g){
+        if (g !== f && g.adoptedBy !== f && g.template !== f) return;
+        (g.edges || []).forEach(function(e){ if (e.kind === 'hip') hipKeys[_pzEdgeKey(e)] = 1; });
+      });
+      [1, -1].forEach(function(h){
+        var strips = pz.pieces.filter(function(p){
+          if (p.face !== f || p.hand !== h || p.scrap || p.strung || !one(p) || p.longMm == null) return false;
+          if (!p.ordered && (feetOf.get(p) || []).length) return false;
+          return p.ordered ? S.has(p) : !!byLabel[p.from];
+        }).sort(function(a, b){ return b.longMm - a.longMm; });
+        if (strips.length < 3) return;
+        // The colours already feeding this half, each tried as the set.
+        var blocks = [];
+        strips.forEach(function(p){ var b = p.ordered ? null : (byLabel[p.from] || {}).block; if (b && blocks.indexOf(b) < 0) blocks.push(b); });
+        var best = null;
+        blocks.forEach(function(B){
+          var donors = Array.from(S.keys()).filter(function(D){
+            var sh = S.get(D);
+            return D.ordered && D.block === B && D.face !== f && D.hand === h && one(D) && sh && !sh.fixed.length && !(feetOf.get(D) || []).length && offOf(D) &&
+              Object.keys(D.touch || {}).some(function(k){ return hipKeys[k]; });
+          }).sort(function(a, b){ return offOf(b).a - offOf(a).a; });
+          var n = strips.length, m = donors.length; if (!m) return;
+          var memo8 = {};
+          var sc = function(i, j){
+            if (i >= n || j >= m) return { v: 0, pairs: [] };
+            var key = i + ',' + j; if (memo8[key]) return memo8[key];
+            var r = sc(i + 1, j), r2 = sc(i, j + 1); var bestR = r.v >= r2.v ? r : r2;
+            if (fitsOff(strips[i], donors[j])){
+              var X = strips[i], D = donors[j], o = offOf(D);
+              var w = 1e7 + (X.ordered ? freedOf(X) * 10 : 0) + ((!X.ordered && X.from === D.label) ? 500 : 0) - (o.a - X.longMm);
+              var r3 = sc(i + 1, j + 1);
+              if (w + r3.v > bestR.v) bestR = { v: w + r3.v, pairs: [[X, D]].concat(r3.pairs) };
+            }
+            memo8[key] = bestR; return bestR;
+          };
+          var res = sc(0, 0);
+          var changes = res.pairs.filter(function(pr){ return pr[0].ordered || pr[0].from !== pr[1].label; }).length;
+          if (changes && (!best || res.v > best.v)) best = res;
+        });
+        if (!best) return;
+        // Lay it, then see.
+        var before = countAll(), stray0 = straysNow();
+        var snapP = pz.pieces.map(function(p){ return [p, p.ordered, p.from, p.block, p.label, p.Lmm, p.num, p.fromHand, p.series, p.fullSheet, p.strung, p.strungTo]; });
+        var snapB = pz.blocks.map(function(b){ return [b, b.pieces.slice()]; });
+        var snapM = movable.slice(), snapS = new Map(S), snapBL = Object.assign({}, byLabel), snapF = new Map(feetOf);
+        var restore = function(){
+          snapP.forEach(function(r){ var p = r[0]; p.ordered = r[1]; p.from = r[2]; p.block = r[3]; p.label = r[4]; p.Lmm = r[5]; p.num = r[6]; p.fromHand = r[7]; p.series = r[8]; p.fullSheet = r[9]; p.strung = r[10]; p.strungTo = r[11]; });
+          snapB.forEach(function(r){ r[0].pieces = r[1]; });
+          movable = snapM; S = snapS; byLabel = snapBL; feetOf = snapF; memo.clear(); stayMap = null;
+        };
+        var matched = new Set(best.pairs.map(function(pr){ return pr[0]; }));
+        var usedD = new Set(best.pairs.map(function(pr){ return pr[1]; }));
+        var displaced = [];
+        best.pairs.forEach(function(pr){
+          var X = pr[0], D = pr[1];
+          depsOf(D).forEach(function(q){ if (!matched.has(q) && displaced.indexOf(q) < 0) displaced.push(q); });
+          if (X.ordered){
+            (feetOf.get(X) || []).forEach(function(ft){ ft.strung = false; ft.strungTo = null; displaced.push(ft); });
+            feetOf.delete(X);
+            X.block.pieces.splice(X.block.pieces.indexOf(X), 1); S.delete(X); delete byLabel[X.label]; X.Lmm = undefined; X.fullSheet = false;
+            // whatever its offcut fed loses it
+            movable.filter(function(q){ return q.from === X.label; }).forEach(function(q){ if (!matched.has(q) && displaced.indexOf(q) < 0) displaced.push(q); });
+          }
+        });
+        var asg = new Map(); best.pairs.forEach(function(pr){ asg.set(pr[0], S.get(pr[1])); if (movable.indexOf(pr[0]) < 0) movable.push(pr[0]); });
+        displaced.forEach(function(q){ q.from = '~'; });
+        commit(asg); memo.clear(); stayMap = null;
+        var ok = true;
+        displaced.sort(function(a, b){ return (b.longMm || 0) - (a.longMm || 0); }).forEach(function(q){
+          if (!ok) return;
+          if (movable.indexOf(q) < 0) movable.push(q);
+          var qc = cen(q);
+          var near8 = function(a, b){ var ca = cen(a), cb = cen(b); return Math.hypot(ca[0]-qc[0], ca[1]-qc[1]) - Math.hypot(cb[0]-qc[0], cb[1]-qc[1]); };
+          // a free offcut it fits, one cut to one cut
+          var free = Array.from(S.keys()).filter(function(D){ return D.ordered && !usedD.has(D) && !depsOf(D).length && !(S.get(D).fixed || []).length && fitsOff(q, D); }).sort(near8)[0];
+          if (free){ commit(new Map([[q, S.get(free)]])); usedD.add(free); return; }
+          // else onto a sheet it packs on beside what it carries
+          var shs = allSheets().filter(function(sh){ return sh.pc.ordered && sh.pc !== q; }).sort(function(a, b){ return near8(a.pc, b.pc); }).slice(0, 24);
+          for (var i = 0; i < shs.length; i++){
+            var sh = shs[i], list = sh.fixed.concat(depsOf(sh.pc)).concat([q]);
+            var area = list.reduce(function(t, p){ return t + (p.areaPx || 0); }, 0) * pz.scaleM * pz.scaleM * 1e6;
+            if (area + sh.ownArea > cover * sh.L * 1.02) continue;
+            if (_pzPackSheet(sh.own, (sh.free ? [sh.pc] : []).concat(list).map(groupOf), cover, sh.L, sh.minTop)){ commit(new Map([[q, sh]])); return; }
+          }
+          // else a sheet of the colour beside it
+          var mate = pz.pieces.filter(function(p2){ return p2 !== q && p2.face === q.face && Math.abs((p2.k || 0) - (q.k || 0)) === 1; })
+            .map(function(p2){ return colOfP(p2); }).filter(function(b){ return b && b.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; })[0];
+          var b = mate || pz.blocks.filter(function(b2){ return !b2.extra && b2.Lmm >= (q.longMm || 0) - _PZ_FIT_MM; }).sort(function(x, y){ return x.Lmm - y.Lmm; })[0];
+          if (!b){ ok = false; return; }
+          movable.splice(movable.indexOf(q), 1);
+          q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '§' + q.face.id + '_' + (q.k || 0); q.fullSheet = true;
+          byLabel[q.label] = q; var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq);
+        });
+        var after = countAll(), stray1 = ok ? straysNow() : 1e9;
+        if (ok && after.n <= before.n && stray1 <= stray0 && (after.n < before.n || stray1 < stray0) && after.steel <= before.steel + 1000){
+          log.endSets = (log.endSets || 0) + 1; memo.clear();
+        } else restore();
+      });
+    });
+  })();
+  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets && !log.endSets){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });
