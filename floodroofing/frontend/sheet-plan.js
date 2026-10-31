@@ -9446,7 +9446,12 @@ function _pzOptimise(pz){
   }
   var roofOf = function(p){ return p.roofIdx != null ? p.roofIdx : (p.face ? p.face.roofIdx : 0); };
   // Can these pieces all be cut from offcuts? -> Map piece -> sheet, or null.
-  var moveFrom = 0, allowBlk = null;
+  var moveFrom = 0, allowBlk = null, allowFn = null, faceHandC = new Map();
+  var faceHand = function(f){
+    if (!f) return 0;
+    if (!faceHandC.has(f)){ var t = 0; pz.pieces.forEach(function(q){ if (q.face === f && q.hand) t += q.hand; }); faceHandC.set(f, t > 0 ? 1 : t < 0 ? -1 : 0); }
+    return faceHandC.get(f);
+  };
   function share(M, sheets, override, snug){
     loose = M; stayMap = null; moveFrom = log.tried;
     var budget = { n: 0 };
@@ -9456,6 +9461,7 @@ function _pzOptimise(pz){
       var cs = sheets.filter(function(sh){
         if (roofOf(sh.pc) !== roofOf(m) || sh.pc === m) return false;
         if (allowBlk && allowBlk.has(m) && sh.pc.block !== allowBlk.get(m)) return false;
+        if (allowFn && !allowFn(m, sh)) return false;
         var L = override && override.pc === sh.pc ? override.L : sh.L;
         if (sh.orig.indexOf(m) >= 0 && L === sh.L0) return true;
         if (mh > L - sh.minTop + _PZ_FIT_MM + 1) return false;
@@ -9469,7 +9475,9 @@ function _pzOptimise(pz){
       // Its own offcut first; then an offcut of its own hand (one cut, the
       // offcut used whole — "utilizing most of the offcut"), the snuggest
       // first; then the nearest.
-      var hm = function(sh){ return (!m.hand || !sh.pc.hand || sh.pc.hand === m.hand) ? 0 : 1; };
+      // (A two-cut sheet has no hand of its own; its face's sheets do — a
+      // valley tip's offcut belongs with the run its own slope feeds.)
+      var hm = function(sh){ var h = sh.pc.hand || faceHand(sh.pc.face); return (!m.hand || !h || h === m.hand) ? 0 : 1; };
       var room = function(sh){ var L = override && override.pc === sh.pc ? override.L : sh.L; return cover * L - sh.ownArea; };
       cs.sort(function(a, b){
         var ca = a.pc === cur ? -1 : 0, cb = b.pc === cur ? -1 : 0;
@@ -9724,11 +9732,22 @@ function _pzOptimise(pz){
   (function(){
     var roofs = {};
     pz.blocks.forEach(function(b){ if (!b.extra && b.pieces.length && b.pieces.some(function(p){ return p.full; })) (roofs[roofOf(b.pieces[0])] = roofs[roofOf(b.pieces[0])] || []).push(b); });
-    Object.keys(roofs).forEach(function(rk){
+    // First the valleys alone, paired (narrow); where that buys nothing, the
+    // wider pass as it was — every cut strip on the short faces put to the
+    // long sheets' offcuts.
+    var attempt = function(rk, narrow){
+      var before = log.donors || 0;
       if (log.tried >= _PZ_OPT_PACKS + _PZ_OPT_MOVE * 4) return;
       var bl = roofs[rk], longL = Math.max.apply(null, bl.map(function(b){ return b.Lmm; }));
       if (!bl.some(function(b){ return b.Lmm < longL; })) return;
       var donorFaces = new Set(bl.filter(function(b){ return b.Lmm === longL; }).map(function(b){ return b.face; }));
+      // Only the strips a VALLEY cuts take part (the owner on the hip T: "the
+      // valleys, one side of the valleys should be donor and one side of the
+      // valley should be the offcuts") — a hip end keeps the plain hip's own
+      // pairing, which is right already.
+      var valleyKeys = {};
+      (pz.faces || []).forEach(function(f){ (f.edges || []).forEach(function(e){ if (e.kind === 'valley') valleyKeys[_pzEdgeKey(e)] = 1; }); });
+      var byValley = function(p){ return Object.keys(p.touch || {}).some(function(k){ return valleyKeys[k]; }); };
       var faceBlock = function(f){ return bl.filter(function(b){ return b.face === f && b.Lmm === longL; })[0]; };
       var count = function(){ var n = 0, ls = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ if (roofOf(pc) == rk){ n++; ls[lenOf(pc)] = 1; } }); }); return { n: n, lens: Object.keys(ls).length }; };
       var was = count();
@@ -9738,7 +9757,7 @@ function _pzOptimise(pz){
       var snapB = pz.blocks.map(function(b){ return [b, b.pieces.slice()]; });
       var snapM = movable.slice(), snapS = new Map(S);
       // The donors: every strip on the longest sheets' faces a full sheet.
-      var promoted = movable.filter(function(p){ return roofOf(p) == rk && donorFaces.has(p.face) && !p.scrap && !p.strung && !(feetOf.get(p) || []).length && p.widthMm >= cover * 0.3; });
+      var promoted = movable.filter(function(p){ return roofOf(p) == rk && donorFaces.has(p.face) && (narrow ? byValley(p) : !p.scrap) && !p.strung && !(feetOf.get(p) || []).length && p.widthMm >= cover * 0.3; });
       promoted.forEach(function(p){
         var b = faceBlock(p.face); if (!b) return;
         movable.splice(movable.indexOf(p), 1);
@@ -9747,9 +9766,10 @@ function _pzOptimise(pz){
         var sh = mkSheet(p, b.Lmm, -1); if (sh) S.set(p, sh);
       });
       // The receivers: the valley-cut sheets on the other faces, and extras.
-      var loose = sheetPieces.concat(promoted).filter(function(pc){
+      var loose = Array.from(S.keys()).filter(function(pc){
         if (!S.has(pc) || roofOf(pc) != rk || donorFaces.has(pc.face) || !pc.block) return false;
         if (pc.full && !pc.block.extra) return false;
+        if (narrow && !pc.block.extra && !byValley(pc)) return false;
         return !(feetOf.get(pc) || []).length && !pz.pieces.some(function(q){ return q.strung && q.strungTo === pc; });
       }).sort(function(a, b){ return b.longMm - a.longMm; });
       loose.forEach(function(X){ X._origBlock = X.block; X._origLmm = X.Lmm; X.block.pieces.splice(X.block.pieces.indexOf(X), 1); S.delete(X); delete byLabel[X.label]; if (movable.indexOf(X) < 0) movable.push(X); });
@@ -9768,14 +9788,109 @@ function _pzOptimise(pz){
         byLabel[X.label] = X; memo.clear();
         return true;
       };
+      // A valley strip taken off the order comes off a DONOR's offcut (the
+      // longer sheets' faces), not off some hip-cut sheet that happens to
+      // have room — "one side of the valley should be donor and one side of
+      // the valley should be the offcuts".
+      var looseSet = new Set(loose);
+      allowFn = narrow ? function(m, sh){ return !looseSet.has(m) || donorFaces.has(sh.pc.face); } : null;
       var final = null, ok = true, capP = log.tried + _PZ_OPT_MOVE * 2;
-      for (var i = 0; i < loose.length && ok; i++){
+      // A piece left without a home on a donor face (a hip-cut corner strip
+      // of the long slope that used to come off a valley sheet's offcut) is
+      // one of the slope's own sheets instead; its offcut then feeds the end
+      // the plain hip's way. Returns an undo.
+      var blockFor = function(q){
+        var need = groupOf(q).g.h;
+        var fits = bl.filter(function(b){ return b.Lmm >= need - _PZ_FIT_MM; }).sort(function(a, b){ return a.Lmm - b.Lmm; });
+        // (On a hip end with no block of its own, the long slope's sheets of
+        // its own hand — the end is fed from the slopes, so a stray of a
+        // short block's colour there is no better than an extra.)
+        var hb = fits.filter(function(b){ return donorFaces.has(b.face) && q.hand && faceHand(b.face) === q.hand; })[0];
+        return fits.filter(function(b){ return b.face === q.face; })[0] || fits.filter(function(b){ return b.pieces.some(function(p){ return p.face === q.face; }); })[0] || hb || fits[0] || null;
+      };
+      var promoteOrphans = function(any){
+        var undo = [];
+        movable.filter(function(q){ return roofOf(q) == rk && q.from && !byLabel[q.from] && loose.indexOf(q) < 0 && (any || donorFaces.has(q.face)) && !q.scrap && !q.strung && !(feetOf.get(q) || []).length && q.widthMm >= cover * 0.3; }).forEach(function(q){
+          var b = any && !donorFaces.has(q.face) ? blockFor(q) : faceBlock(q.face); if (!b) return;
+          undo.push([q, q.ordered, q.from, q.block, q.label, q.Lmm, q.num, q.fullSheet]);
+          movable.splice(movable.indexOf(q), 1);
+          q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '~' + q.face.id + '_' + (q.k || 0) + 'e'; q.fullSheet = true;
+          byLabel[q.label] = q;
+          var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq);
+        });
+        memo.clear();
+        return function(){ undo.forEach(function(r){
+          var q = r[0]; q.block.pieces.splice(q.block.pieces.indexOf(q), 1); S.delete(q); delete byLabel[q.label];
+          q.ordered = r[1]; q.from = r[2]; q.block = r[3]; q.label = r[4]; q.Lmm = r[5]; q.num = r[6]; q.fullSheet = r[7];
+          movable.push(q);
+        }); memo.clear(); };
+      };
+      // THE OWNER'S PAIRING FIRST: each valley strip on the short side, the
+      // longest first, off the donor of its own hand with the biggest offcut
+      // left — "the offcuts to those full sheets should fill in the whole
+      // side of the valley on the other side".
+      var paired = false;
+      if (narrow) (function(){
+        var donors = Array.from(S.keys()).filter(function(pc){ return roofOf(pc) == rk && donorFaces.has(pc.face) && byValley(pc) && pc.ordered; });
+        var asgP = new Map(), used = new Set();
+        [1, -1].forEach(function(h){
+          // (The strips already cut from offcuts on that side are part of the
+          // same run, and come off the donors too.)
+          var R = loose.concat(movable.filter(function(q){ return roofOf(q) == rk && loose.indexOf(q) < 0 && byValley(q) && !donorFaces.has(q.face) && !q.strung && !(feetOf.get(q) || []).length; }))
+            .filter(function(x){ return x.hand === h; }).sort(function(a, b){ return b.longMm - a.longMm; });
+          var D = donors.filter(function(d){ return (d.hand || faceHand(d.face)) === h; })
+            .sort(function(a, b){ return (S.get(b).L - (b.shortMm || 0)) - (S.get(a).L - (a.shortMm || 0)); });
+          R.forEach(function(r){
+            for (var j = 0; j < D.length; j++){
+              var d = D[j], sh = S.get(d); if (used.has(d) || !sh) continue;
+              log.tried++;
+              if (_pzPackSheet(sh.own, (sh.free ? [d] : []).concat([r]).map(groupOf), cover, sh.L, sh.minTop)){ asgP.set(r, sh); used.add(d); break; }
+            }
+          });
+        });
+        if (!asgP.size) return;
+        // What those donors fed before goes looking for a home of its own.
+        used.forEach(function(d){ movable.forEach(function(q){ if (q.from === d.label && !asgP.has(q)) q.from = '~' + d.label; }); });
+        loose.slice().forEach(function(X){ if (!asgP.has(X)) putBack(X); });
+        commit(asgP); memo.clear(); stayMap = null;
+        asgP.forEach(function(sh, r){ kept.push(r); });
+        paired = true;
+      })();
+      for (var i = 0; i < loose.length && ok && !paired; i++){
         var X = loose[i];
         var gives = movable.filter(function(q){ return loose.indexOf(q) < 0 && q.from && !byLabel[q.from]; });
         var M = near(kept.concat([X]).concat(gives.filter(function(q){ return kept.indexOf(q) < 0; })));
-        var saveP = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP);
+        var saveP = _PZ_OPT_PACKS, saveM = _PZ_OPT_MOVE; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, log.tried + _PZ_OPT_MOVE * 2); _PZ_OPT_MOVE = _PZ_OPT_MOVE * 2;
         var asg = share(M, allSheets(), null, true);
-        _PZ_OPT_PACKS = saveP;
+        _PZ_OPT_PACKS = saveP; _PZ_OPT_MOVE = saveM;
+        // What this sheet's offcut fed, where that sits on a donor face (a
+        // hip-cut corner strip of the long slope), may be one of the slope's
+        // own sheets instead: its offcut then feeds the end the plain hip's way.
+        if (!asg && narrow){
+          var mine = movable.filter(function(q){ return q.from && !byLabel[q.from] && loose.indexOf(q) < 0 && donorFaces.has(q.face) && !q.strung && !(feetOf.get(q) || []).length && q.widthMm >= cover * 0.3; });
+          var undo = [];
+          mine.forEach(function(q){
+            var b = faceBlock(q.face); if (!b) return;
+            undo.push([q, q.ordered, q.from, q.block, q.label, q.Lmm, q.num, q.fullSheet]);
+            movable.splice(movable.indexOf(q), 1);
+            q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '~' + q.face.id + '_' + (q.k || 0) + 'e'; q.fullSheet = true;
+            byLabel[q.label] = q;
+            var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq);
+          });
+          if (undo.length){
+            memo.clear();
+            gives = movable.filter(function(q){ return loose.indexOf(q) < 0 && q.from && !byLabel[q.from]; });
+            M = near(kept.concat([X]).concat(gives.filter(function(q){ return kept.indexOf(q) < 0; })));
+            _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, log.tried + _PZ_OPT_MOVE * 2); _PZ_OPT_MOVE = saveM * 2;
+            asg = share(M, allSheets(), null, true);
+            _PZ_OPT_PACKS = saveP; _PZ_OPT_MOVE = saveM;
+            if (!asg) undo.forEach(function(r){
+              var q = r[0]; q.block.pieces.splice(q.block.pieces.indexOf(q), 1); S.delete(q); delete byLabel[q.label];
+              q.ordered = r[1]; q.from = r[2]; q.block = r[3]; q.label = r[4]; q.Lmm = r[5]; q.num = r[6]; q.fullSheet = r[7];
+              movable.push(q); memo.clear();
+            });
+          }
+        }
         if (asg){ kept.push(X); final = asg; }
         else if (!putBack(X)) ok = false;
       }
@@ -9783,8 +9898,52 @@ function _pzOptimise(pz){
       if (ok){
         var orphans = movable.filter(function(q){ return roofOf(q) == rk && q.from && !byLabel[q.from] && kept.indexOf(q) < 0; });
         if (orphans.length || kept.length){
-          var saveP2 = _PZ_OPT_PACKS; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP + _PZ_OPT_MOVE);
+          var saveP2 = _PZ_OPT_PACKS, saveM2 = _PZ_OPT_MOVE, saveB2 = _PZ_OPT_BUDGET; _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, capP + _PZ_OPT_MOVE);
           final = share(near(kept.concat(orphans)), allSheets(), null, true);
+          if (!final && narrow){
+            var undoP = promoteOrphans();
+            orphans = movable.filter(function(q){ return roofOf(q) == rk && q.from && !byLabel[q.from] && kept.indexOf(q) < 0; });
+            _PZ_OPT_MOVE = saveM2 * 3; _PZ_OPT_BUDGET = saveB2 * 3;
+            _PZ_OPT_PACKS = Math.max(_PZ_OPT_PACKS, log.tried + _PZ_OPT_MOVE);
+              final = share(near(kept.concat(orphans)), allSheets(), null, true);
+            _PZ_OPT_MOVE = saveM2; _PZ_OPT_BUDGET = saveB2;
+            if (!final){
+              // Still homeless: each a sheet of its own (its face's length, else
+              // the shortest on the roof it fits) — kept only if the order is
+              // still no bigger, which the test below decides.
+              // One at a time, the biggest first: onto the nearest offcut with
+              // room, else a sheet of its own.
+              orphans = movable.filter(function(q){ return roofOf(q) == rk && q.from && !byLabel[q.from] && kept.indexOf(q) < 0; })
+                .sort(function(a, b){ return b.longMm - a.longMm; });
+              var asgG = new Map(), onG = new Map(), undoG = [];
+              stayMap = null;
+              orphans.forEach(function(q){
+                var qc = cen(q);
+                var shs = allSheets().filter(function(sh){ return roofOf(sh.pc) == rk && sh.pc !== q && sh.L >= groupOf(q).g.h - _PZ_FIT_MM; })
+                  .sort(function(a, b){ return Math.hypot(a.c[0] - qc[0], a.c[1] - qc[1]) - Math.hypot(b.c[0] - qc[0], b.c[1] - qc[1]); }).slice(0, _PZ_OPT_NEAR * 2);
+                for (var j = 0; j < shs.length; j++){
+                  var cur = onG.get(shs[j]) || [];
+                  if (packs(shs[j], cur.concat([q]))){ onG.set(shs[j], cur.concat([q])); asgG.set(q, shs[j]); return; }
+                }
+                if (q.scrap || q.strung || (feetOf.get(q) || []).length) return;
+                var b = donorFaces.has(q.face) ? faceBlock(q.face) : blockFor(q); if (!b) return;
+                undoG.push([q, q.ordered, q.from, q.block, q.label, q.Lmm, q.num, q.fullSheet]);
+                movable.splice(movable.indexOf(q), 1);
+                q.ordered = true; q.from = null; q.block = b; b.pieces.push(q); q.Lmm = undefined; q.num = 4e6 + (q.k || 0); q.label = b.letter + '~' + q.face.id + '_' + (q.k || 0) + 'g'; q.fullSheet = true;
+                byLabel[q.label] = q;
+                var shq = mkSheet(q, b.Lmm, -1); if (shq) S.set(q, shq);
+              });
+              stayMap = null; memo.clear();
+              if (orphans.every(function(q){ return asgG.has(q) || q.ordered; })){
+                commit(asgG); final = new Map();
+              } else undoG.forEach(function(r){
+                var q = r[0]; q.block.pieces.splice(q.block.pieces.indexOf(q), 1); S.delete(q); delete byLabel[q.label];
+                q.ordered = r[1]; q.from = r[2]; q.block = r[3]; q.label = r[4]; q.Lmm = r[5]; q.num = r[6]; q.fullSheet = r[7];
+                movable.push(q);
+              });
+            }
+            if (!final){ undoP(); }
+          }
           _PZ_OPT_PACKS = saveP2;
           if (!final) ok = false;
         }
@@ -9796,8 +9955,13 @@ function _pzOptimise(pz){
         var c = count();
         var steelOf = function(){ var t = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ if (roofOf(pc) == rk) t += lenOf(pc); }); }); return t; };
         // (and never more than one donor sheet's worth of steel for it)
-        simpler = c.n <= was.n && c.lens <= was.lens && (c.n < was.n || c.lens < was.lens || kept.length > 0) && steelOf() <= wasSteel + longL;
+        // (No extra sheet for it: tried at one sheet per two strips put right,
+        // report 19 bought its colours with two more full sheets — the
+        // wastage the owner ranks beside the colours.)
+        var allowN = 0;
+        simpler = c.n <= was.n + allowN && c.lens <= was.lens && (c.n < was.n || c.lens < was.lens || kept.length > 0) && steelOf() <= wasSteel + longL * (1 + allowN);
       }
+      allowFn = null;
       if (ok && simpler){
         if (final) commit(final);
         memo.clear(); log.donors = (log.donors || 0) + 1;
@@ -9807,7 +9971,9 @@ function _pzOptimise(pz){
         movable = snapM; S = snapS; memo.clear();
         byLabel = {}; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ byLabel[pc.label] = pc; }); });
       }
-    });
+      return (log.donors || 0) > before;
+    };
+    Object.keys(roofs).forEach(function(rk){ if (!attempt(rk, true)) attempt(rk, false); });
   })();
   // 6. A VALLEY RUN IS ONE COLOUR (2026-10-31, the owner on report 17: "I
   // don't like seeing mismatched colors where I think the offcut would

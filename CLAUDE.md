@@ -472,7 +472,19 @@ THE FILL:
    when it was good"). `_pzOptimise` move 6. Report 17: 33 → 34 sheets, both
    valleys one colour, the owner: "absolutely perfect". No other test roof
    moves.
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e,
+9f. THE T'S VALLEYS TOO (the same day, on the hip T beside report 17: "These
+   T-shapes have a similar issue to what we have been fixing ... valley sheets
+   offcuts not being utilized"). Move 5 now tries the VALLEYS ALONE first: the
+   long block's valley-cut sheets are paired with the short side's valley
+   strips (biggest offcut to the biggest strip, same hand), only those pieces
+   may move, and only onto the donor face's sheets (`allowFn`); a corner strip
+   that loses the offcut it used becomes a sheet of its own face's block. Where
+   that buys nothing, the wider move 5 of v5 runs as before (`attempt(rk,
+   narrow)`). Hip T: 73 sheets, both valleys one colour off the stem's 3.32s.
+   Shown as "Sheet layout v6 - T valleys"; 8 of 43 roofs move, report 71 one
+   sheet less, the rest the same count for 1-4 m more steel; report 17, 19,
+   the double cascade and the Big-L unchanged. Report 76 now takes ~13 s.
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown
