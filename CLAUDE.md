@@ -416,8 +416,32 @@ THE FILL:
    and decides between lays and fits that tie on steel. On the double
    cascade mock it is already as close as the steel allows: the corner by
    C5 and the triangle by C7 can only come off C6 or C16. NOT YET BUILT.
-9. An extra is a sheet at its OWN length — never two extras cut from one
-   sheet ("e1 should just be a full sheet with a small amount of wasteage").
+9. An extra is a FULL sheet — never two extras cut from one sheet ("e1
+   should just be a full sheet with a small amount of wasteage").
+9b. ONE LENGTH, NOT A STAIRCASE (2026-10-31, the owner on report 17's pink
+   3.28 / 2.44 / 1.60 m extras, superseding "an extra at its own length":
+   "sheets ... ordered to step down, so they went down in size, which is just
+   too confusing for the guys on site ... rather than them stepping down, they
+   should have been full length, and then either cut at the valley to create a
+   full off cut set to be used somewhere, or they would be made up of an off cut
+   set ... Always try to keep the same size, the same length sheets as the full
+   length. We don't want too many different size sheets in an order because it
+   confuses the roofer"). A sheet that would be ordered at a length of its own
+   (an extra, a pushed-in sheet) is ordered at its face's full block length
+   (else the shortest block length on the roof it fits), then tried off an
+   offcut set. Fewer different lengths in an order beats a little steel.
+9c. A VALLEY SHEET IN FULL (the same day, report 17: "there are four valley
+   sections, so there should be four valley offcuts. One side of the valley
+   should have full sheets, and the offcuts to those full sheets should fill
+   in the whole side of the valley on the other side ... The sheets in the
+   valley should be full length so that the offcuts work on the other
+   valley"). A sheet is never flipped, so a valley's offcuts fit the OTHER
+   valley's far side (the same hand, one cut), not their own.
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31, `a82438e`): 8d, 9b, 9c,
+   rule 10's new order and the flush pre-cut are `_pzOptimise` in
+   sheet-plan.js; 22 of 43 test roofs change (all fewer or equal different
+   lengths), shown to the owner as "Sheet layout new rules v3" — waiting on his
+   go. Ship with `tests/sheetlayout.mjs`'s count pins re-taken (20 move).
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
