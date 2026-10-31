@@ -720,6 +720,20 @@ async function labelsOf(g){
   }, L76);
   const rMin = Math.min(...ratios), rMax = Math.max(...ratios);
   check('…and each label is the sheet\'s number alone, no length beside it', ratios.length > 50 && rMax / rMin < 1.02, rMin.toFixed(4) + '–' + rMax.toFixed(4));
+  // NEVER UPSIDE DOWN ON THE PAGE (2026-10-31, the owner: "make sure the
+  // label are up the right way, some are upside down"). A wide roof is turned
+  // a quarter anticlockwise on the Job Pack page (rule 11c), so its numbers
+  // are set for the turned picture: every angle on the page in [−90°, 90°).
+  await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'hip' });
+  const up = await pg.evaluate(() => {
+    const read = (o) => { const cv = _renderSheetPuzzleCanvas(Object.assign({ roofIdxs: [-1] }, o)); const turned = !!(_jpRotWidePuzzle(cv) || {})._pzRotated;
+      return { turned, angs: cv._sheetPuzzle.pieces.filter(p => p._lbl && !p._lbl.outside).map(p => (p._lbl.ang - (turned ? Math.PI / 2 : 0)) * 180 / Math.PI) }; };
+    return { rot: read({ rotWide: true }), flat: read({}) };
+  });
+  const okAng = a => a.angs.length > 40 && a.angs.every(x => x >= -90.001 && x <= 90.001);
+  check('…a wide roof turned on the page: every number reads upright after the turn', up.rot.turned && okAng(up.rot) && up.rot.angs.every(x => x < 89.999),
+    JSON.stringify([...new Set(up.rot.angs.map(x => Math.round(x)))]));
+  check('…and one not turned reads upright as drawn', okAng(up.flat), JSON.stringify([...new Set(up.flat.angs.map(x => Math.round(x)))]));
 }
 
 // THE SHEET LAYOUT IS THE COUNT (2026-10-27, the owner: "for the sheet

@@ -8795,11 +8795,22 @@ function _renderSheetPuzzleCanvas(opts){
     var fsTop = Math.max(9, Math.min(16, Math.round(cwC * 0.62)));
     var fontL = function(n){ return '800 ' + n + 'px Inter, sans-serif'; };
     pz._outsideAt = {};
+    // A WIDE ROOF IS TURNED ON THE JOB PACK PAGE (rule 11c: a quarter
+    // anticlockwise, `_jpRotWidePuzzle`), so its numbers are set for the
+    // picture AFTER the turn — upright there, never upside down (the owner,
+    // 2026-10-31: "make sure the label are up the right way, some are upside
+    // down"). The turn's own test, on the roof's own box.
+    var turned = !!(opts && opts.rotWide) && bw > bh * (typeof JP_ROT_WIDE === 'number' ? JP_ROT_WIDE : 1.05);
     pz.pieces.forEach(function(pc){
       var longC = pc.longPx * fit;
       var c = _ccCentroid(pc.poly), f = pc.face;
       var ang = Math.atan2(f.d[1], f.d[0]);
-      if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
+      if (turned){
+        // Upright after a −90° turn: an angle in [0, π) here is [−π/2, π/2)
+        // there, a strip running across the page reading bottom to top.
+        if (ang < -1e-6) ang += Math.PI;
+        if (ang >= Math.PI - 1e-6) ang -= Math.PI;
+      } else if (ang > Math.PI/2 || ang < -Math.PI/2) ang += Math.PI;
       // THE NUMBER ONLY (2026-10-27, the owner: "remove the sheet measures
       // on each individual sheet, it's confusing") — the lengths are in the
       // tally and the block schedule under the picture.
@@ -8899,7 +8910,10 @@ function _renderSheetPuzzleCanvas(opts){
             var off = (w6 / 2 + 8 + (nth - 1) * 9) / fit, lp = [vc[0] + ux / ul * off, vc[1] + uy / ul * off + (nth - 1) * 8 / fit * (uy >= 0 ? 1 : -1)];
             var A6 = toC(c), B6 = toC(lp);
             ctx.save(); ctx.strokeStyle = 'rgba(10,22,40,0.55)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(A6[0], A6[1]); ctx.lineTo(B6[0], B6[1]); ctx.stroke();
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#0a1628'; ctx.fillText(txt, B6[0], B6[1]); ctx.restore();
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#0a1628';
+            if (turned){ ctx.translate(B6[0], B6[1]); ctx.rotate(Math.PI / 2); ctx.fillText(txt, 0, 0); }
+            else ctx.fillText(txt, B6[0], B6[1]);
+            ctx.restore();
             pc._lbl = { n: 6, c: lp, outside: true };
           }
           return;
@@ -8914,7 +8928,7 @@ function _renderSheetPuzzleCanvas(opts){
       if (pick.n < 8){ ctx.lineWidth = tiny ? 2.2 : 1.6; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineJoin = 'round'; ctx.strokeText(txt, -tot / 2, 0); }
       ctx.fillStyle = '#0a1628'; ctx.fillText(txt, -tot / 2, 0);
       ctx.restore();
-      pc._lbl = { n: pick.n, c: c, half: tot / 2 / fit };
+      pc._lbl = { n: pick.n, c: c, half: tot / 2 / fit, ang: ang };
     });
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   }

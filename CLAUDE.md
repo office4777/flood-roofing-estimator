@@ -608,6 +608,13 @@ THE PICTURE:
     from `_renderSheetPuzzleCanvas`). The pre-cut layout is not turned.
     `quickwins.mjs` pins the order and the migration, `sheetlayout.mjs` the
     fit and the turn on the 18 × 12 m hip.
+    THE NUMBERS READ UPRIGHT AFTER THE TURN (2026-10-31, the owner: "make sure
+    the label are up the right way, some are upside down"): set before the
+    turn, half of them came out upside down on the page. With `opts.rotWide`
+    on a roof the turn will take (`bw > bh × JP_ROT_WIDE`, the turn's own
+    test), each number's angle is picked for the turned picture — across the
+    page reading bottom to top, never upside down — and a corner number
+    outside the roof is turned with it. Pinned in `sheetlayout.mjs`.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
