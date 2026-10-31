@@ -137,21 +137,33 @@ accordingly.
   its own (`fr3_tbxStaff`, "Edit the list") — NO NAMES IN THE SOURCE, the hub is a public page; Present
   ticks are kept on the week. Print / Save PDF is `tbxPrint` (`body.tbx-printing`, an injected
   `@page` A4 portrait, the meeting deck's own pattern). `hubui` (118), `hub-shots` renders it.
-  THE FERGUS LINK ON IT (2026-10-31, the owner: "make sure all the functions to the toolbox work, like the
-  fergus link (showing the scheduled jobs the guys are on this week and what they were working on last
-  week) and the weather forecast"). Fergus's partner API has NO schedule (the old app's own report route
-  returned empty schedule maps for the same reason), so the Crews section (`tbxLoadFergus`,
-  `_tbxFergusHtml`, `#tbx-fg`) reads the TIME ENTRIES newest-first (`/timeEntries?pageSize=100&sortField=
-  timeEntryDate&sortOrder=desc&page=N`, plain paging as the fallback, stopping at the first page wholly
-  before last Monday): LAST WEEK is exact — `#tbx-last`, person × job × hours × days, Mon–Sun before the
-  sheet's week, a job the Workload sync has not got named from `/jobs/<id>`, no job = "Toolbox / yard /
-  other"; THIS WEEK is `#tbx-week`, one row a job: last week's crew, the hours logged so far, and a PLANNED
-  CREW the office types (`fr3_tbx[<Monday>].crew`, shared, last week's crew as the placeholder; stacked
-  rows on a phone). Four schedule shapes (`TBX_SCHED_SHAPES`) are probed once a month (`tbxSchedProbe`)
-  and shown if Fergus ever answers one. The read is kept in `fr3_tbx[<Monday>].fergus`. THE FORECAST asks
-  open-meteo for `weather_code` (reads `weathercode` too), matches days by `daily.time`, says in words when
-  the week is past its 16 days, and reports the API's own `reason` on a refusal — it cannot be fetched from
-  the cloud container (the proxy refuses the host), so `hubui` pins it with a stubbed `fetch`.
+  THE FERGUS LINK ON IT IS THE CALENDAR (2026-10-31, the owner: "make sure all the functions to the toolbox
+  work, like the fergus link (showing the scheduled jobs the guys are on this week and what they were working
+  on last week) and the weather forecast", then, when the first build read the timesheets alone, "the old
+  toolbox app actually did give me the team schedule. I think it was pulled from the calendar"). He was
+  right and the old app's own history was not the guide: its first commit read `/api/v2/calendar_events`
+  (Fergus's web app's own API, never answerable with a partner key) and v7–v15 probed for site visits and
+  gave up. Asked directly — `hub-schedule-probe.yml` → `hub-api/scripts/fergus-schedule-probe.js`, run on
+  demand where the proxy secrets live, three runs on 2026-10-31 — the partner API answers GET
+  `/calendarEvents`: every booking on the company calendar with `userName`, `eventType`
+  (JOB_PHASE / QUOTE / OTHER), `jobId`, `title` ("#3228a Deb Allen - 52 Kerikeri Road …"), `startTime` /
+  `endTime` IN UTC, no paging; the week now running by default, and ONLY `filterDateFrom` / `filterDateTo`
+  as full ISO date-times move the window (a plain date is a 400; from/to, start/end, startDate/endDate and
+  a dozen more are silently ignored). `/users` lists the staff. No site-visit, schedule, booking or roster
+  route exists; `/jobs/{id}/phases` is the job's phases. THE CREWS SECTION (`tbxLoadFergus`,
+  `_tbxFergusHtml`, `#tbx-fg`): the STAFF SCHEDULE GRID (`#tbx-cal`, a row a person, a column a day,
+  Saturday / Sunday only when booked, each job its own tint, day off red; `tbxCalCompact` puts each event
+  on its AUCKLAND day — 7 am Monday NZDT is 18:00Z Sunday — and drops an OTHER event under 90 minutes, the
+  Toolbox itself and the 15-minute run-throughs; a phone gets `.tbx-cal-list`, one block a person); THIS
+  WEEK job by job (`#tbx-week`: Scheduled from the calendar with the days, last week's crew and the hours
+  logged so far from the timesheets, a Notes / changes box typed and shared, `fr3_tbx[<Monday>].crew`; a job
+  only the calendar knows is named from its title, `tbxCalTitle`); LAST WEEK person by person from the TIME
+  ENTRIES (`#tbx-last`, newest first, `/timeEntries?pageSize=100&sortField=timeEntryDate&sortOrder=desc`,
+  stopping at the first page wholly before last Monday; no job = "Toolbox / yard / other"). The read is kept
+  in `fr3_tbx[<Monday>].fergus` (`cal` compact, `calErr`). THE FORECAST asks open-meteo for `weather_code`
+  (reads `weathercode` too), matches days by `daily.time`, says in words when the week is past its 16 days,
+  and reports the API's own `reason` on a refusal — it cannot be fetched from the cloud container (the proxy
+  refuses the host), so `hubui` (120) pins it, and the calendar, with stubs.
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):

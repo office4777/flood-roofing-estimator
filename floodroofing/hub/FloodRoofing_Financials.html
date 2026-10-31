@@ -455,10 +455,20 @@ html[data-theme="dark"] .tbx-hd{background:var(--primary);color:#04121a;}
 .tbx-tbl{width:100%;border-collapse:collapse;font-size:.78rem;}
 .tbx-sub{font-size:.64rem;text-transform:uppercase;letter-spacing:.5px;font-weight:800;color:var(--muted);padding:10px 12px 2px;}
 .tbx-crew{min-width:140px;}
+.tbx-cal th,.tbx-cal td{padding:5px 6px;}.tbx-cal-cell{min-width:96px;vertical-align:top;}
+.tbx-cal-ev{display:block;border-radius:6px;padding:3px 6px;font-size:.68rem;font-weight:600;color:#1e293b;margin:2px 0;line-height:1.25;}.tbx-cal-ev.off{color:#991b1b;}
+.tbx-cal-list{display:none;}
+@media (max-width:760px){
+  #tbx-cal{display:none;}.tbx-cal-list{display:block;padding:0 10px 6px;}
+  .tbx-cal-person{border-bottom:1px solid var(--border);padding:7px 0;}.tbx-cal-name{font-weight:800;font-size:.8rem;margin-bottom:2px;}
+  .tbx-cal-day{display:flex;gap:6px;align-items:flex-start;margin:2px 0;flex-wrap:wrap;}.tbx-cal-dn{font-size:.62rem;font-weight:800;color:var(--muted);width:28px;flex:none;padding-top:4px;}
+  .tbx-cal-list .tbx-cal-ev{display:inline-block;margin:1px 0;}
+}
 @media (max-width:760px){
   #tbx-week thead{display:none;}#tbx-week tr{display:block;padding:8px 0 10px;border-bottom:1px solid var(--border);}
-  #tbx-week td{display:block;border:0;padding:2px 10px;}#tbx-week td:nth-child(2):before{content:'Last week: ';font-weight:700;}
-  #tbx-week td:nth-child(3):before{content:'Logged this week: ';font-weight:700;color:var(--muted);}#tbx-week td:nth-child(4):before{content:'Planned crew';display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:4px 0 2px;}
+  #tbx-week td{display:block;border:0;padding:2px 10px;}#tbx-week td:nth-child(2):before{content:'Scheduled: ';font-weight:700;}#tbx-week td:nth-child(2):empty{display:none;}
+  #tbx-week td:nth-child(3):before{content:'Last week: ';font-weight:700;}
+  #tbx-week td:nth-child(4):before{content:'Logged this week: ';font-weight:700;color:var(--muted);}#tbx-week td:nth-child(5):before{content:'Notes / changes';display:block;font-size:.62rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:4px 0 2px;}
   #tbx-week .tbx-crew{width:100%;box-sizing:border-box;}
   #tbx-last td:nth-child(2){font-size:.74rem;}
 }
@@ -7457,20 +7467,44 @@ function renderToolbox(){
 }
 
 // ── THE FERGUS LINK (2026-10-31, the owner: "make sure all the functions to the toolbox work, like the fergus link
-// (showing the scheduled jobs the guys are on this week and what they were working on last week)"). Fergus's partner
-// API gives the hub TIME ENTRIES (who logged hours on which job, on which day) and no schedule — the old toolbox app's
-// own report route said the same ("Fergus partner API only exposes /jobs - no schedule"). So LAST WEEK is read off the
-// entries exactly (person × job × days × hours, Mon–Sun before the sheet's week); THIS WEEK is the hours logged so far
-// plus a PLANNED CREW the office types per job (shared with the team, carried as a hint from last week's crew), and a
-// schedule endpoint is still PROBED once a month (tbxSchedProbe) so that if Fergus ever exposes one it is picked up.
-// The result is kept in fr3_tbx[<Monday>].fergus so it syncs, prints and survives a reload.
-const TBX_SCHED_SHAPES=['/schedule?from={f}&to={t}','/jobs/schedule?from={f}&to={t}','/siteVisits?from={f}&to={t}','/calendar/events?from={f}&to={t}'];
+// (showing the scheduled jobs the guys are on this week and what they were working on last week)", then "the old
+// toolbox app actually did give me the team schedule. I think it was pulled from the calendar"). He was right:
+// Fergus's partner API answers GET /calendarEvents — every event on the company calendar, each with userName,
+// eventType (JOB_PHASE / QUOTE / OTHER), jobId, title ("#3228a Deb Allen - 52 Kerikeri Road …"), startTime and
+// endTime in UTC. With no parameters it answers the week now running; `filterDateFrom` / `filterDateTo` as full
+// ISO date-times move the window (the plain-date form is refused, and from/to, start/end, startDate/endDate and a
+// dozen more are silently ignored — probed 2026-10-31 through hub-schedule-probe.yml, whose log is the record). So
+// THIS WEEK is the calendar for the sheet's own week, whichever week the sheet is on: who is booked on which job
+// each day, and the jobs' scheduled crews; LAST WEEK is the TIME ENTRIES, exact (person × job × hours × days).
+// The read is kept in fr3_tbx[<Monday>].fergus so it syncs, prints and survives a reload.
+const TBX_CAL_MIN_MIN=90;   // an OTHER event shorter than this (the 30-min Toolbox, the 15-min run-through) is a meeting, not a day's work
+const TBX_JOB_TINTS=['#dbeafe','#fde68a','#bbf7d0','#fbcfe8','#ddd6fe','#fed7aa','#a5f3fc','#e9d5ff','#d9f99d','#fecaca'];
 function tbxEntryDay(e){const t=String((e&&(e.startTime||e.dateEntered||e.timeEntryDate||e.date))||'').replace(' ','T');const d=new Date(t);if(isNaN(d))return '';return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// A calendar event's clock is UTC; its DAY is the Auckland day it starts on.
+function tbxNzDay(iso){const d=new Date(iso);if(isNaN(d))return '';return d.toLocaleDateString('en-CA',{timeZone:'Pacific/Auckland'});}
+function tbxNzTime(iso){const d=new Date(iso);if(isNaN(d))return '';return d.toLocaleTimeString('en-NZ',{hour:'numeric',minute:'2-digit',timeZone:'Pacific/Auckland'}).replace(/\s/g,'').toLowerCase();}
 function tbxJobLookup(){const m={};(S.get('cashJobs',[])||[]).forEach(j=>{if(j&&j.id!=null)m[String(j.id)]={no:String(j.jobNo||''),name:String(j.job||'')};});(S.get('fwJobs',[])||[]).forEach(j=>{if(j&&j.id!=null)m[String(j.id)]={no:String(j.jobNo||''),name:String(j.client||j.job||''),site:String(j.site||'')};});return m;}
 function tbxFergus(ws){const f=tbxForm(ws);return f.fergus&&typeof f.fergus==='object'?f.fergus:null;}
 function tbxSetCrew(id,val){const f=tbxForm();const c=Object.assign({},f.crew||{});if(String(val||'').trim())c[id]=val;else delete c[id];tbxSet('crew',c);}
-// People who logged hours on a job last week, most hours first — the hint under the planned-crew box.
+// People who logged hours on a job last week, most hours first.
 function tbxLastCrewOf(fg,id){const out=[];if(!fg||!fg.last)return out;Object.keys(fg.last).forEach(p=>{const j=fg.last[p].jobs&&fg.last[p].jobs[id];if(j&&j.h>0)out.push({n:p,h:j.h});});return out.sort((a,b)=>b.h-a.h);}
+// "#3228a Deb Allen - 52 Kerikeri Road, Kerikeri" → {no:'3228a', name:'Deb Allen', site:'52 Kerikeri Road, Kerikeri'}
+function tbxCalTitle(t){t=String(t||'').trim();const m=t.match(/^#?\s*([0-9]+[a-z]?)\s*[-–—:]?\s*(.*)$/i);let no='',rest=t;if(m&&/^\d/.test(m[1])){no=m[1];rest=m[2];}const parts=rest.split(/\s+[-–—]\s+/);return {no,name:(parts[0]||'').trim(),site:parts.slice(1).join(' - ').trim()};}
+// Keep the calendar small and useful: one row an event, the day in Auckland, and the recurring meetings dropped.
+function tbxCalCompact(events,ws){
+  const we=tbxAddDays(ws,7);const out=[];const seen=new Set();
+  (events||[]).forEach(ev=>{
+    if(!ev||ev.isActive===false)return;
+    const day=tbxNzDay(ev.startTime);if(!day||day<ws||day>=we)return;
+    const user=String(ev.userName||entryUser(ev)||'').trim();if(!user)return;
+    const type=String(ev.eventType||'OTHER').toUpperCase();
+    const mins=(Date.parse(ev.endTime)-Date.parse(ev.startTime))/60000;
+    if(type==='OTHER'&&isFinite(mins)&&mins<TBX_CAL_MIN_MIN)return;   // Toolbox, the run-through, a 20-minute catch-up
+    const key=(ev.id!=null?ev.id:ev.title)+'|'+day+'|'+user;if(seen.has(key))return;seen.add(key);
+    out.push({id:ev.id,day,user,type,jobId:ev.jobId!=null?String(ev.jobId):'',title:String(ev.title||'').slice(0,80),s:tbxNzTime(ev.startTime),e:tbxNzTime(ev.endTime),mins:isFinite(mins)?Math.round(mins):0});
+  });
+  return out.sort((a,b)=>a.day.localeCompare(b.day)||a.user.localeCompare(b.user)||String(a.s).localeCompare(String(b.s)));
+}
 async function tbxLoadFergus(btn){
   if(!fergusProxyUrl()&&!fergusKey()){toast('Connect Fergus first (⚙)','err');return;}
   if(btn){btn.disabled=true;btn.textContent='Reading Fergus…';}
@@ -7479,6 +7513,7 @@ async function tbxLoadFergus(btn){
     const lookup=tbxJobLookup();
     const last={},week={},jobs={};
     const seen=new Set();let n=0,older=0,sorted=true;
+    const noteJob=(jid,e)=>{if(jid&&!jobs[jid]){const k=lookup[jid];jobs[jid]={no:(k&&k.no)||String(e.jobNo||e.jobNumber||''),name:(k&&k.name)||String(e.jobTitle||e.jobName||(e.job&&(e.job.name||e.job.title))||''),site:(k&&k.site)||''};}};
     const add=(bucket,e)=>{
       const day=tbxEntryDay(e);if(!day)return;
       const h=entryHours(e);if(h<=0)return;
@@ -7487,9 +7522,9 @@ async function tbxLoadFergus(btn){
       const key=jid||'_none';
       const P=bucket[p]||(bucket[p]={h:0,jobs:{}});P.h+=h;
       const J=P.jobs[key]||(P.jobs[key]={h:0,days:[]});J.h+=h;if(J.days.indexOf(day)<0)J.days.push(day);
-      if(jid&&!jobs[jid]){const k=lookup[jid];jobs[jid]={no:(k&&k.no)||String(e.jobNumber||e.jobNo||''),name:(k&&k.name)||String(e.jobTitle||e.jobName||(e.job&&(e.job.name||e.job.title))||''),site:(k&&k.site)||''};}
+      noteJob(jid,e);
     };
-    // Newest first, stop once a whole page lies before last week's Monday (Fergus's own ordering; a guard at 15 pages).
+    // 1. Time entries, newest first, stopping once a whole page lies before last week's Monday (a guard at 15 pages).
     for(let page=1;page<=15;page++){
       let arr=null;
       for(const shape of ['/timeEntries?pageSize=100&sortField=timeEntryDate&sortOrder=desc&page=','/timeEntries?pageSize=100&page=']){
@@ -7504,51 +7539,72 @@ async function tbxLoadFergus(btn){
         add(day<ws?last:week,e);});
       if(sorted&&pageOld===arr.length)break;
     }
-    // Names for jobs the Workload sync has not got (finished since, or never active) — a few reads, capped.
+    // 2. THE CALENDAR — this week's bookings (Fergus answers the week now running whatever dates are asked for).
+    let cal=[],calErr='';
+    try{
+      // a day either side in UTC covers Auckland's week whatever the clock offset; tbxCalCompact keeps the week's own days
+      const j=await fergusApiFetch('/calendarEvents?filterDateFrom='+encodeURIComponent(tbxAddDays(ws,-1)+'T00:00:00.000Z')+'&filterDateTo='+encodeURIComponent(tbxAddDays(ws,8)+'T00:00:00.000Z'));
+      const raw=Array.isArray(j)?j:((j&&(j.data||j.results||j.events))||[]);
+      cal=tbxCalCompact(raw,ws);
+      cal.forEach(ev=>{if(ev.jobId&&!jobs[ev.jobId]){const k=lookup[ev.jobId];const t=tbxCalTitle(ev.title);jobs[ev.jobId]={no:(k&&k.no)||t.no,name:(k&&k.name)||t.name,site:(k&&k.site)||t.site};}});
+      if(!cal.length)calErr='empty';
+    }catch(e){calErr=String(e&&e.message||e).slice(0,120);}
+    // 3. Names for jobs nothing above named — a few reads, capped.
     const unnamed=Object.keys(jobs).filter(id=>!jobs[id].name).slice(0,12);
     await Promise.all(unnamed.map(async id=>{try{const j=await fergusApiFetch('/jobs/'+encodeURIComponent(id));const job=(j&&(j.data||j))||{};jobs[id].no=jobs[id].no||String(job.jobNo||job.jobNumber||'');jobs[id].name=fergusName(job.customer)||fergusName(job.mainContact)||String(job.brief||job.title||'')||('Job '+id);jobs[id].site=fergusAddr(job.siteAddress)||'';}catch(e){jobs[id].name='Job '+id;}}));
-    // Probe for a schedule once a month: if Fergus ever answers one of these shapes with rows, they are shown.
-    let sched=S.get('tbxSchedProbe',null)||null;
-    if(!sched||!(sched.at>Date.now()-30*86400000)){
-      sched={at:Date.now(),path:null};
-      for(const sh of TBX_SCHED_SHAPES){const p=sh.replace('{f}',ws).replace('{t}',tbxAddDays(ws,6));try{const j=await fergusApiFetch(p);const a=Array.isArray(j)?j:((j&&(j.data||j.results||j.items||j.events||j.visits))||null);if(Array.isArray(a)){sched.path=sh;break;}}catch(e){}}
-      S.set('tbxSchedProbe',sched);
-    }
-    let schedRows=[];
-    if(sched.path){try{const j=await fergusApiFetch(sched.path.replace('{f}',ws).replace('{t}',tbxAddDays(ws,6)));const a=Array.isArray(j)?j:((j&&(j.data||j.results||j.items||j.events||j.visits))||[]);schedRows=a.slice(0,200).map(x=>({day:tbxEntryDay({startTime:x.startTime||x.start||x.date||x.scheduledDate}),who:entryUser(x)||fergusName(x.user||x.assignee||x.assignedTo)||'',job:String(x.jobId!=null?x.jobId:(x.job&&x.job.id)||''),title:String(x.title||x.summary||x.description||'')}));}catch(e){}}
     const f=tbxForm();const all=tbxAll();
-    f.fergus={at:new Date().toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',timeZone:'Pacific/Auckland'}),from:lastMon,to:tbxAddDays(weekEnd,-1),last,week,jobs,entries:n,sorted,sched:{path:sched.path,rows:schedRows}};
+    f.fergus={at:new Date().toLocaleString('en-NZ',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit',timeZone:'Pacific/Auckland'}),from:lastMon,to:tbxAddDays(weekEnd,-1),last,week,jobs,entries:n,sorted,cal,calErr};
     all[ws]=f;S.set('tbx',all);renderToolbox();
-    if(!Object.keys(last).length&&!Object.keys(week).length)toast('Fergus has no time entries between '+tbxShort(lastMon)+' and '+tbxShort(tbxAddDays(weekEnd,-1))+(older?' (its newest '+older+' were older)':''),'err');
+    if(calErr&&calErr!=='empty')toast('The calendar didn’t answer ('+calErr+') — the time entries are in','err');
+    if(!Object.keys(last).length&&!Object.keys(week).length&&!cal.length)toast('Fergus has nothing between '+tbxShort(lastMon)+' and '+tbxShort(tbxAddDays(weekEnd,-1))+(older?' (its newest '+older+' entries were older)':''),'err');
   }catch(e){toast('Couldn’t read Fergus ('+(e&&e.message||e)+')','err');}
   if(btn){btn.disabled=false;btn.textContent='Load from Fergus';}
 }
 function _tbxDayList(days){const d=(days||[]).slice().sort();const names=d.map(x=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(x+'T00:00:00').getDay()]);return names.length>2?names[0]+'–'+names[names.length-1]+' ('+names.length+'d)':names.join(', ');}
 function _tbxJobLabel(fg,id){if(id==='_none')return 'Toolbox / yard / other';const j=(fg.jobs||{})[id]||{};return (j.no?'#'+j.no+' ':'')+(j.name||('Job '+id));}
-// The section: Load button + status, last week per person, this week per job (logged so far · planned crew).
+// The calendar's scheduled crew per job: {jobId:[{n, days:[...]}]} from the JOB_PHASE / QUOTE events.
+function tbxCalCrews(fg){const out={};((fg&&fg.cal)||[]).forEach(ev=>{if(!ev.jobId)return;const L=out[ev.jobId]||(out[ev.jobId]=[]);let p=L.find(x=>x.n===ev.user);if(!p){p={n:ev.user,days:[]};L.push(p);}if(p.days.indexOf(ev.day)<0)p.days.push(ev.day);});Object.keys(out).forEach(k=>out[k].sort((a,b)=>b.days.length-a.days.length||a.n.localeCompare(b.n)));return out;}
+// The section: Load button + status, the staff schedule grid (calendar), this week per job, last week per person.
 function _tbxFergusHtml(ws,f,jobs){
   const fg=f.fergus;
   let h='<div class="tbx-np" style="padding:8px 12px 2px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;"><button class="tbx-nb" id="tbx-fg" onclick="tbxLoadFergus(this)">Load from Fergus</button>'+
-    '<span class="mut" style="font-size:.66rem;">'+(fg?'Read '+esc(fg.at)+' · '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(fg.to))+' · '+fg.entries+' time entries':'Reads the time entries: who was on which job last week, and the hours logged so far this week')+'</span></div>';
-  if(fg&&fg.sched&&fg.sched.path&&fg.sched.rows&&fg.sched.rows.length){
-    h+='<div class="tbx-sub">Scheduled this week (Fergus)</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-sched"><thead><tr><th>Day</th><th>Who</th><th>Job</th></tr></thead><tbody>'+fg.sched.rows.map(r=>'<tr><td>'+esc(r.day?tbxShort(r.day):'')+'</td><td>'+esc(r.who)+'</td><td>'+esc(_tbxJobLabel(fg,r.job)||r.title)+'</td></tr>').join('')+'</tbody></table></div>';
+    '<span class="mut" style="font-size:.66rem;">'+(fg?'Read '+esc(fg.at)+' · '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(fg.to))+' · '+fg.entries+' time entries · '+((fg.cal||[]).length)+' calendar bookings':'Reads Fergus’s calendar (who is booked on which job this week) and the time entries (what everyone was on last week)')+'</span></div>';
+  const crewsCal=tbxCalCrews(fg);
+  // ── the staff schedule grid, from the calendar ──
+  if(fg){
+    const cal=fg.cal||[];
+    if(cal.length){
+      const days=[0,1,2,3,4,5,6].map(i=>tbxAddDays(ws,i)).filter((d,i)=>i<5||cal.some(ev=>ev.day===d));
+      const people=[];cal.forEach(ev=>{if(people.indexOf(ev.user)<0)people.push(ev.user);});
+      const lead=n=>!!matchRoofer(n);people.sort((a,b)=>(lead(b)?1:0)-(lead(a)?1:0)||a.localeCompare(b));
+      const tint={};let ti=0;cal.forEach(ev=>{if(ev.jobId&&!tint[ev.jobId])tint[ev.jobId]=TBX_JOB_TINTS[(ti++)%TBX_JOB_TINTS.length];});
+      const cell=(p,d)=>{const evs=cal.filter(ev=>ev.user===p&&ev.day===d);if(!evs.length)return '<td class="tbx-cal-cell"></td>';
+        return '<td class="tbx-cal-cell">'+evs.map(ev=>{const off=/day off|leave|sick|holiday|annual/i.test(ev.title);const bg=ev.jobId?tint[ev.jobId]:(off?'#fee2e2':'#f1f5f9');const lab=ev.jobId?_tbxJobLabel(fg,ev.jobId):ev.title;
+          return '<div class="tbx-cal-ev'+(ev.jobId?' job':'')+(off?' off':'')+'" style="background:'+bg+';" title="'+esc(ev.title+' · '+ev.s+'–'+ev.e)+'">'+esc(lab)+(ev.type==='QUOTE'?' <span class="mut">(quote)</span>':'')+'</div>';}).join('')+'</td>';};
+      h+='<div class="tbx-sub">Staff schedule this week — Fergus calendar</div><div class="tbx-wrap"><table class="tbx-tbl tbx-cal" id="tbx-cal"><thead><tr><th>Who</th>'+days.map(d=>'<th style="text-align:center;">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00').getDay()]+'<div class="mut" style="font-weight:600;font-size:.6rem;">'+esc(tbxShort(d))+'</div></th>').join('')+'</tr></thead><tbody>'+
+        people.map(p=>'<tr><td style="font-weight:800;white-space:nowrap;">'+esc(p)+'</td>'+days.map(d=>cell(p,d)).join('')+'</tr>').join('')+'</tbody></table></div>'+
+        '<div class="tbx-cal-list">'+people.map(p=>'<div class="tbx-cal-person"><div class="tbx-cal-name">'+esc(p)+'</div>'+days.map(d=>{const evs=cal.filter(ev=>ev.user===p&&ev.day===d);if(!evs.length)return '';return '<div class="tbx-cal-day"><span class="tbx-cal-dn">'+['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d+'T00:00:00').getDay()]+'</span>'+evs.map(ev=>{const off=/day off|leave|sick|holiday|annual/i.test(ev.title);const bg=ev.jobId?tint[ev.jobId]:(off?'#fee2e2':'#f1f5f9');return '<span class="tbx-cal-ev" style="background:'+bg+';">'+esc(ev.jobId?_tbxJobLabel(fg,ev.jobId):ev.title)+'</span>';}).join('')+'</div>';}).join('')+'</div>').join('')+'</div>';
+    }else{
+      h+='<div class="tbx-np mut" style="padding:8px 12px 2px;font-size:.68rem;">'+(fg.calErr&&fg.calErr!=='empty'?'The calendar didn’t answer: '+esc(fg.calErr):'Nothing is booked on Fergus’s calendar for this week yet.')+'</div>';
+    }
   }
-  // This week, job by job
+  // ── this week, job by job ──
   const crew=f.crew||{};
   const weekByJob={};if(fg)Object.keys(fg.week||{}).forEach(p=>Object.keys(fg.week[p].jobs).forEach(id=>{(weekByJob[id]||(weekByJob[id]=[])).push({n:p,h:fg.week[p].jobs[id].h});}));
-  const ids=jobs.map(j=>String(j.id));Object.keys(weekByJob).forEach(id=>{if(id!=='_none'&&ids.indexOf(id)<0)ids.push(id);});
+  const ids=jobs.map(j=>String(j.id));Object.keys(crewsCal).forEach(id=>{if(ids.indexOf(id)<0)ids.push(id);});Object.keys(weekByJob).forEach(id=>{if(id!=='_none'&&ids.indexOf(id)<0)ids.push(id);});
   const rowsW=ids.map(id=>{const j=jobs.find(x=>String(x.id)===id);const lab=j?((j.jobNo?'#'+esc(j.jobNo)+' ':'')+'<b>'+esc(j.client||j.job||'')+'</b>'+(j.site?'<div class="mut" style="font-size:.68rem;">'+esc(j.site)+'</div>':'')):esc(fg?_tbxJobLabel(fg,id):('Job '+id));
-    const lastCrew=tbxLastCrewOf(fg,id);const logged=(weekByJob[id]||[]).sort((a,b)=>b.h-a.h);
-    return '<tr><td>'+lab+'</td><td class="mut" style="font-size:.72rem;">'+(lastCrew.length?lastCrew.map(c=>esc(c.n)+' '+fmtH(c.h)+'h').join(', '):(fg?'—':''))+'</td><td style="font-size:.72rem;">'+(logged.length?logged.map(c=>'<b>'+esc(c.n)+'</b> '+fmtH(c.h)+'h').join(', '):(fg?'<span class="mut">nothing yet</span>':''))+'</td>'+
-      '<td><input type="text" class="tbx-in tbx-crew" placeholder="'+esc(lastCrew.length?lastCrew.map(c=>c.n).join(', '):'who’s on it')+'" value="'+esc(crew[id]||'')+'" oninput="tbxSetCrew(\''+esc(id)+'\',this.value)"></td></tr>';}).join('');
-  h+='<div class="tbx-sub">This week — '+esc(tbxShort(ws))+' – '+esc(tbxShort(tbxAddDays(ws,4)))+'</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-week"><thead><tr><th>Job</th><th>Last week’s crew</th><th>Logged this week</th><th style="min-width:150px;">Planned crew</th></tr></thead><tbody>'+(rowsW||'<tr><td colspan="4" class="empty">No active jobs synced yet — ⚙ → Refresh brings them in.</td></tr>')+'</tbody></table></div>'+
-    '<div class="tbx-np mut" style="padding:4px 12px 8px;font-size:.64rem;">Fergus’s API has no schedule, so <b>Planned crew</b> is typed here (shared with the team, the grey hint is last week’s crew); Logged this week fills in as the timesheets come through.</div>';
-  // Last week, person by person
+    const sched=crewsCal[id]||[];const lastCrew=tbxLastCrewOf(fg,id);const logged=(weekByJob[id]||[]).sort((a,b)=>b.h-a.h);
+    const schedHtml=sched.length?sched.map(c=>'<b>'+esc(c.n)+'</b> <span class="mut">'+esc(_tbxDayList(c.days))+'</span>').join('<br>'):(fg&&(fg.cal||[]).length?'<span class="mut">not on the calendar</span>':'');
+    return '<tr><td>'+lab+'</td><td style="font-size:.72rem;">'+schedHtml+'</td><td class="mut" style="font-size:.72rem;">'+(lastCrew.length?lastCrew.map(c=>esc(c.n)+' '+fmtH(c.h)+'h').join(', '):(fg?'—':''))+'</td><td style="font-size:.72rem;">'+(logged.length?logged.map(c=>'<b>'+esc(c.n)+'</b> '+fmtH(c.h)+'h').join(', '):(fg?'<span class="mut">nothing yet</span>':''))+'</td>'+
+      '<td><input type="text" class="tbx-in tbx-crew" placeholder="'+esc(sched.length?'as scheduled':(lastCrew.length?lastCrew.map(c=>c.n).join(', '):'who’s on it'))+'" value="'+esc(crew[id]||'')+'" oninput="tbxSetCrew(\''+esc(id)+'\',this.value)"></td></tr>';}).join('');
+  h+='<div class="tbx-sub">This week — '+esc(tbxShort(ws))+' – '+esc(tbxShort(tbxAddDays(ws,4)))+'</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-week"><thead><tr><th>Job</th><th>Scheduled (Fergus)</th><th>Last week’s crew</th><th>Logged this week</th><th style="min-width:140px;">Notes / changes</th></tr></thead><tbody>'+(rowsW||'<tr><td colspan="5" class="empty">No active jobs synced yet — ⚙ → Refresh brings them in.</td></tr>')+'</tbody></table></div>'+
+    '<div class="tbx-np mut" style="padding:4px 12px 8px;font-size:.64rem;">Scheduled is Fergus’s calendar for this week; Last week’s crew and Logged this week are the timesheets; Notes / changes is typed here and shared with the team.</div>';
+  // ── last week, person by person ──
   if(fg){
     const people=Object.keys(fg.last||{}).sort((a,b)=>fg.last[b].h-fg.last[a].h);
     const rowsL=people.map(p=>{const P=fg.last[p];const js=Object.keys(P.jobs).sort((a,b)=>P.jobs[b].h-P.jobs[a].h);
       return '<tr><td style="font-weight:800;white-space:nowrap;">'+esc(p)+'</td><td>'+js.map(id=>'<div>'+esc(_tbxJobLabel(fg,id))+' <span class="mut" style="font-size:.7rem;">'+fmtH(P.jobs[id].h)+'h · '+esc(_tbxDayList(P.jobs[id].days))+'</span></div>').join('')+'</td><td style="text-align:center;font-weight:700;white-space:nowrap;">'+fmtH(P.h)+'h</td></tr>';}).join('');
-    h+='<div class="tbx-sub">Last week — '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(tbxAddDays(fg.from,6)))+'</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-last"><thead><tr><th>Who</th><th>What they were on</th><th style="text-align:center;">Hours</th></tr></thead><tbody>'+(rowsL||'<tr><td colspan="3" class="empty">No hours logged last week.</td></tr>')+'</tbody></table></div>';
+    h+='<div class="tbx-sub">Last week — '+esc(tbxShort(fg.from))+' – '+esc(tbxShort(tbxAddDays(fg.from,6)))+' (timesheets)</div><div class="tbx-wrap"><table class="tbx-tbl" id="tbx-last"><thead><tr><th>Who</th><th>What they were on</th><th style="text-align:center;">Hours</th></tr></thead><tbody>'+(rowsL||'<tr><td colspan="3" class="empty">No hours logged last week.</td></tr>')+'</tbody></table></div>';
   }
   return h;
 }
