@@ -405,11 +405,15 @@ THE FILL:
     tested as a mock, not built): today 69 sheets / 295.02 m with extras
     G1 and H1. Moves he asked for, each a real fit (spin, never flip): G1
     off E20's offcut; H1 off C15's offcut; C15's two-cut corner triangle off
-    C6's leftover; C16's offcut carrying the far-north valley piece beside
-    its own triangle; the blue E17 (a 5.13 m sheet with a 2.20 m piece)
-    ordered as a red F7 at 2.20; the one piece nothing else can carry (the
-    1.26 m corner by C5) an extra at its own length → 68 sheets, 286.18 m.
-    Under the old order 67 sheets / 287.85 m would have been kept.
+    C16's offcut carrying the far-north valley piece and the two-cut
+    triangle beside C17; the blue E17 (a 5.13 m sheet with a 2.20 m piece)
+    ordered as a red F7 at 2.20; C6's offcut carrying the 1.26 m corner by
+    C5 (which was an extra, "I don't like G1 gold") and the triangle by C7,
+    once C6's own 0.39 m sliver at the west corner moved onto C16 → 67
+    sheets, 284.92 m, nothing extra. Finding it took a search over every
+    assignment of the loose pieces to the offcuts with room, each sheet's
+    set packed in every order — a first-fit pass reports "no fit" where an
+    arrangement exists, so the engine's version must search the same way.
     THE PRE-CUT PACKS AGAINST THE FIRST CUT (asked the same day: "bring that
     small double cut C16 right to the edge of the main C16"): the mock places
     each offcut piece as LOW as it fits, flush with the sheet's own cut, so
