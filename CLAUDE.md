@@ -452,6 +452,23 @@ THE PICTURE:
     within 120 mm of one line. The sheet's own pieces are outlined RED (the
     first cut, one chalk line a run), everything cut out of an offcut BLUE
     underneath (the second cut). Pinned on the Big-L and an L with a wing.
+11c. ONE PICTURE A PAGE, FITTED, A WIDE ROOF TURNED (2026-10-31: "made the
+    details roofmap fit the whole page, then move the sheet layout to the 2nd
+    page, then the sheet cut layout to the third page, make them fit to the
+    page and if the roof in longer east/west than it is north/south, rotate it
+    automatically 90deg to fit the screen better"). `_jpDefaultPages` is
+    header (the Detailed map alone, fitted by `_jpFitDefaults`), `sheetplan`,
+    `precut`, cutlists; the v10 migration takes the app's own untouched Sheet
+    layout picture off page 1 and puts a `sheetplan` page straight after the
+    header (a sized one stays, never two). A picture wider than
+    `JP_ROT_WIDE` (1.05) × its height is turned a quarter ANTICLOCKWISE
+    (north to the left): the map whole (`_cvRotIfWide`, `opts.rotWide` on the
+    app's own untouched pictures only), the sheet layout with its title and
+    key left upright and only the roof under them turned and grown to fill the
+    page (`_jpRotWidePuzzle`, reading `cv._pzHeadH` / `_pzRoofW` / `_pzRoofH`
+    from `_renderSheetPuzzleCanvas`). The pre-cut layout is not turned.
+    `quickwins.mjs` pins the order and the migration, `sheetlayout.mjs` the
+    fit and the turn on the 18 × 12 m hip.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
@@ -3520,7 +3537,9 @@ not a saving, and 49 purple to 48 orange.
   Fixtures 71–76; `sheetlayout.mjs` 369.
   THE T GABLE (a plain gable on a T outline) draws oddly because the gable
   BUILDER's lines are odd there — not the puzzle's fault; not pinned.
-- THE JOB PACK'S PAGE 1 CARRIES THE SHEET LAYOUT (2026-10-27, the owner: "add
+- SUPERSEDED 2026-10-31 BY RULE 11c (the sheet layout is page 2 now, the
+  pre-cut layout page 3, a wide roof turned) — kept for the v8 migration's sake.
+  THE JOB PACK'S PAGE 1 CARRIED THE SHEET LAYOUT (2026-10-27, the owner: "add
   the sheet layout diagram to the job pack by default, always fit to size so
   both pictures can fit inside the screen ... for the display maps, have them
   all default clicked ... detailed map at the top, then sheet layout below,

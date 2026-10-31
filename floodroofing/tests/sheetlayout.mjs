@@ -872,16 +872,26 @@ async function labelsOf(g){
     check('pre-cut layout, ' + name + ': every run of sheets is cut by ONE straight chalk line — the hip-cut sheets and the valley-cut ones never interleaved',
       rr.length >= 4 && rr.every(r => r.worstMm <= 30), JSON.stringify(ch));
   }
+  await lay({ scaleMetresPerPx: 0.05, calPitch: 25, outline: RECT(360, 240), autoType: 'hip' });
+  await pg.evaluate(() => { gotoTab('roof'); try { fitDrawingToCanvas(); redrawAll(); } catch(e){} });
   const page = await pg.evaluate(async () => {
     S.jobPack = null; gotoTab('materials'); renderJobPack();
     await new Promise(r => setTimeout(r, 300));
     const pages = [...document.querySelectorAll('#jpPages .jp-page')];
-    const p2 = pages[1], img = p2 && p2.querySelector('img.jp-precut-img');
-    const pr = p2 && p2.getBoundingClientRect(), ir = img && img.getBoundingClientRect();
-    return { types: _jpState().pages.map(p => p.type).join(','), img: !!img, loaded: !!(img && img.complete && img.naturalWidth),
-             fits: !!(pr && ir && ir.bottom <= pr.bottom + 1 && ir.right <= pr.right + 1), ph: pr && Math.round(pr.height), ih: ir && Math.round(ir.height) };
+    const fit = (pg, sel) => { const img = pg && pg.querySelector(sel); const pr = pg && pg.getBoundingClientRect(), ir = img && img.getBoundingClientRect();
+      return { img: !!img, loaded: !!(img && img.complete && img.naturalWidth), nw: img && img.naturalWidth, nh: img && img.naturalHeight,
+               fits: !!(pr && ir && ir.bottom <= pr.bottom + 1 && ir.right <= pr.right + 1), fill: pr && ir ? Math.round(100 * Math.max(ir.width / pr.width, ir.height / pr.height)) : 0 }; };
+    const p1 = pages[0] && pages[0].querySelector('.jp-page-imgwrap img');
+    return { types: _jpState().pages.map(p => p.type).join(','), pre: fit(pages[2], 'img.jp-precut-img'), sl: fit(pages[1], 'img.jp-sl-img'),
+             p1imgs: pages[0] ? pages[0].querySelectorAll('.jp-page-imgwrap').length : 0, p1w: p1 && p1.naturalWidth, p1h: p1 && p1.naturalHeight };
   });
-  check('the job pack\'s page 2 is the pre-cut layout, one picture inside one A4 page', page.types.startsWith('header,precut,') && page.img && page.loaded && page.fits, JSON.stringify(page));
+  // PAGE 1 THE MAP, PAGE 2 THE SHEET LAYOUT, PAGE 3 THE PRE-CUT LAYOUT, each
+  // fitted to its page and a wide roof turned (2026-10-31). This roof is
+  // 18 m east-west by 12 m north-south, so both pictures are turned upright.
+  check('the job pack is the map, then the sheet layout, then the pre-cut layout, each inside one A4 page', page.types.startsWith('header,sheetplan,precut,')
+    && page.p1imgs === 1 && page.sl.img && page.sl.loaded && page.sl.fits && page.pre.img && page.pre.loaded && page.pre.fits, JSON.stringify(page));
+  check('…a roof wider than it is tall is turned a quarter: the map and the sheet layout come out taller than wide, the sheet layout filling its page',
+    page.p1h > page.p1w && page.sl.nh > page.sl.nw && page.sl.fill >= 75, JSON.stringify(page));
 }
 
 check('and none of this threw', errs.length === 0, errs.slice(0,2).join(' | ') || 'no page errors');

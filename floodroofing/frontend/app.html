@@ -5201,7 +5201,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-31T00:38:13Z';
+  window.APP_BUILT_AT = '2026-10-31T01:58:56Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -67852,6 +67852,29 @@ function _jpState(){
     } catch(e){}
     S.jobPack.pagesVersion = 9;
   }
+  // v9 → v10: THE SHEET LAYOUT LEAVES PAGE 1 FOR A PAGE OF ITS OWN (2026-10-31,
+  // the owner: "made the details roofmap fit the whole page, then move the
+  // sheet layout to the 2nd page, then the sheet cut layout to the third
+  // page"). The app's own untouched Sheet layout picture comes off the job
+  // header, and a Sheet layout page goes straight after that header (so the
+  // pre-cut layout follows it). A picture the office moved or sized stays
+  // where they put it, and a pack that already has the page is not given two.
+  if (!S.jobPack.pagesVersion || S.jobPack.pagesVersion < 10) {
+    try {
+      var _pp10 = S.jobPack.pages || [];
+      var _moved = false, _h10 = -1;
+      _pp10.forEach(function(p, i){
+        if (!p || p.type !== 'header' || !Array.isArray(p.images)) return;
+        var n0 = p.images.length;
+        p.images = p.images.filter(function(im){
+          return !(im && /^(def|mig)_/.test(im.id || '') && String(im.mapKey || '').split(':')[0] === 'sheetplan' && !im.userSized);
+        });
+        if (p.images.length < n0 && _h10 < 0){ _moved = true; _h10 = i; }
+      });
+      if (_moved && !_pp10.some(function(p){ return p && p.type === 'sheetplan'; })) _pp10.splice(_h10 + 1, 0, { type:'sheetplan' });
+    } catch(e){}
+    S.jobPack.pagesVersion = 10;
+  }
   return S.jobPack;
 }
 function _jpDefaultPages(){
@@ -67864,13 +67887,16 @@ function _jpDefaultPages(){
   // Header strip (client + tile row) eats ~y:0..270, leaving the rest
   // of the page for the map.
   return [
-    // The Sheet layout sits under the Detailed map on page 1 (2026-10-27),
-    // the two fitted together to the page by _jpFitDefaults.
+    // PAGE 1 IS THE DETAILED MAP ALONE, PAGE 2 THE SHEET LAYOUT, PAGE 3 THE
+    // PRE-CUT LAYOUT (2026-10-31, the owner: "made the details roofmap fit the
+    // whole page, then move the sheet layout to the 2nd page, then the sheet
+    // cut layout to the third page, make them fit to the page"). Each fills
+    // its page (_jpFitDefaults for the map) and a wide roof is turned.
     { type:'header', images:[
-      { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:470 },
-      { id:'def_sl_'+Date.now(), mapKey:'sheetplan', x: 10, y:760, w:670, h:240 }
+      { id:'def_dt_'+Date.now(), mapKey:'detailed',  x: 10, y:285, w:670, h:720 }
     ] },
-    // Page 2: every ordered sheet laid out whole, with its cuts (2026-10-31).
+    { type:'sheetplan'   },
+    // Every ordered sheet laid out whole, with its cuts (2026-10-31).
     { type:'precut'      },
     { type:'cutlists'    }
     // The Sheet calc check page went after the cut lists until 2026-10-27;
@@ -68352,7 +68378,7 @@ function _jpCaptureSheetPlanCombined(vis, opts){
   var cv = null;
   try { cv = _renderSheetPuzzleCanvas(o); } catch(e){ cv = null; }
   if (!cv || !cv.width) return null;
-  return cv.toDataURL('image/png');
+  return (o.rotWide ? _jpRotWidePuzzle(cv) : cv).toDataURL('image/png');
 }
 // Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
 // [{color, count, orderedMm}] array. Reads the input elements that
@@ -68380,6 +68406,10 @@ function _jpExtractLegendFrom(scope){
 // the auto-fit below can blow it up to fill the page without dead
 // margins.  Samples every 2nd pixel — a ~1MP canvas scans in a few ms.
 function _cropCanvasToContent(srcCanvas, padPx){
+  var c = _cropCanvasToContentCv(srcCanvas, padPx);
+  return c ? c.toDataURL('image/png') : null;
+}
+function _cropCanvasToContentCv(srcCanvas, padPx){
   try {
     var W = srcCanvas.width, H = srcCanvas.height;
     var data = srcCanvas.getContext('2d').getImageData(0, 0, W, H).data;
@@ -68403,8 +68433,48 @@ function _cropCanvasToContent(srcCanvas, padPx){
     var cx = c.getContext('2d');
     cx.fillStyle = '#fff'; cx.fillRect(0, 0, c.width, c.height);
     cx.drawImage(srcCanvas, minX, minY, c.width, c.height, 0, 0, c.width, c.height);
-    return c.toDataURL('image/png');
+    return c;
   } catch(e){ return null; }
+}
+// A WIDE ROOF IS TURNED TO FIT THE PAGE (2026-10-31, the owner: "if the roof
+// is longer east/west than it is north/south, rotate it automatically 90deg
+// to fit the screen better"). A Job Pack page is portrait, so a roof wider
+// than it is tall printed small with half the page empty under it. The
+// picture is given a quarter turn anticlockwise (north to the left) when its
+// width is more than JP_ROT_WIDE times its height; a roof near square is left
+// as drawn. Only the app's own fitted pictures are turned (opts.rotWide) — a
+// picture the office has placed or sized is theirs.
+var JP_ROT_WIDE = 1.05;
+function _cvRotCCW(cv){
+  var r = document.createElement('canvas'); r.width = cv.height; r.height = cv.width;
+  var x = r.getContext('2d'); x.translate(0, r.height); x.rotate(-Math.PI / 2); x.drawImage(cv, 0, 0);
+  return r;
+}
+function _cvRotIfWide(cv){
+  return (cv && cv.width > cv.height * JP_ROT_WIDE) ? _cvRotCCW(cv) : cv;
+}
+// The sheet layout keeps its title and colour key upright: only the roof
+// under the key is turned, and the key sits over it as before.
+function _jpRotWidePuzzle(cv){
+  try {
+    var hh = cv && cv._pzHeadH;
+    if (!hh || !(cv._pzRoofW > cv._pzRoofH * JP_ROT_WIDE)) return cv;
+    var reg = document.createElement('canvas'); reg.width = cv.width; reg.height = cv.height - hh;
+    reg.getContext('2d').drawImage(cv, 0, hh, cv.width, reg.height, 0, 0, cv.width, reg.height);
+    var rot = _cvRotCCW(_cropCanvasToContentCv(reg, 16) || reg);
+    // Grown to fill the page under the key: an A4 content box is 182 × 262 mm.
+    var Wout = cv.width, room = Math.round(Wout * 262 / 182) - hh;
+    var k = Math.max(1, Math.min(Wout / rot.width, room / rot.height));
+    var rw = Math.round(rot.width * k), rh = Math.round(rot.height * k);
+    var out = document.createElement('canvas');
+    out.width = Wout; out.height = hh + rh;
+    var o = out.getContext('2d'); o.fillStyle = '#fff'; o.fillRect(0, 0, out.width, out.height);
+    o.drawImage(cv, 0, 0, cv.width, hh, 0, 0, cv.width, hh);
+    o.imageSmoothingQuality = 'high';
+    o.drawImage(rot, Math.round((Wout - rw) / 2), hh, rw, rh);
+    out._pzRotated = true;
+    return out;
+  } catch(e){ return cv; }
 }
 
 // A picture for a PDF is drawn at up to three times the screen's pixel
@@ -68467,7 +68537,9 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
       DRAW.showAllRoofs = false;
     }
     redrawAll();
-    return _cropCanvasToContent(src, 30) || src.toDataURL('image/png');
+    var _cc = _cropCanvasToContentCv(src, 30);
+    if (_cc && opts && opts.rotWide) _cc = _cvRotIfWide(_cc);
+    return _cc ? _cc.toDataURL('image/png') : src.toDataURL('image/png');
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -68527,7 +68599,7 @@ function _jpCaptureSheetPlan(opts, roofIdx){
   try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
   if (typeof roofIdx === 'number' && roofIdx >= 0) o.roofIdxs = [roofIdx];
   else if (!(DRAW.roofs && DRAW.roofs.length)) o.roofIdxs = [-1];
-  try { return _renderSheetPuzzleCanvas(o).toDataURL('image/png'); } catch(e){ return null; }
+  try { var _cv = _renderSheetPuzzleCanvas(o); return (o.rotWide ? _jpRotWidePuzzle(_cv) : _cv).toDataURL('image/png'); } catch(e){ return null; }
 }
 // Flashing reference map — same clean-canvas capture as the Detailed
 // map but with the A/B/C letter overlays force-drawn on top regardless
@@ -68650,7 +68722,7 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
   var defs = [];
   page.images.forEach(function(im, ii){
     if (_jpMapKindHidden(String(im.mapKey || '').split(':')[0])) return;
-    var src = _jpCaptureMap(im.mapKey, {});
+    var src = _jpCaptureMap(im.mapKey, (/^(def|mig)_/.test(im.id || '') && !im.userSized) ? { rotWide: true } : {});
     if (!src) return;
     var wrap = document.createElement('div');
     wrap.className = 'jp-page-imgwrap';
@@ -69777,17 +69849,18 @@ function _jpRenderCalcCheck(content, page, idx){
 function _jpRenderSheetPlan(content, page, idx){
   // The same picture the Maps panel places, as a page of its own: the
   // roofs the pack covers, in one frame, each face divided at sheet cover.
+  // THE SHEET LAYOUT IS PAGE 2, FITTED TO THE PAGE (2026-10-31): the picture
+  // carries its own title, so the page adds none; a wide roof is turned.
   content.innerHTML =
-    '<div class="jp-block-title">Sheet layout</div>' +
-    '<div class="jp-sl-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden"></div>';
+    '<div class="jp-sl-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;min-height:0"></div>';
   var out = content.querySelector('.jp-sl-out');
   var src = null;
   try {
     if (SHEET_LAYOUT_HIDDEN) src = null;
     else {
       var vis = _jpMapRoofFilter();
-      src = (vis && vis.length) ? _jpCaptureSheetPlanCombined(vis, {})
-                                : _jpCaptureCombined('sheetplan', {});
+      src = (vis && vis.length) ? _jpCaptureSheetPlanCombined(vis, { rotWide: true })
+                                : _jpCaptureCombined('sheetplan', { rotWide: true });
     }
   } catch(e){}
   if (!src){
@@ -69795,7 +69868,7 @@ function _jpRenderSheetPlan(content, page, idx){
       'Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.</div>';
     return;
   }
-  out.innerHTML = '<img src="' + src + '" alt="Sheet layout" style="max-width:100%;height:auto;display:block">';
+  out.innerHTML = '<img class="jp-sl-img" src="' + src + '" alt="Sheet layout" style="display:block;width:auto;height:auto;max-width:100%;max-height:262mm;object-fit:contain">';
 }
 // THE SHEET PRE-CUT LAYOUT (2026-10-31): every sheet the sheet layout
 // orders, whole and side by side by its colour block, with the cuts drawn on

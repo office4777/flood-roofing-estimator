@@ -8908,6 +8908,11 @@ function _renderSheetPuzzleCanvas(opts){
     });
   });
   cv._sheetPuzzle = pz;
+  // Where the key ends and how the roof sits, in canvas pixels, so the Job
+  // Pack can turn a wide roof a quarter turn and leave the key upright
+  // (_jpRotWidePuzzle in app.html).
+  cv._pzHeadH = Math.round((legendTop + (crow + 1) * 19 + 4) * scale);
+  cv._pzRoofW = bw * fit; cv._pzRoofH = drawH;
   return cv;
 }
 
