@@ -25,7 +25,13 @@ const TBX_SEED = `window.__tbxSeedFergus = () => {
   const week = { 'Lead roofer': { h: 8, jobs: { [B]: { h: 8, days: [ws] } } }, 'Second lead': { h: 7.5, jobs: { [C]: { h: 7.5, days: [ws] } } } };
   const jm = {}; jobs.slice(0, 3).forEach(j => { jm[j.id] = { no: j.jobNo, name: j.client || j.job, site: j.site || '' }; });
   const all = tbxAll(); const f = Object.assign({}, TBX_BLANK, all[ws] || {});
-  f.fergus = { at: '27 Oct, 6:58 am', from: lm, to: tbxAddDays(ws, 6), last, week, jobs: jm, entries: 61, sorted: true, sched: { path: null, rows: [] } };
+  const cal = []; let cid = 1;
+  const book = (user, jobId, title, dayIdx, s, e, type) => cal.push({ id: cid++, day: tbxAddDays(ws, dayIdx), user, type: type || (jobId ? 'JOB_PHASE' : 'OTHER'), jobId: jobId ? String(jobId) : '', title, s, e, mins: 600 });
+  [0, 1, 2, 3].forEach(i => { book('Lead roofer', B, '#' + jobs[1].jobNo + ' ' + jobs[1].client, i, '7:00am', '5:00pm'); book('Apprentice', B, '#' + jobs[1].jobNo + ' ' + jobs[1].client, i, '7:00am', '5:00pm'); });
+  book('Lead roofer', '', 'day off', 4, '7:00am', '5:00pm'); book('Apprentice', '', 'Yard work', 4, '7:00am', '5:00pm');
+  [0, 1, 2, 3, 4].forEach(i => book('Second lead', C, '#' + jobs[2].jobNo + ' ' + jobs[2].client, i, '7:00am', '5:00pm'));
+  book('Second lead', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, 1, '9:00am', '10:00am', 'QUOTE');
+  f.fergus = { at: '27 Oct, 6:58 am', from: lm, to: tbxAddDays(ws, 6), last, week, jobs: jm, entries: 61, sorted: true, cal, calErr: '' };
   f.crew = { [B]: 'Lead roofer, Apprentice', [C]: 'Second lead' };
   f.forecastMon = 'Mainly clear'; f.forecastTue = 'Slight rain, 70% chance of rain'; f.forecastWed = 'Partly cloudy'; f.forecastThu = 'Overcast'; f.forecastFri = 'Clear sky';
   all[ws] = f; S.set('tbx', all);

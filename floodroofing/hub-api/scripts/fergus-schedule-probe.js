@@ -5,6 +5,10 @@
 // per job, plus the `links` a job detail carries (Fergus names its sub-resources there). Status, top-level
 // keys and a short sample of each answer go to the log — never the key, never a customer's details beyond
 // the first row's field NAMES.
+// FOUND (2026-10-31, runs 1–3): GET /calendarEvents is the calendar — userName, eventType JOB_PHASE/QUOTE/OTHER, jobId,
+// title '#3228a Deb Allen - 52 Kerikeri Road', startTime/endTime in UTC; no paging; the week now running by default,
+// and ONLY `filterDateFrom` / `filterDateTo` as full ISO date-times move the window (a plain date is a 400). GET /users
+// lists the staff. No site-visit, schedule, booking or roster route exists; /jobs/{id}/phases is the job's phases.
 const PROXY = (process.env.PROXY_URL || '').replace(/\/+$/, '');
 const SECRET = process.env.PROXY_SECRET || '';
 if (!PROXY || !SECRET) { console.error('PROXY_URL / PROXY_SECRET missing'); process.exit(1); }
