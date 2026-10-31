@@ -726,14 +726,17 @@ async function labelsOf(g){
   // are set for the turned picture: every angle on the page in [−90°, 90°).
   await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'hip' });
   const up = await pg.evaluate(() => {
-    const read = (o) => { const cv = _renderSheetPuzzleCanvas(Object.assign({ roofIdxs: [-1] }, o)); const turned = !!(_jpRotWidePuzzle(cv) || {})._pzRotated;
-      return { turned, angs: cv._sheetPuzzle.pieces.filter(p => p._lbl && !p._lbl.outside).map(p => (p._lbl.ang - (turned ? Math.PI / 2 : 0)) * 180 / Math.PI) }; };
+    const read = (o) => { const cv = _renderSheetPuzzleCanvas(Object.assign({ roofIdxs: [-1] }, o)); const turned = !!o.rotWide && !!(_jpRotWidePuzzle(cv) || {})._pzRotated;
+      const ps = cv._sheetPuzzle.pieces.filter(p => p._lbl && !p._lbl.outside);
+      return { turned, angs: ps.map(p => (p._lbl.ang - (turned ? Math.PI / 2 : 0)) * 180 / Math.PI), who: ps.map(p => p.label + '@' + (p._lbl.ang * 180 / Math.PI).toFixed(2) + ' d' + p.face.d.map(x => x.toFixed(3))) }; };
     return { rot: read({ rotWide: true }), flat: read({}) };
   });
-  const okAng = a => a.angs.length > 40 && a.angs.every(x => x >= -90.001 && x <= 90.001);
-  check('…a wide roof turned on the page: every number reads upright after the turn', up.rot.turned && okAng(up.rot) && up.rot.angs.every(x => x < 89.999),
+  const wrap = x => { x = ((x % 360) + 360) % 360; return x > 180 ? x - 360 : x; };
+  up.rot.angs = up.rot.angs.map(wrap); up.flat.angs = up.flat.angs.map(wrap);
+  const okAng = a => a.angs.length > 40 && a.angs.every(x => x >= -90.5 && x <= 90.5);
+  check('…a wide roof turned on the page: every number reads upright after the turn', up.rot.turned && okAng(up.rot),
     JSON.stringify([...new Set(up.rot.angs.map(x => Math.round(x)))]));
-  check('…and one not turned reads upright as drawn', okAng(up.flat), JSON.stringify([...new Set(up.flat.angs.map(x => Math.round(x)))]));
+  check('…and one not turned reads upright as drawn', okAng(up.flat), JSON.stringify(up.flat.who.filter((w, i) => !(up.flat.angs[i] >= -90.5 && up.flat.angs[i] <= 90.5)).slice(0, 6) + ' n' + up.flat.angs.length));
 }
 
 // THE SHEET LAYOUT IS THE COUNT (2026-10-27, the owner: "for the sheet

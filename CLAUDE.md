@@ -482,9 +482,28 @@ THE FILL:
    that buys nothing, the wider move 5 of v5 runs as before (`attempt(rk,
    narrow)`). Hip T: 73 sheets, both valleys one colour off the stem's 3.32s.
    Shown as "Sheet layout v6 - T valleys"; 8 of 43 roofs move, report 71 one
-   sheet less, the rest the same count for 1-4 m more steel; report 17, 19,
+   sheet less (and with 9g both T's one less), the rest the same count for
+   1-4 m more steel; report 17, 19,
    the double cascade and the Big-L unchanged. Report 76 now takes ~13 s.
-   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f,
+9g. THE SET, IN ORDER (the same day, on the hip T's E15: "I don't like that
+   E15 sheet there, remember the rule to prioritize laying sheets and offcuts
+   in order and using the right offcut in the right spot to keep them as a
+   set"). When 9f takes a corner strip's offcut for a valley, that strip and
+   the end row it fed were each ordered as a sheet, and the first new sheet's
+   offcut — exactly the second's shape — went unused. `_pzOptimise` move 7
+   offers every sheet ordered that way (and every extra) to the nearest
+   offcut it fits, the longest first, with the fill's own one-cut test (same
+   hand, long and short sides covered: the packer keeps a piece clear of a
+   sheet's own cut, so it never nests one along a hip the way an end is fed).
+   Such a sheet takes its place in its face's run (E1, E2, E3 along the
+   gutter), never a number after the rest. And an orphan on a hip end is
+   ordered as the sheet of the slope ACROSS A HIP FROM IT WITH ITS HAND (the
+   hand of that slope's sheets cut by that hip — a slope between two ends
+   carries both), never a colour from the far side of the roof (`blockFor`).
+   Hip T: the stem's end ↺E1–↺E4 in order, 73 → 72 sheets, 221.94 m; the tee
+   fixture 73 → 72, 216.94 m, its bar's top end orange like its bottom (A22,
+   not a stray blue E17). No other test roof moves.
+   BUILT ON THE SESSION BRANCH, NOT LIVE (2026-10-31): 8d, 9b, 9c, 9d, 9e, 9f, 9g,
    rule 10's new order and the flush pre-cut are `_pzOptimise` in
    sheet-plan.js; 22 of 43 test roofs change (every one with the same or fewer
    different lengths; report 75 is 2 sheets more for 5.6 m less steel), shown
