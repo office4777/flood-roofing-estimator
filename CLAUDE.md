@@ -760,6 +760,26 @@ THE PICTURE:
     outside the roof is turned with it. Pinned in `sheetlayout.mjs`.
 
 THE ORDER:
+12b. A CLEARLITE TAKES ITS STRIP (2026-11-02, feedback report 81: "check that
+    when a clearlite sheet it added, it makes one less steel sheet required ...
+    make sure the sheet layout diagram shows the cearlite sheets too").
+    `_pzApplyClears` (end of `_sheetPuzzleBuild`, skipped with `noClears`)
+    finds each placed clear on the strip under it on ITS roof; a full clear on
+    a sheet of its own whose offcut feeds nothing takes that sheet off its
+    block (the block renumbered, the tally the steel left, `pz.clearTally`),
+    drawn sky-blue "CL" with a key chip. A clear over a cut piece (fed, or a
+    donor) shows but keeps its steel; a short clear is an infill, drawn, no
+    steel saved. The Job Pack's old nearest-length deduction is skipped when
+    the groups come from the layout (`sc.fromPuzzle`). `_pzRoofSig` carries the
+    clears; `_pzTallyCovers` counts a saved clear as cover. A FULL CLEAR IS ITS
+    OWN RUN (`_clearRunM`, `c.runPx`): gutter to the first ridge / hip / valley
+    / change of pitch / edge of its own roof at that roof's pitch, rounded up
+    to 10 mm — it took the longest sheet label anywhere (the main roof's 5.15 m
+    on his 3.25 m lean-to). A click inside two roofs' outlines asks "Which roof
+    is this clearlite on?" (`_clearRoofChooserOpen`, hover = `_CLEAR_PREVIEW`
+    on the canvas); a clear may sit on a roof not being edited. Pricing:
+    "Clearlite sheets" row (`clear_fibreglass_lm` / `clear_poly_lm`, Settings
+    → Default Items; unpriced = the send is held). `tests/report81.mjs`.
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
     job pack and the pricing, use the quantities from the new sheet layout
     diagram instead of the sheet calc check"). `_lastSheetCounts.groups` (the
@@ -4747,6 +4767,25 @@ not a saving, and 49 purple to 48 orange.
   safety pins pass. Pin the gablet fraction before measuring a dutch sheet
   count in a suite: it is a per-roof field that outlives `clearAll`, so an
   earlier case that moved the slider otherwise decides the count.
+- EVERY CORNER OFFERS ITS END (2026-11-02, feedback report 80: "every corner
+  when clicked should show a list of options it could change it too ... a
+  mono-pitch corner to a hip ... a hip corner to a gable or dutch gable end ...
+  if its not sure which side to change ... "Changing which face?""). The corner
+  pad's `#cornerEndRow` (`_cornerEndCands`, `_cornerEndRowRender`): a gable's
+  end (starter / finish) Gable / Hip / Dutch gable — `DRAW.hipEnds[sub]` now
+  false | 'hip' (true) | 'dutch', `_applyHipEnds` builds the gablet; a
+  rectangle whose two ends end alike becomes that roof type. A rectangular
+  hip / dutch roof becomes a gable with hipEnds; any other hip / dutch roof
+  keeps its type with `DRAW.endKinds['e:i-j']` (`_skelHipEnds`,
+  `_endTransform`, `_hipLinesWithEnds`, `_dutchLinesWithEnds`). A mono's
+  gutter–barge corner: Barge end / Hip end, `endKinds['m:i']`
+  (`_applyMonoHipEnds`): a 45° hip to where it meets the edge, the barge a
+  gutter, end-face rakes `slopeRun`, its level barge `head`. Hover = live
+  (`_endPreview`, restored on leave), click = one undo step. A square hip roof
+  (or no ridge) asks "Changing which face?" (`#endFaceChooser`, walls named by
+  compass, screen up = north) off the canvas, never modal. `endKinds` is a
+  ROOF_FIELD, saved, in the snapshot, cleared by a new shape / outline. No
+  entry = every builder byte-identical. `tests/report80.mjs`.
 - A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH
   (feedback reports 78 and 79, 2026-10-28, the owner on job 3302: "inside the
   fine adjustments window ... show a button to convert this section/corner
