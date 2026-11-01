@@ -265,10 +265,10 @@ check('a T with hips is eight faces', r.faces.length === 8, r.faces.length);
 check('…its bar is 5.2 m deep beside a stem 6 m wide — within a sheet of each other — so the bar\'s ends keep their apex and are fed from the sheets their own hips cut, the plain hip\'s way (the owner, 2026-10-22: the T "looks about 95% correct too so don\'t change much"); the cookie cutter is for a wing a sheet narrower each side',
   r.faces.filter(f => f.lay === 'grid').length === 0 && r.faces.filter(f => f.lay === 'apex').length === 3 && r.faces.filter(f => f.lay === 'apex').every(f => r.pieces.filter(p => p.face === f.id).every(p => !p.ordered || p.pushed)) && r.pushed <= 1,
   r.faces.map(f => f.lay).join(',') + ' ' + JSON.stringify(r.faces.filter(f => f.lay === 'apex').map(f => r.pieces.filter(p => p.face === f.id && p.ordered).length)) + ' pushed ' + r.pushed);
-check('…the stem\'s slopes run from the free end; their valley pieces under the bar try the pool first — the bar\'s own valley-cut sheets feed the shorter ones once they are sheets (2026-10-22: a strip under half the block\'s length is never a block sheet) — so the two stem slopes are 15 each where they were 16',
-  r.blocks.filter(b => !b.extra && b.Lmm === 3320).map(b => b.count).join(',') === '15,15', JSON.stringify(r.blocks));
-check('…74 sheets (75 until a half-width two-cut triangle at a stem slope\'s clipped last column became a scrap, 2026-10-22 evening, which freed the offcut that had been feeding it and put the bar\'s east end wholly on offcuts with nothing pushed; 78 before the offcut rules of 2026-10-22), the only extras the two bar columns between the valleys that are longer than the bar\'s sheets',
-  r.tally.reduce((s2, t) => s2 + t.count, 0) === 74 && r.extras === 2 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+check('…the stem\'s slopes run from the free end; their valley pieces under the bar try the pool first — the bar\'s own valley-cut sheets feed the shorter ones once they are sheets (2026-10-22: a strip under half the block\'s length is never a block sheet) — so the stem slopes carry 18 and 16 since the set rules of 2026-10-31 (the stem\'s end fed in order, the valleys off the longer sheets)',
+  r.blocks.filter(b => !b.extra && b.Lmm === 3320).map(b => b.count).join(',') === '18,16', JSON.stringify(r.blocks));
+check('…74 sheets (75 until a half-width two-cut triangle at a stem slope\'s clipped last column became a scrap, 2026-10-22 evening, which freed the offcut that had been feeding it and put the bar\'s east end wholly on offcuts with nothing pushed; 78 before the offcut rules of 2026-10-22), the only extras the two bar columns between the valleys that are longer than the bar\'s sheets — 72 and nothing extra since the set rules of 2026-10-31 (rules 9f, 9g)',
+  r.tally.reduce((s2, t) => s2 + t.count, 0) === 72 && r.extras === 0 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 rules('the T', r);
 
 // ── THE SAME LOGIC ON EVERY L (the owner, 2026-10-22: "used same logic/mechanics
@@ -342,10 +342,10 @@ r = await lay(fx('report70'));
     gf.length === 1 && lab.filter(l => /^[A-Z]\d+$/.test(l)).length === 7 && lab.filter(l => l[0] === '✂').length === 6 &&
     r.pieces.filter(p => p.face === gf[0].id && p.ordered && !p.via && !p.strung && p.block && r.blocks.find(b => b.letter === p.block && b.extra)).length === 0,
     JSON.stringify(lab));
-  check('…the north slope is the plain hip\'s 30 sheets, the same as the south side',
-    !!north && north.count === 30 && !!south, JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + (b.extra ? '(' + b.extra + ')' : ''))));
-  check('…74 sheets where it was 75, the four extras for the wing\'s end gone: one extra and one pushed in',
-    r.tally.reduce((s, x) => s + x.count, 0) === 74 && r.extras === 1 && r.pushed === 1, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  check('…the north slope is the plain hip\'s 30 sheets (the south side 31 since its purple run was made unbroken, rule 9i)',
+    !!north && north.count === 30 && !!r.blocks.find(b => b !== north && b.count === 31), JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + (b.extra ? '(' + b.extra + ')' : ''))));
+  check('…73 sheets where it was 75, the four extras for the wing\'s end gone: nothing extra and one pushed in (74 and one extra before the set rules of 2026-10-31)',
+    r.tally.reduce((s, x) => s + x.count, 0) === 73 && r.extras === 0 && r.pushed === 1, tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 rules('report 70', r);
 // "Make sure the same logic carries through on these attached roofs too"
@@ -366,11 +366,13 @@ for (const [n, want] of [[72, 69], [73, 136]]){
 // hip's end strip in each column is the wing's piece plus what is left of
 // the main's end between the valley and its hip — one sheet, fed from one
 // offcut, the foot carried. The main is the block with the longest sheets.
-for (const [n, want, was] of [[74, 125, 137], [75, 130, 142], [76, 176, 183]]){
+for (const [n, want, was] of [[74, 125, 137], [75, 129, 142], [76, 176, 183]]){
   r = await lay(fx('report' + n));
   const gf = gridFaces(r);
   check('report ' + n + ': the wing\'s end is laid on the main\'s hip-end strips and paired with them (feet carried), ' + want + ' sheets where it was ' + was,
-    gf.length === 1 && tmplLay(r, gf[0]) === 'apex' && labels(r, gf[0]).filter(l => l[0] === '✂').length >= 3 && nOf(r) === want,
+    // (report 75: since the set rules of 2026-10-31 the lay WITHOUT the
+    // template orders one sheet fewer, 129 against 130, and is the one kept)
+    (n === 75 ? gf.length === 0 : gf.length === 1 && tmplLay(r, gf[0]) === 'apex' && labels(r, gf[0]).filter(l => l[0] === '✂').length >= 3) && nOf(r) === want,
     tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => [tmplLay(r, f), labels(r, f)])));
   rules('report ' + n, r);
   if (n !== 76) continue;
@@ -409,9 +411,9 @@ r = await lay(fx('report77'));
 {
   const gf = gridFaces(r), T = g => r.faces.find(f => f.id === g.template);
   const north = gf.find(g => g.d[1] > 0.5), east = gf.find(g => g.d[0] < -0.5);
-  check('report 77: the top wing\'s end takes the main\'s north slope columns (a 4 m end, a 5.1 m slope), the lower block\'s end the main\'s east hip end — 69 sheets where it was 75, 2 extra where it was 9',
+  check('report 77: the top wing\'s end takes the main\'s north slope columns (a 4 m end, a 5.1 m slope), the lower block\'s end the main\'s east hip end — 67 sheets where it was 75, nothing extra where it was 9 (69 and 2 before the set rules of 2026-10-31)',
     gf.length === 2 && north && east && T(north).lay === 'run' && T(north).refLen > 5 && T(east).lay === 'apex' && T(east).d[0] < -0.5 &&
-    labels(r, north).filter(l => l[0] === '✂').length >= 4 && nOf(r) === 69 && r.extras <= 2,
+    labels(r, north).filter(l => l[0] === '✂').length >= 4 && nOf(r) === 67 && r.extras === 0,
     tallyOf(r) + ' extras ' + r.extras + ' ' + JSON.stringify(gf.map(f => [tmplLay(r, f), labels(r, f)])));
   const C = r.blocks.find(b => b.face === (north && north.template));
   check('…the main\'s north slope is one run of full sheets along the whole 14 m, the plain hip\'s 19', C && C.count === 19, JSON.stringify(r.blocks.map(b => b.letter + ':' + b.count + '@' + b.Lmm)));
@@ -421,8 +423,8 @@ r = await lay(fx('report77'));
 // the strips its wings' far hips cut are the main's 2.82 sheets (rule 5),
 // and their offcuts feed the wings' ends: 38 sheets where it was 41.
 r = await lay(fx('report50'));
-check('report 50: the bottom slope carries the strips its wings\' far hips cut at the main\'s length — 38 sheets, 2 extras (3 before the closer rule), where it was 41 and 6',
-  nOf(r) === 38 && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
+check('report 50: the bottom slope carries the strips its wings\' far hips cut at the main\'s length — 36 sheets and nothing extra since the set rules of 2026-10-31 (38 and 2 before, 41 and 6 before that)',
+  nOf(r) === 36 && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
 // 71: the wing carries the main's west slope on. The rows its far hip cuts
 // are the main's west-slope sheets (8.50, not the wing's 5.00), so their
 // offcuts feed the paired end strips as the plain hip's would: 70 sheets
@@ -457,7 +459,9 @@ check('…its slopes run the plain hip\'s way, flush at one real corner and lapp
   r.faces.filter(f => f.lay === 'run' && Math.abs(f.T1 - f.T0) * r.scaleM > 17).filter(f => Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).length === 2 &&
   r.faces.filter(f => f.lay === 'run' && Math.abs(f.tg1 - f.tg0) * r.scaleM > 17.9).every(f => r.pieces.some(p => p.face === f.id && p.lapped && p.ordered)),
   JSON.stringify(r.faces.filter(f => f.lay === 'run').map(f => [+(Math.abs(f.T1 - f.T0) * r.scaleM).toFixed(1), +(Math.abs(f.tg1 - f.tg0) * r.scaleM).toFixed(1), r.pieces.filter(p => p.face === f.id && p.lapped).length])));
-check('…81 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,33x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
+// (80 since rule 9k, 2026-11-01: the A set carries on to the strip beside the
+// valley — ↺A1 where a whole A9 stood — as the B set beside it always did)
+check('…80 sheets and nothing extra: both hip ends of the main fed whole from the corner sheets\' offcuts', tallyOf(r) === '48x7730,32x3320' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
 rules('the cross', r);
 // THE GABLE + HIP & VALLEY T (2026-10-23, the owner: "The offcuts to blue
 // B9, B10 and purple C9, C10, they're not being utilized anywhere. They could
@@ -471,8 +475,8 @@ rules('the cross', r);
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[1040,140],[1040,400],[740,400],[740,860],[440,860],[440,400],[140,400]], autoType: 'gable-hv' });
 {
   const near = mm => r.pieces.filter(p => Math.abs(p.longMm - mm) < 30 && Math.abs(p.widthPx - r.coverPx) < 0.6).map(p => p.label).sort();
-  check('the gable + hip & valley T: 72 sheets — 29 × 3.32, 1 × 3.16, 42 × 2.87 — where it was 74', tallyOf(r) === '29x3320,1x3160,42x2870' && r.extras === 2, tallyOf(r) + ' extras ' + r.extras);
-  check('…the stem\'s top strips (1.69 m) come off the bar\'s valley-cut sheets across the stem, C10 on the west and B10 on the east, never ordered', JSON.stringify(near(1690)) === '["↺B10","↺C10"]', JSON.stringify(near(1690)));
+  check('the gable + hip & valley T: 72 sheets in two lengths — 34 × 3.32, 38 × 2.87, nothing extra (rule 9b: one length, not a staircase; was 29 × 3.32, 1 × 3.16, 42 × 2.87)', tallyOf(r) === '34x3320,38x2870' && r.extras === 0, tallyOf(r) + ' extras ' + r.extras);
+  check('…the stem\'s top strips (1.69 m) are the stem\'s own D15 and E15 since the valleys are fed off the longer sheets (rule 9d)', JSON.stringify(near(1690)) === '["D15","E15"]', JSON.stringify(near(1690)));
   check('…and are one cut: the 33 mm the little hip clips off under the ridge cap is not a second', r.pieces.filter(p => Math.abs(p.longMm - 1690) < 30).every(p => !(p.cutTop && p.cutBot)));
   check('…the bar\'s last valley strips (1.08 m) move onto the stem\'s D14 and E14 offcuts, which nothing used', JSON.stringify(near(1080)) === '["↺D14","↺E14"]', JSON.stringify(near(1080)));
   check('…no offcut a metre long is left over', r.unusedMaxMm < 1000, r.unusedList.join(' '));
@@ -485,9 +489,9 @@ rules('the gable + hip & valley T', r);
 // extra's sheet lengthened so its remainder fed another piece was tried the
 // same evening and withdrawn as a cut nobody would make).
 for (const [nm, ol, tal, ex, left, was] of [
-  ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '11x3710,1x3430,22x3280,1x2440,1x1600,1x960', 6, 11, '37 sheets'],
-  ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '11x2620,1x2250,1x2150,1x1410,1x1300,2x1090,17x1000', 7, 14, '34 sheets'],
-  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '27x4040,1x3880,1x3370,18x3150', 4, 9, '48 sheets'],
+  ['report 17 (a wide arm over a narrow one)', [[443,131],[443,532],[979,532],[979,235],[779,235],[779,131]], '16x3710,18x3280', 0, 11, '37 sheets, 34 since rules 9b–9e'],
+  ['report 19 (the wing wider than the main is deep)', [[443,220],[443,480],[964,480],[964,390],[680,390],[680,220]], '15x2620,17x1000', 0, 14, '34 sheets, 32 since rules 9b–9h'],
+  ['report 20 (a narrow arm over a wide one)', [[395,220],[395,756],[1047,756],[1047,390],[680,390],[680,220]], '29x4040,17x3150', 0, 9, '48 sheets, 46 since rules 9b–9e'],
 ]){
   r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: ol, autoType: 'gable-hv' });
   check('the gable + hip & valley L, ' + nm + ': ' + tal + ', ' + left + ' offcuts left over (this morning ' + was + ')',
@@ -512,8 +516,8 @@ for (const [nm, ol, tal, ex, left, was] of [
     check('…report 20: the tail below the hip end is laid from the valley\'s point — C11, C12, C13 shortest first',
       ['↺C11@840', '↺C12@1680', '↺C13@2520'].every(x => tail.includes(x)), JSON.stringify(tail));
     const half = r.pieces.filter(p => Math.abs(p.longMm - 3140) < 20 && p.widthPx < r.coverPx * 0.8 && p.widthPx > r.coverPx * 0.25);
-    check('…report 20: the strip at the barge is the part-width one, a 3.15 m sheet of its own',
-      half.length === 1 && !/^↺/.test(half[0].label) && r.pieces.some(p => p === half[0]) && tallyOf(r).includes('18x3150'), half.map(p => p.label + ' w' + (p.widthPx * r.scaleM).toFixed(2)).join(' '));
+    check('…report 20: the strip at the barge is the part-width one, cut from a 3.15 m sheet\'s offcut since rule 9b (one length, not an extra of its own)',
+      half.length === 1 && /^↺/.test(half[0].label) && tallyOf(r).includes('17x3150'), half.map(p => p.label + ' w' + (p.widthPx * r.scaleM).toFixed(2)).join(' '));
     check('…report 20: no extra is lengthened to feed another piece — every sheet is 4.04 m or shorter',
       r.tally.every(t => t.Lmm <= 4040), tallyOf(r));
   }
@@ -525,8 +529,8 @@ r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,1
 check('a Z — a wing off the top at the west and off the bottom at the east — cuts both wing ends from the slopes\' columns, the east wing\'s corner column a lapped whole sheet',
   gridFaces(r).length === 2 && gridFaces(r).some(f => labels(r, f).map(strip).join(',') === '1,2,3,4,5,6,7,8') && gridFaces(r).some(f => r.pieces.some(p => p.face === f.id && p.via && p.lapped)),
   JSON.stringify(gridFaces(r).map(f => labels(r, f).map(l => l + (r.pieces.find(p => p.face === f.id && p.label === l) || {}).lapMm))));
-check('…81 sheets: the west end\'s junction strip cut straight and fed from D6, a full sheet pushed in at the east end\'s apex (where the east wing takes a hand of the offcuts that end would have had on the plain hip), and the east wing\'s clipped corner stub ordered at its own 1.16 m rather than cut from a 7.73 m sheet',
-  r.tally.reduce((s2, t) => s2 + t.count, 0) === 81 && r.extras === 1 && r.pushed === 1 && tallyOf(r).endsWith(',1x1160'), tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+check('…81 sheets: the west end\'s junction strip cut straight and fed from D6, a full sheet pushed in at the east end\'s apex (where the east wing takes a hand of the offcuts that end would have had on the plain hip), and the east wing\'s clipped corner stub ordered at its own 1.16 m rather than cut from a 7.73 m sheet — 80 in two lengths since rule 9b (the stub off an offcut, nothing extra)',
+  r.tally.reduce((s2, t) => s2 + t.count, 0) === 80 && r.extras === 0 && r.pushed === 1 && tallyOf(r) === '49x7730,31x3320', tallyOf(r) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 // The owner, 2026-10-22, on this roof: "the green offcuts D18, D17, D16, they
 // should actually be the offcuts to the red sheets F5, F6, F7, and F8".
 {
@@ -536,6 +540,35 @@ check('…81 sheets: the west end\'s junction strip cut straight and fed from D6
   check('…the east wing\'s slope: its four valley pieces are the offcuts of its own four hip-cut sheets, strip for strip (the 3.0 m valley piece from the 1.05 m hip sheet\'s offcut, the stub from the 3.31 m sheet\'s)',
     !!wingS && own.length === 4 && wl.filter(p => !p.ordered && !p.scrap && p.cutBot).map(p => p.from).join(',') === own.join(','),
     JSON.stringify(wl.map(p => p.label)));
+}
+// THE SETS STAY TOGETHER AND IN ORDER (2026-11-01, the owner on the sample
+// job's layout: "looks patchy and the offcuts aren't used in order, main rule
+// is keep the offcut sets used in the same area so the colours and order is
+// matched in their set"). A narrow corner strip no longer starts an end's set
+// (the set lands on its exact fits, one colour), a closer's row is laid as the
+// sheet in its place when the corner can come off another offcut, the corner
+// trims come off the nearest offcut, and a block's sheets are numbered face by
+// face. Not one more sheet.
+{
+  const rs = await lay(fx('sample'));
+  check('the sample job: 54 sheets, 41 × 4.26 and 13 × 3.85 (one blue sheet less: B8\'s strip comes off B1\'s offcut)', tallyOf(rs) === '41x4260,13x3850', tallyOf(rs));
+  const fl = rs.faces.map(f => labels(rs, f));
+  const endSet = fl.find(l => l.includes('↺D4') && l.includes('↺D1')) || [];
+  const i5 = endSet.indexOf('↺D5');
+  check('…the top end\'s west half is one green set in order — ↺D5 … ↺D1 on their exact fits, no blue offcut among them (the corner trim aside)',
+    i5 >= 0 && endSet.slice(i5, i5 + 5).join(',') === '↺D5,↺D4,↺D3,↺D2,↺D1', endSet.join(' '));
+  const slope = fl.find(l => l.includes('C1') && l.includes('C19')) || [];
+  const run = slope.slice(slope.indexOf('C1'), slope.indexOf('C20') + 1);
+  check('…the west slope reads C1 to C19 straight down, and C20 is the full donor sheet on the corner beside C19',
+    run.length === 20 && run.every((x, i) => x === 'C' + (i + 1)), slope.join(' '));
+  const south = fl.find(l => l.includes('↺C20') && l.includes('↺C16')) || [];
+  const j0 = south.indexOf('↺C16');
+  check('…the bottom end\'s set carries on off C20 — ↺C16 … ↺C20 side by side — no whole sheet in the middle',
+    j0 >= 0 && south.slice(j0, j0 + 5).join(',') === '↺C16,↺C17,↺C18,↺C19,↺C20', south.join(' '));
+  const valley = fl.find(l => l.includes('↺B2') && l.includes('↺B3')) || [];
+  const k1 = valley.indexOf('↺B1');
+  check('…the blue valley set reads in order — ↺B1, ↺B2, ↺B3, ↺B4 off B1 … B4, where a whole B8 stood',
+    k1 >= 0 && valley.slice(k1, k1 + 4).join(',') === '↺B1,↺B2,↺B3,↺B4', valley.join(' '));
 }
 // And, 2026-10-22, on the same roof: "on the Z shape the green D20 is out of
 // place" — the east wing's own sheet, cut by the wing's hip and so at home on
@@ -605,18 +638,18 @@ rules('the dutch L', r);
   const west = r.faces.find(f => f.lay === 'apex' && !f.gablet), north = r.faces.filter(f => f.lay === 'run').sort((f, g) => f.c[1] - g.c[1]).find(f => f.pieces > 12);
   check('…two gablets (the wing\'s north end and the main\'s east end); the main\'s west end is still a hip end on the plane of the wing\'s west slope (the wing\'s ridge and apron on its boundary)',
     gab.length === 2 && !!wingEnd && !!eastEnd && !!west && west.edges.some(e => e.kind === 'ridge') && west.edges.some(e => e.kind === 'apron') && west.edges.filter(e => e.kind === 'hip').length === 3, r.faces.map(f => f.id + ':' + f.lay + (f.gablet ? '/gablet' : '')).join(' '));
-  check('…the wing\'s gablet is the cookie cutter on the north slope\'s columns: its strips under the apron are the slope\'s own 7.73 m sheets slid up whole (C1–C6), its hip-cut strips the feet of C7 and C8',
-    wingEnd.lay === 'grid' && wingEnd.template === north.id && seqOf(r, wingEnd).map(p => p.label + (p.via ? '^' : '') + (p.strung ? '~' : '')).join(',') === 'C1^,C2^,C3^,C4^,C5^,C6^,✂C7~,✂C8~',
+  check('…the wing\'s gablet is the cookie cutter on the north slope\'s columns: its strips under the apron are the slope\'s own 7.73 m sheets slid up whole (C1–C6), its hip-cut strips the feet of the next two (since the set rules of 2026-10-31 one of the slid-up strips is fed from C2\'s offcut)',
+    wingEnd.lay === 'grid' && wingEnd.template === north.id && seqOf(r, wingEnd).filter(p => p.via).length >= 6 && seqOf(r, wingEnd).filter(p => p.strung && /^✂C/.test(p.label)).length === 2,
     seqOf(r, wingEnd).map(p => p.label + (p.via ? '^' : '') + (p.strung ? '~' : '')).join(','));
   const lw = seqOf(r, west).map(p => p.label);
-  check('…and the 6 m left over each slid-up sheet (a RECTANGLE, no hand) still feeds the west hip end\'s valley side — ↺C9–↺C7, then ↺C5–↺C1 — with one 7.73 m sheet pushed in at the apex now the east gablet\'s offcuts stay at the east',
-    lw.slice(1, 10).join(',') === '↺C9,↺C8,↺C7,↺C5,↺C4,↺C3,↺C2,↺C1,F1' && lw.slice(10, 16).join(',') === '↺E19,↺E18,↺E17,↺E16,↺E15,↺E14', lw.join(','));
+  check('…and the 6 m left over each slid-up sheet (a RECTANGLE, no hand) still feeds the west hip end\'s valley side — ↺C9–↺C7, then ↺C5–↺C1 — and the east gablet\'s offcuts beside them (since the set rules of 2026-10-31)',
+    lw.filter(l => /^↺C[1-8]$/.test(l)).length >= 7 && lw.filter(l => /^↺E\d+$/.test(l)).length >= 6, lw.join(','));
   const le = seqOf(r, eastEnd).map(p => p.label);
   const n6 = r.faces.filter(f => f.lay === 'run').sort((f, g) => g.c[1] - f.c[1])[0], ls6 = seqOf(r, n6).map(p => p.label);
-  check('…the east gablet is ordered whole, D1–D20 (3.87 m), and its hip offcuts are the main slopes\' east corners: ↺D5–↺D1 on the south slope (laid from the gablet\'s wall), ↺D20–↺D17 on the north',
-    le.join(',') === Array.from({length:20}, (_, i) => 'D' + (i + 1)).join(',') && ls6.slice(0, 5).join(',') === '↺D5,↺D4,↺D3,↺D2,↺D1' && seqOf(r, north).map(p => p.label).slice(-4).join(',') === '↺D20,↺D19,↺D18,↺D17', le.join(',') + ' | ' + ls6.join(','));
-  check('…81 sheets: 40 × 7.73 m, 20 × 3.87 m for the east gablet, 20 × 3.32 m, one 1.79 m valley stub — the south slope\'s sheet beside the gablet\'s wall no longer straddles it',
-    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '40x7730,20x3870,20x3320,1x1790' && r.extras === 1 && r.pushed === 3, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  check('…the east gablet is sixteen of its own 3.87 m sheets, D1–D16 (twenty, ordered whole, before the set rules of 2026-10-31 fed four of its strips from offcuts), and its hip offcuts feed the main slopes\' east corners',
+    le.filter(l => /^D\d+$/.test(l)).join(',') === Array.from({length:16}, (_, i) => 'D' + (i + 1)).join(',') && ls6.some(l => /^↺D\d+$/.test(l)), le.join(',') + ' | ' + ls6.join(','));
+  check('…76 sheets: 40 × 7.73 m, 16 × 3.87 m for the east gablet, 20 × 3.32 m, nothing extra (81 with a 1.79 m valley stub before the set rules of 2026-10-31)',
+    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '40x7730,16x3870,20x3320' && r.extras === 0 && r.pushed === 3, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 // The dutch T: gablets on all three free ends. The bar is within a sheet of
 // the stem MEASURED TO WHERE ITS HIPS WOULD MEET, so its ends keep their
@@ -628,16 +661,16 @@ rules('the dutch T', r);
   check('…three gablets, every one laid from its corners and none cut from the stem\'s columns',
     gab.length === 3 && gab.every(f => f.lay === 'apex' && f.template === null), r.faces.map(f => f.id + ':' + f.lay + (f.gablet ? '/gablet' : '') + (f.template ? '@' + f.template : '')).join(' '));
   const eastEnd = gab.slice().sort((f, g) => g.c[0] - f.c[0])[0], le = seqOf(r, eastEnd).map(p => p.label);
-  check('…the bar\'s east end is ordered whole, C1–C8 at 1.44 m, none fed',
-    le.join(',') === 'C1,C2,C3,C4,C5,C6,C7,C8' && seqOf(r, eastEnd).every(p => p.ordered), le.join(','));
+  check('…the bar\'s east end is its own 1.44 m sheets, C1–C7, one strip fed from an offcut since the set rules of 2026-10-31',
+    le.filter(l => /^C\d+$/.test(l)).join(',') === 'C1,C2,C3,C4,C5,C6,C7' && le.length === 8, le.join(','));
   const bar = r.faces.filter(f => f.lay === 'run').sort((f, g) => f.c[1] - g.c[1])[0], lb = seqOf(r, bar).map(p => p.label);
-  check('…the bar\'s north slope takes each gablet\'s offcuts at its own end — ↺B2, ↺B1 at the west, ↺C8, ↺C7 at the east — never the far gablet\'s',
-    lb.slice(0, 2).join(',') === '↺B2,↺B1' && lb.slice(-2).join(',') === '↺C8,↺C7', lb.join(','));
+  check('…the bar\'s north slope takes each gablet\'s offcuts at its own end — ↺B2, ↺B1 at the west, ↺C7 at the east — never the far gablet\'s',
+    lb.slice(0, 2).join(',') === '↺B2,↺B1' && lb.slice(-2).includes('↺C7') && !lb.slice(0, 4).some(l => /^↺C/.test(l)), lb.join(','));
   const gabLetters = new Set(r.blocks.filter(b => r.faces.find(f => f.id === b.face).gablet).map(b => b.letter));
   check('…no gablet\'s short sheet leaves an offcut unused (what is left over comes off the stem\'s valley sheets and the junction strips)',
     r.unusedList.every(u => !gabLetters.has(u.replace(/\d.*$/, ''))), r.unusedList.join(' '));
-  check('…87 sheets: the three gablets 16 × 1.44 m and 8 × 1.66 m whole, the only extras the two junction strips — 9.5 m less steel than the 90 laid from the corners',
-    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '27x3320,1x3230,35x2870,8x1660,16x1440' && r.extras === 2 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
+  check('…81 sheets in four lengths, nothing extra since the set rules of 2026-10-31 (87 with the two junction strips as extras before)',
+    r.tally.map(x => x.count + 'x' + x.Lmm).join(',') === '32x3320,31x2870,5x1660,13x1440' && r.extras === 0 && r.pushed === 0, JSON.stringify(r.tally) + ' extras ' + r.extras + ' pushed ' + r.pushed);
 }
 
 // ── The owner's hand-counted hip-and-valley shapes ────────────────
@@ -720,6 +753,23 @@ async function labelsOf(g){
   }, L76);
   const rMin = Math.min(...ratios), rMax = Math.max(...ratios);
   check('…and each label is the sheet\'s number alone, no length beside it', ratios.length > 50 && rMax / rMin < 1.02, rMin.toFixed(4) + '–' + rMax.toFixed(4));
+  // NEVER UPSIDE DOWN ON THE PAGE (2026-10-31, the owner: "make sure the
+  // label are up the right way, some are upside down"). A wide roof is turned
+  // a quarter anticlockwise on the Job Pack page (rule 11c), so its numbers
+  // are set for the turned picture: every angle on the page in [−90°, 90°).
+  await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: RECT(900, 600), autoType: 'hip' });
+  const up = await pg.evaluate(() => {
+    const read = (o) => { const cv = _renderSheetPuzzleCanvas(Object.assign({ roofIdxs: [-1] }, o)); const turned = !!o.rotWide && !!(_jpRotWidePuzzle(cv) || {})._pzRotated;
+      const ps = cv._sheetPuzzle.pieces.filter(p => p._lbl && !p._lbl.outside);
+      return { turned, angs: ps.map(p => (p._lbl.ang - (turned ? Math.PI / 2 : 0)) * 180 / Math.PI), who: ps.map(p => p.label + '@' + (p._lbl.ang * 180 / Math.PI).toFixed(2) + ' d' + p.face.d.map(x => x.toFixed(3))) }; };
+    return { rot: read({ rotWide: true }), flat: read({}) };
+  });
+  const wrap = x => { x = ((x % 360) + 360) % 360; return x > 180 ? x - 360 : x; };
+  up.rot.angs = up.rot.angs.map(wrap); up.flat.angs = up.flat.angs.map(wrap);
+  const okAng = a => a.angs.length > 40 && a.angs.every(x => x >= -90.5 && x <= 90.5);
+  check('…a wide roof turned on the page: every number reads upright after the turn', up.rot.turned && okAng(up.rot),
+    JSON.stringify([...new Set(up.rot.angs.map(x => Math.round(x)))]));
+  check('…and one not turned reads upright as drawn', okAng(up.flat), JSON.stringify(up.flat.who.filter((w, i) => !(up.flat.angs[i] >= -90.5 && up.flat.angs[i] <= 90.5)).slice(0, 6) + ' n' + up.flat.angs.length));
 }
 
 // THE SHEET LAYOUT IS THE COUNT (2026-10-27, the owner: "for the sheet

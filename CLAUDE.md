@@ -422,26 +422,241 @@ THE FILL:
    one sheet for one, never more steel. Report 76: E1 is now ↺C49 (49
    purple, 48 orange, 176, nothing extra); report 20's small hip, 74 and 50
    lose an extra each the same way; no tally moves anywhere.
-9. An extra is a sheet at its OWN length — never two extras cut from one
-   sheet ("e1 should just be a full sheet with a small amount of wasteage").
+8d. OFFCUTS GO NEXT TO EACH OTHER, NEXT TO THE SHEETS THEY CAME FROM
+   (2026-10-31, the owner: "always try and bunch up the offcuts so they go
+   next to each other rather than used in opposite areas of the roof.
+   Because a roofer is likely to focus on one lot of sheets, cut them, lay
+   those first lots of sheets, and then straight away lay the offcut sheets
+   ... prioritize laying offcuts in order next to each other. It makes it
+   simple and easy and utilizes the right offcuts in the right spot").
+   Rule 8's series made general: when more than one offcut fits a piece,
+   prefer the one whose sheet lies nearest to it and whose neighbours feed
+   the pieces beside it, so a run of offcuts lands as a run. It ranks after
+   rule 10's less steel — a lay that is nearer but orders more steel loses —
+   and decides between lays and fits that tie on steel. On the double
+   cascade mock it is already as close as the steel allows: the corner by
+   C5 and the triangle by C7 can only come off C6 or C16. NOT YET BUILT.
+9. An extra is a FULL sheet — never two extras cut from one sheet ("e1
+   should just be a full sheet with a small amount of wasteage").
+9b. ONE LENGTH, NOT A STAIRCASE (2026-10-31, the owner on report 17's pink
+   3.28 / 2.44 / 1.60 m extras, superseding "an extra at its own length":
+   "sheets ... ordered to step down, so they went down in size, which is just
+   too confusing for the guys on site ... rather than them stepping down, they
+   should have been full length, and then either cut at the valley to create a
+   full off cut set to be used somewhere, or they would be made up of an off cut
+   set ... Always try to keep the same size, the same length sheets as the full
+   length. We don't want too many different size sheets in an order because it
+   confuses the roofer"). A sheet that would be ordered at a length of its own
+   (an extra, a pushed-in sheet) is ordered at its face's full block length
+   (else the shortest block length on the roof it fits), then tried off an
+   offcut set. Fewer different lengths in an order beats a little steel.
+9c. A VALLEY SHEET IN FULL (the same day, report 17: "there are four valley
+   sections, so there should be four valley offcuts. One side of the valley
+   should have full sheets, and the offcuts to those full sheets should fill
+   in the whole side of the valley on the other side ... The sheets in the
+   valley should be full length so that the offcuts work on the other
+   valley"). A sheet is never flipped, so a valley's offcuts fit the OTHER
+   valley's far side (the same hand, one cut), not their own.
+9d. THE LONGER SHEETS ARE THE VALLEY DONORS (the same day, report 17: "because
+   blue and orange sheets are longer, they should be full sheets all the way to
+   the edge, and the offcuts to those should fill in where the purple and red
+   sheets are at the valleys ... making the longer sheets the donor sheets to
+   create longer offcuts"; on the T: "one side of the valleys should be donor
+   and one side of the valley should be the offcuts ... make the donor sheets
+   the longer sheets"). Where a valley runs between a long block and a short
+   one, the long block's sheets run full to the valley and their offcuts fill
+   the short side (`_pzOptimise` move 5, kept only if it orders no more
+   sheets or lengths and at most one donor sheet more steel). A piece cut on
+   BOTH sides (a two-cut triangle, no square end) may come off anywhere on its
+   sheet, not only the square end (`_pzOwnIsFree`) — that is what lets A7's
+   and B7's offcuts reach on report 17 (33 sheets, 2 lengths, was 37 and 6).
+9e. A VALLEY RUN IS ONE COLOUR (the same day, report 17: "I don't like seeing
+   mismatched colors where I think the offcut would actually work there, and
+   I'm seeing too much wastage. Prioritize those two rules"; then exactly:
+   "B7 blue offcut should actually be the offcut to A8, and green D13 offcut
+   should actually be the offcut to B7. A8 offcut should actually be just a
+   full sheet on its own with a bit of wastage"). The offcut pieces on
+   neighbouring strips of one face, one hand, are a RUN; its colour is the
+   block most of it comes from (two or more, a clear majority). A stray piece
+   is re-cut from that colour's sheets (and a cut sheet of another face's
+   block ordered in among the run comes off the order the same way); a LONE
+   piece elsewhere sitting on an offcut the run needs is ordered as a full
+   sheet of its own (its face's block, else a block already on its face, else
+   the shortest that fits). Kept only when the roof's STRAYS go down (a piece
+   whose colour no strip beside it shares and is not its face's own colour),
+   no new length is ordered, and at most a sheet per two pieces put right.
+   A full sheet ordered to free an offcut must sit beside a strip of its own
+   colour (A9 beside A6), or it is only a new stray — the first build put a
+   green sheet among purple offcuts on the double cascade (67 → 68) and the
+   owner had it put back ("fix that double cascade back to how it was before
+   when it was good"). `_pzOptimise` move 6. Report 17: 33 → 34 sheets, both
+   valleys one colour, the owner: "absolutely perfect". No other test roof
+   moves.
+9f. THE T'S VALLEYS TOO (the same day, on the hip T beside report 17: "These
+   T-shapes have a similar issue to what we have been fixing ... valley sheets
+   offcuts not being utilized"). Move 5 now tries the VALLEYS ALONE first: the
+   long block's valley-cut sheets are paired with the short side's valley
+   strips (biggest offcut to the biggest strip, same hand), only those pieces
+   may move, and only onto the donor face's sheets (`allowFn`); a corner strip
+   that loses the offcut it used becomes a sheet of its own face's block. Where
+   that buys nothing, the wider move 5 of v5 runs as before (`attempt(rk,
+   narrow)`). Hip T: 73 sheets, both valleys one colour off the stem's 3.32s.
+   Shown as "Sheet layout v6 - T valleys"; 8 of 43 roofs move, report 71 one
+   sheet less (and with 9g both T's one less), the rest the same count for
+   1-4 m more steel; report 17, 19,
+   the double cascade and the Big-L unchanged. Report 76 now takes ~13 s.
+9g. THE SET, IN ORDER (the same day, on the hip T's E15: "I don't like that
+   E15 sheet there, remember the rule to prioritize laying sheets and offcuts
+   in order and using the right offcut in the right spot to keep them as a
+   set"). When 9f takes a corner strip's offcut for a valley, that strip and
+   the end row it fed were each ordered as a sheet, and the first new sheet's
+   offcut — exactly the second's shape — went unused. `_pzOptimise` move 7
+   offers every sheet ordered that way (and every extra) to the nearest
+   offcut it fits, the longest first, with the fill's own one-cut test (same
+   hand, long and short sides covered: the packer keeps a piece clear of a
+   sheet's own cut, so it never nests one along a hip the way an end is fed).
+   Such a sheet takes its place in its face's run (E1, E2, E3 along the
+   gutter), never a number after the rest. And an orphan on a hip end is
+   ordered as the sheet of the slope ACROSS A HIP FROM IT WITH ITS HAND (the
+   hand of that slope's sheets cut by that hip — a slope between two ends
+   carries both), never a colour from the far side of the roof (`blockFor`).
+   Hip T: the stem's end ↺E1–↺E4 in order, 73 → 72 sheets, 221.94 m; the tee
+   fixture 73 → 72, 216.94 m, its bar's top end orange like its bottom (A22,
+   not a stray blue E17). No other test roof moves.
+9h. IN ORDER, NO PATCHES (the same day, on reports 70 and 71: "The two on the
+   right are looking patchy and sheets aren't in order"). Two causes. Move 2
+   swapped a hip-cut sheet in the MIDDLE of a run to a shorter block's length
+   (report 71's west slope read C1, C2, B7, C3, B8, C4, B1 …): a sheet now
+   joins the shorter block only where the strip beside it on its face is
+   already that block (`besideBlock`, repeated until nothing moves), so the
+   short sheets grow as one run from its end — C1–C4, then B1–B7. And 9f's
+   valley move is kept only when it leaves the roof NO PATCHIER than it found
+   it (`straysNow` — move 6's stray, now at the function's top: a piece whose
+   colour no strip beside it shares, not its face's own). Every sheet the
+   optimiser orders is numbered in its place along its face's run. Measured
+   against v5: reports 70 and 71 back to v5's sheets; report 19 32 sheets not
+   31 (one more 1.00 m, each arm one colour); reports 50 and 74 the same count
+   for 1.4 m and 6.0 m more steel, no stray green in the purple runs; the T's
+   a sheet cheaper; report 17, the double cascade and the Big-L unchanged.
+   Left as v5: report 70's one green ↺D1 strip on the purple slope (purple
+   costs a sheet). Report 76 takes ~16 s to lay — speed to look at. Shown as
+   "Sheet layout v7 - in order, no patches".
+9i. EACH HALF OF A HIP END IS ONE SET, IN ORDER (the same day, on report 71:
+   "L-shapes still too patchy, i want a clean look ... it should use offcut to
+   purple sheet C9, instead it starts from C8 meaning green d28 should actually
+   be C1"). The north end's east half read C27, D28 (a whole green sheet),
+   ↺C1 … ↺C8 — every offcut one strip further out than its exact fit. Move 8
+   in `_pzOptimise`: per hip end (`lay` apex), per hand, per colour already
+   feeding it, the strips longest first are paired IN ORDER with that colour's
+   hip-cut sheets whose cut is a HIP of this end or of a wing's end laid on it
+   (`adoptedBy` / `template`, rule 4b) — never another end's sheets — biggest
+   offcut first (an LCS-style search: most strips fed, then the sheets freed
+   wasting most, then the tightest fits). What it moves off an offcut (a foot
+   carried under a freed sheet, a piece elsewhere) goes to the nearest free
+   offcut it fits, else onto a sheet it packs on, else a sheet of the colour
+   beside it. Kept only when the order is no bigger, the roof no patchier
+   (`straysNow`), one of them better, and at most a metre more steel. Report
+   71: ↺C1–↺C8 each on its exact fit, D28 off the order, the purple ↺C4
+   stranded on the wing's orange end an orange A8 (70 sheets, 3.6 m less).
+   C9's offcut is a 0.49 m sliver, too short for the corner strip. ↺D5 / ↺D4
+   stay green in that run: rows B1 / B2 are cut by the same hip but are 5.18 m
+   B sheets; as 8.80 m C sheets they would feed those two strips exactly (7.2 m
+   more steel, same count) — offered to the owner, not built. Report 70: its
+   stray green ↺D1 strip gone, the purple slope C1–C29 unbroken; report 75 132 →
+   129 sheets (42 m less); the 13 m wing L's stray ↺D1 a purple C14. Shown as
+   "Sheet layout v8 - ends as one set". Report 76 ~16 s.
+9j. THE SMALLEST OFFCUT STARTS THE SET (the same day: "Make sure it's always
+   utilizing the smallest of the offcut to start an offcut set. Make that a
+   rule, should stop patchyness"). Move 8 now pairs the half's strips and the
+   donor colour's offcuts BOTH SMALLEST FIRST, in order, the most strips fed,
+   each as tight as it goes — the smallest offcut that fits starts the set at
+   its small end, a sliver that fits nothing is passed over, what is left
+   falls at the head. A shorter block's hip-cut sheet on the same slope may be
+   ordered at the set's length (`promo`) so the set is not broken by its
+   missing offcut (report 71's B1/B2 as C sheets — the option offered under
+   9i, now taken: ↺C1–↺C9 one purple set, ↺D5/↺D4 gone, 70 sheets, +7.2 m).
+   A SET RUNS UNBROKEN ON THE GROUND (`unbroken`: no other run's strip lies
+   across it between its first and last strip, whichever face it is on) — a
+   pairing that only fits by jumping a blue run falls back on v8's pairing;
+   and one that orders a whole sheet INSIDE its own span is kept only if it
+   saves a sheet (`inSpan`). Report 50: the whole D13 among the D offcuts gone,
+   37 → 36. Double-L: the same 85, +0.54 m, its stray blue B9 a purple C18 (an
+   orange ↺A12 lands in that corner — flagged to the owner). Every other test
+   roof as v8. Shown as "Sheet layout v9 - smallest offcut starts the set".
+   LIVE 2026-11-01 on the owner's "Go live on everything" (he had the v5–v9
+   pictures): 9b, 9c, 9d, 9e, 9f, 9g, 9h, 9i, 9j, rule 10's new order (less
+   steel first) and the flush pre-cut are `_pzOptimise` in sheet-plan.js,
+   shipped as v9. `tests/sheetlayout.mjs`'s 21 count pins were re-taken with
+   it (none a geometry rule; report 75 now keeps the lay WITHOUT the
+   template, 129 against 130) and `typesnap.json` regenerated (the two
+   roofing quotes' sheets line only: 177.41 → 174.16 m and 168.82 →
+   165.31 m). Report 76 takes ~16 s to lay — still the speed to look at.
+9k. THE SETS STAY TOGETHER, IN ORDER (2026-11-01, the owner on the sample
+   job's layout in the promo shots: "looks patchy and the offcuts aren't used
+   in order, main rule is keep the offcut sets used in the same area so the
+   colours and order is matched in their set"). Four changes in
+   `_pzOptimise`, rule 8d's first build: (a) a PART-WIDTH CORNER STRIP (under
+   0.6 of a cover) never starts an end's set in move 8 — the set lands on its
+   exact fits across the full strips (the sample's top end ↺D4, ↺D3, ↺D2,
+   ↺D1, was ↺D3 … ↺D1 then a blue ↺B1, every offcut one strip out) and the
+   corner is fed after it; such a trim is not counted as a stray or a colour
+   break when move 8 weighs its lay (`isTrim`, `straysNow(true)`); (b) move
+   9a, THE RUN READS IN ORDER: a rule-8c closer whose offcut carries a row of
+   its own face is undone when that row can be the sheet itself and the
+   corner sliver comes off a free offcut or packs onto a sheet — same count,
+   same steel (the sample's west slope C1–C19 straight down, was a hatched
+   ↺C19 between C14 and C15); (c) move 9, A TRIM COMES OFF THE NEAREST
+   OFFCUT: corner trims not already in a set (off their own face's sheet, or
+   the colour of a strip beside them) swap donors or take a free offcut when
+   that brings each nearer — nothing ordered or freed; (d) a block's sheets
+   are NUMBERED FACE BY FACE in the final renaming (C20 and C21 together on
+   the top end, C22 on the bottom — was C20, C22 / C21). Switches:
+   `window.__PZ_SET_CORNER`, `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`,
+   `__PZ_FACE_NUM` (false = off).
+   (e) THE SET CARRIES ON, move 10 (the same day, on the pictures: "B8 should
+   be the offcut to b1, and C22 should be the offcut [of] a full donor sheet
+   c20 (c20 full donor sheet should be next to c19 donor sheet)"): a run of
+   offcuts in order (↺B2 ↺B3 ↺B4 ↺B5 off B2 … B5) has a next strip at each
+   end and a next sheet in its donors' order; where that next strip is a
+   whole sheet it is cut from the next donor's offcut instead — the donor's
+   own strip made a sheet of the set's colour if it was not one (the corner
+   sliver C20 beside C19), the whole sheet off the order; what either gave up
+   moves to the nearest free offcut, packs onto a sheet, or is ordered beside
+   its own colour; kept only when the order is no bigger and the roof no
+   patchier. `window.__PZ_SET_ON`. Sample job: ↺B1 … ↺B4 by the valley
+   (B8 gone), C20 the corner donor and ↺C16 … ↺C20 across the bottom end
+   (C22 gone), the top end ↺D5 … ↺D1 off the wing end's D sheets — 55 → 54
+   sheets; the cross 81 → 80 (↺A1 where A9 stood, as the B side always was);
+   the double-L the same 85 (C17/C22 swapped so ↺C16 ↺C17 run together).
+   Measured on every fixture: no roof orders more steel; report 20 71 → 70
+   (one 2.74 m sheet less, the B run in order); report 50 and report 74 the
+   same count, a corner moved. `typesnap.json` regenerated (the sample
+   quote's sheets line 174.16 → 171.23 m only). `tests/fixtures-sample.json`
+   (the shipped sample job's roof) and five pins in `sheetlayout.mjs` (415).
+   LIVE 2026-11-01 on the owner's "go live" (he had the before/after
+   pictures for the sample, the cross, the double-L, reports 20 and 50, and
+   answered "Perfect").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
     fewer sheets first. It should be less steel first and utilizing most of
     the offcut"; before that, "it should go which ever way is most
-    efficient"). NOT YET BUILT: the engine still keeps fewer sheets, then
-    less steel (`opts.noTipLay`, `opts.noApexTmpl` and the late-step
-    comparisons in `_sheetPuzzleFill`). Changing it moves fixtures, so it
-    ships with the efficiency moves below and before/after pictures.
+    efficient"). LIVE since 2026-11-01: `_sheetPuzzleBuild` finishes each lay
+    (`fin`: the mono extension, then `_pzOptimise`) and `better` keeps the one
+    ordering less steel, then fewer sheets, then the first on a tie.
     WHAT IT DECIDED ON THE DOUBLE CASCADE (report 77 redrawn at a true 45°,
     tested as a mock, not built): today 69 sheets / 295.02 m with extras
     G1 and H1. Moves he asked for, each a real fit (spin, never flip): G1
     off E20's offcut; H1 off C15's offcut; C15's two-cut corner triangle off
-    C6's leftover; C16's offcut carrying the far-north valley piece beside
-    its own triangle; the blue E17 (a 5.13 m sheet with a 2.20 m piece)
-    ordered as a red F7 at 2.20; the one piece nothing else can carry (the
-    1.26 m corner by C5) an extra at its own length → 68 sheets, 286.18 m.
-    Under the old order 67 sheets / 287.85 m would have been kept.
+    C16's offcut carrying the far-north valley piece and the two-cut
+    triangle beside C17; the blue E17 (a 5.13 m sheet with a 2.20 m piece)
+    ordered as a red F7 at 2.20; C6's offcut carrying the 1.26 m corner by
+    C5 (which was an extra, "I don't like G1 gold") and the triangle by C7,
+    once C6's own 0.39 m sliver at the west corner moved onto C16 → 67
+    sheets, 284.92 m, nothing extra. Finding it took a search over every
+    assignment of the loose pieces to the offcuts with room, each sheet's
+    set packed in every order — a first-fit pass reports "no fit" where an
+    arrangement exists, so the engine's version must search the same way.
     THE PRE-CUT PACKS AGAINST THE FIRST CUT (asked the same day: "bring that
     small double cut C16 right to the edge of the main C16"): the mock places
     each offcut piece as LOW as it fits, flush with the sheet's own cut, so
@@ -536,6 +751,13 @@ THE PICTURE:
     from `_renderSheetPuzzleCanvas`). The pre-cut layout is not turned.
     `quickwins.mjs` pins the order and the migration, `sheetlayout.mjs` the
     fit and the turn on the 18 × 12 m hip.
+    THE NUMBERS READ UPRIGHT AFTER THE TURN (2026-10-31, the owner: "make sure
+    the label are up the right way, some are upside down"): set before the
+    turn, half of them came out upside down on the page. With `opts.rotWide`
+    on a roof the turn will take (`bw > bh × JP_ROT_WIDE`, the turn's own
+    test), each number's angle is picked for the turned picture — across the
+    page reading bottom to top, never upside down — and a corner number
+    outside the roof is turned with it. Pinned in `sheetlayout.mjs`.
 
 THE ORDER:
 12. THE SHEET LAYOUT IS THE COUNT (2026-10-27: "for the sheet quantity in the
@@ -5687,7 +5909,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND and BACKEND = `afe2348` (the left menu's job buttons all grey and centred; a duplicated draft says on the Quote tab how much less it comes to than the quote emailed, with Keep the sent prices; 2026-10-29 8:42 am NZ, promote run 40756495946: backend "Live after 40s"). Before it FRONTEND = `0223665` (the roof window replaces the roof settings drop-down, live shape changes; a duplicated quote keeps its products; As sent vs today in the Pricing drawer; 2026-10-29 7:41 am NZ, Tests run 40746568843 green, promote run 40747190582: "The site is serving 0223665", backend step red reading `c1e1ca4` — `git diff c1e1ca4..0223665 -- floodroofing/backend/` is EMPTY, so the API runs the same code under the older name). BACKEND = `c1e1ca4`. Before it FRONTEND and BACKEND = `c1e1ca4` (a new paying subscriber emails the owner, the daily report says when each started paying; 2026-10-29 6:14 am NZ, Tests run 40732295139 green, promote run 40733008859: site serving, backend "Live after 300s"). Before it FRONTEND and BACKEND = `bae28d6` (feedback reports 78/79: a bump on a hip roof is Hip & valley or Mono extension, switched on the corner pad, a drag never changes it; a corner grab takes the nearest corner; 2026-10-28 4:54 pm NZ, Tests run 40628178495 green on its second attempt after one `hubui` dark-theme-reload check flaked on shard 2 — the hub is untouched by it and the suite passes 104/104 locally — promote run 40629240702: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `e5f3aeb` (the Gutters only job type with Marley Typhoon's own colour chart; 2026-10-28 4:31 pm NZ, Tests run 40626663912 green, promote run 40627066699: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `c3e0ddb` (the product list — gutter and profile pictures, own grades, own options — and the custom email wording survive a reload and a stale tab's save; a sent job stays locked when the Draft is picked from the Viewing menu; 2026-10-28 1:47 pm NZ, promote run 40610866433: site serving, backend "Live after 40s". Its first ship `c189d61` was skipped on a `quotedrafts` timing pin, fixed in `c3e0ddb`). Before it FRONTEND and BACKEND = `bf97a41` (Files & Photos on every job: uploads and every RoofMap export or send kept in the private `job-files` bucket, Fergus files listed, opened inside RoofMap; the left menu Save, Change job, History & Communications, Files & Photos, then the lock; 2026-10-27 10:45 am NZ, Tests run 40588732990 green, promote run 40589303351: site serving, backend "Live after 40s"). Before it `d8a63be` (Scott's pricing CSV: the site address, Custom Price Book items tagged Material join the materials at cost with the job's buffer and mark-up, the rest an "Other lines on the quote" block with its own total; 2026-10-27 10:33 am NZ). Before it FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
+**Live now.** FRONTEND = `4c72922` (rule 9k, the sheet layout's offcut sets kept together and in order, the set carries on — sample job 55 → 54, the cross 81 → 80, report 20 71 → 70; on the owner's "go live"; Tests run 41270069211 green, promote run 41270492099 green, two READY Vercel production deployments carrying the SHA; 2026-11-01 4:48 pm NZ. Its first push `0f7c950` was skipped on `hubui`'s crew strip check, which failed on the calendar alone — November began past the last pay run — and is pinned to the pay runs' months now). BACKEND unchanged by it. Before it FRONTEND = `29ab4e4` (the sheet layout v9 on the owner's "Go live on everything": rules 9b–9j and rule 10, less steel first; sheet-plan.js only, so the proof is two READY Vercel production deployments carrying the SHA; Tests run 41234707898 green, promote run 41235218061 green; 2026-11-01 8:40 am NZ). BACKEND unchanged by it. Before it FRONTEND and BACKEND = `afe2348` (the left menu's job buttons all grey and centred; a duplicated draft says on the Quote tab how much less it comes to than the quote emailed, with Keep the sent prices; 2026-10-29 8:42 am NZ, promote run 40756495946: backend "Live after 40s"). Before it FRONTEND = `0223665` (the roof window replaces the roof settings drop-down, live shape changes; a duplicated quote keeps its products; As sent vs today in the Pricing drawer; 2026-10-29 7:41 am NZ, Tests run 40746568843 green, promote run 40747190582: "The site is serving 0223665", backend step red reading `c1e1ca4` — `git diff c1e1ca4..0223665 -- floodroofing/backend/` is EMPTY, so the API runs the same code under the older name). BACKEND = `c1e1ca4`. Before it FRONTEND and BACKEND = `c1e1ca4` (a new paying subscriber emails the owner, the daily report says when each started paying; 2026-10-29 6:14 am NZ, Tests run 40732295139 green, promote run 40733008859: site serving, backend "Live after 300s"). Before it FRONTEND and BACKEND = `bae28d6` (feedback reports 78/79: a bump on a hip roof is Hip & valley or Mono extension, switched on the corner pad, a drag never changes it; a corner grab takes the nearest corner; 2026-10-28 4:54 pm NZ, Tests run 40628178495 green on its second attempt after one `hubui` dark-theme-reload check flaked on shard 2 — the hub is untouched by it and the suite passes 104/104 locally — promote run 40629240702: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `e5f3aeb` (the Gutters only job type with Marley Typhoon's own colour chart; 2026-10-28 4:31 pm NZ, Tests run 40626663912 green, promote run 40627066699: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `c3e0ddb` (the product list — gutter and profile pictures, own grades, own options — and the custom email wording survive a reload and a stale tab's save; a sent job stays locked when the Draft is picked from the Viewing menu; 2026-10-28 1:47 pm NZ, promote run 40610866433: site serving, backend "Live after 40s". Its first ship `c189d61` was skipped on a `quotedrafts` timing pin, fixed in `c3e0ddb`). Before it FRONTEND and BACKEND = `bf97a41` (Files & Photos on every job: uploads and every RoofMap export or send kept in the private `job-files` bucket, Fergus files listed, opened inside RoofMap; the left menu Save, Change job, History & Communications, Files & Photos, then the lock; 2026-10-27 10:45 am NZ, Tests run 40588732990 green, promote run 40589303351: site serving, backend "Live after 40s"). Before it `d8a63be` (Scott's pricing CSV: the site address, Custom Price Book items tagged Material join the materials at cost with the job's buffer and mark-up, the rest an "Other lines on the quote" block with its own total; 2026-10-27 10:33 am NZ). Before it FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
 answered from Gmail and followed back onto the job, the History &
 Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
 run 39856153437: "The site is serving" and "Live after 40s" on the backend —
