@@ -7873,8 +7873,71 @@ function _sheetPuzzleBuild(opts){
     if (alt2 && alt2.tally && res.tally){ fin(res); fin(alt2); if (better(alt2, res)) res = alt2; }
   }
   fin(res);
+  if (!opts.noFill && !opts._monoDefer && !opts.noClears){ try { _pzApplyClears(res); } catch(e){ try { console.warn('sheet clears:', e); } catch(e2){} } }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
+}
+
+// ── A CLEARLITE TAKES A SHEET'S PLACE (2026-11-02, feedback report 81) ──
+// The owner: "check that when a clearlite sheet it added, it makes one less
+// steel sheet required ... make sure the sheet layout diagram shows the
+// clearlite sheets too, make sure the clearlite changes the price and the job
+// pack and everything". Every clear placed on a roof is found on the strip it
+// lies over. A full-length clear on a strip that is a sheet of its own, whose
+// offcut feeds nothing, takes that sheet off the order: it leaves its block,
+// the block is numbered again without it, and the tally is the steel left. A
+// clear over a cut piece (fed from an offcut, or a sheet whose offcut is used
+// elsewhere) is still shown, but the steel stays — the sheet is still needed.
+// A short clear is an infill: drawn where it lies, no steel saved.
+// pz.clears = [{ c, roofIdx, piece, short, lenMm, saves }]; pz.clearTally.
+function _pzApplyClears(pz){
+  if (typeof _clearAllPlaced !== 'function' || !pz || !pz.pieces || !pz.blocks) return;
+  var placed = _clearAllPlaced(); if (!placed.length) return;
+  var act = (DRAW.roofs && DRAW.roofs.length) ? DRAW.activeRoofIdx : 0;
+  var inPz = {}; pz.pieces.forEach(function(q){ inPz[q.roofIdx] = 1; });
+  pz.clears = [];
+  placed.forEach(function(o){
+    var c = o.c; if (!c) return;
+    var same = function(ri){ return ri === o.roofIdx || (ri === -1 && o.roofIdx === act) || (ri === -1 && !(DRAW.roofs && DRAW.roofs.length)); };
+    if (!Object.keys(inPz).some(function(k){ return same(+k); })) return;
+    var lenM = (typeof _clearLenM === 'function') ? _clearLenM(c, o.roofIdx) : 0;
+    var p = c.mode === 'short' ? null : pz.pieces.filter(function(q){
+      return same(q.roofIdx) && !q.clear && q.poly && _spPointInPoly(c.cx, c.cy, q.poly);
+    })[0] || null;
+    var rec = { c: c, roofIdx: o.roofIdx, piece: p, short: c.mode === 'short', lenMm: Math.round(lenM * 1000), saves: false };
+    if (p){
+      p.clear = true;
+      if (p.ordered && p.block && !pz.pieces.some(function(q){ return q !== p && q.from === p.label; })){
+        p.clearSaves = true; rec.saves = true;
+        rec.lenMm = p.Lmm || p.block.Lmm || rec.lenMm;   // the clear is the sheet it stands in for
+      }
+    }
+    pz.clears.push(rec);
+  });
+  if (!pz.pieces.some(function(q){ return q.clearSaves; })){ pz.clearTally = _pzClearTally(pz); return; }
+  var ren = {};
+  pz.blocks.forEach(function(b){
+    if (!b.pieces.some(function(q){ return q.clearSaves; })) return;
+    b.pieces = b.pieces.filter(function(q){ return !q.clearSaves; });
+    b.pieces.forEach(function(q, i){ var nl = b.letter + (i + 1); if (q.label !== nl){ ren[q.label] = nl; q.label = nl; } q.num = i + 1; });
+  });
+  pz.pieces.forEach(function(q){
+    if (q.clearSaves){ q.label = 'CL'; q.ordered = false; return; }
+    if (!q.ordered && q.from && ren[q.from]){ q.from = ren[q.from]; q.label = (q.strung ? '✂' : '↺') + q.from; }
+  });
+  pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
+  var byLen = {};
+  pz.blocks.forEach(function(b){
+    b.count = b.pieces.length;
+    b.pieces.forEach(function(pc){ var L = pc.Lmm || b.Lmm; byLen[L] = (byLen[L] || 0) + 1; });
+  });
+  pz.tally = Object.keys(byLen).map(function(k){ return { Lmm: +k, count: byLen[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
+  pz.clearTally = _pzClearTally(pz);
+}
+function _pzClearTally(pz){
+  var by = {};
+  (pz.clears || []).forEach(function(r){ if (r.lenMm > 0) by[r.lenMm] = (by[r.lenMm] || 0) + 1; });
+  return Object.keys(by).map(function(k){ return { Lmm: +k, count: by[k] }; }).sort(function(x, y){ return y.Lmm - x.Lmm; });
 }
 
 // ── THE FILL — Roof Wizard's block cutting ────────────────────────────
@@ -8722,6 +8785,7 @@ function _renderSheetPuzzleCanvas(opts){
   var exCol = blocks.length ? blocks[0].color : '#94a3b8';
   if (pz.fedPieces) chip('hatched = cut from that sheet’s offcut, spun', exCol, 'fed');
   if (pz.strungPieces) chip('✂ = the foot of that sheet, cut off at the valley and carried along its own column', exCol, 'foot');
+  if ((pz.clearTally || []).length) chip('CL  ' + pz.clearTally.map(function(t){ return t.count + ' × ' + _pzM(t.Lmm) + ' m'; }).join(', ') + ' clearlite', '#0284c7', 'clear');
   // Room above the roof for a corner label set just outside it.
   var padTop = legendTop + (crow + 1) * 19 + 30;
   var bb = pz.bbox, bw = Math.max(1, bb[2]-bb[0]), bh = Math.max(1, bb[3]-bb[1]);
@@ -8745,7 +8809,10 @@ function _renderSheetPuzzleCanvas(opts){
   ctx.textBaseline = 'middle';
   chips.forEach(function(c){
     var y = legendTop + c.row * 19;
-    if (c.hatch === 'fed' || c.hatch === true){
+    if (c.hatch === 'clear'){
+      ctx.fillStyle = 'rgba(56,189,248,0.38)'; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill();
+      ctx.save(); ctx.setLineDash([3, 2]); ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 0.9; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.stroke(); ctx.restore();
+    } else if (c.hatch === 'fed' || c.hatch === true){
       ctx.save(); ctx.fillStyle = '#fff'; _roundRect(ctx, c.x, y, 12, 12, 3); ctx.fill(); ctx.clip();
       ctx.strokeStyle = _pzTint(c.color, 0.65); ctx.lineWidth = 1.1; ctx.beginPath();
       for (var hh = -12; hh < 24; hh += 6){ ctx.moveTo(c.x + hh, y); ctx.lineTo(c.x + hh + 12, y + 12); }
@@ -8768,6 +8835,12 @@ function _renderSheetPuzzleCanvas(opts){
   pz.pieces.forEach(function(pc){
     var P = pc.poly.map(toC), col = (pc.block && pc.block.color) || '#94a3b8';
     path(P);
+    if (pc.clear){
+      // A clearlite: the sky-blue of the clear on Map Roof, dashed.
+      ctx.fillStyle = 'rgba(56,189,248,0.38)'; ctx.fill();
+      ctx.save(); ctx.setLineDash([4, 2]); ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+      return;
+    }
     if (pc.ordered || pc.strung){ ctx.fillStyle = _pzTint(col, pc.strung ? 0.22 : 0.30); ctx.fill(); }
     else {
       ctx.fillStyle = '#fff'; ctx.fill();
@@ -8782,6 +8855,16 @@ function _renderSheetPuzzleCanvas(opts){
     ctx.strokeStyle = pc.ordered ? _pzTint(col, 0.9) : '#94a3b8'; ctx.lineWidth = 0.8;
     if (pc.strung) ctx.setLineDash([3, 2]);
     ctx.stroke(); ctx.setLineDash([]);
+  });
+  // A short clear (an infill) is drawn where it lies, over the steel it sits in.
+  (pz.clears || []).forEach(function(r){
+    if (!r.short || !(r.lenMm > 0) || !(r.c.ux || r.c.uy)) return;
+    var pf = 1; try { var pd = _clearRoofPitch(r.roofIdx); pf = pd > 0 ? 1 / Math.cos(pd * Math.PI / 180) : 1; } catch(e){}
+    var half = r.lenMm / 1000 / pz.scaleM / pf / 2, hw = pz.coverPx / 2, u = [r.c.ux, r.c.uy], v = [-r.c.uy, r.c.ux];
+    var Q = [[1,1],[1,-1],[-1,-1],[-1,1]].map(function(k){ return toC([r.c.cx + u[0]*half*k[0] + v[0]*hw*k[1], r.c.cy + u[1]*half*k[0] + v[1]*hw*k[1]]); });
+    path(Q); ctx.fillStyle = 'rgba(56,189,248,0.45)'; ctx.fill();
+    ctx.save(); ctx.setLineDash([4, 2]); ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 1.2; ctx.stroke(); ctx.restore();
+    var m = toC([r.c.cx, r.c.cy]); ctx.save(); ctx.fillStyle = '#075985'; ctx.font = '800 9px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('CL', m[0], m[1]); ctx.restore();
   });
   // Labels: the sheet number up every piece with room, the length beside it.
   // THE NUMBER IS THE THING A ROOFER LOOKS FOR (2026-10-22, the owner: "can
@@ -8815,7 +8898,7 @@ function _renderSheetPuzzleCanvas(opts){
       // THE NUMBER ONLY (2026-10-27, the owner: "remove the sheet measures
       // on each individual sheet, it's confusing") — the lengths are in the
       // tally and the block schedule under the picture.
-      var txt = pc.label || '';
+      var txt = pc.clear ? 'CL' : (pc.label || '');
       if (!txt) return;
       var ca = Math.cos(ang), sa = Math.sin(ang);
       var boxFitsAt = function(cx, cy, wC, hC){
@@ -8970,7 +9053,9 @@ function _pzRoofSig(idx, linesOverride){
   else { var r = DRAW.roofs && DRAW.roofs[idx]; if (!r) return null; o = r.outline; l = r.lines; p = r.calPitch; lp = r.lowPitch; }
   if (!o || o.length < 3) return null;
   var cover = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
-  return JSON.stringify([o, (l || []).map(function(x){ return x && [x.type, x.pts]; }), +p || 0, +lp || 0, DRAW.scaleMetresPerPx || 0, cover]);
+  var cl = idx < 0 ? DRAW.clearlites : (DRAW.roofs[idx] && DRAW.roofs[idx].clearlites);
+  cl = (cl || []).map(function(c){ return c && [Math.round(c.cx), Math.round(c.cy), c.mode, c.lenM || 0]; });
+  return JSON.stringify([o, (l || []).map(function(x){ return x && [x.type, x.pts]; }), +p || 0, +lp || 0, DRAW.scaleMetresPerPx || 0, cover, cl]);
 }
 function _pzTallyRemember(sig, tally){
   if (!sig) return;
@@ -8989,8 +9074,10 @@ function _pzTallyOfRoof(idx){
   // A layout that orders less steel than the roof has area is a roof the
   // layout cannot read yet (report 60's dog-leg gable laid 12 sheets of a
   // 38-sheet roof) — never an order. It answers nothing, and the readers
-  // fall back to the sheet engine for that roof.
-  if (t.length && !_pzTallyCovers(t, live ? -1 : idx)) t = [];
+  // fall back to the sheet engine for that roof. (A clear that took a
+  // sheet's place still covers its strip: counted with the steel here.)
+  var cov = t.concat((pz && pz.clears || []).filter(function(r){ return r.saves; }).map(function(r){ return { Lmm: r.lenMm, count: 1 }; }));
+  if (t.length && !_pzTallyCovers(cov, live ? -1 : idx)) t = [];
   _pzTallyRemember(sig, t);
   return t;
 }

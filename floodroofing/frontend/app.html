@@ -506,7 +506,19 @@ html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
-#cornerBumpRow{padding:0 9px 8px}
+#cornerBumpRow,#cornerEndRow{padding:0 9px 8px}
+#cornerEndRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
+#cornerEndRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+#cornerEndRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
+#cornerEndRow .crn-bump:hover:not(.on){background:rgba(255,255,255,.08)}
+#clearRoofChooser,#endFaceChooser{position:fixed;z-index:2001;width:196px;background:#0a1628;border:1px solid #10233c;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.38);font-family:Inter,-apple-system,sans-serif;color:#fff}
+#clearRoofChooser .efc-hd,#endFaceChooser .efc-hd{display:flex;align-items:center;gap:6px;padding:7px 9px;cursor:move;border-bottom:1px solid rgba(255,255,255,.12);font-size:11.5px;font-weight:700;touch-action:none}
+#clearRoofChooser .efc-x,#endFaceChooser .efc-x{margin-left:auto;background:none;border:none;color:#cbd5e1;font-size:14px;line-height:1;cursor:pointer;padding:0 2px}
+#clearRoofChooser .efc-sub,#endFaceChooser .efc-sub{font-size:10px;color:rgba(255,255,255,.65);padding:7px 9px 0}
+#clearRoofChooser .efc-row,#endFaceChooser .efc-row{display:flex;gap:6px;padding:8px 9px 10px}
+#clearRoofChooser .efc-btn,#endFaceChooser .efc-btn{flex:1;padding:8px 4px;border-radius:7px;border:1px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit}
+#clearRoofChooser .efc-col{flex-direction:column}
+#clearRoofChooser .efc-btn:hover,#endFaceChooser .efc-btn:hover{background:#0099cc;border-color:#0099cc}
 #cornerBumpRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
 #cornerBumpRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 #cornerBumpRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
@@ -5201,7 +5213,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-10-31T01:58:56Z';
+  window.APP_BUILT_AT = '2026-11-01T20:20:19Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6542,6 +6554,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <span></span><button onclick="_cornerRepoNudge(0,1)" class="crn-btn" title="Down 0.01m">▼</button><span></span>
         </div>
         <div id="cornerBumpRow" style="display:none"></div>
+        <div id="cornerEndRow" style="display:none"></div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">Keyboard arrows work too. You can still drag the corner.</div>
       </div>
       <!-- Ridge / valley junction nudge pad — the corner pad's twin, with one
@@ -9470,6 +9483,17 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
           <button type="button" onclick="addCatalogItem('underlays')" class="tool-btn" style="font-size:11px">+ Add underlay</button>
         </div>
         <div id="catalogUnderlays"></div>
+      </div>
+
+      <!-- Clearlite sheets (report 81): the clear sheets placed on the map, by the metre -->
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Clearlite sheets</strong>
+        <span class="set-sec-note">— $/lm, whatever the steel</span></div>
+        <div class="f3">
+          <div><label>Fibreglass clearlite ($/lm)</label><input type="number" id="pbClearFibreLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Polycarbonate clearlite ($/lm)</label><input type="number" id="pbClearPolyLm" step="0.01" min="0" placeholder="0.00"></div>
+          <div></div>
+        </div>
       </div>
 
       <!-- Fixings: the screw and rivet rates, whatever the steel -->
@@ -14970,6 +14994,7 @@ function collectPriceBookFromUI(){
   }
   pb.gutter_lm      = _num('pbGutterLm');
   pb.screws_each    = _num('pbScrewsEach');
+  if (document.getElementById('pbClearFibreLm')){ pb.clear_fibreglass_lm = _num('pbClearFibreLm'); pb.clear_poly_lm = _num('pbClearPolyLm'); }
   pb.rivets_each    = _num('pbRivetsEach');
   pb.downpipe_ea    = _num('pbDownpipeEach');
   // START FROM WHAT IS STORED, so a rate this page has no box for — a gutter
@@ -15157,6 +15182,8 @@ function renderPriceBookUI(){
   try { refreshDefaultUnderlayPicker(pb.defaultUnderlayProduct || ''); } catch(e){}
   setN('pbGutterLm',      pb.gutter_lm);
   setN('pbScrewsEach',    pb.screws_each);
+  setN('pbClearFibreLm',  pb.clear_fibreglass_lm);
+  setN('pbClearPolyLm',   pb.clear_poly_lm);
   setN('pbRivetsEach',    pb.rivets_each);
   setN('pbDownpipeEach',  pb.downpipe_ea);
   var g = pb.gutter || {};
@@ -15456,6 +15483,8 @@ var PB_CSV_TARGETS = [
   { path: 'downpipe_ea',     label: 'Downpipe',             unit: 'ea', re: /down\s*pipe/i },
   { path: 'screws_each',     label: 'Roofing screws',       unit: 'ea', re: /screw|unitite/i },
   { path: 'rivets_each',     label: 'Rivets',               unit: 'ea', re: /rivet/i },
+  { path: 'clear_poly_lm',   label: 'Polycarbonate clearlite', unit: 'lm', re: /(?=.*\bclear)(?=.*poly)/i },
+  { path: 'clear_fibreglass_lm', label: 'Fibreglass clearlite', unit: 'lm', re: /clear\s*lite|clearlite|fibre\s*glass\s*sheet/i },
   // Catch-all, deliberately last.
   { path: 'gutter_lm',       label: 'Gutter (generic $/lm)', unit: 'lm', re: /\bgutter(ing)?\b|spouting/i },
 ];
@@ -15787,6 +15816,7 @@ function _cpbLinkedBy(path){
 // On Quote's Product Options, a default a book item prices is read-only and says so.
 var CPB_INPUT_IDS = { 'underlay.50':'pbUnderlay50', 'underlay.75':'pbUnderlay75', 'underlay.100':'pbUnderlay100',
   gutter_lm:'pbGutterLm', screws_each:'pbScrewsEach', rivets_each:'pbRivetsEach', downpipe_ea:'pbDownpipeEach',
+  clear_fibreglass_lm:'pbClearFibreLm', clear_poly_lm:'pbClearPolyLm',
   'gutter.typhoon_spouting_lm':'pbGutTyphoonSpouting', 'gutter.typhoon_bracket_ea':'pbGutTyphoonBracket',
   'gutter.typhoon_outlet_ea':'pbGutTyphoonOutlet', 'gutter.typhoon_joiner_ea':'pbGutTyphoonJoiner',
   'gutter.typhoon_corner_ea':'pbGutTyphoonCorner', 'gutter.typhoon_stopend_ea':'pbGutTyphoonStopend',
@@ -17584,6 +17614,19 @@ function _buildMaterialPriceRows(){
   // real two-option row and each option has its own price in the book. The
   // pick follows the job's Ridging choice on the material order and writing
   // it here moves that one too, so the cut list and the price never disagree.
+  // CLEARLITE SHEETS (report 81: "make sure the clearlite changes the price").
+  // The clears on the roofs this price covers, by the metre, at the clear
+  // material chosen on the Job Pack. The steel they stand in for has already
+  // come off the sheets row above: the sheet layout takes the sheet off.
+  (function(){
+    var cq = null; try { cq = _clearPricingLm(); } catch(e){ cq = null; }
+    if (!cq || !(cq.lm > 0)) return;
+    rows.push({ key:'clearlite', label:'Clearlite sheets', autoQty:cq.lm, autoUnit:'lm',
+                variants:[ { value:'fibreglass',    label:'Fibreglass clearlite',    price:pb.clear_fibreglass_lm||0, unit:'lm' },
+                           { value:'polycarbonate', label:'Polycarbonate clearlite', price:pb.clear_poly_lm||0,       unit:'lm' } ],
+                defaultVariant:_clearMaterial(), decimalQty:true,
+                note: cq.n + ' clear sheet' + (cq.n === 1 ? '' : 's') + ' placed on the map' });
+  })();
   (function(){
     if (!ridgeHip) return;
     var w = _flashWaste((_ll.ridge||[]).concat(_ll.hip||[]), ridgeHip, 'ridge');
@@ -17727,6 +17770,7 @@ function _cpbPathForVariant(row, v){
   if (/^(valley|barge|apron|changepitch)$/.test(k)) return k + '_lm';
   if (k === 'screws') return 'screws_each';
   if (k === 'rivets') return 'rivets_each';
+  if (k === 'clearlite') return (v && v.value === 'polycarbonate') ? 'clear_poly_lm' : 'clear_fibreglass_lm';
   if (/^aquaseal:/.test(k)) return 'aquaseal.' + v.value;
   var m = /^backtray:([^|]+)\|/.exec(k); if (m) return 'backtray_prices.' + m[1];
   return '';
@@ -19801,7 +19845,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null, endKinds:DRAW.endKinds||null,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -20006,6 +20050,7 @@ function restoreFromJob(j){
     DRAW.ridgeBreaks = Array.isArray(snap.draw.ridgeBreaks) ? snap.draw.ridgeBreaks : [];
     DRAW.hipEnds = (snap.draw.hipEnds && typeof snap.draw.hipEnds === 'object') ? snap.draw.hipEnds : null;
     DRAW.bumpModes = (snap.draw.bumpModes && typeof snap.draw.bumpModes === 'object') ? snap.draw.bumpModes : null;
+    DRAW.endKinds = (snap.draw.endKinds && typeof snap.draw.endKinds === 'object') ? snap.draw.endKinds : null;
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -53103,7 +53148,7 @@ function _roofGeometryPayload(){
       activeRoofIdx: DRAW.activeRoofIdx,
       // The builder's own inputs, so a report re-builds the same roof.
       roofType: DRAW.roofType || '', rotation: DRAW.rotation || 0, roofBaseHoriz: DRAW.roofBaseHoriz,
-      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null,
+      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null, endKinds: DRAW.endKinds || null,
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
       // Everything the CUT LIST is built from besides the geometry — the
       // typed quantities and lengths, sheets deleted off the plan, measure
@@ -53248,6 +53293,7 @@ function _cornerRepoOpen(idx){
   _bumpLockModes();
   pop.style.display = 'block';
   try { _cornerBumpRowRender(); } catch(e){}
+  try { if (window._CE && window._CE.idx !== idx) _endChooserClose(); _cornerEndRowRender(); } catch(e){}
   // First open (or not yet user-moved this session): pin it to the top-left
   // corner of the canvas so it always lands in a predictable, out-of-the-way
   // spot. The moving corner itself is highlighted (yellow ring) on the canvas,
@@ -53549,7 +53595,7 @@ document.addEventListener('pointerdown', function(e){
     if (!window._cornerRepo || window._cornerRepo.idx < 0) return;
     var pop = document.getElementById('cornerRepoPopup');
     if (!pop || pop.style.display === 'none') return;
-    if (e.target && e.target.closest && e.target.closest('#cornerRepoPopup')) return;
+    if (e.target && e.target.closest && (e.target.closest('#cornerRepoPopup') || e.target.closest('#endFaceChooser'))) return;
     _closeCornerRepo();
   } catch(err){}
 }, true);
@@ -53921,7 +53967,7 @@ function _ridgeBreakBoxRender(l){
 
 // What a built line carries beyond its type: a broken ridge's pieces (see
 // _gblPushRidge in buildGableRoofLines).
-var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg', 'hipEnd'];
+var LINE_FLAG_KEYS = ['ridgeChain', 'ridgeBreak', 'breakRole', 'breakEnd', 'slopeRun', 'dogleg', 'hipEnd', 'monoHip'];
 function _carryLineFlags(from, to){ LINE_FLAG_KEYS.forEach(function(k){ if (from[k] != null) to[k] = from[k]; }); return to; }
 // ══ A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH ══
 // Feedback reports 78 and 79 (2026-10-28, the owner on job 3302): "inside the
@@ -54066,7 +54112,7 @@ function regenerateAutoRoofLines(roofType){
   }));
   try {
     var lines = null;
-    if      (roofType === 'hip')   lines = _hipLinesWithBumps(DRAW.outline);
+    if      (roofType === 'hip')   lines = _hipLinesWithEnds(DRAW.outline);
     // Straight gable keeps its ROTATED axis across corner drags — a
     // regen without the flip snapped the ridge back to the long axis.
     else if (roofType === 'gable') lines = (typeof buildGableRoofLines === 'function')
@@ -54075,8 +54121,8 @@ function regenerateAutoRoofLines(roofType){
       ? buildStepGableRoofLines(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1) : null;
     else if (roofType === 'gable-hv') lines = (typeof buildGableRoofLines_legacy === 'function')
       ? buildGableRoofLines_legacy(DRAW.outline) : null;
-    else if (roofType === 'dutch') lines = (typeof buildDutchGableRoofLines === 'function') ? buildDutchGableRoofLines(DRAW.outline) : null;
-    else if (roofType === 'mono')  lines = (typeof buildMonoPitchRoofLines === 'function')  ? buildMonoPitchRoofLines(DRAW.outline, DRAW.rotation || 0) : null;
+    else if (roofType === 'dutch') lines = _dutchLinesWithEnds(DRAW.outline);
+    else if (roofType === 'mono')  lines = _monoLinesWithEnds(DRAW.outline, DRAW.rotation || 0);
     if (lines) lines.forEach(function(l){
       var copy = {
         type: l.type, pts:[l.pts[0].slice(), l.pts[1].slice()],
@@ -59339,7 +59385,7 @@ function onCanvasClick(e) {
   // penetration — click the roof, answer the popup — because that is how the
   // user asked for it and it is the interaction they already know.
   if(DRAW.tool==='clearlite') {
-    showClearPopup(xy[0], xy[1]);
+    _clearPlaceStart(xy[0], xy[1]);
     return;
   }
 
@@ -59806,6 +59852,7 @@ function finishCurrent() {
     DRAW.outline=_outlineDropRepeats(pts);
     DRAW.outlineDone=true;
     DRAW.bumpModes=null;   // a new outline's bumps carry no choice yet
+    DRAW.endKinds=null;    // nor its ends
     DRAW.currentPts=[];
     // Lazily seed roofs[] for the very first outline so subsequent
     // outlines extend the multi-roof model.
@@ -59995,7 +60042,7 @@ function hitClearlite(x,y){
   var coverM = (parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762) / 1000;
   for (var i = arr.length - 1; i >= 0; i--){
     var c = arr[i]; if (!c) continue;
-    var lenM = _clearLenM(c);
+    var lenM = _clearLenM(c, DRAW.activeRoofIdx);
     if (!(mpp > 0) || !(lenM > 0)){
       if (Math.hypot(c.cx - x, c.cy - y) < 22) return i;
       continue;
@@ -60623,6 +60670,8 @@ function _captureSnapState() {
     manualSheetMeasures: DRAW.manualSheetMeasures || [],
     tapes: JSON.parse(JSON.stringify(DRAW.tapes || [])),
     bumpModes: DRAW.bumpModes ? JSON.parse(JSON.stringify(DRAW.bumpModes)) : null,
+    endKinds: DRAW.endKinds ? JSON.parse(JSON.stringify(DRAW.endKinds)) : null,
+    hipEnds: DRAW.hipEnds ? JSON.parse(JSON.stringify(DRAW.hipEnds)) : null,
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
     matSheetFrozen: DRAW.matSheetFrozen || null,
@@ -60705,6 +60754,8 @@ function _applySnapState(snapStr) {
   if ('calPitch' in s)        DRAW.calPitch        = s.calPitch || 0;
   if ('lowPitch' in s)        DRAW.lowPitch        = s.lowPitch || 0;
   if ('bumpModes' in s)       DRAW.bumpModes       = s.bumpModes ? JSON.parse(JSON.stringify(s.bumpModes)) : null;
+  if ('endKinds' in s)        DRAW.endKinds        = s.endKinds ? JSON.parse(JSON.stringify(s.endKinds)) : null;
+  if ('hipEnds' in s)         DRAW.hipEnds         = s.hipEnds ? JSON.parse(JSON.stringify(s.hipEnds)) : null;
   if ('calMeasType' in s)     DRAW.calMeasType     = s.calMeasType || 'flat';
   if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
   if ('calPitchAtCal' in s)   DRAW.calPitchAtCal   = s.calPitchAtCal || 0;
@@ -60864,7 +60915,7 @@ function clearAll(silent) {
   DRAW.editMode = 'scaled';
   DRAW.offScale = null;
   // A new job never inherits the last roof's broken ridge or hipped ends.
-  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null;
+  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null; DRAW.endKinds = null;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -63143,14 +63194,21 @@ function redrawAll() {
   // Cover width comes from the same sheet-width input the tiler uses, so a
   // clear is exactly as wide on the plan as the steel sheet it replaces.
   (function(){
-    var arr = (Array.isArray(DRAW.clearlites) ? DRAW.clearlites : []);
+    // Every roof's clears when every roof is on screen (report 81: a clear put
+    // on the roof that is not selected is still drawn where it lies), and the
+    // one being placed while its roof is picked.
+    var arr = (Array.isArray(DRAW.clearlites) ? DRAW.clearlites : []).map(function(c){ return { c: c, r: DRAW.activeRoofIdx }; });
+    if (DRAW.showAllRoofs && Array.isArray(DRAW.roofs) && DRAW.roofs.length > 1)
+      DRAW.roofs.forEach(function(r, ri){ if (ri !== DRAW.activeRoofIdx && r && Array.isArray(r.clearlites)) r.clearlites.forEach(function(c){ arr.push({ c: c, r: ri }); }); });
+    if (_CLEAR_PREVIEW) arr.push({ c: _CLEAR_PREVIEW.c, r: _CLEAR_PREVIEW.roofIdx, preview: true });
     if (!arr.length) return;
     var mpp = DRAW.scaleMetresPerPx || 0;
     var coverMm = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
     var coverM = coverMm / 1000;
-    arr.forEach(function(c, i){
+    arr.forEach(function(o, i){
+      var c = o.c;
       if (!c) return;
-      var lenM = _clearLenM(c);
+      var lenM = _clearLenM(c, o.r);
       var mid = dp([c.cx, c.cy]);
       // Direction: along the sheet run, i.e. perpendicular to the nearest
       // gutter. Same rule the Sheet-measure arrow uses, so a clear and a
@@ -63189,10 +63247,10 @@ function redrawAll() {
       ctx.beginPath();
       corners.forEach(function(pt, j){ if (j===0) ctx.moveTo(pt[0],pt[1]); else ctx.lineTo(pt[0],pt[1]); });
       ctx.closePath();
-      ctx.fillStyle = 'rgba(56,189,248,0.22)';
+      ctx.fillStyle = o.preview ? 'rgba(56,189,248,0.45)' : 'rgba(56,189,248,0.22)';
       ctx.fill();
       ctx.strokeStyle = '#0284c7';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = o.preview ? 2.5 : 1.5;
       ctx.setLineDash([5,3]);
       ctx.stroke();
       ctx.setLineDash([]);
@@ -65549,8 +65607,9 @@ function _clearPopupSetMode(m){
 // Returns { cx, cy, ux, uy } — the fitted centre and the up-the-fall unit
 // direction, in image coordinates — or null when there is nothing to fit to
 // (no gutters yet), in which case the click stands as it was.
-function _clearliteFit(cx, cy, lenM){
-  var gutters = (DRAW.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
+function _clearliteFit(cx, cy, lenM, roofIdx){
+  var _src = _clearRoofSrc(roofIdx);
+  var gutters = (_src.lines || []).filter(function(g){ return g && g.type === 'gutter' && g.pts && g.pts.length === 2; });
   if (!gutters.length) return null;
   var mpp = DRAW.scaleMetresPerPx || 0;
   // The gutter this sheet drains to: nearest by perpendicular distance, but
@@ -65590,13 +65649,16 @@ function _clearliteFit(cx, cy, lenM){
     });
     return hit;
   }
-  var ridges = (DRAW.lines || []).filter(function(l){ return l && (l.type === 'ridge' || l.type === 'changepitch') && l.pts && l.pts.length === 2; })
+  // (and, report 81, a hip or a valley: the strip under the clear stops there too,
+  // and so does the outline — the first of them the fall line meets)
+  var ridges = (_src.lines || []).filter(function(l){ return l && (l.type === 'ridge' || l.type === 'changepitch' || l.type === 'hip' || l.type === 'valley') && l.pts && l.pts.length === 2; })
     .map(function(l){ return l.pts; });
   var runPx = rayHit(ridges);
-  if (!isFinite(runPx) && DRAW.outline && DRAW.outline.length >= 3){
+  var _ol = _src.outline;
+  if (_ol && _ol.length >= 3){
     var edges = [];
-    for (var oi = 0; oi < DRAW.outline.length; oi++) edges.push([DRAW.outline[oi], DRAW.outline[(oi+1)%DRAW.outline.length]]);
-    runPx = rayHit(edges);
+    for (var oi = 0; oi < _ol.length; oi++) edges.push([_ol[oi], _ol[(oi+1)%_ol.length]]);
+    runPx = Math.min(runPx, rayHit(edges));
   }
   if (!isFinite(runPx)) return { cx: cx, cy: cy, ux: best.ux, uy: best.uy };
   var lenPx = (mpp > 0 && lenM > 0) ? lenM / mpp : 0;
@@ -65614,7 +65676,7 @@ function _clearliteFit(cx, cy, lenM){
   } else {
     mid = Math.min(26, runPx / 2);
   }
-  return { cx: best.foot[0] + best.ux*mid, cy: best.foot[1] + best.uy*mid, ux: best.ux, uy: best.uy };
+  return { cx: best.foot[0] + best.ux*mid, cy: best.foot[1] + best.uy*mid, ux: best.ux, uy: best.uy, runPx: runPx };
 }
 function showClearPopup(cx, cy){
   _pendingClearX = cx; _pendingClearY = cy;
@@ -65625,6 +65687,7 @@ function showClearPopup(cx, cy){
   if (ov) ov.style.display = 'block';
 }
 function cancelClearPopup(){
+  _pendingClearRoof = null;
   var pop = document.getElementById('clearPopup'), ov = document.getElementById('clearPopupOverlay');
   if (pop) pop.style.display = 'none';
   if (ov) ov.style.display = 'none';
@@ -65638,20 +65701,27 @@ function confirmClearPopup(){
     // keep the popup up rather than dropping a 0 m sheet on the order.
     if (!(lenM > 0)) { var i = document.getElementById('clearLenInput'); if (i) i.focus(); return; }
   }
+  var _ri = (_pendingClearRoof != null) ? _pendingClearRoof : DRAW.activeRoofIdx;
   cancelClearPopup();
   saveSnapshot();
   var _cl = { cx: _pendingClearX, cy: _pendingClearY, mode: mode, lenM: lenM };
   try {
-    var _fitLen = (mode === 'short') ? lenM : _clearFullLenM();
-    var _fit = _clearliteFit(_pendingClearX, _pendingClearY, _fitLen);
+    var _f0 = _clearliteFit(_pendingClearX, _pendingClearY, 0, _ri);
+    if (_f0 && _f0.runPx > 0) _cl.runPx = _f0.runPx;
+    var _fitLen = (mode === 'short') ? lenM : (_clearRunM(_cl, _ri) || _clearFullLenM());
+    var _fit = _clearliteFit(_pendingClearX, _pendingClearY, _fitLen, _ri);
     if (_fit){ _cl.cx = _fit.cx; _cl.cy = _fit.cy; _cl.ux = _fit.ux; _cl.uy = _fit.uy; }
   } catch(e){}
-  _clearArr().push(_cl);
+  if (Array.isArray(DRAW.roofs) && DRAW.roofs.length && _ri != null && _ri !== DRAW.activeRoofIdx && DRAW.roofs[_ri]){
+    var _rr = DRAW.roofs[_ri]; if (!Array.isArray(_rr.clearlites)) _rr.clearlites = [];
+    _rr.clearlites.push(_cl);
+  } else _clearArr().push(_cl);
   try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   try { syncToRoofData(); } catch(e){}
   try { redrawAll(); } catch(e){}
   try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
   try { renderJobPack && renderJobPack(); } catch(e){}
+  try { calcLabour(); } catch(e){}   // the price follows: one steel sheet fewer, one clear more
   try { _scheduleAutosave(); } catch(e){}
 }
 // The sheet length a FULL-length clear inherits. It replaces one steel sheet
@@ -65679,9 +65749,146 @@ function _clearFullLenM(){
   return 0;
 }
 // Length of one placed clear, whichever way it was answered.
-function _clearLenM(c){
+function _clearLenM(c, roofIdx){
   if (!c) return 0;
-  return (c.mode === 'short') ? (+c.lenM || 0) : _clearFullLenM();
+  if (c.mode === 'short') return (+c.lenM || 0);
+  return _clearRunM(c, roofIdx) || _clearFullLenM();
+}
+// ── A CLEARLITE IS THE LENGTH OF ITS OWN RUN, ON ITS OWN ROOF (2026-11-02,
+// feedback report 81: "clearlite added as full length on the lower roof,
+// clearly too long as it showing as the main roof length instead of the
+// clearlite length"). A full-length clear used to take the LONGEST sheet label
+// anywhere on the map (the main roof's 5.15 m) and was laid that long up from
+// the lower roof's gutter, across the main roof. It is now the run at the spot
+// it was put: from its gutter to the first ridge, hip, valley, change of pitch
+// or edge of ITS OWN roof, at that roof's pitch — 3.25 m on his lean-to.
+function _clearRoofPitch(roofIdx){
+  var multi = Array.isArray(DRAW.roofs) && DRAW.roofs.length;
+  var p = (!multi || roofIdx == null || roofIdx === DRAW.activeRoofIdx) ? DRAW.calPitch : ((DRAW.roofs[roofIdx] || {}).calPitch);
+  if (!(+p > 0)) p = parseFloat((document.getElementById('pitchDeg') || {}).value) || 0;
+  return +p || 0;
+}
+function _clearRoofSrc(roofIdx){
+  var multi = Array.isArray(DRAW.roofs) && DRAW.roofs.length;
+  if (!multi || roofIdx == null || roofIdx === DRAW.activeRoofIdx) return { lines: DRAW.lines || [], outline: DRAW.outline || [] };
+  var r = DRAW.roofs[roofIdx] || {};
+  return { lines: r.lines || [], outline: r.outline || [] };
+}
+function _clearRunM(c, roofIdx){
+  if (!c) return 0;
+  var mpp = DRAW.scaleMetresPerPx || 0; if (!(mpp > 0)) return 0;
+  if (!(c.runPx > 0)){
+    try { var f = _clearliteFit(c.cx, c.cy, 0, roofIdx); if (f && f.runPx > 0) c.runPx = f.runPx; } catch(e){}
+  }
+  if (!(c.runPx > 0)) return 0;
+  var pd = _clearRoofPitch(roofIdx);
+  // rounded UP to the next 10 mm, as every sheet the layout orders is
+  return Math.ceil(c.runPx * mpp / Math.cos(pd * Math.PI / 180) * 100 - 1e-6) / 100;
+}
+// Which roofs a click lands on: inside its outline, or within a few pixels of it.
+function _clearRoofsAt(x, y){
+  if (!Array.isArray(DRAW.roofs) || DRAW.roofs.length < 2) return [DRAW.activeRoofIdx >= 0 ? DRAW.activeRoofIdx : 0];
+  try { _syncCurrentToRoof(); } catch(e){}
+  var out = [];
+  DRAW.roofs.forEach(function(r, i){
+    var ol = (i === DRAW.activeRoofIdx) ? DRAW.outline : (r && r.outline);
+    if (!ol || ol.length < 3) return;
+    var inside = false;
+    for (var a = 0, b = ol.length - 1; a < ol.length; b = a++){
+      if (((ol[a][1] > y) !== (ol[b][1] > y)) && (x < (ol[b][0] - ol[a][0]) * (y - ol[a][1]) / (ol[b][1] - ol[a][1]) + ol[a][0])) inside = !inside;
+    }
+    if (!inside){
+      for (var k = 0; k < ol.length && !inside; k++){
+        var P = ol[k], Q = ol[(k + 1) % ol.length], dx = Q[0]-P[0], dy = Q[1]-P[1], l2 = dx*dx + dy*dy; if (l2 < 1) continue;
+        var t = Math.max(0, Math.min(1, ((x-P[0])*dx + (y-P[1])*dy) / l2));
+        if (Math.hypot(x - (P[0] + t*dx), y - (P[1] + t*dy)) <= 3) inside = true;
+      }
+    }
+    if (inside) out.push(i);
+  });
+  return out;
+}
+var _pendingClearRoof = null;
+// The clear on the canvas before it is placed, while the roof is being picked.
+var _CLEAR_PREVIEW = null;
+function _clearPlaceStart(x, y){
+  var idxs = _clearRoofsAt(x, y);
+  if (idxs.length >= 2) return _clearRoofChooserOpen(x, y, idxs);
+  _pendingClearRoof = idxs.length ? idxs[0] : (DRAW.activeRoofIdx >= 0 ? DRAW.activeRoofIdx : null);
+  showClearPopup(x, y);
+}
+// "if there are multiple roofs and the app is confused at which roof, pop-up a
+// small window asking which roof, when hovering the mouse over each option, it
+// should change the canvas live". One button a roof; a hover draws the clear
+// on that roof; it stands off the canvas, is not modal, and drags by its title.
+function _clearRoofChooserClose(){
+  _CLEAR_PREVIEW = null;
+  var el = document.getElementById('clearRoofChooser'); if (el) el.remove();
+  try { redrawAll(); } catch(e){}
+}
+function _clearRoofChooserOpen(x, y, idxs){
+  _clearRoofChooserClose();
+  var el = document.createElement('div');
+  el.id = 'clearRoofChooser'; el.className = 'no-print';
+  el.innerHTML = '<div class="efc-hd"><span class="crn-grip">✥</span><span>Which roof is this clearlite on?</span>' +
+      '<button type="button" class="efc-x" title="Close" onclick="_clearRoofChooserClose()">✕</button></div>' +
+    '<div class="efc-sub">Hover to see it on each roof</div>' +
+    '<div class="efc-row efc-col">' + idxs.map(function(i){
+      var nm = (DRAW.roofs[i] && DRAW.roofs[i].name) || ('Roof ' + (i + 1));
+      return '<button type="button" class="efc-btn" data-roof="' + i + '" onmouseenter="_clearRoofPreview(' + i + ')" onmouseleave="_clearRoofPreview(null)" onclick="_clearRoofPick(' + i + ')">' + esc(nm) + '</button>';
+    }).join('') + '</div>';
+  el._x = x; el._y = y;
+  document.body.appendChild(el);
+  _floatOffCanvas(el);
+}
+function _clearRoofPreview(i){
+  var el = document.getElementById('clearRoofChooser');
+  if (i == null || !el){ _CLEAR_PREVIEW = null; try { redrawAll(); } catch(e){} return; }
+  var f = null; try { f = _clearliteFit(el._x, el._y, 0, i); } catch(e){}
+  _CLEAR_PREVIEW = { roofIdx: i, c: f ? { cx: f.cx, cy: f.cy, ux: f.ux, uy: f.uy, runPx: f.runPx, mode: 'full' } : { cx: el._x, cy: el._y, mode: 'full' } };
+  // a full clear sits gutter-up at the length of its run: fit again at that length
+  try { var L = _clearRunM(_CLEAR_PREVIEW.c, i); var f2 = _clearliteFit(el._x, el._y, L, i); if (f2){ _CLEAR_PREVIEW.c.cx = f2.cx; _CLEAR_PREVIEW.c.cy = f2.cy; } } catch(e){}
+  try { redrawAll(); } catch(e){}
+}
+function _clearRoofPick(i){
+  var el = document.getElementById('clearRoofChooser'); if (!el) return;
+  var x = el._x, y = el._y;
+  _clearRoofChooserClose();
+  _pendingClearRoof = i;
+  showClearPopup(x, y);
+}
+// Off the canvas where there is room (the menu to its left, or the toolbars
+// above), never modal, dragged by its title.
+function _floatOffCanvas(el){
+  try {
+    var cv = document.getElementById('roofCanvas').getBoundingClientRect();
+    var w = el.offsetWidth, h = el.offsetHeight, x, y;
+    if (cv.left >= w + 16){ x = cv.left - w - 8; y = Math.max(70, cv.top); }
+    else if (cv.top >= h + 16){ x = cv.left + 12; y = cv.top - h - 6; }
+    else { x = cv.left + 12; y = cv.top + 12; }
+    el.style.left = Math.max(6, Math.min(window.innerWidth - w - 6, x)) + 'px';
+    el.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, y)) + 'px';
+  } catch(e){}
+  var hd = el.querySelector('.efc-hd'); if (!hd) return;
+  hd.addEventListener('pointerdown', function(ev){
+    if (ev.target.closest('.efc-x')) return;
+    var r = el.getBoundingClientRect(), ox = ev.clientX - r.left, oy = ev.clientY - r.top;
+    var mv = function(e2){ el.style.left = (e2.clientX - ox) + 'px'; el.style.top = (e2.clientY - oy) + 'px'; };
+    var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    ev.preventDefault();
+  });
+}
+// The clear sheets on the roofs the PRICE covers, in metres, by material.
+function _clearPricingLm(){
+  var sel = (typeof _matSelectedRoofIndices === 'function') ? _matSelectedRoofIndices() : [-1];
+  var multi = Array.isArray(DRAW.roofs) && DRAW.roofs.length;
+  var lm = 0, n = 0;
+  _clearAllPlaced().forEach(function(o){
+    if (multi && sel.indexOf(o.roofIdx) < 0) return;
+    var L = _clearLenM(o.c, o.roofIdx); if (L > 0){ lm += L; n++; }
+  });
+  return { lm: Math.round(lm * 100) / 100, n: n };
 }
 // Every clear across every roof, with the roof it belongs to. The active
 // roof's live array wins over its archived copy — the archive only catches up
@@ -71406,9 +71613,9 @@ function _jpBuildSheetRowsAuto(sc){
       // otherwise only the full-length clears placed ON this roof stand in
       // for its sheets. Other roofs' clears are their own business.
       if (_roofIsClearlite(_scope)){ Object.keys(byLen).forEach(function(k){ delete byLen[k]; }); return; }
-      if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
+      if (typeof _clearAllPlaced === 'function' && !(sc && sc.fromPuzzle)) _clearAllPlaced().forEach(function(o){
         var c = o && o.c; if (!c || o.roofIdx !== _scope || c.mode === 'short') return;
-        add(Math.round(((typeof _clearLenM === 'function') ? _clearLenM(c) : 0) * 1000), 1);
+        add(Math.round(((typeof _clearLenM === 'function') ? _clearLenM(c, o.roofIdx) : 0) * 1000), 1);
       });
     } else {
       // Every roof in clear → there is no steel on this job at all.
@@ -71421,10 +71628,11 @@ function _jpBuildSheetRowsAuto(sc){
       // Individually placed FULL-length clears stand in a sheet's place too. A
       // short one does not — it is an infill, and the steel above and below it
       // is still on the order.
-      if (typeof _clearAllPlaced === 'function') _clearAllPlaced().forEach(function(o){
+      // (The sheet layout already took them out of its own tally — report 81.)
+      if (typeof _clearAllPlaced === 'function' && !(sc && sc.fromPuzzle)) _clearAllPlaced().forEach(function(o){
         var c = o && o.c; if (!c || c.mode === 'short') return;
         if (!_jpHitRoofOk({ roofIdx: o.roofIdx })) return;
-        var lm = (typeof _clearLenM === 'function') ? _clearLenM(c) : 0;
+        var lm = (typeof _clearLenM === 'function') ? _clearLenM(c, o.roofIdx) : 0;
         add(Math.round(lm * 1000), 1);
       });
     }
@@ -73673,7 +73881,7 @@ function _clearOrderRows(){
     buckets[k].qty += qty;
   }
   // Individually placed clears — on the roofs the pack covers.
-  _clearAllPlaced().forEach(function(o){ if (_jpHitRoofOk({ roofIdx: o.roofIdx })) add(_clearLenM(o.c), 1); });
+  _clearAllPlaced().forEach(function(o){ if (_jpHitRoofOk({ roofIdx: o.roofIdx })) add(_clearLenM(o.c, o.roofIdx), 1); });
   // A roof that is entirely clear: every sheet the tiler counted for it is a
   // clear sheet. Only meaningful once the sheet plan has run.
   try {
@@ -81537,8 +81745,24 @@ function _applyHipEnds(lines, ends){
     var max = (ends[other] && lines.some(function(l){ return l.type === 'barge' && l.subtype === other; }) && !lines.some(function(l){ return l.type === 'ridge' && l !== r; })) ? len / 2 : len - 0.5;
     var t = Math.min(d, max), E2 = [E[0] + u[0]*t, E[1] + u[1]*t];
     for (var i = lines.length - 1; i >= 0; i--) if (lines[i] === bs[0] || lines[i] === bs[1]) lines.splice(i, 1);
-    r.pts[ei] = E2.slice();
     lines.push({ type: 'gutter', pts: [C[0].slice(), C[1].slice()], hipEnd: sub });
+    if (ends[sub] === 'dutch'){
+      // A dutch gable end (report 80): the hips pulled back toward their
+      // corners by the gablet fraction, the ridge run on to the middle of the
+      // gablet, two short barges and a head apron across it — the dutch
+      // builder's own gablet.
+      var f = (typeof DRAW.dutchGabletFrac === 'number') ? Math.max(0.05, Math.min(0.95, DRAW.dutchGabletFrac)) : 0.5;
+      var G = C.map(function(c){ return [E2[0] + f*(c[0]-E2[0]), E2[1] + f*(c[1]-E2[1])]; });
+      var M = [(G[0][0]+G[1][0])/2, (G[0][1]+G[1][1])/2];
+      r.pts[ei] = M.slice();
+      lines.push({ type: 'hip', pts: [C[0].slice(), G[0].slice()], hipEnd: sub });
+      lines.push({ type: 'hip', pts: [C[1].slice(), G[1].slice()], hipEnd: sub });
+      lines.push({ type: 'barge', pts: [M.slice(), G[0].slice()], hipEnd: sub });
+      lines.push({ type: 'barge', pts: [M.slice(), G[1].slice()], hipEnd: sub });
+      lines.push({ type: 'apron', subtype: 'head', pts: [G[0].slice(), G[1].slice()], hipEnd: sub });
+      return;
+    }
+    r.pts[ei] = E2.slice();
     lines.push({ type: 'hip', pts: [C[0].slice(), E2.slice()], hipEnd: sub });
     lines.push({ type: 'hip', pts: [C[1].slice(), E2.slice()], hipEnd: sub });
   });
@@ -81589,10 +81813,11 @@ function _hipEndOf(l){
 function _hipEndClearStructure(){
   if (!DRAW.outline || DRAW.outline.length < 3) return;
   var flip = (Math.round((DRAW.rotation || 0) / 90) % 2) === 1, structs = [];
-  [{}, { starter: true }, { finish: true }, { starter: true, finish: true }].forEach(function(c){
-    try { structs = structs.concat(_applyHipEnds(_buildGableRoofLinesBase(DRAW.outline, flip), c)); } catch(e){}
-  });
+  [false, 'hip', 'dutch'].forEach(function(a){ [false, 'hip', 'dutch'].forEach(function(b){
+    try { structs = structs.concat(_applyHipEnds(_buildGableRoofLinesBase(DRAW.outline, flip), { starter: a, finish: b })); } catch(e){}
+  }); });
   try { structs = structs.concat(buildHipValleyLines(DRAW.outline) || []); } catch(e){}
+  try { structs = structs.concat(buildDutchGableRoofLines(DRAW.outline) || []); } catch(e){}
   var same = function(a, b){
     var d = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]); };
     return (d(a.pts[0], b.pts[0]) < 2 && d(a.pts[1], b.pts[1]) < 2) || (d(a.pts[0], b.pts[1]) < 2 && d(a.pts[1], b.pts[0]) < 2);
@@ -81626,6 +81851,455 @@ function _hipEndConvert(){
   try { _scheduleAutosave(); } catch(e){}
   try { _siteToast(h.to === 'hip' ? 'That end is a hip end now' : 'That end is a gable end now'); } catch(e){}
 }
+// ══ EVERY CORNER OFFERS ITS END (2026-11-01, feedback report 80) ══════════
+// The owner: "allow me (when i've clicked on a corner, to make that corner a
+// hip, every corner when clicked should show a list of options it could
+// change it too that sit in a list under the fine adjustments pop-up ... so i
+// could be able to change a mono-pitch corner to a hip, i should be able to
+// change a hip corner to a gable or dutch gable end ... changing just that one
+// end by clicking that corner, if its not sure which side to change ... then
+// another small two button options should pop-up which when hovering the
+// mouse over the button option it should live change the canvas drawing".
+//
+// THREE STORES, ONE PER KIND OF ROOF, because each builder already had its
+// own idea of an "end":
+//   • a GABLE's ends are its starter / finish barges — DRAW.hipEnds[sub] is
+//     now false (gable), true / 'hip' or 'dutch' (report 61's store, widened);
+//   • a HIP or DUTCH roof's ends are the skeleton's hip ends — two hips from
+//     two neighbouring outline corners meeting a ridge end with nothing else
+//     there (the dutch builder's own test). DRAW.endKinds['e:i-j'] names the
+//     kind of the end whose corners are outline corners i and j; a rectangle
+//     instead becomes a gable with hipEnds (the proven path of report 61);
+//   • a MONO's ends are its barges. DRAW.endKinds['m:i'] = 'hip' puts a 45°
+//     hip up from corner i (a gutter–barge corner), the barge wall becoming a
+//     gutter: the hip end the report's lower roof has.
+// No entry anywhere = the roof exactly as every builder drew it before.
+function _endKindNorm(v){ return (v === 'dutch') ? 'dutch' : (v ? 'hip' : 'gable'); }
+function _endUnit(a, b){ var dx = b[0]-a[0], dy = b[1]-a[1], l = Math.hypot(dx, dy); return l < 1e-9 ? null : [dx/l, dy/l, l]; }
+function _endCornerIdx(outline, p, tol){
+  tol = tol || 3;
+  for (var i = 0; i < outline.length; i++) if (Math.hypot(outline[i][0]-p[0], outline[i][1]-p[1]) <= tol) return i;
+  return -1;
+}
+// Which way a wall faces, in the words the owner uses: screen up is north.
+function _endFaceName(a, b, outline){
+  var n = outline.length, area = 0;
+  for (var i = 0; i < n; i++){ var p = outline[i], q = outline[(i+1)%n]; area += p[0]*q[1] - q[0]*p[1]; }
+  var w = area > 0 ? 1 : -1, u = _endUnit(a, b); if (!u) return '';
+  var nx = w*u[1], ny = -w*u[0];
+  if (Math.abs(nx) >= Math.abs(ny)) return nx > 0 ? 'East' : 'West';
+  return ny > 0 ? 'South' : 'North';
+}
+// The skeleton's hip ends: a ridge end with exactly two hips and nothing else
+// on it, both hips springing from outline corners that are neighbours.
+function _skelHipEnds(lines, outline){
+  var near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) <= 2.5; };
+  var n = outline.length, out = [];
+  var ridges = lines.filter(function(l){ return l.type === 'ridge'; });
+  ridges.forEach(function(r){
+    [0, 1].forEach(function(ei){
+      var R = r.pts[ei];
+      var hips = [];
+      lines.forEach(function(h){
+        if (h.type !== 'hip') return;
+        if (near(h.pts[0], R)) hips.push({ h: h, e: 0 }); else if (near(h.pts[1], R)) hips.push({ h: h, e: 1 });
+      });
+      if (hips.length !== 2) return;
+      if (lines.some(function(l){ return l !== r && (l.type === 'valley' || l.type === 'ridge') && (near(l.pts[0], R) || near(l.pts[1], R)); })) return;
+      var ci = hips.map(function(x){ return _endCornerIdx(outline, x.h.pts[1 - x.e], 5); });
+      if (ci[0] < 0 || ci[1] < 0) return;
+      var d = Math.abs(ci[0] - ci[1]);
+      if (!(d === 1 || d === n - 1)) return;
+      var lo = Math.min(ci[0], ci[1]), hi = Math.max(ci[0], ci[1]);
+      out.push({ ridge: r, ei: ei, R: R.slice(), hips: hips, corners: ci, key: 'e:' + lo + '-' + hi });
+    });
+  });
+  return out;
+}
+// One skeleton hip end made a gable or a dutch end, in place.
+function _endTransform(lines, e, kind){
+  if (kind !== 'gable' && kind !== 'dutch') return;
+  var C0 = e.hips[0].h.pts[1 - e.hips[0].e].slice(), C1 = e.hips[1].h.pts[1 - e.hips[1].e].slice();
+  var R = e.R;
+  if (kind === 'dutch'){
+    var f = (typeof DRAW.dutchGabletFrac === 'number') ? Math.max(0.05, Math.min(0.95, DRAW.dutchGabletFrac)) : 0.5;
+    var G0 = [R[0] + f*(C0[0]-R[0]), R[1] + f*(C0[1]-R[1])], G1 = [R[0] + f*(C1[0]-R[0]), R[1] + f*(C1[1]-R[1])];
+    var M = [(G0[0]+G1[0])/2, (G0[1]+G1[1])/2];
+    e.hips[0].h.pts[e.hips[0].e] = G0.slice(); e.hips[1].h.pts[e.hips[1].e] = G1.slice();
+    e.ridge.pts[e.ei] = M.slice();
+    lines.push({ type: 'barge', pts: [M.slice(), G0.slice()] }, { type: 'barge', pts: [M.slice(), G1.slice()] },
+               { type: 'apron', subtype: 'head', pts: [G0.slice(), G1.slice()] }, { type: 'gutter', pts: [C0, C1] });
+    return;
+  }
+  // gable: the ridge runs on to the wall, the wall is two barges
+  var a = e.ridge.pts[1 - e.ei], u = _endUnit(a, R), W = null;
+  if (u){
+    var wx = C1[0]-C0[0], wy = C1[1]-C0[1], den = u[0]*wy - u[1]*wx;
+    if (Math.abs(den) > 1e-9){
+      var t = ((C0[0]-a[0])*wy - (C0[1]-a[1])*wx) / den, s = ((C0[0]-a[0])*u[1] - (C0[1]-a[1])*u[0]) / den;
+      if (t > 0 && s >= -0.02 && s <= 1.02) W = [a[0] + u[0]*t, a[1] + u[1]*t];
+    }
+  }
+  if (!W) W = [(C0[0]+C1[0])/2, (C0[1]+C1[1])/2];
+  for (var i = lines.length - 1; i >= 0; i--) if (lines[i] === e.hips[0].h || lines[i] === e.hips[1].h) lines.splice(i, 1);
+  e.ridge.pts[e.ei] = W.slice();
+  lines.push({ type: 'barge', pts: [W.slice(), C0] }, { type: 'barge', pts: [W.slice(), C1] });
+}
+function _endKindsOf(prefix){
+  var ek = (window.DRAW && DRAW.endKinds) || null, out = {}, any = false;
+  if (ek) Object.keys(ek).forEach(function(k){ if (k.indexOf(prefix) === 0){ out[k] = ek[k]; any = true; } });
+  return any ? out : null;
+}
+// The hip roof's builder with any end the office changed.
+function _hipLinesWithEnds(outline){
+  var lines = _hipLinesWithBumps(outline);
+  var ek = _endKindsOf('e:'); if (!ek || !lines) return lines;
+  _skelHipEnds(lines, outline).forEach(function(e){ var k = ek[e.key]; if (k && k !== 'hip') _endTransform(lines, e, k); });
+  return lines;
+}
+// The dutch builder unchanged unless an end was changed; then the same
+// skeleton, every end a gablet but the ones the office named.
+function _dutchLinesWithEnds(outline){
+  var ek = _endKindsOf('e:');
+  if (!ek) return buildDutchGableRoofLines(outline);
+  var ol = _roofRemoveSmallTabs(outline);
+  var lines = (buildHipValleyLines(ol) || []).map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
+  _skelHipEnds(lines, ol).forEach(function(e){ _endTransform(lines, e, ek[e.key] || 'dutch'); });
+  return lines;
+}
+// ── A mono's hip end ──
+// From a gutter–barge corner L the hip runs at 45° in plan (both faces the
+// same pitch), between the gutter and the barge, until it meets the roof's
+// edge at P. The barge wall becomes a gutter; the edges round the new end
+// face from the barge's far corner to P are read against THAT face's fall:
+// one running with its fall is a rake (an apron there runs up the slope,
+// slopeRun), one across it is level (a barge there is a head barge).
+function _monoEdgeLines(lines, outline){
+  var n = outline.length, near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 0.75; }, map = [];
+  for (var i = 0; i < n; i++){
+    var a = outline[i], b = outline[(i+1)%n];
+    map[i] = lines.filter(function(l){ return near(l.pts[0], a) && near(l.pts[1], b); })[0] || null;
+  }
+  return map;
+}
+function _monoHipGeom(lines, outline, c){
+  var n = outline.length; if (n < 4) return null;
+  var em = _monoEdgeLines(lines, outline);
+  var pe = (c - 1 + n) % n, ne = c, lp = em[pe], ln = em[ne];
+  if (!lp || !ln) return null;
+  var b, g, fwd;
+  if (lp.type === 'barge' && ln.type === 'gutter'){ b = pe; g = ne; fwd = false; }
+  else if (ln.type === 'barge' && lp.type === 'gutter'){ b = ne; g = pe; fwd = true; }
+  else return null;
+  var L = outline[c], H = fwd ? outline[(c+1)%n] : outline[(c-1+n)%n], Gp = fwd ? outline[(c-1+n)%n] : outline[(c+1)%n];
+  var ub = _endUnit(L, H), ug = _endUnit(L, Gp); if (!ub || !ug) return null;
+  if (Math.abs(ub[0]*ug[0] + ub[1]*ug[1]) > 0.3) return null;
+  var d = _endUnit([0, 0], [ub[0]+ug[0], ub[1]+ug[1]]); if (!d) return null;
+  var best = null;
+  for (var e = 0; e < n; e++){
+    if (e === b || e === g) continue;
+    var A = outline[e], B = outline[(e+1)%n], wx = B[0]-A[0], wy = B[1]-A[1];
+    var den = d[0]*wy - d[1]*wx; if (Math.abs(den) < 1e-9) continue;
+    var t = ((A[0]-L[0])*wy - (A[1]-L[1])*wx) / den, s = ((A[0]-L[0])*d[1] - (A[1]-L[1])*d[0]) / den;
+    if (t > 1 && s >= -1e-6 && s <= 1 + 1e-6 && (!best || t < best.t)) best = { t: t, e: e, s: s };
+  }
+  if (!best) return null;
+  var P = [L[0] + d[0]*best.t, L[1] + d[1]*best.t];
+  return { c: c, b: b, g: g, fwd: fwd, L: L.slice(), H: H.slice(), P: P, h: best.e, s: best.s, ug: ug, em: em };
+}
+function _monoRetag(l, ug){
+  var u = _endUnit(l.pts[0], l.pts[1]); if (!u) return;
+  var dt = Math.abs(u[0]*ug[0] + u[1]*ug[1]);
+  if (dt > 0.9){ if (l.type === 'apron' || l.type === 'barge') l.slopeRun = true; if (l.type === 'barge') delete l.subtype; }
+  else if (dt < 0.45){ if (l.type === 'barge') l.subtype = 'head'; if (l.type === 'apron') delete l.slopeRun; }
+}
+function _applyMonoHipEnds(lines, outline){
+  var ek = _endKindsOf('m:'); if (!ek || !lines) return lines;
+  var n = outline.length;
+  Object.keys(ek).forEach(function(k){
+    if (ek[k] !== 'hip') return;
+    var c = +k.slice(2); if (!(c >= 0 && c < n)) return;
+    var G = _monoHipGeom(lines, outline, c); if (!G) return;
+    var em = G.em;
+    em[G.b].type = 'gutter'; delete em[G.b].subtype; delete em[G.b].slopeRun;
+    // the edges between the barge and the edge the hip meets, walking away from L
+    var step = G.fwd ? 1 : -1, e = (G.b + step + n) % n, guard = 0;
+    while (e !== G.h && guard++ < n){ if (em[e]) _monoRetag(em[e], G.ug); e = (e + step + n) % n; }
+    var hl = em[G.h];
+    if (hl){
+      var A = outline[G.h], B = outline[(G.h+1)%n];
+      var atA = Math.hypot(G.P[0]-A[0], G.P[1]-A[1]) < 2, atB = Math.hypot(G.P[0]-B[0], G.P[1]-B[1]) < 2;
+      // walking forward we come onto edge h at A; backward, at B
+      var endSideWhole = G.fwd ? atB : atA, noneOnEndSide = G.fwd ? atA : atB;
+      if (endSideWhole) _monoRetag(hl, G.ug);
+      else if (!noneOnEndSide){
+        var piece = Object.assign({}, hl); piece.pts = G.fwd ? [A.slice(), G.P.slice()] : [G.P.slice(), B.slice()];
+        hl.pts = G.fwd ? [G.P.slice(), B.slice()] : [A.slice(), G.P.slice()];
+        _monoRetag(piece, G.ug);
+        lines.push(piece);
+      }
+    }
+    lines.push({ type: 'hip', pts: [G.L.slice(), G.P.slice()], monoHip: true });
+  });
+  return lines;
+}
+function _monoLinesWithEnds(outline, rot){
+  return _applyMonoHipEnds(buildMonoPitchRoofLines(outline, rot || 0), outline);
+}
+
+// ── What a corner can change ──
+// [{face:'East', kinds:[[kind,label]], cur, apply(kind)}] — one entry when the
+// end at this corner is known, two when it is not (a square hip roof: either
+// wall at the corner could be the end), each apply() a plain change to DRAW
+// and a rebuild, with no undo step and no save: commit and preview add those.
+function _endFlip(){ return (Math.round((DRAW.rotation || 0) / 90) % 2) === 1; }
+function _endGableBase(horiz){
+  var keep = DRAW.roofBaseHoriz;
+  if (typeof horiz === 'boolean') DRAW.roofBaseHoriz = horiz;
+  try { return _buildGableRoofLinesBase(DRAW.outline, typeof horiz === 'boolean' ? false : _endFlip()) || []; }
+  finally { DRAW.roofBaseHoriz = keep; }
+}
+// The starter / finish barge of a gable laid one way that has corner idx at
+// its wall end, and the wall it lies on.
+function _endGableSubAt(idx, base){
+  var P = DRAW.outline[idx], near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 1.5; };
+  var b = base.filter(function(l){ return l.type === 'barge' && (l.subtype === 'starter' || l.subtype === 'finish') && (near(l.pts[0], P) || near(l.pts[1], P)); })[0];
+  return b ? b.subtype : null;
+}
+function _endWallAt(idx, sub, base){
+  var n = DRAW.outline.length, P = DRAW.outline[idx];
+  var bs = base.filter(function(l){ return l.type === 'barge' && l.subtype === sub; });
+  var on = function(i){
+    var A = DRAW.outline[i], B = DRAW.outline[(i+1)%n], u = _endUnit(A, B); if (!u) return false;
+    return bs.some(function(l){ return l.pts.every(function(p){ return Math.abs((p[0]-A[0])*u[1] - (p[1]-A[1])*u[0]) < 2; }); });
+  };
+  var pe = (idx - 1 + n) % n;
+  if (on(idx)) return [P, DRAW.outline[(idx+1)%n]];
+  if (on(pe)) return [DRAW.outline[pe], P];
+  return null;
+}
+var END_KINDS_3 = [['gable', 'Gable end'], ['hip', 'Hip end'], ['dutch', 'Dutch gable end']];
+// Set one end of a gable; a rectangle whose ends end up alike becomes that
+// roof type outright (two hip ends ARE a hip roof).
+function _endSetGable(sub, kind){
+  var he = Object.assign({}, DRAW.hipEnds || {});
+  he[sub] = kind === 'gable' ? false : kind;
+  var other = sub === 'starter' ? 'finish' : 'starter';
+  var a = _endKindNorm(he[sub]), b = _endKindNorm(he[other]);
+  var rect = DRAW.outline.length === 4;
+  _hipEndClearStructure();
+  if (rect && a === b && a !== 'gable'){ DRAW.roofType = a; DRAW.hipEnds = null; }
+  else { DRAW.roofType = 'gable'; DRAW.hipEnds = (he.starter || he.finish) ? he : null; }
+  regenerateAutoRoofLines(DRAW.roofType);
+}
+function _cornerEndCands(idx){
+  var out = [];
+  if (!DRAW.outline || idx < 0 || idx >= DRAW.outline.length || DRAW.outline.length < 3) return out;
+  var type = _detectAutoRoofType(), n = DRAW.outline.length;
+  try {
+    if (type === 'gable'){
+      var base = _endGableBase(), sub = _endGableSubAt(idx, base);
+      if (!sub) return out;
+      // a gable on an outline where a hip end cannot be made offers nothing
+      var trial = _applyHipEnds(_endGableBase(), (function(){ var o = {}; o[sub] = 'hip'; return o; })());
+      if (!trial.some(function(x){ return x.hipEnd === sub && x.type === 'hip'; })) return out;
+      var w = _endWallAt(idx, sub, base);
+      out.push({ face: w ? _endFaceName(w[0], w[1], DRAW.outline) : '', kinds: END_KINDS_3,
+                 cur: _endKindNorm((DRAW.hipEnds || {})[sub]), apply: function(k){ _endSetGable(sub, k); } });
+      return out;
+    }
+    if ((type === 'hip' || type === 'dutch') && n === 4 && _outlineIsRectilinear(DRAW.outline, 20)){
+      var defK = type;
+      // The end is the wall the ridge runs into. A roof with no ridge, or one
+      // too short to say, could be changed on either wall: ask.
+      var rg = (DRAW.lines || []).filter(function(l){ return l.type === 'ridge'; })[0];
+      var A0 = DRAW.outline[0], A1 = DRAW.outline[1], A2 = DRAW.outline[2];
+      var s1 = Math.hypot(A1[0]-A0[0], A1[1]-A0[1]), s2 = Math.hypot(A2[0]-A1[0], A2[1]-A1[1]);
+      var unsure = !rg || Math.min(s1, s2) / Math.max(s1, s2) > 0.89;
+      [true, false].forEach(function(horiz){
+        var b = _endGableBase(horiz), sb = _endGableSubAt(idx, b); if (!sb) return;
+        var w = _endWallAt(idx, sb, b); if (!w) return;
+        var cand = { face: _endFaceName(w[0], w[1], DRAW.outline), kinds: END_KINDS_3, cur: defK, horiz: horiz,
+          apply: function(k){
+            if (k === defK) return;
+            DRAW.roofBaseHoriz = horiz; DRAW.rotation = 0;
+            DRAW.hipEnds = {}; DRAW.hipEnds[sb === 'starter' ? 'finish' : 'starter'] = defK;
+            _endSetGable(sb, k);
+          } };
+        if (!unsure && rg){
+          // keep only the wall the ridge runs into
+          var ru = _endUnit(rg.pts[0], rg.pts[1]), wu = _endUnit(w[0], w[1]);
+          if (ru && wu && Math.abs(ru[0]*wu[0] + ru[1]*wu[1]) > 0.5) return;
+        }
+        out.push(cand);
+      });
+      return out;
+    }
+    if (type === 'hip' || type === 'dutch'){
+      var ol = type === 'dutch' ? _roofRemoveSmallTabs(DRAW.outline) : DRAW.outline;
+      var sk = (type === 'dutch' ? buildHipValleyLines(ol) : _hipLinesWithBumps(DRAW.outline)) || [];
+      sk = sk.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
+      var P = DRAW.outline[idx];
+      _skelHipEnds(sk, ol).forEach(function(e){
+        var cs = e.corners.map(function(i){ return ol[i]; });
+        if (!cs.some(function(c){ return Math.hypot(c[0]-P[0], c[1]-P[1]) < 3; })) return;
+        var key = e.key;
+        out.push({ face: _endFaceName(cs[0], cs[1], ol), kinds: END_KINDS_3,
+          cur: (DRAW.endKinds && DRAW.endKinds[key]) || type,
+          apply: function(k){
+            var ek = Object.assign({}, DRAW.endKinds || {});
+            if (k === type) delete ek[key]; else ek[key] = k;
+            DRAW.endKinds = Object.keys(ek).length ? ek : null;
+            regenerateAutoRoofLines(type);
+          } });
+      });
+      return out;
+    }
+    if (type === 'mono'){
+      var ml = buildMonoPitchRoofLines(DRAW.outline, DRAW.rotation || 0);
+      var G = _monoHipGeom(ml, DRAW.outline, idx); if (!G) return out;
+      var mkey = 'm:' + idx;
+      out.push({ face: _endFaceName(G.fwd ? G.L : G.H, G.fwd ? G.H : G.L, DRAW.outline),
+        kinds: [['gable', 'Barge end'], ['hip', 'Hip end']],
+        cur: (DRAW.endKinds && DRAW.endKinds[mkey] === 'hip') ? 'hip' : 'gable',
+        apply: function(k){
+          var ek = Object.assign({}, DRAW.endKinds || {});
+          if (k === 'hip') ek[mkey] = 'hip'; else delete ek[mkey];
+          DRAW.endKinds = Object.keys(ek).length ? ek : null;
+          regenerateAutoRoofLines('mono');
+        } });
+      return out;
+    }
+  } catch(e){ console.warn('corner ends:', e); }
+  return out;
+}
+
+// ── Live preview and commit ──
+var _EP = null;   // the state a preview is drawn over
+function _endStateTake(){
+  return { lines: JSON.stringify(DRAW.lines || []), outline: JSON.stringify(DRAW.outline || []), roofType: DRAW.roofType,
+           hipEnds: DRAW.hipEnds ? JSON.parse(JSON.stringify(DRAW.hipEnds)) : null,
+           endKinds: DRAW.endKinds ? JSON.parse(JSON.stringify(DRAW.endKinds)) : null,
+           roofBaseHoriz: DRAW.roofBaseHoriz, rotation: DRAW.rotation };
+}
+function _endStatePut(s){
+  _setDrawLines(JSON.parse(s.lines)); DRAW.outline = JSON.parse(s.outline);
+  DRAW.roofType = s.roofType; DRAW.hipEnds = s.hipEnds; DRAW.endKinds = s.endKinds;
+  DRAW.roofBaseHoriz = s.roofBaseHoriz; DRAW.rotation = s.rotation;
+}
+function _endPreview(cand, kind){
+  try {
+    if (_EP) _endStatePut(_EP); else _EP = _endStateTake();
+    if (kind !== cand.cur) cand.apply(kind);
+    try { autoCalcLineMeasurements(); } catch(e){}
+    redrawAll();
+  } catch(e){ console.warn('end preview:', e); }
+}
+function _endPreviewEnd(){
+  if (!_EP) return;
+  try { _endStatePut(_EP); } catch(e){}
+  _EP = null;
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+}
+function _endCommit(cand, kind){
+  _endPreviewEnd();
+  if (!cand || kind === cand.cur) return;
+  saveSnapshot();
+  cand.apply(kind);
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof(); syncToRoofData(); } catch(e){}
+  DRAW.selectedLine = -1; try { hidePropPanel(); } catch(e){}
+  redrawAll();
+  try { updateMeasTotals(); } catch(e){}
+  try { renderRoofSwitcher(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  var word = { gable: 'a gable end', hip: 'a hip end', dutch: 'a dutch gable end' }[kind];
+  if (DRAW.roofType === 'mono' && kind === 'gable') word = 'a barge end';
+  try { _siteToast((cand.face ? 'The ' + cand.face.toLowerCase() + ' end' : 'That end') + ' is ' + word + ' now'); } catch(e){}
+  try { _cornerEndRowRender(); } catch(e){}
+}
+
+// ── The pad's list, and the "Changing which face?" window ──
+window._CE = { idx: -1, cands: [] };
+function _cornerEndRowRender(){
+  var row = document.getElementById('cornerEndRow'); if (!row) return;
+  var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
+  var cands = idx >= 0 ? _cornerEndCands(idx) : [];
+  window._CE = { idx: idx, cands: cands };
+  if (!cands.length){ row.style.display = 'none'; row.innerHTML = ''; return; }
+  var html, btn;
+  if (cands.length === 1){
+    var c = cands[0];
+    btn = function(k){
+      var on = c.cur === k[0];
+      return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-endkind="' + k[0] + '"' +
+        (on ? '' : ' onmouseenter="_endPreview(window._CE.cands[0],\'' + k[0] + '\')" onmouseleave="_endPreviewEnd()"') +
+        ' onclick="_endCommit(window._CE.cands[0],\'' + k[0] + '\')">' + (on ? '✓ ' : '') + k[1] + '</button>';
+    };
+    html = '<div class="crn-bump-hd">' + (c.face ? c.face + ' end' : 'This end') + '</div>' + c.kinds.map(btn).join('');
+  } else {
+    // Not sure which wall is the end: pick the kind here, the wall in the chooser.
+    var kinds = cands[0].kinds;
+    btn = function(k){
+      return '<button type="button" class="crn-bump" data-endkind="' + k[0] + '" onclick="_endChooserOpen(\'' + k[0] + '\')">' + k[1] + '…</button>';
+    };
+    html = '<div class="crn-bump-hd">Change an end to</div>' + kinds.map(btn).join('');
+  }
+  row.style.display = 'block';
+  row.innerHTML = html;
+}
+// Two buttons named for the walls; hovering one draws the roof that way.
+// It sits off the canvas where there is room (over the menu to its left, or
+// the toolbars above), it is not modal, and the canvas still pans under it.
+function _endChooserClose(){
+  _endPreviewEnd();
+  var el = document.getElementById('endFaceChooser'); if (el) el.remove();
+}
+function _endChooserOpen(kind){
+  _endChooserClose();
+  var cands = (window._CE.cands || []).slice(); if (cands.length < 2) return;
+  var label = ({ gable: 'gable end', hip: 'hip end', dutch: 'dutch gable end' })[kind] || kind;
+  var el = document.createElement('div');
+  el.id = 'endFaceChooser'; el.className = 'no-print';
+  el._cands = cands; el._kind = kind;
+  el.innerHTML =
+    '<div class="efc-hd"><span class="crn-grip">✥</span><span>Changing which face?</span>' +
+      '<button type="button" class="efc-x" title="Close" onclick="_endChooserClose()">✕</button></div>' +
+    '<div class="efc-sub">Make it a ' + label + ' — hover to see each</div>' +
+    '<div class="efc-row">' + cands.map(function(c, i){
+      return '<button type="button" class="efc-btn" data-face="' + c.face + '" onmouseenter="_endPreview(document.getElementById(\'endFaceChooser\')._cands[' + i + '],\'' + kind + '\')"' +
+        ' onmouseleave="_endPreviewEnd()" onclick="_endChooserPick(' + i + ')">' + c.face + '</button>';
+    }).join('') + '</div>';
+  document.body.appendChild(el);
+  try {
+    var cv = document.getElementById('roofCanvas').getBoundingClientRect();
+    var pad = document.getElementById('cornerRepoPopup'), pr = pad ? pad.getBoundingClientRect() : null;
+    var w = el.offsetWidth, h = el.offsetHeight, x, y;
+    if (cv.left >= w + 16){ x = cv.left - w - 8; y = Math.max(70, pr ? pr.top : cv.top); }
+    else if (cv.top >= h + 16){ x = Math.max(8, cv.left + (pr ? pr.width + 24 : 12)); y = cv.top - h - 6; }
+    else { x = pr ? pr.right + 8 : cv.left + 12; y = pr ? pr.top : cv.top + 12; }
+    el.style.left = Math.max(6, Math.min(window.innerWidth - w - 6, x)) + 'px';
+    el.style.top = Math.max(6, Math.min(window.innerHeight - h - 6, y)) + 'px';
+  } catch(e){}
+  var hd = el.querySelector('.efc-hd');
+  hd.addEventListener('pointerdown', function(ev){
+    if (ev.target.closest('.efc-x')) return;
+    var r = el.getBoundingClientRect(), ox = ev.clientX - r.left, oy = ev.clientY - r.top;
+    var mv = function(e2){ el.style.left = (e2.clientX - ox) + 'px'; el.style.top = (e2.clientY - oy) + 'px'; };
+    var up = function(){ document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+    ev.preventDefault();
+  });
+}
+function _endChooserPick(i){
+  var el = document.getElementById('endFaceChooser'); if (!el) return;
+  var c = el._cands[i], k = el._kind;
+  _endPreviewEnd();
+  el.remove();
+  _endCommit(c, k);
+}
+
 // THE RIDGE FOLLOWS THE BUILDING, NOT THE SCREEN (feedback report 65,
 // 2026-10-18: "diagonal straight gable not good, ridge should keep with the
 // angle of the roof (2nd roof) not try stay horizontal").
@@ -83285,12 +83959,12 @@ function _roofOrientForOutline(outline){
 // through-ridge and longer sheets across the corner.)
 function _roofLinesForType(type, outline, rot){
   var rotSteps = Math.round(((rot || 0) % 360 + 360) % 360 / 90) % 4;
-  if (type === 'hip')       return _hipLinesWithBumps(outline);
+  if (type === 'hip')       return _hipLinesWithEnds(outline);
   if (type === 'gable')     return buildGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'stepgable') return buildStepGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'gable-hv')  return buildGableRoofLines_legacy(outline);
-  if (type === 'dutch')     return buildDutchGableRoofLines(outline);
-  if (type === 'mono')      return buildMonoPitchRoofLines(outline, rot || 0);
+  if (type === 'dutch')     return _dutchLinesWithEnds(outline);
+  if (type === 'mono')      return _monoLinesWithEnds(outline, rot || 0);
   return [];
 }
 // A PICTURE OF EACH SHAPE ON THIS OUTLINE (2026-10-22, feedback report 67:
@@ -83308,18 +83982,18 @@ function _roofPreviewLines(type, outline){
   outline = outline || DRAW.outline;
   if (!outline || outline.length < 3) return [];
   var keep = { lines: DRAW.lines, roofBaseHoriz: DRAW.roofBaseHoriz, monoBaseDeg: DRAW.monoBaseDeg,
-               ridgeBreaks: DRAW.ridgeBreaks, hipEnds: DRAW.hipEnds, roofType: DRAW.roofType, rotation: DRAW.rotation,
+               ridgeBreaks: DRAW.ridgeBreaks, hipEnds: DRAW.hipEnds, endKinds: DRAW.endKinds, roofType: DRAW.roofType, rotation: DRAW.rotation,
                keepHip: DRAW._keepHipEnds, gableEnds: DRAW.gableEnds, gableHipEndEdges: DRAW.gableHipEndEdges };
   var out = [];
   try {
     var o = _roofOrientForOutline(outline);
     DRAW.roofBaseHoriz = o.baseHoriz; DRAW.monoBaseDeg = o.monoBaseDeg;
-    DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW._keepHipEnds = false; DRAW.rotation = 0;
+    DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.endKinds = null; DRAW._keepHipEnds = false; DRAW.rotation = 0;
     DRAW.lines = (DRAW.lines || []).slice();
     out = _roofLinesForType(type, outline, 0) || [];
   } catch(e){ out = []; }
   DRAW.lines = keep.lines; DRAW.roofBaseHoriz = keep.roofBaseHoriz; DRAW.monoBaseDeg = keep.monoBaseDeg;
-  DRAW.ridgeBreaks = keep.ridgeBreaks; DRAW.hipEnds = keep.hipEnds; DRAW.roofType = keep.roofType; DRAW.rotation = keep.rotation;
+  DRAW.ridgeBreaks = keep.ridgeBreaks; DRAW.hipEnds = keep.hipEnds; DRAW.endKinds = keep.endKinds; DRAW.roofType = keep.roofType; DRAW.rotation = keep.rotation;
   DRAW._keepHipEnds = keep.keepHip; DRAW.gableEnds = keep.gableEnds; DRAW.gableHipEndEdges = keep.gableHipEndEdges;
   return out.filter(function(l){ return l && l.pts && l.pts.length === 2; });
 }
@@ -83382,6 +84056,8 @@ function autoGenerateRoof(type, rotation) {
   // (same type, same rotation) keeps the breaks.
   try { if (!(type === 'gable' && rotation != null && (+rotation || 0) === (+DRAW.rotation || 0))) DRAW.ridgeBreaks = []; } catch(e){}
   try { if (!(type === 'gable' && rotation != null && (+rotation || 0) === (+DRAW.rotation || 0)) && !DRAW._keepHipEnds) DRAW.hipEnds = null; } catch(e){}
+  // A corner's end (report 80) belongs to the roof as it was built: a new shape or a turn starts plain.
+  try { if (!DRAW._keepHipEnds) DRAW.endKinds = null; } catch(e){}
   // A roof with lines on it is the first milestone that says the product
   // works for them. It's the one number worth knowing about a trial — and
   // only counts when the drawing is to scale, since a shape with no
@@ -83492,7 +84168,7 @@ function _clearBuiltRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes','endKinds'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -83509,7 +84185,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null,
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null, endKinds:null,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -83521,7 +84197,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, lowPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null, endKinds: null,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }
