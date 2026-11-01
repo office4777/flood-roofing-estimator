@@ -568,8 +568,11 @@ await pg.evaluate(() => go('dash'));
 await pg.click('#theme-btn');
 check('the moon gives dark', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && localStorage.getItem('fr3_look') === 'dark'));
 check('…and the choice is never sent to the team (device-only key)', await pg.evaluate(() => !!TEAM_LOCAL_KEYS['fr3_look']));
-await pg.reload(); await pg.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark', null, { timeout: 15000 }).catch(() => {});
-check('…it is still dark after a reload', await pg.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark'));
+// a fresh boot on the same device, the dark choice already in localStorage: never a reload of the file:// page, whose
+// localStorage Chromium does not reliably carry across one (this pin failed on CI by that alone, twice on 2026-11-01)
+await ctx.addInitScript("try{localStorage.setItem('fr3_look','dark');}catch(e){}");
+const pg2 = await ctx.newPage(); await pg2.goto(HUB); await pg2.waitForTimeout(600);
+check('…it is still dark on the next open', await pg2.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && document.getElementById('theme-btn').title === 'Light mode'));
 await ctx.close();
 
 // an old dark setting from before is not carried into the new look
