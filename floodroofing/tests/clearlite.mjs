@@ -196,29 +196,44 @@ check('answering the length places the short clear',
 // A full-length clear takes its length from the run it lands in, so there is
 // nothing to type and it can never disagree with the sheet it displaces.
 const fullLen = await pg.evaluate(() => {
-  showClearPopup(400, 400);
+  // (On the roof itself — since report 81 a clear is found on the strip it
+  // lies over, so one dropped off every roof displaces nothing.)
+  // The roof and the strip: the first roof with a whole sheet of its own.
+  let at = null;
+  for (let i = 0; i < DRAW.roofs.length && !at; i++){
+    switchToRoof(i);
+    const pz = _sheetPuzzleBuild({ roofIdxs: [-1], noClears: true });
+    const p = (pz.pieces || []).find(q => q.ordered && q.full && !pz.pieces.some(r => r !== q && r.from === q.label));
+    if (p) at = { roof: i, c: _ccCentroid(p.poly), Lmm: p.Lmm || p.block.Lmm };
+  }
+  window.__clearAt = at;
+  showClearPopup(at.c[0], at.c[1]);
   _clearPopupSetMode('full');
   confirmClearPopup();
   const arr = DRAW.clearlites || [];
   const c = arr[arr.length - 1];
-  return { mode: c.mode, typed: c.lenM, derived: _clearLenM(c), runLen: _clearFullLenM() };
+  return { mode: c.mode, typed: c.lenM, derived: _clearLenM(c, at.roof), sheet: at.Lmm / 1000, longest: _clearFullLenM() };
 });
-check('a full-length clear takes the run length rather than asking for one',
+// REPORT 81: it is the run under it on its own roof — the sheet it stands in
+// for — not the longest sheet anywhere on the map.
+check('a full-length clear takes its own run\'s length rather than asking for one',
   fullLen.mode === 'full' && fullLen.typed === 0 &&
-  fullLen.derived > 0 && Math.abs(fullLen.derived - fullLen.runLen) < 1e-9,
+  fullLen.derived > 0 && Math.abs(fullLen.derived - fullLen.sheet) <= 0.011,
   JSON.stringify(fullLen));
 
 // ── the arithmetic: a full clear DISPLACES a steel sheet ──────────
 const maths = await pg.evaluate(() => {
-  const sc = window._lastSheetCounts;
-  const steelWith = _jpBuildSheetRows(sc).reduce((s,r) => s + r.qty, 0);
+  // (Since report 81 the sheet layout takes a clear's sheet out of its own
+  // tally, so the count is read after the layout is drawn with each set.)
+  const steel = () => { try { renderRoofSheetPlan(); } catch(e){} return _jpBuildSheetRows(window._lastSheetCounts).reduce((s,r) => s + r.qty, 0); };
+  const steelWith = steel();
   const keep = DRAW.clearlites.slice();
   DRAW.clearlites = [];
-  const steelWithout = _jpBuildSheetRows(sc).reduce((s,r) => s + r.qty, 0);
+  const steelWithout = steel();
   // Short only — an infill, so the steel count must NOT move.
   DRAW.clearlites = keep.filter(c => c.mode === 'short');
-  const steelShortOnly = _jpBuildSheetRows(sc).reduce((s,r) => s + r.qty, 0);
-  DRAW.clearlites = keep;
+  const steelShortOnly = steel();
+  DRAW.clearlites = keep; steel();
   return { steelWith, steelWithout, steelShortOnly };
 });
 check('a full-length clear comes off the steel count — it stands in a sheet’s place',
