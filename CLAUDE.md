@@ -183,7 +183,7 @@ accordingly.
   the screen's page 3 is the PDF's page 3 — and the phone-layout rules are `@media screen and (max-width…)`
   now, because an A4 sheet's print viewport (~718 px) used to put the stacked phone layout on his PDF.
   `hubui` (125) pins both grids, the four pages, a break moved / removed / added, the print media's
-  breaks and the computer's A4 card; the crew pin excludes the month now running (no pay run in it yet).
+  breaks and the computer's A4 card.
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):
