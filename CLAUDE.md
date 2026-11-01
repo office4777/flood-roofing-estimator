@@ -613,8 +613,9 @@ THE FILL:
    same count, a corner moved. `typesnap.json` regenerated (the sample
    quote's sheets line 174.16 → 171.23 m only). `tests/fixtures-sample.json`
    (the shipped sample job's roof) and five pins in `sheetlayout.mjs` (415).
-   BUILT ON THE SESSION BRANCH, NOT LIVE — before/after pictures sent to the
-   owner, waiting on his "go".
+   LIVE 2026-11-01 on the owner's "go live" (he had the before/after
+   pictures for the sample, the cross, the double-L, reports 20 and 50, and
+   answered "Perfect").
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
