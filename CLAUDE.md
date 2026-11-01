@@ -102,7 +102,7 @@ accordingly.
   `.open` inside a hidden page and every tap did nothing. `openCashDetail` moves it onto the body
   on first open. Total owed to you opens the three due-in lists and the AR list job by job
   (`CASH_DETAIL_GROUPS.owed`), then the balances; on a phone the job name wraps so Due in is never
-  off the right. `tests/hubui.mjs` (101, UI list) drives both
+  off the right. `tests/hubui.mjs` (125, UI list) drives both
   layouts and every tab, and `tools/hub-shots.mjs` screenshots it from `tests/_hubseed.mjs`. Send the owner
   screenshots before shipping a hub change; he asked for them.
   A/P NEXT MONTH IS THE CALENDAR MONTH AFTER THIS ONE (2026-10-28, the owner: "A/P next month should show
@@ -164,6 +164,26 @@ accordingly.
   (reads `weathercode` too), matches days by `daily.time`, says in words when the week is past its 16 days,
   and reports the API's own `reason` on a refusal — it cannot be fetched from the cloud container (the proxy
   refuses the host), so `hubui` (120) pins it, and the calendar, with stubs.
+  LAST WEEK'S SCHEDULE AND THE SHEET AS PAGES (2026-11-01, the owner with his print of it: "it's still
+  missing the last week schedule like the old toolbox tool had, also can you layout the weekly tool box so
+  it's physical seperate pages which matches the pdf/print"). `tbxLoadFergus` reads the calendar TWICE, a
+  window a week (`calRead`; this week first, then last week → `fergus.calLast` / `calLastErr`), and
+  `_tbxCalGrid` draws each week's staff grid, last week's ahead of this week's (`#tbx-cal-last`, `#tbx-cal`),
+  a job the same tint on both; a job's "Last week's crew" is `tbxLastCrewFull` — the timesheets' hours with
+  the calendar's days beside them and anyone booked who logged nothing (`matchRoofer` joins "Nick" to "Nick
+  Example"). THE PAGES: `renderToolbox` collects the sections (`TBX_SEC_KEYS`) and `tbxBreaks()` (the keys a
+  page starts at, `fr3_tbxBreaks`, team-synced; default `TBX_BREAKS_DEFAULT` = jobs, crews, housekeeping →
+  four pages: the meeting, the jobs, the crews, housekeeping to the signatures) cuts them into `.tbx-page`
+  cards; on a computer (`@media screen and (min-width:761px)`) each is A4 portrait — 210 mm, 10 mm in, white
+  whatever the theme — with its content laid out at 900 px and `zoom:.79` to the 190 mm inside, a footer
+  with the page number, "Page N starts here" with ▲ Move up / ▼ Move down / ✕ Remove break between the
+  pages (`tbxBreakMove`, `tbxBreakSet`, the old app's controls) and a faint "page break here" between the
+  sections on a page; a phone keeps the plain stack (the controls stay). PRINT IS THE SAME PAGES: under
+  `body.tbx-printing` each `.tbx-page` is the same 900 px box at the same zoom with `break-after:page`, so
+  the screen's page 3 is the PDF's page 3 — and the phone-layout rules are `@media screen and (max-width…)`
+  now, because an A4 sheet's print viewport (~718 px) used to put the stacked phone layout on his PDF.
+  `hubui` (125) pins both grids, the four pages, a break moved / removed / added, the print media's
+  breaks and the computer's A4 card; the crew pin excludes the month now running (no pay run in it yet).
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):

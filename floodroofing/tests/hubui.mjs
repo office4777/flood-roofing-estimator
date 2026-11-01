@@ -174,6 +174,15 @@ check('…the jobs on the go are the Workload sync\'s active jobs with a used-ho
 check('…notes save as typed, per week, and come back on that week', tbx.savedHere && tbx.blankNext && tbx.back && tbx.noteBack && tbx.wk1 !== tbx.wk0, JSON.stringify({ savedHere: tbx.savedHere, blankNext: tbx.blankNext, back: tbx.back, noteBack: tbx.noteBack }));
 check('…the attendance list is the typed one and a Present tick is kept on the week', JSON.stringify(tbx.names) === JSON.stringify(['Lead One', 'Apprentice Two']) && tbx.present['Lead One'] === 1 && tbx.stillTicked, JSON.stringify({ names: tbx.names, present: tbx.present, stillTicked: tbx.stillTicked }));
 check('…and Print puts the sheet alone on A4 portrait, then restores the page', tbx.printed === 1 && tbx.during && tbx.after, JSON.stringify({ printed: tbx.printed, during: tbx.during, after: tbx.after }));
+// on paper each on-screen page is one sheet: a break after every page but the last, the same 190mm box and zoom as the screen
+await pg.evaluate(() => { openToolbox(tbxMonday(new Date())); document.body.classList.add('tbx-printing'); });
+await pg.emulateMedia({ media: 'print' });
+const paper = await pg.evaluate(() => { const P = [...document.querySelectorAll('#tbx-body .tbx-page')]; const cs = e => getComputedStyle(e); const inner = cs(P[0].querySelector('.tbx-page-in'));
+  return { n: P.length, breaks: P.map(p => cs(p).breakAfter), brkHidden: cs(document.querySelector('#tbx-body .tbx-brk')).display, foot: cs(P[0].querySelector('.tbx-pfoot')).display, innerW: inner.width, zoom: inner.zoom }; });
+await pg.emulateMedia({ media: 'screen' });
+const phonePage = await pg.evaluate(() => { document.body.classList.remove('tbx-printing'); const p = document.querySelector('#tbx-body .tbx-page'); const r = { w: Math.round(p.getBoundingClientRect().width), vw: innerWidth, zoom: getComputedStyle(p.querySelector('.tbx-page-in')).zoom, foot: getComputedStyle(p.querySelector('.tbx-pfoot')).display, brk: getComputedStyle(document.querySelector('#tbx-body .tbx-brk')).display }; closeToolbox(); return r; });
+check('…each page prints as one sheet (a break after every page but the last, the footer on, the movable-break controls off) at the 900px box zoomed to the 190mm inside the margins', paper.n === 4 && JSON.stringify(paper.breaks) === JSON.stringify(['page', 'page', 'page', 'auto']) && paper.brkHidden === 'none' && paper.foot === 'flex' && paper.innerW === '900px' && paper.zoom === '0.79', JSON.stringify(paper));
+check('…while a phone keeps the plain stack (no A4 frame, no footer) with the page-break controls still there', phonePage.w < phonePage.vw && phonePage.zoom === '1' && phonePage.foot === 'none' && phonePage.brk === 'flex', JSON.stringify(phonePage));
 // The Fergus link and the forecast (2026-10-31, "make sure all the functions to the toolbox work, like the fergus link
 // ... and the weather forecast", then "the old toolbox app actually did give me the team schedule. I think it was
 // pulled from the calendar"): a stubbed Fergus answers the calendar (this week's bookings, UTC clock) and time entries
@@ -208,10 +217,18 @@ const fg = await pg.evaluate(async () => {
     ev(8, 'Nick Example', 'OTHER', null, 'Yard work', tbxAddDays(ws, 5), 7, 12),      // Saturday → a sixth column appears
     ev(9, 'Office Person', 'OTHER', null, 'Weekly deliverables', tbxAddDays(ws, 4), 9, 9.5),   // short → dropped, so no row for them
   ];
+  // LAST week's calendar (its own read): Nick booked on A Mon–Wed as he logged, Sam on B Thu and a day off Fri
+  const calendarLast = [
+    ev(21, 'Nick Example', 'JOB_PHASE', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, tbxAddDays(lm, 0), 7, 17),
+    ev(22, 'Nick Example', 'JOB_PHASE', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, tbxAddDays(lm, 1), 7, 17),
+    ev(23, 'Nick Example', 'JOB_PHASE', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, tbxAddDays(lm, 2), 7, 17),
+    ev(24, 'Sam Trainee', 'JOB_PHASE', B, '#' + jobs[1].jobNo + ' ' + jobs[1].client, tbxAddDays(lm, 3), 7, 17),
+    ev(25, 'Sam Trainee', 'OTHER', null, 'day off', tbxAddDays(lm, 4), 7, 17),
+  ];
   const calls = [];
   window.fergusApiFetch = async (path) => { calls.push(path);
     if (/^\/timeEntries\?/.test(path)) return /page=1$/.test(path) ? entries : [];
-    if (/^\/calendarEvents/.test(path)) return { result: 'success', data: calendar };
+    if (/^\/calendarEvents/.test(path)) return { result: 'success', data: path.indexOf('filterDateFrom=' + encodeURIComponent(tbxAddDays(lm, -1) + 'T00:00:00.000Z')) > 0 ? calendarLast : calendar };
     if (path === '/jobs/77777') return { id: 77777, jobNo: '3777', customer: { name: 'Finished Customer' }, siteAddress: { address1: '9 Done St' } };
     throw new Error('HTTP 404: no such route'); };
   await tbxLoadFergus(document.getElementById('tbx-fg'));
@@ -220,6 +237,17 @@ const fg = await pg.evaluate(async () => {
   const calHead = [...document.querySelectorAll('#tbx-cal thead th')].map(th => th.textContent.trim().slice(0, 3));
   const calRows = [...document.querySelectorAll('#tbx-cal tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
   const calJobs = (JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {}).fergus.jobs;
+  const calLastHead = [...document.querySelectorAll('#tbx-cal-last thead th')].map(th => th.textContent.trim().slice(0, 3));
+  const calLastRows = [...document.querySelectorAll('#tbx-cal-last tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
+  const subs = [...document.querySelectorAll('#tbx-body .tbx-sub')].map(e => e.textContent.trim().slice(0, 28));
+  const lastFirst = document.querySelector('#tbx-cal-last').compareDocumentPosition(document.querySelector('#tbx-cal')) & Node.DOCUMENT_POSITION_FOLLOWING;
+  // the pages: four by default, Jobs / Crews / Housekeeping each starting one, a footer a page, the breaks movable
+  const pageOf = k => { const hd = [...document.querySelectorAll('#tbx-body .tbx-hd')].find(e => e.textContent.indexOf(k) >= 0); return hd ? Number(hd.closest('.tbx-page').dataset.page) : 0; };
+  const pages0 = { n: document.querySelectorAll('#tbx-body .tbx-page').length, foot: [...document.querySelectorAll('#tbx-body .tbx-pfoot')].map(e => e.textContent.trim()), jobs: pageOf('Jobs on the go'), crews: pageOf('Crews'), house: pageOf('Housekeeping'), weather: pageOf('Weather'), brk: [...document.querySelectorAll('#tbx-body .tbx-brk span')].map(e => e.textContent.trim()) };
+  tbxBreakMove('jobs', -1); const pages1 = { weather: pageOf('Weather'), jobs: pageOf('Jobs on the go'), stored: JSON.parse(localStorage.getItem('fr3_tbxBreaks') || 'null') };
+  tbxBreakSet('crews', false); const pages2 = { n: document.querySelectorAll('#tbx-body .tbx-page').length, crews: pageOf('Crews'), house: pageOf('Housekeeping') };
+  tbxBreakSet('attendance', true); const pages3 = { n: document.querySelectorAll('#tbx-body .tbx-page').length, att: pageOf('Attendance'), foot: document.querySelector('#tbx-body .tbx-page:last-child .tbx-pfoot').textContent.trim() };
+  S.set('tbxBreaks', null); renderToolbox(); const pages4 = document.querySelectorAll('#tbx-body .tbx-page').length;
   const crewIn = document.querySelector('#tbx-week input.tbx-crew'); crewIn.value = 'Nick, Sam'; crewIn.dispatchEvent(new Event('input'));
   const stored = JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {};
   const calCalls = calls.filter(c => /^\/calendarEvents/.test(c)).length;
@@ -232,20 +260,22 @@ const fg = await pg.evaluate(async () => {
   const kept = JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[ws] || {};
   // the week after next is past open-meteo's 16 days: no request, a plain message
   let far = 0; window.fetch = async () => { far++; return { ok: true, json: async () => ({}) }; };
-  tbxStep(3); await tbxForecast(document.getElementById('tbx-fc')); window.fetch = realFetch;
+  tbxStep(4); await tbxForecast(document.getElementById('tbx-fc')); window.fetch = realFetch;
   // and another week's sheet asks the calendar for ITS window (filterDateFrom / filterDateTo, full date-times): nothing booked there yet
   calls.length = 0;
   await tbxLoadFergus(document.getElementById('tbx-fg'));
   const calCall = calls.find(c => /^\/calendarEvents/.test(c)) || '';
   const otherWeek = { cal: document.querySelectorAll('#tbx-cal').length, note: (document.querySelector('#tbx-body .tbx-np.mut') || {}).textContent || '', err: ((JSON.parse(localStorage.getItem('fr3_tbx') || '{}')[_tbxWk] || {}).fergus || {}).calErr, call: calCall, from: tbxAddDays(_tbxWk, -1), to: tbxAddDays(_tbxWk, 8) };
-  tbxStep(-3);
+  tbxStep(-4);
   closeToolbox(); delete window.fergusApiFetch; S.set('fergus_proxy_url', '');
-  return { lastRows, weekRows, calHead, calRows, calJobs, crew: stored.crew, fergusKept: !!(stored.fergus && stored.fergus.cal && stored.fergus.cal.length), calCalls, url, fc, fcKept: kept.forecastTue, far, otherWeek, A, B };
+  return { lastRows, weekRows, calHead, calRows, calJobs, calLastHead, calLastRows, subs, lastFirst: !!lastFirst, pages0, pages1, pages2, pages3, pages4, crew: stored.crew, fergusKept: !!(stored.fergus && stored.fergus.cal && stored.fergus.cal.length), calCalls, url, fc, fcKept: kept.forecastTue, far, otherWeek, A, B };
 });
 check('Load from Fergus lists what each person was on LAST week from the timesheets, hours and days, the week before left out', JSON.stringify(fg.lastRows.map(r => r[0])) === JSON.stringify(['Nick', 'Sam Trainee']) && fg.lastRows[0][2] === '22.5h' && /Mon–Wed \(3d\)/.test(fg.lastRows[0][1]) && /Toolbox \/ yard \/ other/.test(fg.lastRows[0][1]) && /#3777 Finished Customer/.test(fg.lastRows[1][1]) && fg.lastRows[1][2] === '19.5h', JSON.stringify(fg.lastRows));
-check('…the staff schedule grid is Fergus\'s calendar on Auckland days: a row a person, a column a day, Saturday only because it is booked, a 30-minute meeting left out', JSON.stringify(fg.calHead) === JSON.stringify(['Who', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) && fg.calRows.length === 3 && fg.calRows[0][0] === 'Nick Example' && new RegExp('#' + '\\d+').test(fg.calRows[0][1]) && fg.calRows[0][1] === fg.calRows[0][2] && !/Toolbox/.test(fg.calRows[0][1]) && /Yard work/.test(fg.calRows[0][6]) && fg.calRows.some(r => r[0] === 'Sam Trainee' && /day off/.test(r[2])) && fg.calRows.some(r => r[0] === 'Lead Two' && /#3888a New Customer/.test(r[3]) && /\(quote\)/.test(r[4])) && fg.calCalls === 1, JSON.stringify({ head: fg.calHead, rows: fg.calRows, calls: fg.calCalls }));
+check('…the staff schedule grid is Fergus\'s calendar on Auckland days: a row a person, a column a day, Saturday only because it is booked, a 30-minute meeting left out', JSON.stringify(fg.calHead) === JSON.stringify(['Who', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) && fg.calRows.length === 3 && fg.calRows[0][0] === 'Nick Example' && new RegExp('#' + '\\d+').test(fg.calRows[0][1]) && fg.calRows[0][1] === fg.calRows[0][2] && !/Toolbox/.test(fg.calRows[0][1]) && /Yard work/.test(fg.calRows[0][6]) && fg.calRows.some(r => r[0] === 'Sam Trainee' && /day off/.test(r[2])) && fg.calRows.some(r => r[0] === 'Lead Two' && /#3888a New Customer/.test(r[3]) && /\(quote\)/.test(r[4])) && fg.calCalls === 2, JSON.stringify({ head: fg.calHead, rows: fg.calRows, calls: fg.calCalls }));
+check('…and LAST week\'s staff schedule is its own calendar read, the grid ahead of this week\'s (2026-11-01: "still missing the last week schedule like the old toolbox tool had")', JSON.stringify(fg.calLastHead) === JSON.stringify(['Who', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']) && fg.calLastRows.length === 2 && fg.calLastRows[0][0] === 'Nick Example' && fg.calLastRows[0][1] === fg.calLastRows[0][3] && /#\d+/.test(fg.calLastRows[0][1]) && fg.calLastRows[0][4] === '' && fg.calLastRows[1][0] === 'Sam Trainee' && /day off/.test(fg.calLastRows[1][5]) && fg.lastFirst && fg.subs[0].indexOf('Staff schedule last week') === 0 && fg.subs[1].indexOf('Staff schedule this week') === 0, JSON.stringify({ head: fg.calLastHead, rows: fg.calLastRows, subs: fg.subs, lastFirst: fg.lastFirst }));
+check('the sheet is four A4 pages by default — the meeting, the jobs, the crews, housekeeping to the signatures — each with its footer, and the breaks move, go and come back', fg.pages0.n === 4 && fg.pages0.jobs === 2 && fg.pages0.crews === 3 && fg.pages0.house === 4 && fg.pages0.weather === 1 && fg.pages0.foot.length === 4 && /Page 1 of 4/.test(fg.pages0.foot[0]) && /Page 4 of 4/.test(fg.pages0.foot[3]) && JSON.stringify(fg.pages0.brk) === JSON.stringify(['Page 2 starts here', 'Page 3 starts here', 'Page 4 starts here']) && fg.pages1.weather === 2 && fg.pages1.jobs === 2 && JSON.stringify(fg.pages1.stored.slice().sort()) === JSON.stringify(['crews', 'housekeeping', 'weather']) && fg.pages2.n === 3 && fg.pages2.crews === 2 && fg.pages2.house === 3 && fg.pages3.n === 4 && fg.pages3.att === 4 && /Page 4 of 4/.test(fg.pages3.foot) && fg.pages4 === 4, JSON.stringify({ p0: fg.pages0, p1: fg.pages1, p2: fg.pages2, p3: fg.pages3, p4: fg.pages4 }));
 check('…a job only the calendar knows is named from its title', fg.calJobs && fg.calJobs['88888'] && fg.calJobs['88888'].no === '3888a' && fg.calJobs['88888'].name === 'New Customer' && fg.calJobs['88888'].site === '1 Far Road, Kaeo', JSON.stringify(fg.calJobs && fg.calJobs['88888']));
-check('…and THIS week per job: the scheduled crew with their days, last week\'s crew, the hours logged so far, a note typed and kept', /Nick Example/.test(fg.weekRows[0].sched) && /Mon, Tue/.test(fg.weekRows[0].sched) && /Sam Trainee/.test(fg.weekRows[0].sched) && /Nick 8h/.test(fg.weekRows[0].logged) && /Nick 22/.test(fg.weekRows[0].last) && fg.weekRows[0].hint === 'as scheduled' && /Lead Two/.test(fg.weekRows[1].sched) && fg.weekRows.some(r => /#3888a New Customer/.test(r.job) && /Lead Two/.test(r.sched)) && fg.crew && fg.crew[fg.A] === 'Nick, Sam' && fg.fergusKept, JSON.stringify({ w0: fg.weekRows[0], w1: fg.weekRows[1], crew: fg.crew, kept: fg.fergusKept }));
+check('…and THIS week per job: the scheduled crew with their days, last week\'s crew, the hours logged so far, a note typed and kept', /Nick Example/.test(fg.weekRows[0].sched) && /Mon, Tue/.test(fg.weekRows[0].sched) && /Sam Trainee/.test(fg.weekRows[0].sched) && /Nick 8h/.test(fg.weekRows[0].logged) && /Nick 22(\.5)?h Mon–Wed \(3d\)/.test(fg.weekRows[0].last) && fg.weekRows[1].last.indexOf('Sam Trainee 7.5h Thu') === 0 && fg.weekRows[0].hint === 'as scheduled' && /Lead Two/.test(fg.weekRows[1].sched) && fg.weekRows.some(r => /#3888a New Customer/.test(r.job) && /Lead Two/.test(r.sched)) && fg.crew && fg.crew[fg.A] === 'Nick, Sam' && fg.fergusKept, JSON.stringify({ w0: fg.weekRows[0], w1: fg.weekRows[1], crew: fg.crew, kept: fg.fergusKept }));
 check('…another week\'s sheet asks the calendar for its own window with full date-times, and says when nothing is booked', fg.otherWeek.cal === 0 && fg.otherWeek.err === 'empty' && /Nothing is booked/.test(fg.otherWeek.note) && fg.otherWeek.call.indexOf('filterDateFrom=' + encodeURIComponent(fg.otherWeek.from + 'T00:00:00.000Z')) > 0 && fg.otherWeek.call.indexOf('filterDateTo=' + encodeURIComponent(fg.otherWeek.to + 'T00:00:00.000Z')) > 0, JSON.stringify(fg.otherWeek));
 check('the forecast fills Mon–Fri from open-meteo\'s weather_code with the rain chance over 20%, kept on the week', /weather_code/.test(fg.url) && /start_date=\d{4}-\d{2}-\d{2}&end_date=/.test(fg.url) && JSON.stringify(fg.fc) === JSON.stringify(['Mainly clear', 'Slight rain, 80% chance of rain', 'Overcast', 'Thunderstorm, 60% chance of rain', 'Clear sky']) && fg.fcKept === 'Slight rain, 80% chance of rain', JSON.stringify({ url: fg.url, fc: fg.fc, kept: fg.fcKept }));
 check('…and a week past open-meteo\'s 16 days asks nothing and says so', fg.far === 0, JSON.stringify({ far: fg.far }));
@@ -455,14 +485,14 @@ const crew = await pg.evaluate(() => {
     now: calMonthKey(0), sep: card('Sep-2024').querySelector('.crew-n').innerText, jul: card('Jul-2024').querySelector('.crew-n').innerText,
     sepRev: (card('Sep-2024').textContent.match(/Rev \/ person/) || [])[0] || '', scrolls: host.scrollWidth > host.clientWidth + 20,
     lastSeen: last.right <= r.right + 2 && host.scrollLeft > 0,
-    missing: crewMonths().filter(m => m !== 'Jul-2024' && !(crewFor(m) && crewFor(m).n > 0)) };
+    missing: crewMonths().filter(m => m !== 'Jul-2024' && m !== calMonthKey(0) && !(crewFor(m) && crewFor(m).n > 0)) };   // the month now running has no pay run yet until the exports are updated
 });
 check('the P&L tab opens on the crew strip', crew.first === 'pl-crew-card', JSON.stringify(crew));
 const plGone = await pg.evaluate(() => ({ body: !!document.getElementById('epl-body'), text: /P&L — earned|tie out\?|Earned vs Xero revenue|deposits held/.test(document.getElementById('page-pl').textContent), cards: document.querySelectorAll('#page-pl > .card').length }));
 check('the earned P&L card (earned month, work in progress, earned vs Xero, reconciliation) is gone from the P&L tab', !plGone.body && !plGone.text && plGone.cards > 2, JSON.stringify(plGone));
 check('…one card a month from Jul 2024 to this month', crew.n === crew.want && crew.firstM === 'Jul-2024' && crew.lastM === crew.now && crew.n >= 27, JSON.stringify(crew));
 check('…Sep 2024 reads 4 on the tools from the pay runs, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.8 full-time/.test(crew.sep), crew.sep);
-check('…every month from Aug 2024 to now has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
+check('…every complete month from Aug 2024 has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
 // Under Last 12 Months: rolling 3- and 6-month averages, then one card a financial year (Apr – Mar) to swipe
 // through; Average job value folded away (2026-10-25, the owner).
 const plx = await pg.evaluate(() => {
@@ -565,6 +595,10 @@ const byMd = await pg.evaluate(() => { const r = s => document.querySelector(s).
 check('…and on the computer By Month runs full width under the workflow card, above the tiles', byMd.moTop > byMd.fwBot && byMd.moTop < byMd.kpis && byMd.moW > byMd.app * 0.9, JSON.stringify(byMd));
 // The Last Month card came off the Command Centre on 2026-10-28 (the owner: "remove 'last month' from the home tab").
 check('…and there is no Last Month card on the Command Centre', await pg.evaluate(() => !document.querySelector('.d-last') && !document.getElementById('met-last')));
+// the toolbox talk on a computer: each page an A4 portrait card, white whatever the theme, the content at 900px zoomed to the 190mm inside
+const deskPage = await pg.evaluate(() => { go('reports'); openToolbox(tbxMonday(new Date())); const P = [...document.querySelectorAll('#tbx-body .tbx-page')]; const p = P[0]; const cs = getComputedStyle(p); const inner = getComputedStyle(p.querySelector('.tbx-page-in'));
+  const r = { n: P.length, w: Math.round(p.getBoundingClientRect().width), minH: cs.minHeight, bg: cs.backgroundColor, innerW: inner.width, zoom: inner.zoom, foot: getComputedStyle(p.querySelector('.tbx-pfoot')).display, footTxt: p.querySelector('.tbx-pfoot').textContent, brk: document.querySelector('#tbx-body .tbx-brk').textContent.trim(), gap: Math.round(P[1].getBoundingClientRect().top - P[0].getBoundingClientRect().bottom) }; closeToolbox(); go('dash'); return r; });
+check('on the computer the toolbox talk is A4 pages — 210mm wide, 297mm tall, white, a footer with the page number, "Page 2 starts here" with Move up / Move down / Remove break between them', deskPage.n === 4 && deskPage.w === Math.round(210 * 96 / 25.4) && Math.round(parseFloat(deskPage.minH)) === Math.round(297 * 96 / 25.4) && deskPage.bg === 'rgb(255, 255, 255)' && deskPage.innerW === '900px' && deskPage.zoom === '0.79' && deskPage.foot === 'flex' && /Page 1 of 4/.test(deskPage.footTxt) && /Page 2 starts here/.test(deskPage.brk) && /Move up/.test(deskPage.brk) && /Remove break/.test(deskPage.brk) && deskPage.gap > 10, JSON.stringify(deskPage));
 await pg.evaluate(() => go('bc')); await pg.waitForTimeout(400);
 const bcd = await pg.evaluate(() => ({ table: document.querySelector('.bc-tbl-wrap').getBoundingClientRect().height > 0,
   list: document.getElementById('bc-list').getBoundingClientRect().height > 0,
