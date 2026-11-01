@@ -459,14 +459,15 @@ const crew = await pg.evaluate(() => {
     now: calMonthKey(0), sep: card('Sep-2024').querySelector('.crew-n').innerText, jul: card('Jul-2024').querySelector('.crew-n').innerText,
     sepRev: (card('Sep-2024').textContent.match(/Rev \/ person/) || [])[0] || '', scrolls: host.scrollWidth > host.clientWidth + 20,
     lastSeen: last.right <= r.right + 2 && host.scrollLeft > 0,
-    missing: crewMonths().filter(m => m !== 'Jul-2024' && !(crewFor(m) && crewFor(m).n > 0)) };
+    // The pay runs (CREW_SEED) end at 16 Oct 2026: a month after that has no payroll yet, so it is not pinned.
+    missing: (() => { const ms = crewMonths(), end = ms.indexOf('Oct-2026'); return ms.filter((m, i) => m !== 'Jul-2024' && (end < 0 || i <= end) && !(crewFor(m) && crewFor(m).n > 0)); })() };
 });
 check('the P&L tab opens on the crew strip', crew.first === 'pl-crew-card', JSON.stringify(crew));
 const plGone = await pg.evaluate(() => ({ body: !!document.getElementById('epl-body'), text: /P&L — earned|tie out\?|Earned vs Xero revenue|deposits held/.test(document.getElementById('page-pl').textContent), cards: document.querySelectorAll('#page-pl > .card').length }));
 check('the earned P&L card (earned month, work in progress, earned vs Xero, reconciliation) is gone from the P&L tab', !plGone.body && !plGone.text && plGone.cards > 2, JSON.stringify(plGone));
 check('…one card a month from Jul 2024 to this month', crew.n === crew.want && crew.firstM === 'Jul-2024' && crew.lastM === crew.now && crew.n >= 27, JSON.stringify(crew));
 check('…Sep 2024 reads 4 on the tools from the pay runs, with its full-time equivalent', /^4\b/.test(crew.sep) && /on the tools/.test(crew.sep) && /3\.8 full-time/.test(crew.sep), crew.sep);
-check('…every month from Aug 2024 to now has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
+check('…every month from Aug 2024 to the last pay run has a crew number from the pay runs', crew.missing.length === 0, crew.missing.join(' '));
 // Under Last 12 Months: rolling 3- and 6-month averages, then one card a financial year (Apr – Mar) to swipe
 // through; Average job value folded away (2026-10-25, the owner).
 const plx = await pg.evaluate(() => {
