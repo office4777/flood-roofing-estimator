@@ -664,9 +664,8 @@ THE FILL:
    steel and no patchier, or a patch cleaner for at most a sheet's length
    more. A try lays the roof the way that won (`_noAlt`, `res._lay`) without
    move 3, and the tries stop at ~0.6 of the roof's own time. Switches:
-   `PZ_SET_GUARD`, `PZ_APEX_SHIFT` — SHIPPED OFF (false) on 2026-11-02 while the
-   owner has the pictures; his "go" turns both true (`sheetlayout.mjs` pins
-   them with the switches on, `rule9l`). Moved with them on: the walkthrough roof
+   `PZ_SET_GUARD`, `PZ_APEX_SHIFT` (false = off) — ON since the owner's "go"
+   (2026-11-02, he had the before/after pictures). Moved: the walkthrough roof
    (46, the bottom end ↺A6 … ↺A1 in order, +1 m), report 71 70 → 67 (both
    ends' full apex sheets gone, −19 m), report 73 136 → 135, the T relabelled
    (its east end's stray A22 now in the set); every other fixture identical,

@@ -9677,10 +9677,10 @@ var _PZ_OPT_ON = true;
 // most one sheet's length more steel, and reads at least one patch cleaner. (Measured on the
 // finished lays: on the roofs already approved the later moves tidy what
 // move 3 disturbs, and there it stays.) PZ_SET_GUARD = false turns it off.
-// OFF until the owner says go (2026-11-02): the pictures are with him.
-var PZ_SET_GUARD = false, _PZ_NO_FULL = false;
-// Rule 9l, the apex nudge / centred donor (false = off; off until his go).
-var PZ_APEX_SHIFT = false;
+// ON since the owner's "go" (2026-11-02, he had the pictures).
+var PZ_SET_GUARD = true, _PZ_NO_FULL = false;
+// Rule 9l, the apex nudge / centred donor (false = off).
+var PZ_APEX_SHIFT = true;
 var _PZ_STEEL_TIE_MM = 1000;
 var _PZ_OPT_BUDGET = 3000;
 var _PZ_OPT_NEAR = 16;
