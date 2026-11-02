@@ -235,6 +235,7 @@ v = await pg.evaluate(() => ({
           .map(a => a.getAttribute('href') + ' "' + a.textContent.trim() + '"'))),
   anchorCtas: Array.from(document.querySelectorAll('a.btn, a.nav-cta'))
           .filter(a => (a.getAttribute('href')||'').startsWith('#') && /trial|account|start/i.test(a.textContent)).length,
+  callLinks: document.querySelectorAll('a[href="/early-access"]').length,
   form: !!document.getElementById('suForm'),
   screens: +(document.documentElement.scrollHeight / innerHeight).toFixed(1),
 }));
@@ -249,7 +250,7 @@ check('…offering the same thing: free, and no card',
     return labels.length > 0 && labels.every(l => /start free/i.test(l));
   })(),
   JSON.stringify(v.ctas.filter(c => c.startsWith('/signup'))));
-check('…with the setup call as the second option', v.ctas.some(c => c.startsWith('/early-access')));
+check('…with the setup call as the second option', v.ctas.some(c => c.startsWith('/early-access')) || v.callLinks > 0, String(v.callLinks));
 check('…and the form no longer lives on the landing page too', v.form === false);
 // 15 since the Try it section, 16 since the Measure card (see landing.mjs).
 check('…which is still not endless', v.screens < 16, v.screens + ' screens on a phone');

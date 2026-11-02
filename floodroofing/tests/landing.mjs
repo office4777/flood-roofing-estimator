@@ -139,7 +139,8 @@ v = await pg.evaluate(() => {
     scrollers: ctas.filter(a => (a.getAttribute('href')||'').startsWith('#') &&
                                 /trial|sign ?up|account|access/i.test(a.textContent)).length,
     toSignup: ctas.filter(a => (a.getAttribute('href')||'') === '/signup').length,
-    toCall: ctas.filter(a => (a.getAttribute('href')||'') === '/early-access').length,
+    // A button or, since 2026-11-03, a plain link in the opening's note line.
+    toCall: document.querySelectorAll('a[href="/early-access"]').length,
     form: !!document.getElementById('suForm'),
   };
 });
