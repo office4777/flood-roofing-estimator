@@ -5125,6 +5125,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 
     <!-- SIGN IN -->
     <div id="login-signin-view">
+      <div id="li-restart-note" style="display:none;background:#e0f2fe;border:1px solid #9bd5f0;color:#0a1628;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin-bottom:12px"><strong>Sign in to restart your free trial.</strong> Use the email you signed up with — your trial starts again as soon as you are in.</div>
       <label class="li-label">Email</label>
       <input id="li-email" type="email" placeholder="you@floodroofing.co.nz" class="li-input">
       <label class="li-label">Password</label>
@@ -5213,7 +5214,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-02T18:40:17Z';
+  window.APP_BUILT_AT = '2026-11-02T19:48:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5348,6 +5349,13 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   var _rt=_p.get('reset');
   var _inv=_p.get('invite');
   var _vt=_p.get('verify');
+  // A SECOND GO AT THE TRIAL: the win-back email's button lands here. The
+  // wish is kept on the device so it survives signing in, a password reset
+  // or a confirmation link, and acted on once the subscription is read.
+  if(_p.get('restart')==='trial'){
+    try{ localStorage.setItem('fr_restart_trial', String(Date.now())); }catch(e){}
+    try{ _p.delete('restart'); var _qs=_p.toString(); history.replaceState(null,'',location.pathname+(_qs?'?'+_qs:'')); }catch(e){}
+  }
   if(_vt){
     // Emailed confirmation link: confirm the address and sign straight in.
     // Like the reset link, it wins over any old session lying around.
@@ -5408,6 +5416,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     });
   } else if(!tok){
     document.getElementById('login-screen').style.display='flex';
+    try{ if(localStorage.getItem('fr_restart_trial')){ var _rn=document.getElementById('li-restart-note'); if(_rn) _rn.style.display=''; } }catch(e){}
     document.querySelector('.app') && (document.querySelector('.app').style.display='none');
     // Direct "set my password" link: ?setup=1 (optionally &email=matt@floodroofing.co.nz)
     if(_p.get('setup')==='1' || _p.get('setup')==='true'){
@@ -23493,6 +23502,7 @@ async function loadSubscription(){
   try { SUBSCRIPTION = await api('GET', '/subscription'); }
   catch(e){ SUBSCRIPTION = null; }     // never let this block the app
   try { _planGateSync(); } catch(e){}
+  try { if (await _trialRestartAuto()) return; } catch(e){}
   // Signing in to an account that cannot save anything is the moment to say
   // so, with the plans in front of them — not three clicks later on a 403.
   try { _planGateOpen(false); } catch(e){}
@@ -23644,6 +23654,7 @@ function _planGateModalHtml(){
   return '<div class="pg-box" role="dialog" aria-modal="true" aria-label="' + head + '">' +
     '<div class="pg-head">' + head + '</div>' +
     '<div class="pg-sub">' + sub + '</div>' +
+    _trialRestartBlockHtml() +
     '<div class="pg-cards">' + cards + '</div>' +
     '<div class="pg-foot"><strong>Month to month — cancel any time.</strong> ' +
       'Cancelling is two clicks in Settings → Billing; you keep the plan until the month you have paid for runs out, ' +
@@ -23674,6 +23685,56 @@ function _planGateOpen(force){
   try { document.body.style.overflow = 'hidden'; } catch(e){}
 }
 function _planGateDismissRoofs(){ window.__roofsUsedGate = false; _planGateClose(); }
+// ── A SECOND GO AT THE TRIAL (2026-11-03) ─────────────────────────────
+// A business whose trial ran out in the early days, never having paid, may
+// start it again once on today's terms. The server decides (`restart_ok` on
+// /subscription); the win-back email's link asks for it straight away, and
+// the trial-ended window offers it as a button.
+function _trialRestartBlockHtml(){
+  var s = SUBSCRIPTION || {};
+  if (!s.restart_ok) return '';
+  return '<div class="pg-restart" style="background:#e0f2fe;border:1px solid #9bd5f0;border-radius:12px;padding:12px 14px;margin:4px 0 14px;text-align:left">' +
+    '<div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:3px">RoofMap has had a lot of work since you tried it</div>' +
+    '<div style="font-size:13px;line-height:1.5;color:#334155;margin-bottom:10px">Have another go, free: 3 real roofs or 30 days, whichever comes first, and no card. Everything from last time is still here.</div>' +
+    '<button id="pgRestartBtn" onclick="_trialRestartGo(this)" style="background:#0099cc;color:#fff;border:0;border-radius:9px;padding:10px 18px;font:inherit;font-size:14px;font-weight:800;cursor:pointer">Restart my free trial</button>' +
+  '</div>';
+}
+async function _trialRestartAuto(){
+  var at = 0;
+  try { at = Number(localStorage.getItem('fr_restart_trial')) || 0; } catch(e){}
+  if (!at || !SUBSCRIPTION) return false;
+  try { localStorage.removeItem('fr_restart_trial'); } catch(e){}
+  if (Date.now() - at > 30 * 864e5) return false;
+  if (!SUBSCRIPTION.restart_ok){
+    // A trial still running, or a paying account: nothing to restart, and
+    // nothing worth a window either — they are already in.
+    return false;
+  }
+  return await _trialRestartGo(null);
+}
+async function _trialRestartGo(btn){
+  var msg = document.getElementById('planGateMsg');
+  if (btn){ btn.disabled = true; btn.textContent = 'Restarting\u2026'; }
+  try {
+    var d = await api('POST', '/billing/trial-restart', {});
+    window.__roofsUsedGate = false;
+    try { SUBSCRIPTION = await api('GET', '/subscription'); } catch(e){}
+    try { _planGateSync(); } catch(e){}
+    var el = document.getElementById('planGateModal');
+    if (!el){ el = document.createElement('div'); el.id = 'planGateModal'; el.className = 'pg-wrap'; document.body.appendChild(el); }
+    el.innerHTML = '<div class="pg-box" role="dialog" aria-modal="true" aria-label="Your free trial has restarted" id="pgRestarted">' +
+      '<div class="pg-head">Your free trial has restarted</div>' +
+      '<div class="pg-sub">' + ((d && d.roofs) || 3) + ' real roofs or ' + ((d && d.days) || 30) + ' days, whichever comes first \u2014 no card. Everything you made last time is still here, and the practice job never counts as a roof.</div>' +
+      '<button class="pg-later" style="background:#0099cc;color:#fff;border-color:#0099cc" onclick="_planGateClose()">Start measuring</button>' +
+    '</div>';
+    el.style.display = 'flex';
+    return true;
+  } catch(e){
+    if (btn){ btn.disabled = false; btn.textContent = 'Restart my free trial'; }
+    if (msg) msg.textContent = (e && e.message) || 'The trial could not be restarted \u2014 try again.';
+    return false;
+  }
+}
 function _planGateClose(){
   var el = document.getElementById('planGateModal');
   if (el) el.style.display = 'none';

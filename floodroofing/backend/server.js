@@ -881,7 +881,7 @@ async function _gasSendMail({ to, cc, subject, text, html, attachment, attachmen
   }
   return { messageId: parsed.id || null };
 }
-async function _resendSendMail({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo }) {
+async function _resendSendMail({ to, cc, bcc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo }) {
   if (!EMAIL_FROM) throw new Error('RESEND_API_KEY is set but EMAIL_FROM is missing — add EMAIL_FROM="RoofMap <noreply@roofmap.co.nz>" (once that domain is verified in Resend → Domains).');
   const _split = (v) => String(v || '').split(',').map(s => s.trim()).filter(Boolean);
   // Their name, a verified address — Resend will not send from a domain
@@ -900,6 +900,7 @@ async function _resendSendMail({ to, cc, subject, text, html, attachment, attach
     { 'In-Reply-To': inReplyTo, 'References': inReplyTo });
   if (html) payload.html = html;
   if (cc) payload.cc = _split(cc);
+  if (bcc) payload.bcc = _split(bcc);
   const _f = _mailFiles(attachment, attachments);
   if (_f.length) payload.attachments = _f.map(a => ({ filename: a.filename || 'order.pdf', content: a.base64 }));
   const resp = await fetch(RESEND_API_BASE + '/emails', {
@@ -1112,7 +1113,7 @@ function _newMessageId(tag){
   const r = crypto.randomBytes(8).toString('hex');
   return '<rm-' + String(tag || 'm').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 40) + '-' + r + '@roofmap.co.nz>';
 }
-async function _dispatchMailInner({ to, cc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, platform, messageId, inReplyTo }) {
+async function _dispatchMailInner({ to, cc, bcc, subject, text, html, attachment, attachments, fromName, replyTo, fromAddress, platform, messageId, inReplyTo }) {
   const _files = _mailFiles(attachment, attachments);
   attachment = _files[0] || null;
   attachments = _files;
@@ -1130,7 +1131,7 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, att
   // to exactly yesterday's behaviour instead of silence.
   if (RESEND_ENABLED) {
     try {
-      return await _resendSendMail({ to, cc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo });
+      return await _resendSendMail({ to, cc, bcc, subject: subj, text: body, html: htmlBody, attachment, attachments, fromName, replyTo, fromAddress, messageId, inReplyTo });
     } catch (e) {
       // A stale key or an unverified domain must not take the platform's mail
       // down while a working relay is configured. Degrade, and page about it —
@@ -1173,7 +1174,7 @@ async function _dispatchMailInner({ to, cc, subject, text, html, attachment, att
     ? _nf.map(a => ({ filename: a.filename, content: Buffer.from(a.base64, 'base64'), contentType: 'application/pdf' }))
     : [];
   const resolved = await _resolveMailTransport();
-  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, subject: subj,
+  return resolved.transporter.sendMail({ from, to, cc: cc || undefined, bcc: bcc || undefined, subject: subj,
     text: body, html: htmlBody, attachments: _nodeFiles, replyTo: replyTo || EMAIL_REPLYTO || undefined });
 }
 function _buildSmtpTransport(port, secure) {
@@ -1837,6 +1838,9 @@ app.get('/subscription', requireAuth, async (req, res) => {
       expired: ms <= 0,
       days: _trialDaysOf(sub),
     }, roofs || {}),
+    // A trial that ran out in the early days may be started again, once
+    // (A SECOND GO AT THE TRIAL): the app offers the button when this is true.
+    restart_ok: (function(){ try { return BILLING_ENABLED && !_trialRestartWhy(sub, req.user.email); } catch (e) { return false; } })(),
     plan: await _planOf(req.companyId),
     // The terms it is on and, on a capped plan, this month's roofs (the app
     // shows "12 of 30 roofs this month" and opens the plans at the cap).
@@ -2971,6 +2975,382 @@ app.post('/admin/trial-ended/run', async (req, res) => {
   try { res.json(await _trialEndedSweep()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ── A SECOND GO AT THE TRIAL (2026-11-03, the owner: "an email ... to all the
+// expired trial users that haven't signed up in a plan in the early days where
+// the onboarding was too hard ... offer them to restart their trial ... with
+// the new trial terms ... sent from aron@roofmap.co.nz ... one email with all
+// the recipients as BCC").
+//
+// THE RESTART: a business whose trial ran out without ever paying may start
+// it again ONCE, on today's terms (3 real roofs or 30 days). Only a trial that
+// ended before TRIAL_RESTART_BEFORE (default the day this shipped) — the early
+// days the owner meant — so it is a one-off offer, not a standing way to keep
+// trialling for ever. Nothing they made is touched; the old trial's roof
+// ledger is cleared so the three roofs are three again, and the drip, the
+// gone-quiet alert and the trial-ended email start over with the new clock.
+const TRIAL_RESTART_BEFORE = Date.parse(process.env.TRIAL_RESTART_BEFORE || '2026-11-03T00:00:00+13:00');
+const WINBACK_FROM = (process.env.WINBACK_FROM || 'aron@roofmap.co.nz').trim().toLowerCase();
+const WINBACK_KEY = 'winback_2026_11';
+function _trialRestartWhy(sub, email){
+  if (!sub) return 'no-subscription';
+  if (sub.status === 'active') return 'paying';
+  if (sub.paid_since) return 'has-paid';
+  if (sub.trial_restarted_at) return 'already-restarted';
+  if (_trialRemainingMs(sub) > 0 && sub.status !== 'canceled' && sub.status !== 'unpaid') return 'trial-running';
+  const ended = Date.parse(sub.trial_ends_at || sub.created_at || '');
+  if (!isFinite(ended) || !(ended < TRIAL_RESTART_BEFORE)) return 'ended-after-offer';
+  if (email && _blockedEmail(email)) return 'blocked';
+  return '';
+}
+async function _trialRestart(sub, who){
+  const now = Date.now();
+  const roofs = TRIAL_ROOFS > 0;
+  const patch = {
+    status: 'trialing',
+    trial_ends_at: new Date(now + (roofs ? TRIAL_ROOF_DAYS : TRIAL_DAYS) * 864e5).toISOString(),
+    trial_roof_limit: roofs ? TRIAL_ROOFS : null,
+    trial_restarted_at: new Date(now).toISOString(),
+    trial_drip: null, trial_ended_mail_at: null, quiet_alert_at: null, cancel_at: null,
+  };
+  // The claim rides on the write: a second press in the same breath finds the
+  // stamp already there and changes nothing.
+  const { data, error } = await supabase.from('subscriptions').update(patch)
+    .eq('id', sub.id).is('trial_restarted_at', null).select('id');
+  if (error) throw new Error(error.message);
+  if (!data || !data.length) return false;
+  try {
+    let q = supabase.from('trial_roofs').delete();
+    q = sub.company_id ? q.eq('company_id', sub.company_id) : q.eq('user_id', sub.user_id);
+    await q;
+  } catch (e) {}
+  try { _trialRoofMemo.delete(_trialScopeKey(sub.company_id, sub.user_id)); } catch (e) {}
+  if (sub.company_id){
+    try { await supabase.from('companies').update({ plan: 'trial' }).eq('id', sub.company_id); } catch (e) {}
+    _planCache.delete(sub.company_id);
+  }
+  // The owner hears about it the way he hears about a signup.
+  if (SIGNUP_ALERT_TO && EMAIL_ENABLED){
+    _dispatchMail({ to: SIGNUP_ALERT_TO, fromName: 'RoofMap', replyTo: who && who.email,
+      subject: 'Trial restarted: ' + ([who && who.company, who && who.name].filter(Boolean).join(' · ') || (who && who.email) || 'a business'),
+      text: 'They have restarted their free trial from the second-go offer — ' + _TRIAL_WORDS() + ' of Team, from today.\n\n' +
+        (who && who.company ? 'Business: ' + who.company + '\n' : '') + (who && who.name ? 'Name: ' + who.name + '\n' : '') +
+        (who && who.email ? 'Email: ' + who.email + '\n' : '') + '\nReply to this email and it goes straight to them.',
+    }).catch(function(){});
+  }
+  return true;
+}
+app.get('/billing/trial-restart', requireAuth, async (req, res) => {
+  try {
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    const why = _trialRestartWhy(sub, req.user.email);
+    res.json({ ok: !why, why: why || null, roofs: TRIAL_ROOFS, days: TRIAL_ROOFS > 0 ? TRIAL_ROOF_DAYS : TRIAL_DAYS });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/billing/trial-restart', requireAuth, async (req, res) => {
+  try {
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    const why = _trialRestartWhy(sub, req.user.email);
+    if (why) return res.status(409).json({ error: why === 'trial-running' ? 'Your free trial is still running.'
+      : why === 'already-restarted' ? 'This trial has already been restarted once.'
+      : (why === 'paying' || why === 'has-paid') ? 'This business is on a paid plan — no trial needed.'
+      : 'This account cannot restart its trial.', code: 'TRIAL_RESTART_' + why.toUpperCase().replace(/-/g, '_') });
+    let who = null;
+    try { const { data: p } = await supabase.from('profiles').select('email, name, company').eq('id', req.user.id).maybeSingle(); who = p || { email: req.user.email }; } catch (e) { who = { email: req.user.email }; }
+    const ok = await _trialRestart(sub, who);
+    if (!ok) return res.status(409).json({ error: 'This trial has already been restarted once.', code: 'TRIAL_RESTART_ALREADY_RESTARTED' });
+    res.json({ ok: true, roofs: TRIAL_ROOFS, days: TRIAL_ROOFS > 0 ? TRIAL_ROOF_DAYS : TRIAL_DAYS });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// THE EMAIL: one message from Aron <aron@roofmap.co.nz>, everybody in BCC (the
+// owner's ask), sent from /admin/winback/page where he sees the list, can
+// untick anyone, reads the email as it will arrive, sends himself a test, and
+// then sends it. Once — the send is recorded in platform_state and a second
+// press is refused.
+// Never a business that pays or has paid, a blocked signup, our own team, or
+// a trial still running; the page leaves anything that reads like a test
+// account unticked for the owner to decide.
+const WINBACK_SUBJECT = 'RoofMap has come a long way since you tried it — have another go, free';
+const WINBACK_VIDEO = PUBLIC_APP_URL + '/media/roofmap-demo.mp4';
+const WINBACK_THUMB = PUBLIC_APP_URL + '/media/roofmap-demo-email.jpg';
+const WINBACK_RESTART = PUBLIC_APP_URL + '/app?restart=trial';
+const WINBACK_POINTS = [
+  ['A coach that walks you through your first roof', 'find the house, line the photo up, trace it, pick the roof type. No guessing what to press next.'],
+  ['A sheet layout for every roof', 'every sheet numbered, the offcuts used where they fit, and a pre-cut page for the boys on the ground.'],
+  ['Quotes your customer accepts on their phone', 'they pick the colour, steel and gutter themselves and the price moves with them.'],
+  ['Files, photos and every email on the job', 'in one place, alongside your Fergus files if you use Fergus.'],
+  ['AI Tendering on the Team plan', 'drop the plans in and get a tender quote back.'],
+];
+function _winbackText(){
+  return 'Hi there,\n\n' +
+    'You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the ' +
+    'first ten minutes were confusing, so I have spent the last two months fixing exactly that.\n\n' +
+    'Watch the 41-second demo (an address to a sent quote): ' + WINBACK_VIDEO + '\n\n' +
+    'What is new:\n' + WINBACK_POINTS.map(function(p){ return '- ' + p[0] + ': ' + p[1]; }).join('\n') + '\n\n' +
+    'I would like you to have another go, free. The new trial is ' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS +
+    ' days, whichever comes first, and no card. Everything from last time is still in your account.\n\n' +
+    'Restart my free trial: ' + WINBACK_RESTART + '\n\n' +
+    'Sign in with the email you used last time (forgotten the password? there is a reset link on the sign-in page).\n\n' +
+    'Any questions, just reply — it comes straight to me.\n\n' +
+    'Aron\nFounder, RoofMap\n\n' +
+    'Not interested? Reply "stop" and I will not email you again.';
+}
+function _winbackHtml(){
+  const P = 'margin:0 0 16px;font-size:15px;line-height:1.6;color:#0a1628';
+  const btn = function(href, label){
+    return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 18px"><tr><td style="border-radius:10px;background:#0099cc">' +
+      '<a href="' + href + '" style="display:inline-block;padding:14px 26px;font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:10px">' + label + '</a></td></tr></table>';
+  };
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#f3f5f8">' +
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f3f5f8"><tr><td align="center" style="padding:20px 10px">' +
+    '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;font-family:Arial,Helvetica,sans-serif">' +
+    '<tr><td style="padding:26px 28px 6px">' +
+      '<p style="' + P + '">Hi there,</p>' +
+      '<p style="' + P + '">You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the first ten minutes were confusing, so I have spent the last two months fixing exactly that.</p>' +
+    '</td></tr>' +
+    '<tr><td style="padding:0 28px 18px"><a href="' + WINBACK_VIDEO + '" style="text-decoration:none">' +
+      '<img src="' + WINBACK_THUMB + '" width="544" alt="Watch the 41-second RoofMap demo: an address to a sent quote" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px"></a></td></tr>' +
+    '<tr><td style="padding:0 28px 4px">' +
+      '<p style="margin:0 0 10px;font-size:16px;font-weight:bold;color:#0a1628">What’s new</p>' +
+      '<ul style="margin:0 0 18px;padding:0 0 0 20px;font-size:15px;line-height:1.55;color:#0a1628">' +
+        WINBACK_POINTS.map(function(p){ return '<li style="margin:0 0 8px"><b>' + _esc(p[0]) + '</b> — ' + _esc(p[1]) + '</li>'; }).join('') +
+      '</ul>' +
+      '<p style="' + P + '">I would like you to have another go, free. The new trial is <b>' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS + ' days</b>, whichever comes first, and no card. Everything from last time is still in your account.</p>' +
+      btn(WINBACK_RESTART, 'Restart my free trial') +
+      '<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#64748b">Sign in with the email you used last time. Forgotten the password? There is a reset link on the sign-in page.</p>' +
+      '<p style="' + P + '">Any questions, just reply — it comes straight to me.</p>' +
+      '<p style="' + P + '">Aron<br><span style="color:#64748b">Founder, RoofMap</span></p>' +
+    '</td></tr>' +
+    '<tr><td style="padding:14px 28px 22px;border-top:1px solid #e3e8ef;font-size:12px;line-height:1.5;color:#94a3b8">' +
+      'Not interested? Reply “stop” and I won’t email you again. RoofMap · Whangarei, New Zealand · <a href="' + PUBLIC_APP_URL + '" style="color:#94a3b8">roofmap.co.nz</a></td></tr>' +
+    '</table></td></tr></table></body></html>';
+}
+function _winbackLooksTest(r){
+  const s = [r.company, r.name, r.email].join(' ').toLowerCase();
+  return /@(floodroofing|roofmap)\.co\.nz\b/.test(s) || /\btest\b|stripe|john doe|\bbob\b|bobs roofing|aron'?s/.test(s);
+}
+async function _winbackList(){
+  const subs = _mustRead(await supabase.from('subscriptions')
+    .select('id, user_id, company_id, status, trial_ends_at, created_at, paid_since, trial_restarted_at, stripe_customer_id').limit(5000), 'subscriptions');
+  // A company with ANY paying row is a customer, whatever its other rows say.
+  const paying = new Set((subs || []).filter(s => s.company_id && (s.status === 'active' || s.paid_since)).map(s => s.company_id));
+  const names = new Map();
+  try {
+    const { data: cos } = await supabase.from('companies').select('id, name').limit(5000);
+    (cos || []).forEach(c => names.set(c.id, c.name || ''));
+  } catch (e) {}
+  // Who told us why they left, on the trial-ended form: shown beside them so
+  // the owner reads it before deciding to write again.
+  const leftWhy = new Map();
+  try {
+    const { data: fb } = await supabase.from('cancel_feedback').select('company_id, user_id, reasons, detail').limit(2000);
+    (fb || []).forEach(f => {
+      const txt = [].concat(f.reasons || []).map(k => CANCEL_REASONS[k] || k).join(', ') + (f.detail ? ' — ' + String(f.detail).slice(0, 200) : '');
+      if (f.company_id) leftWhy.set('c:' + f.company_id, txt);
+      if (f.user_id) leftWhy.set('u:' + f.user_id, txt);
+    });
+  } catch (e) {}
+  const out = [], seen = new Set();
+  for (const sub of (subs || [])){
+    if (sub.company_id && paying.has(sub.company_id)) continue;
+    const p = await _trialOwnerFor(sub);
+    if (!p || !p.email) continue;
+    const why = _trialRestartWhy(sub, p.email);
+    if (why) continue;
+    const key = _normaliseEmail(p.email);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const r = { sub_id: sub.id, email: String(p.email).trim(), name: p.name || '', company: names.get(sub.company_id) || p.company || '',
+      ended: sub.trial_ends_at || sub.created_at || null,
+      left_why: leftWhy.get('c:' + sub.company_id) || leftWhy.get('u:' + (p.id || sub.user_id)) || '' };
+    r.test = _winbackLooksTest(r);
+    out.push(r);
+  }
+  out.sort((a, b) => (a.test - b.test) || String(a.company).localeCompare(String(b.company)));
+  return out;
+}
+async function _winbackSent(){
+  const r = await supabase.from('platform_state').select('value').eq('key', WINBACK_KEY).maybeSingle();
+  if (r.error) throw Object.assign(new Error(r.error.message), { upstream: true });
+  return (r.data && r.data.value) || null;
+}
+function _winbackMail(bcc, to){
+  return { to: to || WINBACK_FROM, bcc: bcc && bcc.length ? bcc.join(', ') : undefined, subject: WINBACK_SUBJECT,
+    text: _winbackText(), html: _winbackHtml(), fromName: 'Aron at RoofMap', fromAddress: WINBACK_FROM, replyTo: WINBACK_FROM, platform: true };
+}
+app.get('/admin/winback', async (req, res) => {
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
+  try {
+    res.json({ list: await _winbackList(), sent: await _winbackSent(), subject: WINBACK_SUBJECT, from: 'Aron at RoofMap <' + WINBACK_FROM + '>',
+      sendable: _platformMailboxSendable(WINBACK_FROM), html: _winbackHtml() });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+app.post('/admin/winback/test', async (req, res) => {
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
+  try {
+    const to = String((req.body || {}).to || WINBACK_FROM).trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'That is not an email address.' });
+    const r = await _dispatchMail(_winbackMail(null, to));
+    if (r && r.held) return res.status(503).json({ error: 'Held — RoofMap cannot send as ' + WINBACK_FROM + ' on this server.' });
+    res.json({ ok: true, to: to });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/admin/winback/send', async (req, res) => {
+  if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
+  try {
+    if (await _winbackSent()) return res.status(409).json({ error: 'This email has already been sent.', code: 'WINBACK_SENT' });
+    const want = new Set((Array.isArray((req.body || {}).subs) ? req.body.subs : []).map(String));
+    if (!want.size) return res.status(400).json({ error: 'Tick at least one business.' });
+    // Only ever the businesses the server itself would offer — a ticked id the
+    // list no longer holds (somebody paid in the meantime) is dropped.
+    const list = (await _winbackList()).filter(r => want.has(String(r.sub_id)));
+    if (!list.length) return res.status(400).json({ error: 'None of the ticked businesses can still be offered a restart.' });
+    if (!_platformMailboxSendable(WINBACK_FROM)) return res.status(503).json({ error: 'Held — RoofMap cannot send as ' + WINBACK_FROM + ' on this server.' });
+    // Mark first, send second: a crash between the two costs the send, the
+    // other order costs everybody a second copy.
+    const stamp = { sent_at: new Date().toISOString(), count: list.length, emails: list.map(r => r.email), batches: [] };
+    const up = await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: stamp.sent_at }, { onConflict: 'key' });
+    if (up.error) throw new Error(up.error.message);
+    // Resend takes 50 addresses a message; the owner's own copy is the To.
+    const emails = list.map(r => r.email);
+    for (let i = 0; i < emails.length; i += 45){
+      const part = emails.slice(i, i + 45);
+      try { const r = await _dispatchMail(_winbackMail(part)); stamp.batches.push({ n: part.length, ok: !(r && r.held), id: r && r.messageId || null }); }
+      catch (e) { stamp.batches.push({ n: part.length, ok: false, error: String(e && e.message || e).slice(0, 200) }); }
+    }
+    try { await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: new Date().toISOString() }, { onConflict: 'key' }); } catch (e) {}
+    const bad = stamp.batches.filter(b => !b.ok);
+    if (bad.length) try { recordError('server', new Error('Win-back email: ' + bad.length + ' batch(es) failed — ' + (bad[0].error || 'held')), { route: '/admin/winback/send' }); } catch (e) {}
+    res.json({ ok: !bad.length, sent: stamp.batches.filter(b => b.ok).reduce((a, b) => a + b.n, 0), count: list.length, batches: stamp.batches });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(500).json({ error: e.message });
+  }
+});
+app.get('/admin/winback/page', (req, res) => {
+  res.setHeader('Content-Security-Policy',
+    "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data: https:; frame-src 'self' data:; " +
+    "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  res.type('html').send(WINBACK_PAGE_HTML);
+});
+const WINBACK_PAGE_HTML = String.raw`<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>RoofMap win-back email</title><meta name="robots" content="noindex">
+<style>
+:root{--ink:#0a1628;--mut:#64748b;--line:#e3e8ef;--acc:#0099cc;--bg:#f3f5f8}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--ink);color:#fff;padding:14px 16px;position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;flex:1}
+main{max-width:980px;margin:0 auto;padding:14px 16px 60px;display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:900px){main{grid-template-columns:380px 1fr}}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h2{font-size:14px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.row{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:14px}
+.row input{margin-top:3px;width:18px;height:18px}.row small{display:block;color:var(--mut);font-size:12px}
+.row.test{opacity:.6}.pill{font-size:10.5px;font-weight:700;background:#fef3c7;color:#92400e;border-radius:12px;padding:1px 7px;margin-left:4px}
+button{font:inherit;font-weight:700;border-radius:10px;border:0;padding:11px 16px;cursor:pointer}
+.go{background:var(--acc);color:#fff;width:100%;font-size:15px}.go:disabled{background:#94a3b8;cursor:default}
+.sec{background:#e2e8f0;color:var(--ink)}
+.msg{font-size:13px;min-height:18px;margin:8px 0}.err{color:#b91c1c}.ok{color:#15803d}
+.meta{font-size:13px;line-height:1.6}.meta b{display:inline-block;min-width:62px;color:var(--mut);font-weight:600}
+iframe{width:100%;height:1250px;border:1px solid var(--line);border-radius:10px;background:#f3f5f8}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+#login{max-width:360px;margin:40px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px}
+#login input{width:100%;margin:6px 0;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font:inherit}
+#login button{width:100%;background:var(--acc);color:#fff;margin-top:6px}
+</style></head><body>
+<header><h1>Second-go email to expired trials</h1><span id="count" style="font-size:12px;color:#9fb3c8"></span></header>
+<div id="login" style="display:none"><b>Sign in with your RoofMap login</b>
+<form id="liForm"><input id="liEmail" type="email" autocomplete="username" placeholder="Email"><input id="liPass" type="password" autocomplete="current-password" placeholder="Password"><div id="liErr" class="msg err"></div><button id="liBtn" type="submit">Sign in</button></form></div>
+<main id="main" style="display:none">
+  <div>
+    <div class="card"><h2>The email</h2><div class="meta" id="meta"></div></div>
+    <div class="card" style="margin-top:14px"><h2>Send</h2>
+      <div class="tools"><input id="testTo" type="email" style="flex:1;min-width:160px;padding:9px;border:1px solid #cbd5e1;border-radius:8px;font:inherit"><button class="sec" id="testBtn" type="button">Send me a test</button></div>
+      <div id="testMsg" class="msg"></div>
+      <button class="go" id="sendBtn" type="button">Send</button>
+      <div id="sendMsg" class="msg"></div>
+    </div>
+    <div class="card" style="margin-top:14px"><h2>Who it goes to <span style="text-transform:none;letter-spacing:0">(BCC)</span></h2>
+      <div class="tools"><button class="sec" type="button" id="allBtn">Tick all</button><button class="sec" type="button" id="noneBtn">Untick all</button></div>
+      <div id="list"></div></div>
+  </div>
+  <div class="card"><h2>As it will arrive</h2><iframe id="prev" sandbox="allow-popups allow-popups-to-escape-sandbox" title="Email preview"></iframe></div>
+</main>
+<script>
+var $ = function(id){ return document.getElementById(id); };
+var TOKEN = (function(){
+  var u = new URL(location.href), t = u.searchParams.get('token');
+  if (t){ try { localStorage.setItem('rm_admin_token', t); } catch(e){} u.searchParams.delete('token'); history.replaceState(null, '', u.pathname); return t; }
+  try { return localStorage.getItem('rm_admin_token') || ''; } catch(e){ return ''; }
+})();
+var JWT = (function(){ try { return localStorage.getItem('rm_owner_jwt') || ''; } catch(e){ return ''; } })();
+function wbHdrs(){ var h = { 'content-type': 'application/json' }; if (TOKEN) h['x-admin-token'] = TOKEN; if (JWT) h['Authorization'] = 'Bearer ' + JWT; return h; }
+function wbEsc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function wbDay(t){ try { return new Date(t).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland', day: 'numeric', month: 'short', year: 'numeric' }); } catch(e){ return ''; } }
+var DATA = null;
+function wbLogin(m){ $('login').style.display = ''; $('main').style.display = 'none'; $('liErr').textContent = m || ''; }
+function wbTicked(){ return Array.prototype.slice.call(document.querySelectorAll('.pick:checked')).map(function(x){ return x.value; }); }
+function wbSync(){
+  var n = wbTicked().length;
+  $('count').textContent = n + ' of ' + (DATA ? DATA.list.length : 0) + ' ticked';
+  if (DATA && DATA.sent){ $('sendBtn').disabled = true; $('sendBtn').textContent = 'Sent ' + wbDay(DATA.sent.sent_at) + ' to ' + DATA.sent.count; return; }
+  $('sendBtn').disabled = !n; $('sendBtn').textContent = 'Send to ' + n + ' (BCC), one email from Aron';
+}
+async function wbLoad(){
+  var r = await fetch('/admin/winback', { headers: wbHdrs() });
+  if (r.status === 404) return wbLogin('');
+  var d = await r.json(); if (!r.ok){ $('main').style.display = ''; $('sendMsg').textContent = d.error || 'Could not load.'; return; }
+  DATA = d; $('login').style.display = 'none'; $('main').style.display = '';
+  $('meta').innerHTML = '<b>From</b> ' + wbEsc(d.from) + '<br><b>To</b> ' + wbEsc(d.from.replace(/^.*</, '').replace('>', '')) + ' (your own copy)<br><b>BCC</b> everyone ticked below<br><b>Subject</b> ' + wbEsc(d.subject) +
+    (d.sendable ? '' : '<br><span class="err">RoofMap cannot send as that address on this server — nothing will go out.</span>');
+  $('testTo').value = d.from.replace(/^.*</, '').replace('>', '');
+  $('prev').srcdoc = d.html;
+  $('list').innerHTML = d.list.length ? d.list.map(function(x){
+    return '<label class="row' + (x.test ? ' test' : '') + '"><input class="pick" type="checkbox" value="' + wbEsc(x.sub_id) + '"' + (x.test ? '' : ' checked') + '><span><b>' + wbEsc(x.company || '—') + '</b>' +
+      (x.test ? '<span class="pill">looks like a test</span>' : '') + '<small>' + wbEsc(x.name) + ' · ' + wbEsc(x.email) + (x.ended ? ' · trial ended ' + wbDay(x.ended) : '') + '</small>' +
+      (x.left_why ? '<small style="color:#92400e">Told us why they left: ' + wbEsc(x.left_why) + '</small>' : '') + '</span></label>';
+  }).join('') : '<div class="meta">Nobody to send to.</div>';
+  Array.prototype.forEach.call(document.querySelectorAll('.pick'), function(x){ x.addEventListener('change', wbSync); });
+  wbSync();
+}
+$('allBtn').onclick = function(){ Array.prototype.forEach.call(document.querySelectorAll('.pick'), function(x){ x.checked = true; }); wbSync(); };
+$('noneBtn').onclick = function(){ Array.prototype.forEach.call(document.querySelectorAll('.pick'), function(x){ x.checked = false; }); wbSync(); };
+$('testBtn').onclick = async function(){
+  $('testMsg').className = 'msg'; $('testMsg').textContent = 'Sending…';
+  var r = await fetch('/admin/winback/test', { method: 'POST', headers: wbHdrs(), body: JSON.stringify({ to: $('testTo').value }) });
+  var d = await r.json().catch(function(){ return {}; });
+  $('testMsg').className = 'msg ' + (r.ok ? 'ok' : 'err'); $('testMsg').textContent = r.ok ? 'Test sent to ' + d.to + ' — check your inbox.' : (d.error || 'Not sent.');
+};
+$('sendBtn').onclick = async function(){
+  var subs = wbTicked(); if (!subs.length) return;
+  if (!confirm('Send this email now to ' + subs.length + ' people (BCC), from Aron at RoofMap? This cannot be undone.')) return;
+  $('sendBtn').disabled = true; $('sendMsg').className = 'msg'; $('sendMsg').textContent = 'Sending…';
+  var r = await fetch('/admin/winback/send', { method: 'POST', headers: wbHdrs(), body: JSON.stringify({ subs: subs }) });
+  var d = await r.json().catch(function(){ return {}; });
+  $('sendMsg').className = 'msg ' + (r.ok && d.ok ? 'ok' : 'err');
+  $('sendMsg').textContent = r.ok ? (d.ok ? 'Sent to ' + d.sent + '.' : 'Sent to ' + d.sent + ' of ' + d.count + ' — some did not go; the error has been logged.') : (d.error || 'Not sent.');
+  wbLoad();
+};
+$('liForm').onsubmit = async function(ev){
+  ev.preventDefault(); $('liErr').textContent = '';
+  var r = await fetch('/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: $('liEmail').value, password: $('liPass').value }) });
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok || !d.token){ $('liErr').textContent = d.error || 'Sign-in failed.'; return; }
+  JWT = d.token; try { localStorage.setItem('rm_owner_jwt', JWT); } catch(e){}
+  wbLoad();
+};
+wbLoad();
+</script></body></html>`;
 // The cancel form posts here with the token from the email. Every answer is
 // compulsory: at least one reason, why in their words, and what would have
 // kept them. It is stored, it goes to support@, and the trial is closed.
@@ -13837,6 +14217,7 @@ const _MIGRATION_SQL = [
   // or 30 days, whichever comes first. A null limit is a 14-day trial from
   // before, and runs out exactly as it was promised.
   "alter table public.subscriptions add column if not exists trial_roof_limit int",
+  "alter table public.subscriptions add column if not exists trial_restarted_at timestamptz",
   "create table if not exists public.trial_roofs (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid not null, at timestamptz not null default now())",
   "create unique index if not exists trial_roofs_job_idx on public.trial_roofs (company_id, job_id)",
   "create table if not exists public.plan_roofs (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid not null, at timestamptz not null default now())",

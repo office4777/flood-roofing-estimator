@@ -959,6 +959,31 @@ not a saving, and 49 purple to 48 orange.
   privacy.html v1.3 names it as the third AI use, only if the business chooses
   to use it (`legal.mjs` pins it). `tests/planterms.mjs` (21, API list),
   `plans.mjs`, `sitecopy.mjs`, `billingui.mjs`.
+- A SECOND GO AT THE TRIAL (2026-11-03, the owner: an email "to all the
+  expired trial users that haven't signed up in a plan in the early days ...
+  offer them to restart their trial ... with the new trial terms", from
+  aron@roofmap.co.nz, "one email with all the recipients as BCC"). THE
+  RESTART: `GET/POST /billing/trial-restart` — a business whose trial ended
+  before `TRIAL_RESTART_BEFORE` (default 2026-11-03 NZ), never paid (no
+  `paid_since`, not active), not blocked, may restart ONCE on today's terms
+  (3 roofs / 30 days): `trial_restarted_at` claims it on the write, the old
+  `trial_roofs` go, the drip / trial-ended / gone-quiet stamps reset,
+  `companies.plan` = trial, and the owner gets a "Trial restarted" note.
+  `/subscription.restart_ok` says whether it may. THE APP: `/app?restart=trial`
+  keeps the wish in `localStorage.fr_restart_trial` (survives sign-in, reset,
+  confirmation; `#li-restart-note` on the sign-in screen), `loadSubscription`
+  → `_trialRestartAuto` acts on it once, and the trial-ended window carries
+  `_trialRestartBlockHtml` (`#pgRestartBtn` → `_trialRestartGo`) whenever
+  `restart_ok`. THE EMAIL: `/admin/winback/page` (owner login or admin token,
+  like the support desk) lists every eligible business (`_winbackList`: never
+  a company with a paying row; a test-looking one unticked; anyone who filled
+  the trial-ended form shows why), previews it, sends a test, then sends ONE
+  email per 45 addresses From "Aron at RoofMap" <aron@roofmap.co.nz>
+  (`WINBACK_FROM`), To him, everyone in BCC (the mail layer takes `bcc` now),
+  recorded in `platform_state.winback_2026_11` so a second send is refused.
+  The video is `media/roofmap-demo-email.jpg` (a play button baked in) linking
+  to the mp4 — no email app plays a video inline. `tests/winback.mjs` (API),
+  `tests/trialrestartui.mjs` (UI).
 - REQUEST A FIX is the menu's name for Send Feedback (2026-11-03); the tab id
   is still `feedback`. THE JOB TILE: `#navJobBox` is one light-blue tile
   (#e0f2fe, #9bd5f0 edge) round the job chip, its grey buttons, the lock and
