@@ -354,7 +354,9 @@ rules('report 70', r);
 const nOf = r2 => r2.tally.reduce((s, x) => s + x.count, 0);
 const mOf = r2 => r2.tally.reduce((s, x) => s + x.count * x.Lmm, 0);
 const tmplLay = (r2, g) => { const T = r2.faces.find(f => f.id === g.template); return T ? T.lay : null; };
-for (const [n, want] of [[72, 69], [73, 136]]){
+// (73: 135 since rule 9l, 2026-11-02 — its strips nudged off the apex free
+// a purple sheet; 136 before.)
+for (const [n, want] of [[72, 69], [73, 135]]){
   r = await lay(fx('report' + n));
   const gf = gridFaces(r);
   check('report ' + n + ': the wing\'s end is cut from the main\'s slope sheets (whole sheets and feet), ' + want + ' sheets, nothing extra',
@@ -431,9 +433,30 @@ check('report 50: the bottom slope carries the strips its wings\' far hips cut a
 // where the wing's end fed from its own slopes took 74. The roof is still
 // laid both ways and the one ordering fewer sheets kept.
 r = await lay(fx('report71'));
-check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 70 sheets where it was 74',
-  gridFaces(r).length === 1 && nOf(r) === 70, tallyOf(r) + ' ' + mOf(r));
+check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 67 sheets since rule 9l (2026-11-02: the ends\' strips nudged a quarter cover off the apex, their full apex sheets gone), 70 before, 74 before that',
+  gridFaces(r).length === 1 && nOf(r) === 67, tallyOf(r) + ' ' + mOf(r));
 rules('report 71', r);
+// THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's
+// roof, a hip with a 1.4 m step down its west side: "it's all patchy again,
+// and it's not following the rules of using a full offcut set in order").
+// Move 3 took two of the step's west rows off the order to save a sheet and
+// the bottom hip end was patched with whatever offcuts were over. Now the
+// step's rows are the slope's own sheets A1–A6 in order, and their offcuts
+// are the bottom end's east half ↺A1 … ↺A6, in order, nothing else among them.
+r = await lay(fx('walkthrough'));
+{
+  const step = gridFaces(r)[0];
+  const sl = step ? labels(r, step) : [];
+  const ends = r.faces.filter(f => f.lay === 'apex').map(f => labels(r, f));
+  const bottom = ends.find(l => l.includes('↺A1') && l.includes('↺B1')) || [];
+  const aRun = bottom.filter(l => /^↺A[1-6]$/.test(l));
+  const i1 = bottom.indexOf('↺A1'), i6 = bottom.indexOf('↺A6');
+  const between = i1 >= 0 && i6 >= 0 ? bottom.slice(Math.min(i1, i6), Math.max(i1, i6) + 1) : [];
+  check('the walkthrough roof: the step\'s rows are the slope\'s sheets A1–A6 in order, and the bottom end\'s east half is their offcuts ↺A1–↺A6 in order, nothing else among them — 46 sheets',
+    sl.slice(0, 6).join(',') === 'A1,A2,A3,A4,A5,A6' && aRun.length === 6 && between.length === 6 && nOf(r) === 46,
+    JSON.stringify({ step: sl, bottom }) + ' ' + tallyOf(r));
+  rules('the walkthrough roof', r);
+}
 // Wings off the top AND the bottom at the same end: both are cut from their
 // slope's columns, both runs start at the wings' end, and the west face —
 // now the main's hip end between two wing slopes — still anchors at its apex.

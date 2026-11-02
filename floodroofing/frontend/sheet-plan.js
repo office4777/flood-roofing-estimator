@@ -7236,7 +7236,9 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
     run(tMax, f.gabletJ[1], false);
     cells.sort(function(p, q){ return p.e0 - q.e0; });
   } else if (lay === 'apex'){
-    var first = f.anchorT - Math.ceil((f.anchorT - tMin) / c - 1e-6) * c;
+    // (rule 9l: the strips may be nudged off the apex, or a sheet centred on it)
+    var aT = f.anchorT + ((!f.adopters && !f.adoptedBy && f.apexShift) ? f.apexShift * c : 0);
+    var first = aT - Math.ceil((aT - tMin) / c - 1e-6) * c;
     for (var b = first; b < tMax - 0.5; b += c){
       var e0 = Math.max(b, tMin), e1 = Math.min(b + c, tMax), s0 = e0, s1 = e1;
       var w = e1 - e0;
@@ -7419,6 +7421,7 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
 function _pzEdgeKey(e){ return [e.a, e.b].map(function(p){ return Math.round(p[0]) + ',' + Math.round(p[1]); }).sort().join('|'); }
 function _sheetPuzzleBuild(opts){
   opts = opts || {};
+  var t0Build = Date.now();
   var scaleM = DRAW.scaleMetresPerPx > 0 ? DRAW.scaleMetresPerPx : 0.02;
   var coverMm = parseFloat((document.getElementById('sheetWidth')||{}).value || 762) || 762;
   if (opts.coverMm > 0) coverMm = opts.coverMm;
@@ -7598,6 +7601,7 @@ function _sheetPuzzleBuild(opts){
       }
       f.t0 = tMin; f.t1 = tMax; f.fromEnd = fromEnd; f.lay = lay; f.endFace = (lay === 'apex'); f.gablet = isGablet; f.gabletJ = gabletJ; f.gabletTop = gabletTop; f.hipApexD = isGablet && hipApexD > dMax ? hipApexD : dMax;
       f.anchorT = anchorT; f.dMin = dMin; f.dMax = dMax;
+      if (lay === 'apex' && !isGablet && opts.apexShift){ var fk = _pzEndKey(f, idx); if (opts.apexShift[fk]) f.apexShift = opts.apexShift[fk]; }
       // The face's own gutter line: EVERY gutter edge on the reference
       // line, not the longest alone — a slope with a wing standing in the
       // middle of it has a gutter either side of the wing, and both ends
@@ -7851,12 +7855,12 @@ function _sheetPuzzleBuild(opts){
   // (the owner, the same evening): the whole roof is laid both ways and the
   // one ordering fewer sheets is kept, then the one ordering less steel; on
   // an exact tie, the point.
-  if (!opts.noFill && !opts.noTipLay && faces.some(function(f){ return f.tipLay; })){
+  if (!opts.noFill && !opts.noTipLay && !opts._noAlt && faces.some(function(f){ return f.tipLay; })){
     var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt = null;
     try { alt = _sheetPuzzleBuild(Object.assign({}, opts, { noTipLay: true, _monoDefer: true })); } catch(e){ alt = null; }
-    if (alt && alt.tally && res.tally){ fin(res); fin(alt); if (better(alt, res)) res = alt; }
+    if (alt && alt.tally && res.tally){ fin(res); fin(alt); if (better(alt, res)){ res = alt; res._lay = Object.assign({}, res._lay, { noTipLay: true }); } }
   }
   // The same for a wing cut from the main's hip END: the plain hip's end
   // strips are fed from the slopes' offcuts, and where the wing has taken
@@ -7865,14 +7869,87 @@ function _sheetPuzzleBuild(opts){
   // wing's own slopes feed its end better than the pairing does. Laid both
   // ways; the pairing is kept unless the other orders fewer sheets, or as
   // many and less steel.
-  if (!opts.noFill && !opts.noApexTmpl && res.faces.some(function(f){ return f.adoptedBy; })){
+  if (!opts.noFill && !opts.noApexTmpl && !opts._noAlt && res.faces.some(function(f){ return f.adoptedBy; })){
     var nSheets2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt2 = null;
     try { alt2 = _sheetPuzzleBuild(Object.assign({}, opts, { noApexTmpl: true, _monoDefer: true })); } catch(e){ alt2 = null; }
-    if (alt2 && alt2.tally && res.tally){ fin(res); fin(alt2); if (better(alt2, res)) res = alt2; }
+    if (alt2 && alt2.tally && res.tally){ fin(res); fin(alt2); if (better(alt2, res)){ res = alt2; res._lay = Object.assign({}, res._lay, { noApexTmpl: true }); } }
   }
   fin(res);
+  if (PZ_SET_GUARD && !_PZ_NO_FULL && !opts._noGuard && !opts.noFill && !opts._monoDefer && res.optLog && res.optLog.full > 0){
+    var alt3 = null;
+    _PZ_NO_FULL = true;
+    try { alt3 = _sheetPuzzleBuild(Object.assign({ apexShift: {} }, opts, res._lay || {}, { noClears: true, _noAlt: true })); } catch(e){ alt3 = null; }
+    _PZ_NO_FULL = false;
+    if (alt3 && alt3.tally && res.tally){
+      var n3 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
+      var s3 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
+      var longest = (res.tally || []).reduce(function(m, x){ return Math.max(m, x.Lmm); }, 0);
+      if (n3(alt3) <= n3(res) && s3(alt3) - s3(res) <= longest && _pzBreaks(alt3) <= _pzBreaks(res) - 2 && _pzCuttable(alt3)){ alt3._noFull = true; alt3._lay = Object.assign({}, res._lay, alt3._lay); res = alt3; }
+    }
+  }
+  // 9l. THE APEX (2026-11-02, the owner: "every roof, the offcut starts from
+  // exactly in the middle of the apex at the longest point, but that doesn't
+  // need to happen. It can be moved across slightly to work. If there's ever
+  // the need for a full sheet, like an extra sheet, place it in the middle of
+  // the apex ... so that each offcut set on either side of that full sheet has
+  // a bit to play with, rather than patching up areas of the offcut set ...
+  // always try to prioritize just using the offcut set with no middle extra
+  // apex sheet"). A plain hip end whose set ran short at its apex — a sheet
+  // of its own pushed in among its offcuts — is laid again with its strips
+  // nudged a quarter of a cover either way, then with a full sheet centred on
+  // its apex; the cleanest lay is kept when it orders no more sheets, no new
+  // length and at most one sheet's length more steel (or less steel and no
+  // patchier, rule 10), the nudge before the centred sheet on a tie. An end
+  // whose offcuts fit is never touched.
+  if (PZ_APEX_SHIFT && !opts.apexShift && !opts.noFill && !opts._monoDefer){
+    var needy = {}, nNeedy = 0;
+    res.faces.forEach(function(f){
+      if (f.lay !== 'apex' || f.gablet || f.adopters || f.adoptedBy || !f.t) return;
+      var c9 = res.coverPx, tx = f.t[0], ty = f.t[1];
+      var tOf = function(p){ var q = _ccCentroid(p.poly); return q[0]*tx + q[1]*ty; };
+      var ps = res.pieces.filter(function(p){ return p.face === f && !p.scrap; }).sort(function(a, b){ return tOf(a) - tOf(b); });
+      // A sheet of its own among the end's offcuts, at the apex: the set ran
+      // short there and a sheet was pushed in to make it up.
+      var patched = ps.some(function(p, i){
+        if (!p.ordered || (p.widthMm || 0) < res.coverMm * 0.9 || Math.abs(tOf(p) - f.anchorT) > c9 * 1.5) return false;
+        var l = ps[i-1], r = ps[i+1];
+        return (!l || !l.ordered) && (!r || !r.ordered) && (l || r);
+      });
+      if (patched){ needy[_pzEndKey(f, f.roofIdx)] = true; nNeedy++; }
+    });
+    if (nNeedy){
+      var nA = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
+      var sA = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
+      var longA = (res.tally || []).reduce(function(m, x){ return Math.max(m, x.Lmm); }, 0);
+      var bestZ = res, bestB = _pzBreaks(res);
+      var lens = {}; (res.tally || []).forEach(function(x){ lens[x.Lmm] = 1; });
+      // (A try is a whole lay again, so the tries stop at about six tenths of
+      // the time the roof itself took.)
+      var spent = Date.now() - t0Build, budget = Math.max(2500, spent * 0.6), tStart = Date.now(), last = 0;
+      // (A try lays the roof the way that won, so it costs one lay, not every
+      // alternative again; and without move 3, whose patching is what a try
+      // is there to undo. A try is kept only when it beats what stands.)
+      var tryOpts = Object.assign({}, opts, res._lay || {}, { noClears: true, _noGuard: true, _noAlt: true });
+      [0.25, -0.25, 0.5].forEach(function(sh){
+        if (Date.now() - tStart + last > budget) return;
+        var map = {}; Object.keys(needy).forEach(function(k){ map[k] = sh; });
+        var t1 = Date.now(), nf = _PZ_NO_FULL; _PZ_NO_FULL = true;
+        var z = null; try { z = _sheetPuzzleBuild(Object.assign({}, tryOpts, { apexShift: map })); } catch(e){ z = null; }
+        _PZ_NO_FULL = nf; last = Date.now() - t1;
+        if (!z || !z.tally) return;
+        var bz = _pzBreaks(z);
+        if ((z.tally || []).some(function(x){ return !lens[x.Lmm]; })) return;
+        // Less steel and no patchier (rule 10), or cleaner for no more sheets
+        // (a patch put right: two fewer changes of colour along a face).
+        var less = bz <= bestB && sA(z) < sA(bestZ) - _PZ_STEEL_TIE_MM && nA(z) <= nA(bestZ);
+        var cleaner = bz <= bestB - 2 && nA(z) <= nA(bestZ) && sA(z) - sA(bestZ) <= longA;
+        if ((less || cleaner) && _pzCuttable(z)){ bestZ = z; bestB = bz; }
+      });
+      res = bestZ;
+    }
+  }
   if (!opts.noFill && !opts._monoDefer && !opts.noClears){ try { _pzApplyClears(res); } catch(e){ try { console.warn('sheet clears:', e); } catch(e2){} } }
   try { window._lastSheetPuzzle = res; } catch(e){}
   return res;
@@ -7890,6 +7967,31 @@ function _sheetPuzzleBuild(opts){
 // elsewhere) is still shown, but the steel stays — the sheet is still needed.
 // A short clear is an infill: drawn where it lies, no steel saved.
 // pz.clears = [{ c, roofIdx, piece, short, lenMm, saves }]; pz.clearTally.
+// Can every sheet of this lay really be cut — its own piece, its feet and
+// everything taken from its offcut, packed on the sheet as the pre-cut layout
+// draws it? A lay chosen over another must be (2026-11-02: the lay without
+// move 3 gave report 70's C13 one piece more than its offcut holds).
+function _pzCuttable(z){
+  try { return !_sheetPrecutPlan(z).some(function(s){ return s.over; }); } catch(e){ return false; }
+}
+// A hip end's key across lays of one roof: its roof and where it is.
+function _pzEndKey(f, idx){ var c = _ccCentroid(f.poly); return (idx == null ? -1 : idx) + ':' + Math.round(c[0] / 4) + ',' + Math.round(c[1] / 4); }
+// HOW PATCHY A LAY READS: walking each face strip by strip, how often the
+// next piece changes colour, or changes between a sheet of its own and a
+// piece cut from an offcut. A trim at a corner (under 0.6 of a cover) and a
+// scrap are left out — they are not what the eye reads as a patch.
+function _pzBreaks(pz, only){
+  var n = 0, cover = pz.coverMm || 762;
+  (pz.faces || []).forEach(function(f){
+    if (only && f !== only) return;
+    var tx = f.t ? f.t[0] : 1, ty = f.t ? f.t[1] : 0;
+    var ps = pz.pieces.filter(function(p){ return p.face === f && !p.scrap && !(!p.ordered && !p.strung && (p.widthMm || 0) < cover * 0.6); });
+    ps.sort(function(a, b){ var ca = _ccCentroid(a.poly), cb = _ccCentroid(b.poly); return (ca[0]*tx + ca[1]*ty) - (cb[0]*tx + cb[1]*ty); });
+    var key = function(p){ return (p.block ? p.block.letter : '?') + (p.ordered ? 'S' : p.strung ? 'F' : 'O'); };
+    for (var i = 1; i < ps.length; i++) if (key(ps[i]) !== key(ps[i-1])) n++;
+  });
+  return n;
+}
 function _pzApplyClears(pz){
   if (typeof _clearAllPlaced !== 'function' || !pz || !pz.pieces || !pz.blocks) return;
   var placed = _clearAllPlaced(); if (!placed.length) return;
@@ -9473,6 +9575,18 @@ function _pzPackSheet(base, groups, W, L, floor, flushOnly){
 // offcut first and then the nearest (rule 8d), every sheet's set packed in
 // every order. `_PZ_OPT_ON = false` turns the pass off.
 var _PZ_OPT_ON = true;
+// THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's
+// roof: "it's all patchy again, and it's not following the rules of using a
+// full offcut set in order"). Move 3 (a valley sheet in full) took two of a
+// hip end's donors off the order to save a sheet and the end was patched
+// with whatever offcuts were over. Where move 3 changed anything, the roof is
+// laid again without it; that lay is kept when it orders no more sheets, at
+// most one sheet's length more steel, and reads at least one patch cleaner. (Measured on the
+// finished lays: on the roofs already approved the later moves tidy what
+// move 3 disturbs, and there it stays.) PZ_SET_GUARD = false turns it off.
+var PZ_SET_GUARD = true, _PZ_NO_FULL = false;
+// Rule 9l, the apex nudge / centred donor (false = off).
+var PZ_APEX_SHIFT = true;
 var _PZ_STEEL_TIE_MM = 1000;
 var _PZ_OPT_BUDGET = 3000;
 var _PZ_OPT_NEAR = 16;
@@ -9763,7 +9877,7 @@ function _pzOptimise(pz){
   var cutSheets = function(roof){
     return sheetPieces.filter(function(pc){ return S.has(pc) && !pc.full && pc.block && roofOf(pc) === roof && !(feetOf.get(pc) || []).length; });
   };
-  var fullCands = movable.filter(function(p){
+  var fullCands = _PZ_NO_FULL ? [] : movable.filter(function(p){
     if (p.scrap || p.strung || (feetOf.get(p) || []).length || !p.face || !(p.widthMm >= cover * 0.9)) return false;
     return !!pz.blocks.some(function(b){ return b.face === p.face && !b.extra && b.pieces.length && b.Lmm >= groupOf(p).g.h - _PZ_FIT_MM && b.pieces.every(function(q){ return !q.Lmm || q.Lmm === b.Lmm; }); });
   }).sort(function(a, b){ return b.longMm - a.longMm; }).slice(0, _PZ_OPT_TRIES);

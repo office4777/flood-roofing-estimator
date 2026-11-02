@@ -636,6 +636,39 @@ THE FILL:
    LIVE 2026-11-01 on the owner's "go live" (he had the before/after
    pictures for the sample, the cross, the double-L, reports 20 and 50, and
    answered "Perfect").
+9l. THE SET BEFORE THE SHEET, AND THE APEX (2026-11-02, the owner on the
+   walkthrough video's roof — a hip with a 1.4 m step down its west side,
+   `tests/fixtures-walkthrough.json`: "it's all patchy again, and it's not
+   following the rules of using a full offcut set in order"; then: "make rule
+   that always prioritizes keeping the offcut set used in order in the same
+   area ... the offcut starts from exactly in the middle of the apex at the
+   longest point, but that doesn't need to happen. It can be moved across
+   slightly to work. If there's ever the need for a full sheet, like an extra
+   sheet, place it in the middle of the apex ... so that each offcut set on
+   either side of that full sheet has a bit to play with ... always try to
+   prioritize just using the offcut set with no middle extra apex sheet").
+   Two things in `_sheetPuzzleBuild`, both measured on the FINISHED lay by
+   `_pzBreaks` (how often the colour, or sheet vs offcut, changes walking a
+   face; corner trims and scraps left out) and both only ever choosing a lay
+   every sheet of which really cuts (`_pzCuttable`, the pre-cut plan):
+   (a) where move 3 (9c, a valley sheet in full) changed anything, the roof is
+   laid again without it (`_PZ_NO_FULL`) and that lay kept when it orders no
+   more sheets, at most one sheet's length more steel, and reads at least one
+   patch (two breaks) cleaner — move 3 had taken two of the step's donors off
+   the order to save a sheet and patched the bottom hip end with green and
+   purple offcuts; (b) a plain hip end whose set ran short at its apex (a full
+   sheet of its own among its offcuts, within 1.5 covers of the apex) is laid
+   again with its strips nudged a quarter cover either way, then with a full
+   sheet centred on its apex (`opts.apexShift`, `f.apexShift`, `_pzEndKey`),
+   kept when it orders no more sheets and no new length and is either less
+   steel and no patchier, or a patch cleaner for at most a sheet's length
+   more. A try lays the roof the way that won (`_noAlt`, `res._lay`) without
+   move 3, and the tries stop at ~0.6 of the roof's own time. Switches:
+   `PZ_SET_GUARD`, `PZ_APEX_SHIFT` (false = off). Moved: the walkthrough roof
+   (46, the bottom end ↺A6 … ↺A1 in order, +1 m), report 71 70 → 67 (both
+   ends' full apex sheets gone, −19 m), report 73 136 → 135, the T relabelled
+   (its east end's stray A22 now in the set); every other fixture identical,
+   report 70 included. Report 71 now ~16 s, 74 ~16 s.
 10. WHEN TWO LAYS ARE BOTH LEGITIMATE, the roof is laid both ways and the one
     ordering LESS STEEL is kept, then the one USING MOST OF ITS OFFCUTS
     (2026-10-31, the owner correcting the old order: "The rule should not be
