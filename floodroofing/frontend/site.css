@@ -77,6 +77,13 @@ header{ position:absolute; top:0; left:0; right:0; z-index:20; padding:20px 0 }
   background:linear-gradient(105deg, rgba(10,22,40,.95) 0%, rgba(10,22,40,.88) 42%, rgba(10,22,40,.55) 100%);
 }
 .hero-inner{ position:relative; z-index:1; max-width:730px }
+/* The product on show beside the opening (2026-11-03): the square demo video
+   right of the words on a computer, under them on a phone. */
+.hero-grid{ position:relative; z-index:1; display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr); gap:44px; align-items:center }
+.hero-video{ position:relative; border-radius:16px; overflow:hidden; background:#0a1628; box-shadow:0 22px 60px rgba(0,0,0,.45); aspect-ratio:1/1 }
+.hero-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#0a1628; border:0 }
+.hero-video-cap{ margin-top:10px; font-size:14px; font-weight:700; color:rgba(255,255,255,.82); text-align:center }
+@media (max-width:960px){ .hero-grid{ grid-template-columns:1fr; gap:28px } .hero-media{ max-width:520px } }
 .hero h1{ color:#fff }
 .hero h1 em{ font-style:normal; color:#54c8ee }
 .hero-sub{ font-size:clamp(17px,2vw,20px); color:rgba(255,255,255,.82); margin-top:22px; max-width:610px }
@@ -205,7 +212,8 @@ section{ padding:88px 0 }
 .tier .then strong{ color:var(--ink) }
 /* The product, in motion, straight under the opening — one real job. */
 .demo{ padding:56px 0 8px }
-.demo .demo-grid{ display:grid; grid-template-columns:1.45fr 1fr; gap:28px; align-items:start }
+.demo .demo-grid{ display:grid; grid-template-columns:1fr; gap:28px; align-items:start }
+@media (min-width:901px){ .demo ol{ grid-template-columns:1fr 1fr; column-gap:28px } }
 /* 1:1 — the demo video's own shape (square since 2026-11-02; it was a 4:3
    screen recording). A box of any other shape letterboxes it with bars,
    which on a phone is most of the picture. */

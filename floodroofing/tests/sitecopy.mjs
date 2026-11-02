@@ -87,8 +87,14 @@ check('…and answers what the trial holds, what stays after, and that the price
 
 // ── the product, under the opening ───────────────────────────────
 const demoAt = landing.indexOf('<section class="demo"'), howAt = landing.indexOf('<section id="how">'), heroAt = landing.indexOf('<div class="hero">');
-check('the homepage shows the product in motion straight under the opening',
-  demoAt > heroAt && demoAt < howAt && /<video[\s\S]{0,400}roofmap-demo\.mp4/.test(landing.slice(demoAt, howAt)));
+// 2026-11-03: the video is IN the opening, beside the headline, with a
+// "Try it now — no sign-up" button there too; the steps follow under it.
+const tryAt = landing.indexOf('<section id="try"');
+check('the homepage shows the product in motion in the opening itself',
+  heroAt > 0 && tryAt > heroAt && /<video[\s\S]{0,400}roofmap-demo\.mp4/.test(landing.slice(heroAt, tryAt)) && demoAt > heroAt && demoAt < howAt);
+check('…with the no-sign-up playground offered above the fold', /href="#try"[^>]*>Try it now — no sign-up</.test(landing.slice(heroAt, tryAt)));
+check('…a first estimate, not a promise of a final quote, and what works without signal said plainly',
+  /check it on site before you order/.test(landing) && /aerial needs a connection to load/.test(landing) && !/No signal needed/.test(landing));
 // Ours, from our own domain: no third-party embed to load, nothing tracking
 // the visitor, and it still plays on the day Loom is down.
 check('…and it is our own file, not an embed', !/loom\.com\/embed\//.test(landing) &&

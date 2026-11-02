@@ -125,27 +125,41 @@
 <div class="hero">
   <div class="hero-bg"><img src="brand/roof_aerial_multipitch.jpg" alt="A re-roof in progress on a New Zealand home"></div>
   <div class="wrap">
+    <!-- 2026-11-03: shorter, the product on show and a way to try it, all
+         above the fold. The video is the homepage demo (1:1, 41s, music). -->
+    <div class="hero-grid">
     <div class="hero-inner">
       <div class="eyebrow">Map. Price. Quote. Order.</div>
       <h1>Stop measuring roofs <em>you were never going to win.</em></h1>
       <p class="hero-cat">Roof estimating and quoting software for New Zealand roofers.</p>
       <p class="hero-sub">
-        Half a day gone — the drive, the ladder, the tape, the evening on the spreadsheet — and the
-        job goes to someone else. Quote it from the aerial instead: trace the roof to scale, price it
-        off your own rates, and send a quote the customer can accept on their phone. Ten minutes,
-        without leaving the yard.
+        Don't lose half a day driving to a job that goes to someone else. Estimate it from the
+        aerial first: trace the roof, get the quantities, send a quote they accept on their phone —
+        in minutes, before you commit to a site visit.
       </p>
       <div class="hero-cta">
         <a href="/signup" class="btn btn-primary">Start free — 3 roofs or 30 days, no card</a>
-        <a href="/early-access" class="btn btn-ghost">Or request a 15-min setup call</a>
+        <a href="#try" class="btn btn-ghost">Try it now — no sign-up</a>
       </div>
-      <p class="hero-note">Your first 3 real roofs or 30 days free, whichever comes first · No card · A worked example is waiting inside · Month to month after that, cancel any time</p>
+      <p class="hero-note">A first estimate in about ten minutes from the yard — check it on site before you order · Your first 3 real roofs or 30 days free, whichever comes first, no card · Month to month, cancel any time · <a href="/early-access" style="color:inherit;text-decoration:underline">Or book a 15-min setup call</a></p>
+    </div>
+    <div class="hero-media">
+      <div class="hero-video">
+        <video id="demoVideo" controls playsinline preload="none"
+               poster="/media/roofmap-demo-poster.jpg"
+               title="RoofMap on one job: the address found, the roof traced, the job pack and order, and the customer's quote">
+          <source src="/media/roofmap-demo.mp4" type="video/mp4">
+          Your browser cannot play this video — <a href="/media/roofmap-demo.mp4">download it instead</a>.
+        </video>
+      </div>
+      <div class="hero-video-cap">▶ Watch it run — 41 seconds, start to finish</div>
+    </div>
     </div>
     <div class="hero-strip">
-      <div><strong>No drive across town</strong>Quote it off the aerial before you commit a day to it</div>
+      <div><strong>No wasted drive</strong>Estimate it off the aerial before you commit a day to a site visit</div>
       <div><strong>No evening on the spreadsheet</strong>The quote writes itself off the drawing</div>
       <div><strong>No back-and-forth</strong>They change the options themselves</div>
-      <div><strong>No signal needed</strong>Works on the roof, syncs later</div>
+      <div><strong>Works without signal</strong>Draw, measure and price on the roof; the aerial needs a connection to load, and it all syncs later</div>
     </div>
   </div>
 </div>
@@ -176,7 +190,7 @@
       </div>
       <div id="tryMobile" style="display:none;padding:26px 20px 30px;color:#fff;text-align:center">
         <p style="margin:0 0 6px;font-size:17px;font-weight:800">Tracing a roof wants a bigger screen.</p>
-        <p style="margin:0 0 16px;color:#c9d6e3;font-size:14px;line-height:1.5">Watch the 40-second run above, and email yourself the link to try it on a computer.</p>
+        <p style="margin:0 0 16px;color:#c9d6e3;font-size:14px;line-height:1.5">Watch the 41-second run at the top, and email yourself the link to try it on a computer.</p>
         <form id="tryLinkForm" style="display:flex;gap:8px;max-width:420px;margin:0 auto;flex-wrap:wrap;justify-content:center">
           <input type="email" id="tryLinkEmail" required placeholder="you@yourroofing.co.nz" autocomplete="email" style="flex:1 1 220px;padding:13px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:15px">
           <button type="submit" class="btn btn-primary" style="padding:13px 20px;font-size:15px">Email me the link</button>
@@ -232,22 +246,9 @@
 <section class="demo" id="demo">
   <div class="wrap">
     <div class="demo-grid">
-      <div class="video">
-        <!-- Ours, served from our own domain: no third-party embed to load,
-             nothing tracking the visitor, and it still plays when Loom is
-             having a bad day. Square (1:1), 41s with music, 2.9MB at 720px —
-             small enough that a roofer on mobile data is not paying for it.
-             Replaced 2026-11-02 (was the 40s 4:3 screen recording). -->
-        <video id="demoVideo" controls playsinline preload="none"
-               poster="/media/roofmap-demo-poster.jpg"
-               title="RoofMap on one job: the address found, the roof traced, the job pack and order, and the customer's quote">
-          <source src="/media/roofmap-demo.mp4" type="video/mp4">
-          Your browser cannot play this video — <a href="/media/roofmap-demo.mp4">download it instead</a>.
-        </video>
-      </div>
       <div>
-        <div class="eyebrow">One real job, 40 seconds</div>
-        <h2 style="margin:6px 0 14px">Watch it run, start to finish.</h2>
+        <div class="eyebrow">What the video shows</div>
+        <h2 style="margin:6px 0 14px">One real job, from the aerial to the order.</h2>
         <ol>
           <li><div><strong>Draw the roof</strong><span>Search the address, then trace the outline over the aerial; the ridges, hips and valleys work themselves out.</span></div></li>
           <li><div><strong>Generate the job pack</strong><span>The sheet layout, the pre-cut layout and the cut lists, ready for the crew.</span></div></li>
