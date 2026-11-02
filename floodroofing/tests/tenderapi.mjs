@@ -23,7 +23,10 @@ function check(n, ok, d){ results.push(!!ok); console.log((ok ? 'PASS' : 'FAIL')
 const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
 
 const { db, port } = await startFakePostgrest({
-  companies: [ { id: 'c1', name: 'Flood Roofing', plan: 'business' }, { id: 'c2', name: 'Rival Roofing', plan: 'business' }, { id: 'c3', name: 'No Tenders Ltd', plan: 'solo' } ],
+  companies: [ { id: 'c1', name: 'Flood Roofing', plan: 'business' }, { id: 'c2', name: 'Rival Roofing', plan: 'business' }, { id: 'c3', name: 'No Tenders Ltd', plan: 'solo' },
+    // c4: a Trade business (no AI Tendering by plan since 2026-11-03), so the
+    // named-login rule below is still what decides it.
+    { id: 'c4', name: 'Named Logins Ltd', plan: 'solo' } ],
   profiles: [ { id: 'u1', company_id: 'c1', email: 'office@floodroofing.co.nz' }, { id: 'u2', company_id: 'c2', email: 'office@rival.nz' }, { id: 'u3', company_id: 'c3', email: 'a@notenders.nz' } ],
   company_users: [ { company_id: 'c1', user_id: 'u1', role: 'owner' }, { company_id: 'c2', user_id: 'u2', role: 'owner' }, { company_id: 'c3', user_id: 'u3', role: 'owner' } ],
   user_settings: [
