@@ -17,6 +17,9 @@ const PAGE_COLS = 'id,file_id,page_no,width,height,sheet_id,title,revision,scale
 
 function mount(app, deps){
   const { supabase, storage, worker, ai, requireAuth, requireSubscription, scopeCompany, settingsRow, adminOk, recordError, recordUsage, rateLimit } = deps;
+  // The plan's say (2026-11-03, the owner: Team includes AI Tendering, and so
+  // does a trial, which is Team). Absent = no plan opens it (the old rule).
+  const planTender = deps.planTender || (async function(){ return false; });
 
   // ── the flag ──────────────────────────────────────────────────────
   // branding.ai_tendering_enabled on the company's settings. Unknown is
@@ -38,6 +41,7 @@ function mount(app, deps){
         em = String((p && p.data && p.data.email) || '').trim().toLowerCase(); } catch (e) {}
     }
     if (em && TENDER_USERS.indexOf(em) >= 0) return true;
+    try { if (await planTender(req)) return true; } catch (e) {}
     try {
       const row = await settingsRow(req, 'branding,company_id,user_id');
       return !!(row && row.branding && row.branding.ai_tendering_enabled);
@@ -45,7 +49,7 @@ function mount(app, deps){
   }
   async function requireTendering(req, res, next){
     if (await enabledFor(req)) return next();
-    return res.status(403).json({ error: 'AI Tendering is not switched on for this business yet.', code: 'TENDERING_OFF' });
+    return res.status(403).json({ error: 'AI Tendering is part of the Team plan.', code: 'TENDERING_OFF', needs: 'Team' });
   }
   const gate = [requireAuth, requireSubscription, requireTendering];
 

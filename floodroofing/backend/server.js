@@ -1718,6 +1718,81 @@ async function _trialRoofRecord(req, rootId){
     if (st) st.ids.add(String(rootId));
   } catch (e) { console.warn('[trial-roofs] could not record ' + rootId + ': ' + (e && e.message)); }
 }
+// ROOFS A MONTH (2026-11-03, the owner: Measure 30, Trade 100, Team
+// unlimited). A roof is counted ONCE, in the month a job first saves with a
+// real roof on it (the trial's own test, `_drawHasRealRoof`), against the
+// job's version root — so re-saving, reopening or versioning it never costs
+// another. Only a PAYING business on the new terms is counted: a trial has
+// its own three roofs, and a business paying before that day keeps no cap
+// (PLANS_LEGACY). Jobs made before the terms began are never counted either,
+// so nobody's existing work is ever a roof against this month. A check that
+// cannot be made lets the save through, as the trial's does.
+const _monthRoofMemo = new Map();   // companyId -> { at, rows:[{job_id, at}] }
+function _nzMonth(t){
+  try { return new Date(t).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }).slice(0, 7); }
+  catch (e) { return new Date(t).toISOString().slice(0, 7); }
+}
+async function _monthRoofRows(companyId, fresh){
+  const hit = _monthRoofMemo.get(companyId);
+  if (!fresh && hit && Date.now() - hit.at < 60000) return hit;
+  const data = _mustRead(await supabase.from('plan_roofs').select('job_id, at').eq('company_id', companyId).limit(20000), 'plan roofs');
+  const st = { at: Date.now(), rows: (data || []).map(r => ({ job_id: String(r.job_id), at: r.at })) };
+  _monthRoofMemo.set(companyId, st);
+  return st;
+}
+function _monthRoofUsed(st){
+  const m = _nzMonth(Date.now());
+  return st.rows.filter(r => _nzMonth(r.at) === m).length;
+}
+async function _monthRoofGate(req, jobId, ds){
+  if (!BILLING_ENABLED || !req.companyId || !_drawHasRealRoof(ds)) return {};
+  try {
+    const pi = await _planInfo(req.companyId);
+    const lim = _limitsFor(pi.plan, pi.legacy);
+    if (!(lim.roofsMonth > 0)) return {};
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (!sub || sub.status !== 'active') return {};
+    let root = null;
+    if (jobId){
+      const { data } = await _scopeCompany(supabase.from('jobs').select('id, version_of, created_at').eq('id', jobId), req).limit(1);
+      if (!data || !data[0]) return {};
+      root = _versionRootOf(data[0]);
+      let made = data[0].created_at;
+      if (root !== String(data[0].id)){
+        const { data: rd } = await _scopeCompany(supabase.from('jobs').select('id, created_at').eq('id', root), req).limit(1);
+        if (rd && rd[0]) made = rd[0].created_at;
+      }
+      if (Date.parse(made || '') < PLAN_TERMS_FROM) return {};
+    }
+    let st = await _monthRoofRows(req.companyId);
+    if (root && st.rows.some(r => r.job_id === root)) return {};
+    let used = _monthRoofUsed(st);
+    if (used >= lim.roofsMonth){
+      st = await _monthRoofRows(req.companyId, true);   // never refuse on a minute-old memory
+      if (root && st.rows.some(r => r.job_id === root)) return {};
+      used = _monthRoofUsed(st);
+    }
+    if (used >= lim.roofsMonth){
+      const next = pi.plan === 'measure' ? 'Trade (100 roofs a month) or Team (unlimited)' : 'Team (unlimited roofs)';
+      const d = new Date(), nx = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 15));
+      const mon = nx.toLocaleDateString('en-NZ', { month: 'long', timeZone: 'Pacific/Auckland' });
+      return { refuse: { error: 'You’ve measured your ' + lim.roofsMonth + ' roofs this month on ' + lim.label +
+        '. Your next roof needs ' + next + ' — or it opens again on 1 ' + mon + '. The roofs you have already measured stay open as they are.',
+        code: 'MONTH_ROOFS_USED', roofs_limit: lim.roofsMonth, roofs_used: used, needs: pi.plan === 'measure' ? 'Trade' : 'Team' } };
+    }
+    return { count: root || 'new' };
+  } catch (e) { return {}; }
+}
+async function _monthRoofRecord(req, rootId){
+  if (!rootId || !req.companyId) return;
+  try {
+    const at = new Date().toISOString();
+    const { error } = await supabase.from('plan_roofs').insert({ company_id: req.companyId, user_id: req.user.id, job_id: rootId, at: at });
+    if (error && !/duplicate|unique/i.test(error.message || '')) throw new Error(error.message);
+    const st = _monthRoofMemo.get(req.companyId);
+    if (st && !st.rows.some(r => r.job_id === String(rootId))) st.rows.push({ job_id: String(rootId), at: at });
+  } catch (e) { console.warn('[plan-roofs] could not record ' + rootId + ': ' + (e && e.message)); }
+}
 async function requireSubscription(req, res, next) {
   if (!BILLING_ENABLED) return next();
   try {
@@ -1763,6 +1838,19 @@ app.get('/subscription', requireAuth, async (req, res) => {
       days: _trialDaysOf(sub),
     }, roofs || {}),
     plan: await _planOf(req.companyId),
+    // The terms it is on and, on a capped plan, this month's roofs (the app
+    // shows "12 of 30 roofs this month" and opens the plans at the cap).
+    terms: await (async () => { try { return (await _planInfo(req.companyId)).legacy ? 'legacy' : 'current'; } catch (e) { return 'current'; } })(),
+    roofs_month: await (async () => {
+      try {
+        if (!req.companyId || !sub || sub.status !== 'active') return null;
+        const pi = await _planInfo(req.companyId), lim = _limitsFor(pi.plan, pi.legacy);
+        if (!(lim.roofsMonth > 0)) return null;
+        const st = await _monthRoofRows(req.companyId, true), used = _monthRoofUsed(st), m = _nzMonth(Date.now());
+        return { limit: lim.roofsMonth, used: Math.min(used, lim.roofsMonth), left: Math.max(0, lim.roofsMonth - used),
+                 roof_jobs: st.rows.filter(r => _nzMonth(r.at) === m).map(r => r.job_id) };
+      } catch (e) { return null; }
+    })(),
     // Is there a Stripe customer behind this account at all? A comped or
     // grandfathered business reads as "active" on a real plan while having
     // never paid — and the billing screen offered it "Manage billing", which
@@ -1802,27 +1890,53 @@ const PLANS = {
   // link and the schedule board from exactly the firms that buy for them.
   // Since 2026-10-23 Team carries the inbox and the domain (Business is off
   // sale), so the trial does too — it is Team, row for row.
-  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
+  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
   // Measuring and materials: the aerial, the outline, the sheet counts,
   // flashings, the cut list — and, since 2026-10-23, the merchant order,
   // because "calculate your materials" ends at the order. No customer quote
   // goes out from it; that is what Trade is for. It is sold only where a Stripe
   // price for it exists (STRIPE_PRICE_MEASURE), so it can sit here unpriced.
-  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: true  },
+  // 2026-11-03 (the owner): 30 roofs a month, and the merchant order moves to
+  // Team. A business already paying keeps what it bought (PLANS_LEGACY).
+  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: false, tender: false, roofsMonth: 30  },
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
-  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: true  },
+  // 2026-11-03: 100 roofs a month; merchant orders are Team's.
+  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: false, tender: false, roofsMonth: 100 },
   // A schedule board is meaningless at one person and hurting by three, and
   // firms running Fergus are Team-shaped. Both sit here so that "more than
   // one person" is the reason to leave Solo. Since 2026-10-23 it is the top
   // plan on sale and carries everything Business did — the inbox, chat and
   // task board, the company's own domain — at five people.
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
+  // 2026-11-03: unlimited roofs, the merchant order, and AI Tendering (the QS
+  // and the tender quote PDF), which the business opts into by using it.
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
   // OFF SALE since 2026-10-23. Kept so a business already on it keeps its
   // limits; /billing/checkout refuses it for anybody not already there.
-  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true  },
+  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
 };
+// THE TERMS A BUSINESS ALREADY PAYING KEEPS (2026-11-03, the owner: "don't
+// change it for the existing paying customers though"). Measure and Trade
+// as they were sold before that day: no monthly roof cap, merchant orders
+// included. Team and Business gain AI Tendering either way.
+const PLANS_LEGACY = Object.keys(PLANS).reduce(function (o, k) {
+  o[k] = Object.assign({}, PLANS[k], { roofsMonth: 0, order: true });
+  return o;
+}, {});
+// The day the new terms began. A business is on the old ones when it started
+// paying before it (paid_since), or — where no payment date was recorded — is
+// active on a subscription made before it. Worked out from the subscription
+// itself, so no account is ever migrated and nothing can be marked wrongly.
+const PLAN_TERMS_FROM = Date.parse(process.env.PLAN_TERMS_FROM || '2026-11-03T00:00:00+13:00');
+function _isLegacySub(sub){
+  if (!sub) return false;
+  const t = (v) => { const n = Date.parse(v || ''); return isFinite(n) ? n : NaN; };
+  const paid = t(sub.paid_since);
+  if (isFinite(paid)) return paid < PLAN_TERMS_FROM;
+  const made = t(sub.created_at);
+  return sub.status === 'active' && isFinite(made) && made < PLAN_TERMS_FROM;
+}
 // The plans a business can buy today. Business is not among them.
 const PLANS_ON_SALE = ['measure', 'solo', 'team'];
 // Team is the largest plan we sell off the shelf; past it is Enterprise,
@@ -1835,7 +1949,10 @@ function _seatNextStep(lim){
     ? 'Get in touch and we will sort out Enterprise.'
     : 'Upgrade to add more.';
 }
-function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLANS.trial; }
+function _limitsFor(plan, legacy){
+  const k = String(plan || '').toLowerCase();
+  return (legacy ? PLANS_LEGACY[k] : PLANS[k]) || PLANS.trial;
+}
 // Cached briefly so a per-request plan check isn't a per-request query. The
 // cost is that a plan change (a Stripe webhook, say) takes up to this long to
 // bite, which is fine for an upgrade and acceptable for a downgrade.
@@ -1843,17 +1960,32 @@ function _limitsFor(plan){ return PLANS[String(plan || '').toLowerCase()] || PLA
 // company between plans and see it immediately.
 const PLAN_CACHE_MS = process.env.PLAN_CACHE_MS != null ? Number(process.env.PLAN_CACHE_MS) : 60000;
 const _planCache = new Map();   // companyId → { at, plan }
-async function _planOf(companyId){
-  if (!companyId) return 'trial';
+async function _planInfo(companyId){
+  if (!companyId) return { plan: 'trial', legacy: false };
   const hit = _planCache.get(companyId);
-  if (hit && PLAN_CACHE_MS > 0 && Date.now() - hit.at < PLAN_CACHE_MS) return hit.plan;
-  let plan = 'trial';
+  if (hit && PLAN_CACHE_MS > 0 && Date.now() - hit.at < PLAN_CACHE_MS) return hit;
+  let plan = 'trial', legacy = false;
   try {
     const { data } = await supabase.from('companies').select('plan').eq('id', companyId).maybeSingle();
     if (data && data.plan) plan = data.plan;
   } catch (e) { /* column not migrated yet — treat as trial */ }
-  _planCache.set(companyId, { at: Date.now(), plan: plan });
-  return plan;
+  // Which terms: a failed read keeps the OLD ones — taking a paying
+  // customer's orders away because a lookup failed is the wrong way to fail.
+  try {
+    const { data, error } = await supabase.from('subscriptions').select('status, paid_since, created_at')
+      .eq('company_id', companyId).order('created_at', { ascending: false }).limit(1);
+    if (error) legacy = true;
+    else legacy = _isLegacySub(data && data[0]);
+  } catch (e) { legacy = true; }
+  const info = { at: Date.now(), plan: plan, legacy: legacy };
+  _planCache.set(companyId, info);
+  return info;
+}
+async function _planOf(companyId){ return (await _planInfo(companyId)).plan; }
+// What the business's plan includes, on the terms it is on.
+async function _limitsOf(companyId){
+  const i = await _planInfo(companyId);
+  return _limitsFor(i.plan, i.legacy);
 }
 // How many seats a business is using: people in it, plus invitations still
 // outstanding. Counting only accepted members would let an owner invite ten
@@ -1881,7 +2013,7 @@ function _planBlocked(res, what, needs){
 function requirePlan(capability, what, needs){
   return async function (req, res, next) {
     try {
-      const lim = _limitsFor(await _planOf(req.companyId));
+      const lim = (await _limitsOf(req.companyId));
       if (!lim[capability]) return _planBlocked(res, what, needs);
       next();
     } catch (e) { next(); }   // never let the check itself lock someone out
@@ -1944,10 +2076,12 @@ async function _companyBrief(cid, userId){
     } catch (e) { brief.domain = ''; }
     // The plan, so the app can shape itself to it without another round trip.
     try {
-      const plan = await _planOf(cid);
-      const lim = _limitsFor(plan);
+      const pi = await _planInfo(cid);
+      const plan = pi.plan;
+      const lim = _limitsFor(plan, pi.legacy);
       brief.plan = plan;
-      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox };
+      brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox,
+                       order: !!lim.order, tender: !!lim.tender, roofsMonth: lim.roofsMonth || 0 };
     } catch (e) {}
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
@@ -1974,8 +2108,9 @@ app.get('/team', requireAuth, async (req, res) => {
         .eq('company_id', req.companyId).is('accepted_at', null);
       invites = (data || []).filter(function (i) { return new Date(i.expires_at) > new Date(); });
     } catch (e) { /* table not migrated yet — show the members we have */ }
-    const plan = await _planOf(req.companyId);
-    const lim = _limitsFor(plan);
+    const pi = await _planInfo(req.companyId);
+    const plan = pi.plan;
+    const lim = _limitsFor(plan, pi.legacy);
     const seats = { used: members.length + invites.length, allowed: lim.seats === Infinity ? null : lim.seats };
     res.json({
       company: co || { id: req.companyId },
@@ -1998,7 +2133,7 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const { data: existing } = await supabase.from('profiles').select('id, company_id').eq('email', email).maybeSingle();
     if (existing && String(existing.company_id) === String(req.companyId))
       return res.status(400).json({ error: 'They are already in your business.' });
-    const lim = _limitsFor(await _planOf(req.companyId));
+    const lim = (await _limitsOf(req.companyId));
     if (lim.seats !== Infinity) {
       const seats = await _seatsUsed(req.companyId);
       if (seats.total >= lim.seats) {
@@ -2135,7 +2270,7 @@ app.post('/auth/accept-invite', rateLimit(10, 900000), async (req, res) => {
     // Re-checked here, not just at invite time: an invitation is good for 14
     // days, and a business can downgrade in between. Without this, a plan could
     // be quietly exceeded by an old link being clicked.
-    const lim = _limitsFor(await _planOf(inv.company_id));
+    const lim = (await _limitsOf(inv.company_id));
     if (lim.seats !== Infinity) {
       const { data: mem } = await supabase.from('company_users').select('user_id').eq('company_id', inv.company_id);
       if ((mem || []).length >= lim.seats) {
@@ -2234,7 +2369,7 @@ app.post('/auth/join-invite', requireAuth, rateLimit(10, 900000), async (req, re
       (!wanted || String(i.id) === wanted));
     const inv = live[0];
     if (!inv) return res.status(404).json({ error: 'That invitation has expired or has already been used.' });
-    const lim = _limitsFor(await _planOf(inv.company_id));
+    const lim = (await _limitsOf(inv.company_id));
     if (lim.seats !== Infinity) {
       const { data: mem } = await supabase.from('company_users').select('user_id').eq('company_id', inv.company_id);
       if ((mem || []).length >= lim.seats)
@@ -3652,12 +3787,16 @@ app.post('/jobs', requireAuth, requireSubscription, async (req, res) => {
   // THE ROOF TRIAL: a new job arriving with a real roof on it is a roof.
   const g = await _trialRoofGate(req, null, draw_state);
   if (g.refuse) return res.status(403).json(g.refuse);
+  // ROOFS A MONTH on Measure / Trade (new terms only).
+  const gm = await _monthRoofGate(req, null, draw_state);
+  if (gm.refuse) return res.status(403).json(gm.refuse);
   // Light columns for the same reason as the PUT: the caller wants the new id
   // and the labels, not the drawing it just uploaded sent straight back.
   const { data, error } = await supabase.from('jobs').insert({ user_id: req.user.id, company_id: req.companyId || null, client_name: client_name || '', site_address: site_address || '', draw_state: draw_state || {}, settings: settings || {}, status: 'draft' }).select(JOB_LIGHT_COLS).single();
   if (error) return res.status(500).json({ error: error.message });
   if (g.count && data && data.id) await _trialRoofRecord(req, String(data.id));
-  res.json(Object.assign(_jobLight(data), g.count ? { trialRoofCounted: true } : {}));
+  if (gm.count && data && data.id) await _monthRoofRecord(req, String(data.id));
+  res.json(Object.assign(_jobLight(data), (g.count || gm.count) ? { trialRoofCounted: true } : {}));
   recordUsage('job_saved', req);
 });
 
@@ -3947,7 +4086,10 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
   if (patch.draw_state){
     const g = await _trialRoofGate(req, req.params.id, patch.draw_state);
     if (g.refuse) return res.status(403).json(g.refuse);
+    const gm = await _monthRoofGate(req, req.params.id, patch.draw_state);
+    if (gm.refuse) return res.status(403).json(gm.refuse);
     if (g.count && g.count !== 'new'){ await _trialRoofRecord(req, g.count); _roofCounted = true; }
+    if (gm.count && gm.count !== 'new'){ await _monthRoofRecord(req, gm.count); _roofCounted = true; }
   }
   const _extra = Object.assign({}, _keptAcc ? { keptAcceptance: true } : {}, _roofCounted ? { trialRoofCounted: true } : {});
 
@@ -4108,7 +4250,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   if (!quote || typeof quote !== 'object') return res.status(400).json({ error: 'quote object required' });
   // A share token is a customer link going out: not on a measuring-only plan.
   if (quote.share && quote.share.token){
-    try { if (!_limitsFor(await _planOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
+    try { if (!(await _limitsOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
   }
   const clientName = req.body.client_name ? String(req.body.client_name).slice(0, 300) : null;
   const siteAddr   = req.body.site_address ? String(req.body.site_address).slice(0, 500) : null;
@@ -4400,7 +4542,7 @@ app.put('/jobs/:id/quote-share', requireAuth, async (req, res) => {
   const share = req.body && req.body.share;
   if (!share || typeof share !== 'object' || Array.isArray(share)) return res.status(400).json({ error: 'share object required' });
   if (share.token){
-    try { if (!_limitsFor(await _planOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
+    try { if (!(await _limitsOf(req.companyId)).quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade'); } catch (e) {}
   }
   const pool = _pgPool();
   if (pool) {
@@ -12314,7 +12456,7 @@ async function _mailDomainRowFull(d){
 }
 
 app.get('/email/domain', requireAuth, async (req, res) => {
-  const allowed = !!_limitsFor(await _planOf(req.companyId)).maildomain;
+  const allowed = !!(await _limitsOf(req.companyId)).maildomain;
   // The shared subdomain the quote is ACTUALLY going out from today, so the
   // office can read its own From line off the page instead of off a sent
   // email. `local` is what the box should hold, `derived` what a blank one
@@ -12476,7 +12618,15 @@ app.delete('/email/domain', requireAuth, requireOwner, async (req, res) => {
 // no Gmail tab, no manual attaching.  CC goes to the office mailbox so
 // the sender always gets their copy.
 app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res) => {
-  try { if (!_limitsFor(await _planOf(req.companyId)).order) return _planBlocked(res, 'Emailing a material order', 'Trade'); } catch (e) {}
+  // A material order is Team's since 2026-11-03 (older paying businesses keep
+  // it); a quote is Trade's. The Settings test email names neither and goes
+  // on any plan that can send one or the other.
+  try {
+    const _lim = await _limitsOf(req.companyId), _k = req.body && req.body.kind;
+    if (_k === 'order' && !_lim.order) return _planBlocked(res, 'Emailing a material order', 'Team');
+    if (_k === 'quote' && !_lim.quote) return _planBlocked(res, 'Sending a quote to a customer', 'Trade');
+    if (!_k && !_lim.order && !_lim.quote) return _planBlocked(res, 'Sending email from RoofMap', 'Trade');
+  } catch (e) {}
   if (!EMAIL_ENABLED) {
     return res.status(503).json({ error: 'Email is not configured on the server yet.', code: 'EMAIL_NOT_CONFIGURED' });
   }
@@ -13689,6 +13839,9 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions add column if not exists trial_roof_limit int",
   "create table if not exists public.trial_roofs (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid not null, at timestamptz not null default now())",
   "create unique index if not exists trial_roofs_job_idx on public.trial_roofs (company_id, job_id)",
+  "create table if not exists public.plan_roofs (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid not null, at timestamptz not null default now())",
+  "create unique index if not exists plan_roofs_job_idx on public.plan_roofs (company_id, job_id)",
+  "alter table public.plan_roofs enable row level security",
   "alter table public.trial_roofs enable row level security",
   "alter table public.profiles add column if not exists interests jsonb",
   "create table if not exists public.cancel_feedback (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, email text, reasons jsonb, detail text, keep text, created_at timestamptz not null default now())",
@@ -14160,7 +14313,8 @@ const TENDER = (function(){
     const ai = require('./tender/ai');
     const worker = require('./tender/worker').createWorker({ supabase, storage, ai, recordError, dispatchMail: _dispatchMail, warn: function(m){ console.warn(m); } });
     require('./tender/routes').mount(app, { supabase, storage, worker, ai, requireAuth, requireSubscription,
-      scopeCompany: _scopeCompany, settingsRow: _companySettingsRow, adminOk: _adminOk, recordError, recordUsage, rateLimit });
+      scopeCompany: _scopeCompany, settingsRow: _companySettingsRow, adminOk: _adminOk, recordError, recordUsage, rateLimit,
+      planTender: async function (req) { return !!(req.companyId && (await _limitsOf(req.companyId)).tender); } });
     return { storage, worker, ai };
   } catch (e) {
     recordError('tender-boot', e, { route: 'boot' });

@@ -171,7 +171,7 @@ const withGo = v.filter(r => r.hasGo);
 check('every step with a button tells you where that screen lives',
   withGo.length === 7 &&
   withGo.every(r => /Settings tab, in the .+ section/.test(r.txt) ||
-                    /Send Feedback is in the left-hand menu/.test(r.txt)),
+                    /Request a Fix is in the left-hand menu/.test(r.txt)),
   withGo.map(r => r.key).join(', '));
 check('…and it sits beside the button, not under it',
   withGo.every(r => r.sameLine && r.display === 'flex'),
@@ -192,7 +192,7 @@ check('…and when the card tucks into a corner it wraps under instead of vanish
 check('a card that sends you outside Settings brings its own sentence',
   await pg.evaluate(() => {
     const st = SETUP_STEPS.filter(s => s.key === 'feedback')[0];
-    return !st.where && /Send Feedback/.test(st.whereText || '');
+    return !st.where && /Request a Fix/.test(st.whereText || '');
   }));
 check('the section names match real Settings tabs', await pg.evaluate(() => {
   const tabs = [...document.querySelectorAll('.set-nav .tab-sm')].map(b => b.textContent.trim());

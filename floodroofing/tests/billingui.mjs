@@ -353,6 +353,29 @@ await ctx.close();
   await ctx.close();
 }
 
+// ROOFS A MONTH and THE MERCHANT ORDER ON TEAM (2026-11-03).
+{
+  const { ctx, pg } = await boot({ status:'active', billing:true, live:true, plan:'measure', terms:'current',
+    billing_account:true, trial:null, roofs_month:{ limit:30, used:30, left:0, roof_jobs:['j-counted'] } });
+  await pg.evaluate(() => { gotoTab('settings'); switchSettingsSub('set-billing'); _billingRenderSection(); });
+  await pg.waitForTimeout(300);
+  let t = await pg.evaluate(() => document.getElementById('billingBody').textContent.replace(/\s+/g,' '));
+  check('the billing screen says how many of the month\u2019s roofs are used', /30 of 30 roofs measured this month/.test(t), t.slice(0, 200));
+  const blocked = await pg.evaluate(() => { S.isSampleJob = false; S.currentJobId = 'j-new'; S.versionOf = null; return _trialRoofsBlocked(); });
+  const counted = await pg.evaluate(() => { S.currentJobId = 'j-counted'; return _trialRoofsBlocked(); });
+  check('at the cap a new roof is stopped, a roof already counted is not', blocked === true && counted === false, blocked + ' ' + counted);
+  await pg.evaluate(() => { window.__roofsUsedGate = true; _planGateOpen(); });
+  await pg.waitForTimeout(200);
+  t = await pg.evaluate(() => (document.getElementById('planGateModal') || {}).textContent || '');
+  check('…and the window says it is this month\u2019s 30, with Trade and Team named and a way back',
+    /measured your 30 roofs this month/.test(t) && /Trade covers 100/.test(t) && /Back to my roofs/.test(t) && /Change plan/.test(t), t.slice(0, 260));
+  await pg.evaluate(() => { _planGateDismissRoofs(); localStorage.setItem('fr_company', JSON.stringify({ id:'c1', name:'Acme', role:'owner', limits:{ order:false } })); orderRoofViaSupplier(); });
+  await pg.waitForTimeout(200);
+  t = await pg.evaluate(() => (document.getElementById('_pnModal') || {}).textContent || '');
+  check('Order Roof on a plan without merchant orders says Team covers it, before anything is filled in', /Merchant orders are part of Team/.test(t) && /See plans/.test(t), t.slice(0, 200));
+  await ctx.close();
+}
+
 await b.close();
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

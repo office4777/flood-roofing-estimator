@@ -181,15 +181,18 @@ check('…a quote with a customer link is refused by the server, naming Trade',
   r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Trade', r.status + ' ' + JSON.stringify(r.body));
 r = await api('PUT', '/jobs/j1/quote', { quote: { total: 100 } });
 check('…while a quote kept in-house (no link) is not a plan matter', r.status !== 403, String(r.status));
-r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x' });
-// "Calculate your materials" ends at the order (2026-10-23): Measure sends it.
-check('…but a merchant order is NOT a plan matter on Measure',
-  r.body.code !== 'PLAN_LIMIT', r.status + ' ' + JSON.stringify(r.body));
+r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x', kind: 'order' });
+// The merchant order is Team's since 2026-11-03 (a business paying before
+// then keeps it — tests/planterms.mjs plays that side).
+check('…and a merchant order is refused on Measure, naming Team',
+  r.status === 403 && r.body.code === 'PLAN_LIMIT' && r.body.needs === 'Team', r.status + ' ' + JSON.stringify(r.body));
 setPlan('solo'); await settle();
 r = await api('PUT', '/jobs/j1/quote', { quote: { share: { token: 'abc' } } });
 check('Trade sends quotes (the gate is not in the way of a real plan)', r.status !== 403, String(r.status));
-r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x' });
-check('…and orders', r.status !== 403, String(r.status));
+r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Quote', text: 'x', kind: 'quote' });
+check('…and emails them', r.status !== 403, String(r.status));
+r = await api('POST', '/email/send-order', { to: 'yard@merchant.co.nz', subject: 'Order', text: 'x', kind: 'order' });
+check('…but the merchant order is Team\u2019s (2026-11-03)', r.status === 403 && r.body.needs === 'Team', r.status + ' ' + JSON.stringify(r.body));
 r = await api('GET', '/subscription');
 check('the billing screen is told Measure is not for sale until it has a price',
   r.status === 200 && r.body.offered && r.body.offered.measure === false, JSON.stringify(r.body.offered));

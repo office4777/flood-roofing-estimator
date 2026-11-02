@@ -78,6 +78,10 @@ check('…and only from the two places the policy names',
   aiCalls === 4, aiCalls - 1 + ' call sites (roof trace, price list, Custom Price Book price list)');
 check('…which the policy says out loud',
   /only when you press the button/.test(privacy) && /not used to train/i.test(privacy));
+// AI Tendering (Team, 2026-11-03): plan sets go to the AI only if the
+// business chooses to use it — the owner's words, and the policy's.
+check('…and names AI Tendering as the third, sent only if the business chooses to use it',
+  /exactly three things/.test(privacy) && /AI Tendering, if you choose to use it/.test(privacy) && /only if you choose to use AI Tendering/.test(privacy));
 
 // ── the milestone list matches the code ──
 const declared = (server.match(/const USAGE_EVENTS = \[([\s\S]*?)\];/) || [])[1] || '';

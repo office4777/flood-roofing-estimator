@@ -18,7 +18,7 @@
   var FRQA = [
     // ---- Getting started / general ----
     { c:'Start', q:['what is roofmap','what is this app','what does this program do','what is this tool','how does roofmap work','explain the app','what can i do here'],
-      a:"**RoofMap** is Flood Roofing's estimator. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the menu top to bottom:\n- **Home** — the job board: start a job, pick one up, see where every quote is\n- **Map Roof** — trace and measure every roof on the property\n- **Job Pack** — cut lists, flashings, consumables, the merchant order\n- **Quote** — price it, then send the customer their proposal\n- **Settings** — branding, price book, products, rates, team, billing\n- **Send Feedback** — a bug or an idea, straight to the people who build it" },
+      a:"**RoofMap** is Flood Roofing's estimator. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the menu top to bottom:\n- **Home** — the job board: start a job, pick one up, see where every quote is\n- **Map Roof** — trace and measure every roof on the property\n- **Job Pack** — cut lists, flashings, consumables, the merchant order\n- **Quote** — price it, then send the customer their proposal\n- **Settings** — branding, price book, products, rates, team, billing\n- **Request a Fix** — a bug or an idea, straight to the people who build it" },
     { c:'Start', q:['how do i start','where do i begin','how do i get started','first steps','how to begin a new estimate','getting started'],
       a:"Start on the **Home** tab:\n- Tap **New job**, enter the client name + address, and press Start.\n- You'll land on **Map Roof** — upload the aerial photo and trace the roof.\n- Move through **Job Pack** then **Quote** using the blue *Next* button at the bottom of each tab." },
     { c:'Start', q:['what order do i do things','workflow','what are the steps','process','steps to make a quote','full process'],
@@ -234,7 +234,7 @@
 
     // ---- Troubleshooting ----
     { c:'Help', q:['its not working','something is broken','bug','error','glitch','not responding','app broken'],
-      a:"Try these in order:\n- **Hard-refresh** the page (clears a cached old version)\n- Re-open the job from the **Home** board\n- Check your internet connection — and look in **Offline saves** if work seems missing\nIf it still misbehaves, use **Send Feedback**. It attaches the roof you were looking at, which screen you were on and anything that errored, so nobody has to ask what you were doing." },
+      a:"Try these in order:\n- **Hard-refresh** the page (clears a cached old version)\n- Re-open the job from the **Home** board\n- Check your internet connection — and look in **Offline saves** if work seems missing\nIf it still misbehaves, use **Request a Fix**. It attaches the roof you were looking at, which screen you were on and anything that errored, so nobody has to ask what you were doing." },
     { c:'Help', q:['not saving','changes lost','work disappeared','didnt save','lost my job'],
       a:"Jobs autosave to your account, and a copy stays on the device. If work seems missing, check the **Home** board first, then **Offline saves** in the menu — that holds what this device saved, even the saves that had not been sent up yet. Avoid private/incognito windows, which clear device storage when you close them." },
     { c:'Help', q:['pdf not generating','pdf blank','pdf broken','cant make pdf','pdf failed','export not working'],
@@ -268,7 +268,7 @@
 
     // ---- Misc / meta ----
     { c:'Help', q:['who do i contact','support','help','phone number','contact flood roofing','call the office','get help'],
-      a:"For anything this assistant can't answer, email **support@roofmap.co.nz** — it reaches the people who build RoofMap, and the reply comes back to you. Faster still: **Send Feedback** in the left-hand menu attaches your roof, your screen and any errors automatically, so nobody has to ask what you were doing." },
+      a:"For anything this assistant can't answer, email **support@roofmap.co.nz** — it reaches the people who build RoofMap, and the reply comes back to you. Faster still: **Request a Fix** in the left-hand menu attaches your roof, your screen and any errors automatically, so nobody has to ask what you were doing." },
     { c:'Help', q:['what can you do','what can i ask','help me','options','what do you know','can you help'],
       a:"I can help with the whole app — jobs & drafts, mapping and measuring a roof, sheet plans and cut lists, the Job Pack materials, gutters and flashings, building and sending quotes, customer acceptance, Fergus, ordering from the supplier, settings, and general roofing/Colorsteel questions. Just ask in your own words." },
     { c:'Help', q:['thanks','thank you','cheers','ta','appreciate it'],
@@ -532,7 +532,7 @@
     { c:'Settings', q:['team','add a user','invite someone','staff login','seats','remove a user'],
       a:"**Settings → Team** invites people into the business by email — they set their own password from the link, and everything they quote lands in the same job board. One subscription covers the business, up to the seats on your plan.\n\nThe owner is the only one who can change the subscription." },
     { c:'Settings', q:['billing','subscription','change plan','cancel','card details','how much does it cost','free trial','how long is the trial','roofs left'],
-      a:"**Settings → Billing** shows the plan and opens the card page. Plans are **Measure $79** (measuring, cut lists and merchant orders), **Trade $149** (one person, plus customer quotes) and **Team $299** (up to five people, Fergus, the schedule board, the team inbox and your own domain) a month plus GST.\n\nA new account starts with **your first 3 real roofs or 30 days of Team free**, whichever comes first \u2014 a roof counts once it has an outline and a scale, and the practice roof never does. The bar at the top says how many are left.\n\nSubscription invoices come from **accounts@roofmap.co.nz** with the GST broken out, and replying to one reaches the accounts desk." },
+      a:"**Settings → Billing** shows the plan and opens the card page. Plans are **Measure $79** (one person, 30 roofs a month: measuring and cut lists), **Trade $149** (one person, 100 roofs a month, plus customer quotes) and **Team $299** (up to five people, unlimited roofs, merchant orders, A.I. Tendering, Fergus, the schedule board, the team inbox and your own domain) a month plus GST. A business that was paying before 3 November 2026 keeps the plan it signed up to.\n\nA new account starts with **your first 3 real roofs or 30 days of Team free**, whichever comes first \u2014 a roof counts once it has an outline and a scale, and the practice roof never does. The bar at the top says how many are left.\n\nSubscription invoices come from **accounts@roofmap.co.nz** with the GST broken out, and replying to one reaches the accounts desk." },
     { c:'Settings', q:['branding','my logo','company details on the quote','put my name on it','white label'],
       a:"**Settings → Branding** puts your business on everything the customer sees — logo, company name, address, contact details, GST number.\n\nMail sent on your behalf goes out under your business name with replies pointed at your address, so the homeowner sees their roofer, not the platform." },
     { c:'Settings', q:['own domain','subdomain','my own web address','quote link with my name'],
@@ -544,7 +544,7 @@
 
     // ---- Feedback ----
     { c:'Help', q:['send feedback','report a bug','something is wrong','request a feature','feedback form','tell you about a problem'],
-      a:"**Send Feedback** in the menu. Write a title and describe what looked wrong and what it should have been — the more specific, the better: which roof, which line, which number.\n\nYou do not need to write down your browser, your screen, which tool you were on or what errored. All of that is captured and attached automatically, along with the roof geometry itself, so the same roof can be put on our screen. Measurements only — no client, address, photos or prices.\n\nIt reaches **support@roofmap.co.nz** and the reply comes straight back to your account email." },
+      a:"**Request a Fix** in the menu. Write a title and describe what looked wrong and what it should have been — the more specific, the better: which roof, which line, which number.\n\nYou do not need to write down your browser, your screen, which tool you were on or what errored. All of that is captured and attached automatically, along with the roof geometry itself, so the same roof can be put on our screen. Measurements only — no client, address, photos or prices.\n\nIt reaches **support@roofmap.co.nz** and the reply comes straight back to your account email." },
     { c:'Help', q:['who replies to feedback','will i hear back','how long does a fix take','do you reply'],
       a:"Yes — the reply comes back to the email address you are signed in with, from **support@roofmap.co.nz**. No ticket number to quote.\n\nMost issues are fixed within a couple of hours of landing, and you get an email when yours is done." },
 
@@ -743,7 +743,7 @@
           off.querySelector('.fr-help-sup-yes').onclick = function () { off.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); supportMode(true); supportSend(text); };
           off.querySelector('.fr-help-sup-no').onclick = function () { off.querySelectorAll('button').forEach(function (x) { x.disabled = true; }); addMsg('bot', 'No problem. Try rephrasing, or tap a suggestion below — and **support@roofmap.co.nz** is always there too.'); };
         } else {
-          addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, use **Send Feedback** in the left-hand menu, or email **support@roofmap.co.nz**.");
+          addMsg('bot', "I'm not certain I have an answer for that one. Try rephrasing, or tap a suggestion below.\n\nFor anything I can't cover, use **Request a Fix** in the left-hand menu, or email **support@roofmap.co.nz**.");
         }
       }
     }, 260);

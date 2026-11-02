@@ -61,8 +61,8 @@
     about it. Written to be checked against the software rather than to cover us.
   </p>
   <p class="dates">
-    <span>Version 1.2</span>
-    <span>In force from 4 October 2026</span>
+    <span>Version 1.3</span>
+    <span>In force from 3 November 2026</span>
     <span>Privacy Act 2020 (NZ)</span>
   </p>
 
@@ -98,7 +98,7 @@
     <li><strong>RoofMap is run by a working roofer — and nobody here can open your jobs, your quotes, your prices or your customers.</strong> That is worth its own section: <a href="#roofer">read it</a>.</li>
     <li>Your price book is never shown to another subscriber and never shared with a supplier.</li>
     <li>We use no tracking cookies and no third-party analytics. What we measure is twenty-one milestones — did a business set itself up, did it draw a roof, did someone sign in, which screen of the app they were on — and nothing about your customers.</li>
-    <li>Roof images and supplier price lists go to an AI service <strong>only when you press the button that does that</strong>, and are not used to train anything.</li>
+    <li>Roof images and supplier price lists go to an AI service <strong>only when you press the button that does that</strong>, and are not used to train anything. On the Team plan, a plan set goes to it <strong>only if you choose to use AI Tendering</strong> and upload one.</li>
     <li>You can get your data out or have it deleted. Ask us and we will do it.</li>
   </ul>
 </section>
@@ -297,8 +297,8 @@
         </tr>
         <tr>
           <td><strong>Anthropic</strong><span class="sub">AI</span></td>
-          <td>Reading a roof outline off an image; reading a supplier price list.</td>
-          <td>Only the image or file you submit, at the moment you submit it. See section&nbsp;6.</td>
+          <td>Reading a roof outline off an image; reading a supplier price list; AI Tendering (reading a plan set and drafting the tender), only if you use it.</td>
+          <td>Only the image, file or plan set you submit, at the moment you submit it. See section&nbsp;6.</td>
         </tr>
         <tr>
           <td><strong>LINZ and Esri</strong><span class="sub">Aerial imagery</span></td>
@@ -347,17 +347,18 @@
 
 <section id="ai">
   <h2>What goes to an AI, and when</h2>
-  <p class="gloss">Two buttons, both yours to press. Nothing goes automatically.</p>
+  <p class="gloss">Each one yours to start. Nothing goes automatically.</p>
   <p>
-    RoofMap uses <strong>Anthropic's Claude</strong> for exactly two things:
+    RoofMap uses <strong>Anthropic's Claude</strong> for exactly three things:
   </p>
   <ul>
     <li><strong>Reading a roof outline off an image.</strong> When you ask it to trace a roof, the image you are working on is sent, and what comes back is a set of corner coordinates and a suggested pitch.</li>
     <li><strong>Reading a supplier price list.</strong> When you upload a CSV or PDF price list, the file is sent, and what comes back is a list of products, units and prices.</li>
+    <li><strong>AI Tendering, if you choose to use it</strong> (Team plan, since 3 November 2026). When you upload a plan set to a tender job, its pages are sent, and what comes back is the sheet index, the roofing scope and quantities (the QS) and a drafted tender quote. When you ask the tender's assistant a question or ask it to change the draft, your words and the relevant pages go with it. If you never open a tender job, nothing of yours is ever sent for this.</li>
   </ul>
   <div class="callout">
     <p>
-      <strong>Neither happens on its own.</strong> Your jobs, your customers' details, your saved
+      <strong>None of them happens on its own.</strong> Your jobs, your customers' details, your saved
       price book and your quotes are never sent to an AI service in the background. Nothing is sent
       unless you press the button that does it.
     </p>
@@ -368,9 +369,10 @@
   </div>
   <p>
     Be aware of what you are submitting. An aerial image of a property is personal information about
-    the people who live there, and a supplier price list is commercially sensitive. If you would
-    rather not send either, don't — every measurement in RoofMap can be drawn and calibrated by
-    hand, and every price can be typed in.
+    the people who live there, a supplier price list is commercially sensitive, and a plan set can
+    carry the names and addresses on its title block. If you would rather not send them, don't —
+    every measurement in RoofMap can be drawn and calibrated by hand, every price can be typed in,
+    and a tender can be priced the ordinary way.
   </p>
 </section>
 

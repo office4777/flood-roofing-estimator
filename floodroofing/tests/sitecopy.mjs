@@ -43,8 +43,13 @@ for (const [name, html] of [['homepage', landing], ['pricing page', pricing]]){
   check('…and states the trial as 3 real roofs or 30 days', /3 real roofs or 30 days/.test(html) && !/14 days|Fourteen days/.test(html), name);
   // Measure is sold (2026-09-19) — the homepage left it off until 2026-10-01.
   const measure = card(html, 'Measure');
-  check('…and carries the Measure plan at $79, with merchant orders in it and no customer quotes',
-    /<div class="amt">\$79<\/div>/.test(measure) && /class="off">[^<]*[Qq]uotes/.test(measure) && /<li>Merchant orders<\/li>/.test(measure), name);
+  // 2026-11-03: Measure is 30 roofs a month and the merchant order is Team's.
+  check('…and carries the Measure plan at $79: 30 roofs a month, no customer quotes, no merchant orders',
+    /<div class="amt">\$79<\/div>/.test(measure) && /class="off">[^<]*[Qq]uotes/.test(measure) && /<li class="off">Merchant orders<\/li>/.test(measure) && /30 roofs a month/.test(measure), name);
+  check('…Trade 100 roofs a month without merchant orders, Team unlimited with them and AI Tendering',
+    /100 roofs a month/.test(trade) && /<li class="off">Merchant orders<\/li>/.test(trade) &&
+    /Unlimited roofs/.test(team) && /<li>Merchant orders/.test(team) && /A\.I\. Tendering QS and Tender Quote PDF \(fully automatic\)/.test(team), name);
+  check('…and no longer promises "no cap" or unlimited roofs on every plan', !/no cap and no per/.test(html) && !/Unlimited roofs measured on every plan/.test(html) && !/with no cap\. /.test(html), name);
   check('…in its structured data too', /"name": "Measure", "price": "79\.00"/.test(html), name);
 }
 check('nothing on the homepage says "unlimited users" or "unlimited logins"', !/unlimited (users|logins)/i.test(landing));
@@ -68,8 +73,10 @@ check('the Measure card is on the pricing page, at $79',
   /<div class="tier" data-plan="measure">[\s\S]{0,200}<h3>Measure<\/h3>/.test(pricing) && !/tier" hidden/.test(pricing) && /<div class="amt">\$79<\/div>/.test(card(pricing, 'Measure')));
 check('…and its Offer is in the pricing JSON-LD', /"name": "Measure", "price": "79\.00"/.test(pricing) && !/"price": "55\.30"/.test(pricing));
 check('…and the app\'s billing screen lists it like the other plans', /key: 'measure',[^\n]*name: 'Measure'/.test(read('app.html')) && !/key: 'measure',[^\n]*offered: true/.test(read('app.html')));
-check('…and the server\'s Measure sends merchant orders but no customer quote', /quote: false/.test(row('measure')) && /order: true/.test(row('measure')) && /seats: 1/.test(row('measure')));
-check('…while every other plan does both', ['solo', 'team', 'business', 'trial'].every(k => /quote: true/.test(row(k)) && /order: true/.test(row(k))));
+check('…and the server\'s Measure sends no customer quote and, since 2026-11-03, no merchant order, at 30 roofs a month', /quote: false/.test(row('measure')) && /order: false/.test(row('measure')) && /roofsMonth: 30/.test(row('measure')) && /seats: 1/.test(row('measure')));
+check('…Trade quotes at 100 roofs a month without the order', /quote: true/.test(row('solo')) && /order: false/.test(row('solo')) && /roofsMonth: 100/.test(row('solo')));
+check('…while Team, Business and the trial do both, uncapped, with AI Tendering', ['team', 'business', 'trial'].every(k => /quote: true/.test(row(k)) && /order: true/.test(row(k)) && /tender: true/.test(row(k)) && /roofsMonth: 0/.test(row(k))));
+check('…and a business paying before keeps its plan (PLANS_LEGACY)', /const PLANS_LEGACY = /.test(server) && /roofsMonth: 0, order: true/.test(server));
 check('…and the public intro names the three prices', /\$79, \$149 or \$299/.test(pricing) && /The three plans/.test(pricing) && !/four plans/.test(pricing));
 
 // ── the savings comparison ───────────────────────────────────────

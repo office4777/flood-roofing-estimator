@@ -102,7 +102,7 @@
       T.id = await ensure();
       await load();
     } catch (e) {
-      T.err = (e && e.code === 'TENDERING_OFF') ? 'AI Tendering is not switched on for this business yet.' : ('Could not open the tender: ' + (e && e.message || e));
+      T.err = (e && e.code === 'TENDERING_OFF') ? 'AI Tendering is part of the Team plan \u2014 Settings \u2192 Billing to change plan.' : ('Could not open the tender: ' + (e && e.message || e));
       T.data = null;
     }
     render();

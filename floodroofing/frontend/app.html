@@ -5213,7 +5213,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-02T02:34:32Z';
+  window.APP_BUILT_AT = '2026-11-02T18:40:17Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5738,11 +5738,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   <button class="nav-btn" onclick="gotoTab('jobpack')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3.5" width="11" height="10" rx="1.4" stroke="currentColor" stroke-width="1.3"/><path d="M2.5 6.5 H13.5" stroke="currentColor" stroke-width="1.2"/><path d="M6 9.5 H10 M6 11.5 H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Job Pack</button>
   <button class="nav-btn" onclick="gotoTab('jobs')" style="display:none"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11v9.5H2.5z M5 4V2.5h6V4 M2.5 7h11" stroke="currentColor" stroke-width="1.3" fill="none" stroke-linejoin="round"/></svg>Jobs</button>
   <button class="nav-btn" id="navSettingsBtn" onclick="gotoTab('settings')"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2 M8 12.5v2 M1.5 8h2 M12.5 8h2 M3.5 3.5l1.4 1.4 M11.1 11.1l1.4 1.4 M3.5 12.5l1.4-1.4 M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.2"/></svg>Settings</button>
-  <button class="nav-btn" id="navFeedbackBtn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Send Feedback</button>
+  <button class="nav-btn" id="navFeedbackBtn" onclick="gotoTab('feedback')"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v8h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M5 6.5h6 M5 8.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Request a Fix</button>
   <!-- Selected job, its buttons, and the roof's figures. It sat at the TOP of
        the left menu until 2026-09-29; the owner moved it under the tab
        buttons, which is where the eye ends up after picking a tab. -->
-  <div id="navJobBox" style="margin:10px 6px 0">
+  <!-- ONE LIGHT-BLUE TILE (2026-11-03, the owner): the job, its buttons, the
+       lock and the roof's figures sit together in a light-blue tile, the grey
+       buttons kept grey inside it. -->
+  <div id="navJobBox" style="margin:10px 6px 0;padding:8px;background:#e0f2fe;border:1px solid #9bd5f0;border-radius:12px">
     <!-- Clickable: tapping the selected-job chip opens the same New Job /
          Select Job chooser as the button below, so the user can swap or
          edit the job from any tab without hunting for the Home tile. -->
@@ -9958,7 +9961,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 <div class="panel" id="tab-feedback">
 <div id="fbLayout" style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
   <div class="card" style="flex:1 1 560px;max-width:720px;min-width:320px">
-    <div class="card-hd"><span class="card-dot"></span>Send feedback</div>
+    <div class="card-hd"><span class="card-dot"></span>Request a Fix</div>
     <p style="font-size:12.5px;color:var(--text);line-height:1.6;margin-bottom:12px">
       Report a bug or request a feature — it goes straight to the team, not into a ticket queue.
       <strong>Most issues are fixed within about two hours</strong> of landing with us, and you will
@@ -13788,7 +13791,7 @@ async function api(method, path, body) {
     // moment to show the plans — that refusal used to surface as a bare
     // error on a save, which reads as the app being broken.
     if (err.code === 'SUBSCRIPTION_REQUIRED') { try { _planGateOpen(true); } catch(e){} }
-    if (err.code === 'TRIAL_ROOFS_USED') { try { _trialRoofsUsedOpen(); } catch(e){} }
+    if (err.code === 'TRIAL_ROOFS_USED' || err.code === 'MONTH_ROOFS_USED') { try { _trialRoofsUsedOpen(); } catch(e){} }
     if (err.code === 'MAINTENANCE') { try { _maintBanner(payload); } catch(e){} }
     throw err;
   }
@@ -23574,6 +23577,8 @@ function _planGateNeeded(){
   var s = SUBSCRIPTION;
   // The trial's roofs are used: the plans, but the account is still live.
   if (window.__roofsUsedGate && s && s.billing && s.status !== 'active') return true;
+  // ROOFS A MONTH (2026-11-03): a paying Measure / Trade business at its cap.
+  if (window.__roofsUsedGate && s && s.billing && s.status === 'active' && s.roofs_month && s.roofs_month.left <= 0) return true;
   // billing off, or the account is live = nothing to sell them right now.
   return !!(s && s.billing && !s.live && s.status !== 'active');
 }
@@ -23582,6 +23587,13 @@ function _planGateNeeded(){
 // sample never are; anything else, once all the roofs are used, is.
 function _trialRoofsBlocked(){
   var s = SUBSCRIPTION, t = s && s.trial;
+  // ROOFS A MONTH: a paying business at its cap — the same test against the
+  // roofs this month has counted (a job already counted keeps working).
+  if (s && s.billing && s.status === 'active' && s.roofs_month && s.roofs_month.left <= 0){
+    if (window.S && S.isSampleJob) return false;
+    var r0 = String((window.S && (S.versionOf || S.currentJobId)) || '');
+    return !(r0 && (s.roofs_month.roof_jobs || []).indexOf(r0) >= 0);
+  }
   if (!s || !s.billing || s.status === 'active' || !t || !t.roofs_limit || t.expired) return false;
   if (t.roofs_left == null || t.roofs_left > 0) return false;
   if (window.S && S.isSampleJob) return false;
@@ -23596,6 +23608,20 @@ function _trialRoofsUsedOpen(){
 function _planGateModalHtml(){
   var s = SUBSCRIPTION || {};
   var ended = !!(s.trial && s.trial.expired);
+  var monthOut = !ended && !!window.__roofsUsedGate && s.status === 'active' && !!(s.roofs_month && s.roofs_month.left <= 0);
+  if (monthOut){
+    var _nm = (function(){ try { var d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 1).toLocaleDateString('en-NZ', { month: 'long' }); } catch(e){ return 'next month'; } })();
+    var _onTrade = s.plan === 'solo';
+    return '<div class="pg-box" role="dialog" aria-modal="true" aria-label="Roofs this month">' +
+      '<div class="pg-head">You\u2019ve measured your ' + s.roofs_month.limit + ' roofs this month</div>' +
+      '<div class="pg-sub">' + (PLAN_LABELS[s.plan] || s.plan) + ' covers ' + s.roofs_month.limit + ' roofs a month. ' +
+        (_onTrade ? 'Team measures as many as you like' : 'Trade covers 100 a month and Team as many as you like') +
+        ' \u2014 or your next roof opens on 1 ' + _nm + '. Every roof you have already measured stays open: quote it, send it, order for it.</div>' +
+      '<div class="pg-msg" id="planGateMsg"></div>' +
+      '<button class="pg-later" style="background:#0099cc;color:#fff;border-color:#0099cc" onclick="_planGateDismissRoofs();_billingOpen()">Change plan</button> ' +
+      '<button class="pg-later" id="pgBackToRoofs" onclick="_planGateDismissRoofs()">Back to my roofs</button>' +
+    '</div>';
+  }
   var roofsOut = !ended && !!window.__roofsUsedGate && !!(s.trial && s.trial.roofs_limit);
   var head = ended ? 'Your free trial has ended'
     : roofsOut ? 'You\u2019ve measured your ' + s.trial.roofs_limit + ' free roofs'
@@ -23710,9 +23736,9 @@ var PLAN_TIERS = [
   // Measuring only — sold like the rest. Choosing it without a Stripe price
   // behind it (STRIPE_PRICE_MEASURE) gets the server's plain error naming
   // the variable, which is the right person's problem to see.
-  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · measure any roof from the aerial · sheet counts, flashings and the cut list · merchant orders · no customer quotes' },
-  { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · quoting, job packs, orders · told when a quote is opened, and chased when it goes quiet' },
-  { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · shared jobs · schedule board · Fergus link · team inbox, chat and tasks · your own address, email and domain' },
+  { key: 'measure',  name: 'Measure',  price: '$79',  yearly: '$790',   blurb: '1 person · 30 roofs a month from the aerial · sheet counts, flashings and the cut list · no customer quotes' },
+  { key: 'solo',     name: 'Trade',    price: '$149', yearly: '$1,490', blurb: '1 person · 100 roofs a month · quoting and job packs · told when a quote is opened, and chased when it goes quiet' },
+  { key: 'team',     name: 'Team',     price: '$299', yearly: '$2,990', blurb: 'Up to 5 people · unlimited roofs · merchant orders · A.I. Tendering QS and tender quote PDF · schedule board · Fergus link · team inbox, chat and tasks · your own address, email and domain' },
   // OFF SALE since 2026-10-23 (Team carries everything it had). Shown only
   // to a business already on it, so it can still see and manage its plan.
   { key: 'business', name: 'Business', price: '$549', yearly: '$5,490', retired: true, blurb: 'Up to 15 people · team inbox, internal chat and tasks · your own domain on quotes' },
@@ -23752,7 +23778,8 @@ function _billingRenderSection(){
     (PLAN_LABELS[s.plan] || s.plan) + ' stays on until ' + _billingDate(s.cancel_at) + '.</strong> ' +
     '<span style="color:var(--text2)">You won\u2019t be charged again. Your jobs stay in your account for ' +
     ((s.data_kept_days || 90)) + ' days after that \u2014 subscribe again inside that and everything is where you left it.</span></div>';
-  else if (s.status === 'active' && s.billing_account) head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.</span></div>';
+  else if (s.status === 'active' && s.billing_account) head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + '.</strong> <span style="color:var(--text2)">Card, invoices and cancellation are in the billing portal.' +
+    (s.roofs_month ? ' ' + s.roofs_month.used + ' of ' + s.roofs_month.limit + ' roofs measured this month.' : '') + '</span></div>';
   else if (s.status === 'active') head = '<div style="font-size:13px"><strong>You\u2019re on ' + (PLAN_LABELS[s.plan] || s.plan) + ' \u2014 nothing to pay.</strong> <span style="color:var(--text2)">There\u2019s no card on file. Subscribe below whenever you want to start paying for it.</span></div>';
   // Comped and trial accounts are on a real plan too — they just aren't
   // paying for it. Saying nothing left them looking at three cards with no
@@ -55949,7 +55976,7 @@ var SETUP_STEPS = [
   { key:'feedback', title:'Something wrong? Tell us — it gets fixed',
     body:'This is the one worth knowing about, because it is the difference between a bug you have ' +
          'to work around forever and one that is gone by the afternoon.\n\n' +
-         '**Send Feedback** goes straight to the team, not into a ticket queue. **Most issues are ' +
+         '**Request a Fix** goes straight to the team, not into a ticket queue. **Most issues are ' +
          'fixed within about two hours** of landing with us, and you get an email when yours is done. ' +
          'Real bugs found by roofers on real roofs are what this thing is built out of.\n\n' +
          '**The more detail you give, the faster and more thoroughly we can fix it.** “Pricing is ' +
@@ -55960,15 +55987,15 @@ var SETUP_STEPS = [
          'were using, what state the drawing was in and anything that errored are all captured and ' +
          'attached automatically — along with the roof itself, so we can put the same one on our ' +
          'screen. Measurements only: no client, address, photos or prices.',
-    go:{ tab:'feedback' }, cta:'See Send Feedback',
-    whereText:'**Send Feedback** is in the left-hand menu, at the bottom, under Settings.' },
+    go:{ tab:'feedback' }, cta:'See Request a Fix',
+    whereText:'**Request a Fix** is in the left-hand menu, at the bottom, under Settings.' },
 
   { key:'done', title:'That is it — go and quote a roof',
     body:'There is a finished sample job in here already: open it to see what a completed quote, ' +
          'cut list and material order look like before you do your own.\n\n' +
          'When you are ready, Map Roof → set a roof image → trace the outline. On a phone or tablet ' +
          'the app switches to Site mode on its own, with a bottom toolbar sized for a thumb.\n\n' +
-         'And when something is wrong, Send Feedback — usually fixed the same day.' }
+         'And when something is wrong, Request a Fix — usually fixed the same day.' }
 ];
 // The one piece of wording that matters most in here. It has to be honest
 // about what the shipped rates are and blunt about replacing them, without
@@ -56265,7 +56292,7 @@ var TOUR_STEPS = [
 
   // ── FEEDBACK ────────────────────────────────────────────────────
   { key:'tab-fb', gate:'#navFeedbackBtn', tab:'feedback', title:'When something is wrong',
-    body:'Click **Send Feedback**.' },
+    body:'Click **Request a Fix**.' },
   { key:'fb-submit', sel:'#fbSubmitBtn', tab:'feedback', title:'Tell us and it gets fixed',
     body:'Describe what looked wrong and what it should have been. You do not need to write down your browser, your screen or what errored — that is attached automatically, along with the roof you were looking at, so we can put the same one up.\n\nIt goes to **support@roofmap.co.nz** and the reply comes back to your account email.',
     next:'Nearly there' },
@@ -78365,7 +78392,31 @@ async function inspectFergusJob() {
 // Order Roof now goes through a mandatory pre-order checklist — the user must
 // tick every item (confirming the spec matches what they intend to order)
 // before the supplier order email can be sent.
+// MERCHANT ORDERS ARE TEAM'S (2026-11-03). The server is the enforcement; this
+// says so before the roofer fills the order in, not after. A business paying
+// before that day keeps orders on Measure / Trade (its limits say order: true).
+function _planOrderAllowed(){
+  try { var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+    if (c && c.limits && c.limits.order === false) return false; } catch(e){}
+  return true;
+}
+function _planNeedsCard(title, msg){
+  var prev = document.getElementById('_pnModal'); if (prev) prev.remove();
+  var w = document.createElement('div'); w.id = '_pnModal';
+  w.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(10,22,40,0.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  w.innerHTML = '<div style="background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.3);max-width:380px;width:100%;padding:18px;font-family:Inter,-apple-system,sans-serif">' +
+    '<div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:6px">' + esc(title) + '</div>' +
+    '<div style="font-size:13px;color:#475569;line-height:1.45;margin-bottom:14px">' + esc(msg) + '</div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+      '<button id="_pnLater" style="padding:8px 14px;font-size:13px;font-weight:600;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:8px;cursor:pointer">Not now</button>' +
+      '<button id="_pnPlans" style="padding:8px 16px;font-size:13px;font-weight:700;background:#0099cc;color:#fff;border:none;border-radius:8px;cursor:pointer">See plans</button></div></div>';
+  document.body.appendChild(w);
+  w.querySelector('#_pnLater').onclick = function(){ w.remove(); };
+  w.querySelector('#_pnPlans').onclick = function(){ w.remove(); try { _billingOpen(); } catch(e){} };
+  w.addEventListener('mousedown', function(ev){ if (ev.target === w) w.remove(); });
+}
 function orderRoofViaSupplier(){
+  if (!_planOrderAllowed()){ _planNeedsCard('Merchant orders are part of Team', 'Sending the material order straight to your merchant is included on the Team plan. Your cut lists and quantities are all here to print or save as a PDF.'); return; }
   if (_brandingBeforeSend(function(){ orderRoofViaSupplier(); })) return;
   _openOrderChecklist();
 }

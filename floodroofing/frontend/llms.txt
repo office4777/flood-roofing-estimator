@@ -34,10 +34,12 @@ barge, apron, change-of-pitch, coastal zones.
 - Region: New Zealand only. Prices in NZD, GST at 15%, NZ profiles, NZ steel
   grades, NZ coastal corrosion zones.
 - Plans: Measure NZ$79/month, Trade NZ$149/month, Team NZ$299/month, plus GST.
-  Priced per business, not per seat. Measure is one person (measuring, cut lists,
-  merchant orders); Trade is one person and adds customer quotes; Team is up to
-  five people and adds Fergus, the schedule board, the team inbox and the
-  business's own domain. More than five people is Enterprise, by arrangement.
+  Priced per business, not per seat. Measure is one person, 30 roofs a month
+  (measuring, cut lists); Trade is one person, 100 roofs a month, and adds
+  customer quotes; Team is up to five people, unlimited roofs, and adds merchant
+  orders, A.I. Tendering (the QS and the tender quote PDF), Fergus, the schedule
+  board, the team inbox and the business's own domain. More than five people is
+  Enterprise, by arrangement.
 - Free trial: a new business gets its first 3 real roofs or 30 days of the Team
   plan free, whichever comes first, with no card. A roof counts once it has an
   outline and a scale; the practice roof and the sample job never count.

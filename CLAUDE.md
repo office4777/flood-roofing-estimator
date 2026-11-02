@@ -931,6 +931,38 @@ not a saving, and 49 purple to 48 orange.
   3rd real roof → paid, by signup week over 13 weeks, from `trial_roofs` for
   roof trials and from the jobs themselves for older signups, blocked
   signups left out. `tests/trialroofs.mjs` (API), `trialui`, `analytics`.
+- THE PLAN TERMS OF 2026-11-03 (the owner: "Measure ... 30 roofs a month,
+  Trade 100 and Team unlimited ... move Merchant Orders to Team ... Team - add
+  in A.I. Tendering QS and Tender Quote PDF (fully automatic) ... don't change
+  it for the existing paying customers though"). `PLANS` carries `order`,
+  `tender` and `roofsMonth`: Measure order false / 30, Trade order false / 100,
+  Team / Business / trial order true, tender true, 0 (= unlimited).
+  `PLANS_LEGACY` is every plan with no cap and orders on — a business is on it
+  when `_isLegacySub(sub)`: `paid_since` before `PLAN_TERMS_FROM` (default
+  2026-11-03 00:00 NZDT), or, with no payment date, active on a subscription
+  made before it. WORKED OUT, NEVER MIGRATED, and a failed read keeps the OLD
+  terms. `_planInfo(cid)` = {plan, legacy} (cached with the plan),
+  `_limitsOf(cid)`, `_limitsFor(plan, legacy)`. THE MONTHLY CAP:
+  `_monthRoofGate` on POST/PUT /jobs beside the trial's gate — a paying,
+  new-terms, capped business; a real roof (`_drawHasRealRoof`) counts once per
+  version root in the NZ month it first saved (`plan_roofs`, unique per
+  company + job); jobs made before the terms never count; the next one is a
+  403 `MONTH_ROOFS_USED` (needs Trade / Team). `/subscription` answers `terms`
+  and `roofs_month` {limit, used, left, roof_jobs}; the app's `_trialRoofsBlocked`
+  stops a new roof at the cap and the plan window says "30 roofs this month"
+  with Change plan / Back to my roofs. THE ORDER: `/email/send-order` gates
+  `kind:'order'` on `order` (needs Team), `kind:'quote'` on `quote`; the
+  app's Order Roof says "Merchant orders are part of Team" first
+  (`_planOrderAllowed` reads `fr_company.limits.order`). AI TENDERING:
+  `tender/routes.js` `enabledFor` asks `planTender` (the plan's `tender`)
+  after the named logins, so every Team / Business / trial business has it;
+  privacy.html v1.3 names it as the third AI use, only if the business chooses
+  to use it (`legal.mjs` pins it). `tests/planterms.mjs` (21, API list),
+  `plans.mjs`, `sitecopy.mjs`, `billingui.mjs`.
+- REQUEST A FIX is the menu's name for Send Feedback (2026-11-03); the tab id
+  is still `feedback`. THE JOB TILE: `#navJobBox` is one light-blue tile
+  (#e0f2fe, #9bd5f0 edge) round the job chip, its grey buttons, the lock and
+  the roof's figures.
 - THE SIGN-UP QUESTION is asked in TWO places — `signup.html` and the app's own
   `login-setup-view` — and they must not drift. Since 2026-10-07 it reads "What
   has drawn you here the most?" and takes ONE answer (radios; it was "What

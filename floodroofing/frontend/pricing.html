@@ -46,21 +46,21 @@
             { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "79.00", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
           ],
           "availability": "https://schema.org/PreOrder", "url": "https://roofmap.co.nz/pricing",
-          "description": "One person. Measuring and materials — the aerial, the sheet counts, the flashings, the cut list and the merchant order. No customer quotes.",
+          "description": "One person. Measuring and materials — 30 roofs a month from the aerial, the sheet counts, the flashings and the cut list. No customer quotes.",
           "eligibleRegion": { "@type": "Country", "name": "New Zealand" } },
         { "@type": "Offer", "name": "Trade", "price": "149.00", "priceCurrency": "NZD",
           "priceSpecification": [
             { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "149.00", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
           ],
           "availability": "https://schema.org/PreOrder", "url": "https://roofmap.co.nz/pricing",
-          "description": "One person. Everything the software does, for a single user.",
+          "description": "One person. 100 roofs a month, customer quotes accepted online, notifications and follow-up.",
           "eligibleRegion": { "@type": "Country", "name": "New Zealand" } },
         { "@type": "Offer", "name": "Team", "price": "299.00", "priceCurrency": "NZD",
           "priceSpecification": [
             { "@type": "UnitPriceSpecification", "name": "Standard rate, monthly", "price": "299.00", "priceCurrency": "NZD", "billingIncrement": 1, "unitCode": "MON", "valueAddedTaxIncluded": false }
           ],
           "availability": "https://schema.org/PreOrder", "url": "https://roofmap.co.nz/pricing",
-          "description": "Up to five people on one licence, sharing jobs, price book, job numbers, scheduling, the Fergus link, the team inbox and your own domain on customer quotes.",
+          "description": "Up to five people on one licence: unlimited roofs, merchant orders, A.I. Tendering (QS and the tender quote PDF), shared jobs, price book, job numbers, scheduling, the Fergus link, the team inbox and your own domain on customer quotes.",
           "eligibleRegion": { "@type": "Country", "name": "New Zealand" } }
       ]
     },
@@ -69,7 +69,7 @@
       "@id": "https://roofmap.co.nz/pricing#faq",
       "mainEntity": [
         { "@type": "Question", "name": "Is measuring charged per roof?",
-          "acceptedAnswer": { "@type": "Answer", "text": "No. Measuring is included on every plan with no cap and no per-report fee. Overseas measuring services charge roughly NZ$40 to $65 a roof, which is past $1,000 a month at twenty roofs." } },
+          "acceptedAnswer": { "@type": "Answer", "text": "No. There is no per-roof or per-report fee: Measure covers 30 roofs a month, Trade 100 and Team as many as you like. Overseas measuring services charge roughly NZ$40 to $65 a roof, which is past $1,000 a month at twenty roofs." } },
         { "@type": "Question", "name": "Is RoofMap priced per user?",
           "acceptedAnswer": { "@type": "Answer", "text": "No, it is priced per business. One subscription covers the whole company up to the seats on the plan — your estimator, your office manager and your foreman all work off the same jobs, the same price book and the same job numbers." } },
         { "@type": "Question", "name": "Do I need a job management system like Fergus?",
@@ -121,7 +121,7 @@
       export your pricing, and get back to running the business. Measure is the tape measure and the
       material order, for the roofer who quotes in another system. Trade and Team take the place of an
       aerial measuring service, a proposal tool and — as you grow — the scheduling and shared-inbox
-      side of a job-management system. Measuring is included on every plan with <strong>no cap and no per-roof fee</strong> —
+      side of a job-management system. Measuring is included on every plan with <strong>no per-roof fee</strong> —
       the part that usually costs the most elsewhere.
     </p>
   </div>
@@ -136,18 +136,18 @@
            elsewhere. The app sells it through STRIPE_PRICE_MEASURE (and _ANNUAL). -->
       <div class="tier" data-plan="measure">
         <h3>Measure</h3>
-        <div class="who">The tape measure and the material order.</div>
+        <div class="who">The tape measure and the cut list.</div>
         <div class="amt">$79</div>
         <div class="per">per month + GST</div>
         <ul>
           <li>One login</li>
-          <li>Unlimited roofs measured from the aerial</li>
+          <li>30 roofs a month measured from the aerial</li>
           <li>Sheet counts, flashing lengths and the cut list</li>
-          <li>Merchant orders</li>
           <li>Pricing exported as a spreadsheet</li>
           <li>Job pack PDF to print or file</li>
           <li>Works offline on site</li>
           <li class="off">Customer quotes and online acceptance</li>
+          <li class="off">Merchant orders</li>
           <li class="off">Extra seats, scheduling, the team inbox</li>
         </ul>
         <a class="btn btn-dark" href="/signup">Start free — no card</a>
@@ -160,8 +160,8 @@
         <div class="per">per month + GST</div>
         <ul>
           <li>One login</li>
-          <li>Unlimited roofs measured</li>
-          <li>Cut lists, flashing schedules, merchant orders</li>
+          <li>100 roofs a month measured</li>
+          <li>Cut lists and flashing schedules</li>
           <li>Customer proposals with online acceptance</li>
           <li>Your own price book and labour rates</li>
           <li>Invoicing, including deposit on acceptance</li>
@@ -169,6 +169,7 @@
           <li>Notifications when a customer opens, accepts or asks</li>
           <li>Automatic follow-up when a quote goes quiet</li>
           <li>Quote analytics — your open and accept rates</li>
+          <li class="off">Merchant orders</li>
           <li class="off">Extra seats</li>
           <li class="off">Scheduling and the team inbox</li>
         </ul>
@@ -184,6 +185,9 @@
         <ul>
           <li><strong>Up to five people</strong> on one licence</li>
           <li>Everything in Trade</li>
+          <li>Unlimited roofs measured</li>
+          <li>Merchant orders straight to your supplier</li>
+          <li>A.I. Tendering QS and Tender Quote PDF (fully automatic)</li>
           <li>Shared jobs, price book and job numbers</li>
           <li>Forward schedule board — pencil in the work and book crews</li>
           <li>Fergus and job-management integration</li>
@@ -236,8 +240,8 @@
         one bill, priced for the whole company rather than per seat.</p>
       <p><strong>One honest difference before the table:</strong> a measuring service draws the roof for
         you. In RoofMap, you trace it — a few minutes over the aerial, with the software doing the
-        arithmetic. That is why it can be included on every plan with no cap: nobody is sitting in an
-        office drawing your roof, so nobody needs paying per roof.</p>
+        arithmetic. That is why there is no per-roof fee on any plan, and no cap at all on Team: nobody
+        is sitting in an office drawing your roof, so nobody needs paying per roof.</p>
 
       <div class="tscroll">
       <table class="data">
@@ -270,8 +274,8 @@
     <div class="faq" style="max-width:78ch">
       <details open>
         <summary>Is measuring charged per roof?</summary>
-        <div class="a"><p>No. Measuring is included on every plan, with no cap and no per-report fee.
-          Draw as many roofs as you like, on as many jobs as you like.</p></div>
+        <div class="a"><p>No. There is no per-roof or per-report fee on any plan. Measure covers 30
+          roofs a month, Trade 100, and Team as many as you like.</p></div>
       </details>
       <details>
         <summary>Is it priced per user?</summary>
