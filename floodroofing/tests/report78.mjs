@@ -61,7 +61,9 @@ const state = () => pg.evaluate(() => {
 
 // ── the bump is found, and only that ──
 let v = await (async () => { await build(15); return pg.evaluate(() => _outlineBumps(DRAW.outline).map(b => [b.a, b.b, b.c, b.d])); })();
-check('his outline has one bump: corners 4 to 7', JSON.stringify(v) === '[[4,5,6,7]]', JSON.stringify(v));
+// (Since report 82 a CORNER STEP is a bump too: the 1.9 m step at his
+// south-west corner, 11-0-1, flush with the south wall.)
+check('his outline has the bump at corners 4 to 7 (and the corner step 11-0-1)', JSON.stringify(v) === '[[4,5,6,7],[11,0,1,-1]]', JSON.stringify(v));
 
 // ── report 78: shallow, the main roof carried over it ──
 v = await state();
@@ -82,7 +84,7 @@ await pg.waitForTimeout(250);
 v = await state();
 check('grabbing the bump\'s corner opens the pad with "This bump\'s roof": Hip & valley | Mono extension',
   /This bump.s roof/i.test(v.row) && /Hip & valley/.test(v.row) && /Mono extension/.test(v.row), v.row);
-check('…the kind on screen is the one ticked, and it is remembered', v.on === 'mono' && v.modes === '{"5":"mono"}', v.on + ' ' + v.modes);
+check('…the kind on screen is the one ticked, and it is remembered', v.on === 'mono' && JSON.parse(v.modes)['5'] === 'mono', v.on + ' ' + v.modes);
 check('REPORT 79: dragged deeper it STAYS a mono extension — no hip or valley sprouts', v.depth > 25 && v.hvAtBump === 0, JSON.stringify(v));
 check('…its sides are barges and its end is gutter', v.sideL.join() === 'barge' && v.sideR.join() === 'barge' && v.outer.includes('gutter'), JSON.stringify([v.sideL, v.sideR, v.outer]));
 check('…and the main hips run at 45° from the main corners, ignoring the bump', v.mainHip45, JSON.stringify(v));
@@ -90,7 +92,7 @@ check('…and the main hips run at 45° from the main corners, ignoring the bump
 // ── the button makes it hip & valley, and shallow does not undo that ──
 v = await pg.evaluate(() => { document.querySelector('#cornerBumpRow [data-bump="hv"]').click(); return null; });
 v = await state();
-check('"Hip & valley" gives the bump its own hip end: two hips, two valleys', v.hvAtBump === 4 && v.on === 'hv' && v.modes === '{"5":"hv"}', JSON.stringify(v));
+check('"Hip & valley" gives the bump its own hip end: two hips, two valleys', v.hvAtBump === 4 && v.on === 'hv' && JSON.parse(v.modes)['5'] === 'hv', JSON.stringify(v));
 check('…with gutters round all of it, the short sides too', v.sideL.join() === 'gutter' && v.sideR.join() === 'gutter', JSON.stringify([v.sideL, v.sideR]));
 await pg.evaluate(() => { for (let k = 0; k < 85; k++) _cornerRepoNudge(0, 1); });   // 0.85 m shallower, to ~0.2 m deep
 v = await state();
@@ -108,7 +110,7 @@ v = await state();
 check('report 79 as he drew it: hip & valley over the deeper bump', v.hvAtBump === 4, JSON.stringify(v));
 await pg.evaluate(() => _cornerRepoOpen(6));
 v = await state();
-check('…the pad shows Hip & valley ticked', v.on === 'hv' && v.modes === '{"5":"hv"}', v.on + ' ' + v.modes);
+check('…the pad shows Hip & valley ticked', v.on === 'hv' && JSON.parse(v.modes)['5'] === 'hv', v.on + ' ' + v.modes);
 const tallies = await pg.evaluate(() => {
   const t = () => { try { const r = _sheetPuzzleBuild({}); return { n: (r.tally || []).reduce((a, x) => a + (x.n || x.count || 0), 0), extra: JSON.stringify(r.tally).includes('extra') }; } catch(e){ return { err: e.message }; } };
   const before = t(); _bumpSetMode('mono'); const after = t();
@@ -119,20 +121,20 @@ check('…Mono extension takes the little hip end away', v.hvAtBump === 0 && v.s
 check('…and the sheet layout orders fewer sheets and no extras for it',
   tallies.after.n > 0 && tallies.after.n < tallies.before.n && !tallies.after.extra, JSON.stringify(tallies));
 
-v = await pg.evaluate(() => { undoLast(); const a = JSON.stringify(DRAW.bumpModes); redoLast(); return a + ' ' + JSON.stringify(DRAW.bumpModes); });
-check('Undo puts the last choice back, and Redo the new one', v === '{"5":"hv"} {"5":"mono"}', v);
+v = await pg.evaluate(() => { undoLast(); const a = (DRAW.bumpModes || {})['5']; redoLast(); return a + ' ' + (DRAW.bumpModes || {})['5']; });
+check('Undo puts the last choice back, and Redo the new one', v === 'hv mono', v);
 
 // ── saved with the job ──
 v = await pg.evaluate(() => {
   const snap = JSON.parse(JSON.stringify(snapshotCurrentJob()));
   DRAW.bumpModes = null;
   restoreFromJob({ id: 'r78', client_name: 'X', site_address: 'Y', draw_state: snap });
-  return JSON.stringify(DRAW.bumpModes);
+  return (DRAW.bumpModes || {})['5'];
 });
-check('the choice is saved with the job', v === '{"5":"mono"}', v);
+check('the choice is saved with the job', v === 'mono', v);
 
 // ── where it is not offered ──
-v = await pg.evaluate(() => { _cornerRepoOpen(0); const r = document.getElementById('cornerBumpRow'); return r.style.display; });
+v = await pg.evaluate(() => { _cornerRepoOpen(2); const r = document.getElementById('cornerBumpRow'); return r.style.display; });
 check('a corner that is not a bump shows no switch', v === 'none', v);
 v = await pg.evaluate(() => {
   gotoTab('roof'); clearAll(true);

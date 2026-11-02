@@ -6818,7 +6818,7 @@ function _pzMonoBumps(ol, lines){
   try { bs = _outlineBumps(ol) || []; } catch(e){ return []; }
   var near = function(p, c){ return Math.hypot(p[0]-c[0], p[1]-c[1]) < 4; };
   return bs.filter(function(b){
-    var A = ol[b.a], B = ol[b.b], C = ol[b.c], D = ol[b.d];
+    var A = ol[b.a], B = ol[b.b], C = ol[b.c], D = b.d >= 0 ? ol[b.d] : b.dPt;
     // No roof line runs into the bump: not to its outer corners (its own hip
     // end), nor anywhere in it (a gable T's stem, its ridge out to the end).
     var quad = [A, B, C, D];
@@ -6828,19 +6828,30 @@ function _pzMonoBumps(ol, lines){
       if (_spPointInPoly(p[0], p[1], quad)) return true;
       return _pzPtSeg(p, A, B).d < 3 || _pzPtSeg(p, B, C).d < 3 || _pzPtSeg(p, C, D).d < 3;
     };
+    // (A corner step only where it was BUILT as a mono extension: a barge
+    // runs from its outer corner exactly to the wall line, the main wall's
+    // gutter carrying on from there. A step on a gable — a jog in its wall —
+    // is laid as it always was.)
+    if (b.corner && !lines.some(function(l){ return l.type === 'barge' && l.pts.length === 2 &&
+        ((near(l.pts[0], C) && near(l.pts[1], D)) || (near(l.pts[0], D) && near(l.pts[1], C))); })) return false;
     return !lines.some(function(l){
       if (!/^(hip|valley|ridge|apron|changepitch)$/.test(l.type)) return false;
       var a = l.pts[0], z = l.pts[l.pts.length - 1];
       return [a, z, [(a[0]+z[0])/2, (a[1]+z[1])/2]].some(inBump);
     });
-  }).map(function(b){ return { A: ol[b.a], B: ol[b.b], C: ol[b.c], D: ol[b.d], ia: b.a, ib: b.b, ic: b.c, id: b.d }; });
+  }).map(function(b){ return { A: ol[b.a], B: ol[b.b], C: ol[b.c], D: b.d >= 0 ? ol[b.d] : b.dPt, ia: b.a, ib: b.b, ic: b.c, id: b.d, corner: !!b.corner }; });
 }
 function _pzMonoBase(R){
   var ol = R.outline, bumps = _pzMonoBumps(ol, R.lines);
   if (!bumps.length) return;
-  var drop = {};
-  bumps.forEach(function(b){ drop[b.ib] = 1; drop[b.ic] = 1; });
-  var base = ol.filter(function(_, k){ return !drop[k]; });
+  var drop = {}, insD = {};
+  bumps.forEach(function(b){
+    drop[b.ib] = 1; drop[b.ic] = 1;
+    // (A corner step: the wall runs on to D, where the step's side met it.)
+    if (b.corner) insD[Math.min(b.ib, b.ic) === 0 && Math.max(b.ib, b.ic) === ol.length - 1 ? Math.max(b.ib, b.ic) : Math.min(b.ib, b.ic)] = b.D;
+  });
+  var base = [];
+  ol.forEach(function(p, k){ if (insD[k]) base.push(insD[k].slice()); if (!drop[k]) base.push(p); });
   // A and D now sit in the middle of one straight wall: take them out too.
   var n = base.length, keep = [];
   for (var i = 0; i < n; i++){
@@ -7419,7 +7430,59 @@ function _pzStripsOf(f, coverPx, tol, scaleM, idx, pieces){
   });
 }
 function _pzEdgeKey(e){ return [e.a, e.b].map(function(p){ return Math.round(p[0]) + ',' + Math.round(p[1]); }).sort().join('|'); }
+// ONE LAY PER ROOF SHAPE (2026-11-02, the owner: "the app is really slow
+// now, trying to switch between the buttons is taking along time and freezes
+// alot"). Every picture of the layout, the pre-cut page, the pricing tally and
+// each Job Pack capture called the builder afresh: on his job 3314 (40 × 36 m)
+// opening the Job Pack laid the roof out ten times, 52 s, and again on every
+// visit. A lay depends only on the roofs' outlines, lines, pitches and clears,
+// the scale, the cover and the switches below — so it is kept against exactly
+// those, and the same answer is handed back until one of them changes.
+var _PZ_BUILD_CACHE = new Map(), _PZ_BUILD_CACHE_MAX = 10;
+function _pzBuildKey(opts){
+  try {
+    var idxs = opts.roofIdxs;
+    if (!idxs){ idxs = []; if (DRAW.roofs && DRAW.roofs.length){ for (var r = 0; r < DRAW.roofs.length; r++) idxs.push(r); } else idxs = [-1]; }
+    var sigs = idxs.map(function(i){
+      var sg = _pzRoofSig(i, i < 0 ? opts.lines : null);
+      var nm = i < 0 ? ((DRAW.roofs && DRAW.roofs.length > 1) ? DRAW.activeRoofIdx : '') : ((DRAW.roofs[i] && DRAW.roofs[i].name) || '');
+      return sg == null ? 'x' : sg + '|' + nm;
+    });
+    var o = {};
+    // (Only what the builder reads: a picture's own options — rotWide, a
+    // thumbnail, a size — lay the same roof.)
+    ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
+    var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON,
+      (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
+    return JSON.stringify([idxs, sigs, o, flags]);
+  } catch(e){ return null; }
+}
 function _sheetPuzzleBuild(opts){
+  opts = opts || {};
+  // The roof on screen asked for as "the live roof" is the same lay as its
+  // own number when its stored copy matches — laid once, not twice.
+  try {
+    if (opts.roofIdxs && opts.roofIdxs.length === 1 && opts.roofIdxs[0] === -1 && DRAW.roofs && DRAW.roofs.length && DRAW.activeRoofIdx >= 0 &&
+        _pzRoofSig(-1, opts.lines) === _pzRoofSig(DRAW.activeRoofIdx)){
+      opts = Object.assign({}, opts, { roofIdxs: [DRAW.activeRoofIdx] }); delete opts.lines;
+    }
+  } catch(e){}
+  var ck = (typeof window === 'undefined' || !window.__PZ_NO_CACHE) ? _pzBuildKey(opts) : null;
+  if (ck && _PZ_BUILD_CACHE.has(ck)){
+    var hit = _PZ_BUILD_CACHE.get(ck);
+    _PZ_BUILD_CACHE.delete(ck); _PZ_BUILD_CACHE.set(ck, hit);
+    try { window._lastSheetPuzzle = hit; } catch(e){}
+    return hit;
+  }
+  var res0 = _sheetPuzzleBuildRaw(opts);
+  if (ck && res0){
+    _PZ_BUILD_CACHE.set(ck, res0);
+    while (_PZ_BUILD_CACHE.size > _PZ_BUILD_CACHE_MAX) _PZ_BUILD_CACHE.delete(_PZ_BUILD_CACHE.keys().next().value);
+  }
+  return res0;
+}
+function _sheetPuzzleBuildRaw(opts){
   opts = opts || {};
   var t0Build = Date.now();
   var scaleM = DRAW.scaleMetresPerPx > 0 ? DRAW.scaleMetresPerPx : 0.02;
@@ -9170,8 +9233,12 @@ function _pzTallyOfRoof(idx){
   var sig = _pzRoofSig(live ? -1 : idx);
   if (!sig) return null;
   if (_PZ_TALLY_CACHE[sig]) return _PZ_TALLY_CACHE[sig];
+  // (The roof on screen, when its stored copy is the same roof, is laid by
+  // its number — the lay the Job Pack's pictures ask for — so it is laid once.)
+  var bi = live ? -1 : idx;
+  if (live && DRAW.roofs && DRAW.roofs.length && DRAW.activeRoofIdx >= 0 && _pzRoofSig(DRAW.activeRoofIdx) === sig) bi = DRAW.activeRoofIdx;
   var pz = null;
-  try { pz = _sheetPuzzleBuild({ roofIdxs: [live ? -1 : idx] }); } catch(e){ pz = null; }
+  try { pz = _sheetPuzzleBuild({ roofIdxs: [bi] }); } catch(e){ pz = null; }
   var t = (pz && pz.faces && pz.faces.length && pz.tally) ? pz.tally : [];
   // A layout that orders less steel than the roof has area is a roof the
   // layout cannot read yet (report 60's dog-leg gable laid 12 sheets of a
@@ -9478,7 +9545,25 @@ function _pzOvOff(A, dx, dy, B){
 // an offcut be up to _PZ_FIT_MM short of its piece, so the fit is tried a lap
 // up as well and drawn where it lands.
 var _PZ_PACK_STEP = 5;
+// A placement already worked out is not worked out again: the offcut search
+// packs the same piece on the same sheet beside the same neighbours many times
+// over (every order of a set, every set a sheet is offered). Kept against the
+// piece, the sheet, and exactly what already lies on it.
+var _PZ_PLACE_MEMO = new Map(), _PZ_PID = new WeakMap(), _PZ_PID_N = 0;
+function _pzPid(o){ var v = _PZ_PID.get(o); if (!v){ v = ++_PZ_PID_N; _PZ_PID.set(o, v); } return v; }
 function _pzPlaceOne(g, W, L, placed, low, floor){
+  var mk = null;
+  try {
+    mk = _pzPid(g) + '|' + W + '|' + L + '|' + (low ? 1 : 0) + '|' + Math.round((floor || 0) * 100) + '|' +
+      placed.map(function(it){ var sx = 0, sy = 0; it.poly.forEach(function(q){ sx += q[0]; sy += q[1]; }); return _pzPid(it.pc || it) + '@' + Math.round(it.poly[0][0] * 100) + ',' + Math.round(it.poly[0][1] * 100) + ',' + Math.round(sx * 10) + ',' + Math.round(sy * 10) + ':' + it.poly.length; }).join(';');
+  } catch(e){ mk = null; }
+  var cp = function(r){ return r ? r.map(function(it){ return { pc: it.pc, poly: it.poly }; }) : r; };
+  if (mk && _PZ_PLACE_MEMO.has(mk)) return cp(_PZ_PLACE_MEMO.get(mk));
+  var r0 = _pzPlaceOneRaw(g, W, L, placed, low, floor);
+  if (mk){ if (_PZ_PLACE_MEMO.size > 60000) _PZ_PLACE_MEMO.clear(); _PZ_PLACE_MEMO.set(mk, r0); }
+  return cp(r0);
+}
+function _pzPlaceOneRaw(g, W, L, placed, low, floor){
   var best = null;
   var pins = placed.map(function(it){ if (!it._ins) it._ins = _pzInsetOf(it.poly); return it._ins; });
   [0, _PZ_FIT_MM].forEach(function(lift){
@@ -9486,8 +9571,16 @@ function _pzPlaceOne(g, W, L, placed, low, floor){
     [_pzSpin(g.items, g.w, g.h), g.items].forEach(function(cand){
       var cins = cand.map(function(it){ return _pzInsetOf(it.poly); });
       [0, Math.max(0, W - g.w)].forEach(function(x){
+        // (The pair that blocked the last step is tried first: sliding a
+        // piece along a sheet, the same neighbour is usually still in the
+        // way, and on an 18 m sheet that is a thousand steps.)
+        var lc = 0, lp = 0;
         var fits = function(yy){
-          for (var ci = 0; ci < cins.length; ci++) for (var pi = 0; pi < pins.length; pi++) if (_pzOvOff(cins[ci], x, yy + lift, pins[pi])) return false;
+          if (cins.length && pins.length && _pzOvOff(cins[lc], x, yy + lift, pins[lp])) return false;
+          for (var ci = 0; ci < cins.length; ci++) for (var pi = 0; pi < pins.length; pi++){
+            if (ci === lc && pi === lp) continue;
+            if (_pzOvOff(cins[ci], x, yy + lift, pins[pi])){ lc = ci; lp = pi; return false; }
+          }
           return true;
         };
         var lo = Math.max(-_PZ_FIT_MM - 6, (floor || 0) - _PZ_FIT_MM - 6), hi = L - g.h, y, st = Math.max(_PZ_PACK_STEP, Math.round(L / 1000));
@@ -9584,9 +9677,10 @@ var _PZ_OPT_ON = true;
 // most one sheet's length more steel, and reads at least one patch cleaner. (Measured on the
 // finished lays: on the roofs already approved the later moves tidy what
 // move 3 disturbs, and there it stays.) PZ_SET_GUARD = false turns it off.
-var PZ_SET_GUARD = true, _PZ_NO_FULL = false;
-// Rule 9l, the apex nudge / centred donor (false = off).
-var PZ_APEX_SHIFT = true;
+// OFF until the owner says go (2026-11-02): the pictures are with him.
+var PZ_SET_GUARD = false, _PZ_NO_FULL = false;
+// Rule 9l, the apex nudge / centred donor (false = off; off until his go).
+var PZ_APEX_SHIFT = false;
 var _PZ_STEEL_TIE_MM = 1000;
 var _PZ_OPT_BUDGET = 3000;
 var _PZ_OPT_NEAR = 16;

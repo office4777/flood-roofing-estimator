@@ -664,7 +664,9 @@ THE FILL:
    steel and no patchier, or a patch cleaner for at most a sheet's length
    more. A try lays the roof the way that won (`_noAlt`, `res._lay`) without
    move 3, and the tries stop at ~0.6 of the roof's own time. Switches:
-   `PZ_SET_GUARD`, `PZ_APEX_SHIFT` (false = off). Moved: the walkthrough roof
+   `PZ_SET_GUARD`, `PZ_APEX_SHIFT` — SHIPPED OFF (false) on 2026-11-02 while the
+   owner has the pictures; his "go" turns both true (`sheetlayout.mjs` pins
+   them with the switches on, `rule9l`). Moved with them on: the walkthrough roof
    (46, the bottom end ↺A6 … ↺A1 in order, +1 m), report 71 70 → 67 (both
    ends' full apex sheets gone, −19 m), report 73 136 → 135, the T relabelled
    (its east end's stray A22 now in the set); every other fixture identical,
@@ -2943,6 +2945,26 @@ not a saving, and 49 purple to 48 orange.
   the header says so. Named for the quote's ref so two jobs do not
   overwrite each other.
   `tests/pbdefaults.mjs`.
+- ONE LAY PER ROOF SHAPE, AND A PACKER THAT DOES NOT REPEAT ITSELF
+  (2026-11-02, the owner: "the app is really slow now, trying to switch
+  between the buttons is taking along time and freezes alot"). On his job 3314
+  (40 × 36 m, 17.7 m sheets) opening the Job Pack laid the sheet layout out ten
+  times — every picture, the pre-cut page and the pricing tally called
+  `_sheetPuzzleBuild` afresh — 52 s, and 41 s again on every return. Now:
+  `_sheetPuzzleBuild` keeps its answer (`_PZ_BUILD_CACHE`, 10 kept) against
+  `_pzBuildKey` — each roof's `_pzRoofSig` (outline, lines, pitches, scale,
+  cover, clears) and name, the builder's own options only (`rotWide`, `thumb`
+  and sizes are a picture's, not a lay's), the pitch box and every switch the
+  builder reads; the live roof asked for as -1 is laid as its own number when
+  its stored copy matches (`_pzTallyOfRoof` too), so it is laid once. And the
+  offcut search's packer remembers a placement already worked out
+  (`_pzPlaceOne` → `_PZ_PLACE_MEMO`, keyed on the piece, the sheet and exactly
+  what lies on it; copies handed out, as the pre-cut page clips them) and
+  tries the pair that blocked the last step first — 155 million overlap tests
+  on his roof before. Every fixture lays out IDENTICALLY, label for label
+  (dumped before and after); 2–7× faster: his roof 19 → 2.8 s, report 76
+  17 → 5 s; the Job Pack opens in 3.5 s (was 52) and reopens in ~1 s (was 41).
+  `window.__PZ_NO_CACHE = true` bypasses the cache.
 - A 5 MB PAGE IS NOT A 30-SECOND LOAD, EXCEPT ON A BUSY RUNNER (2026-10-20):
   `roofmenu` died at 30.4 s on a main run with nothing but `TimeoutError`, and
   a red main SKIPS THE PROMOTE, so one slow `file://` load of app.html held a
@@ -4847,6 +4869,20 @@ not a saving, and 49 purple to 48 orange.
   the inside corner below the one aimed at — it takes the nearest now. His
   pictures: report 79's roof 56 sheets with five extras → 47 with none as a
   mono extension. `tests/report78.mjs` (21, a real mouse drag).
+  A CORNER STEP IS A BUMP TOO (feedback reports 82 and 83, 2026-11-02, job
+  3314: "these little steps there should be a button to click mono-extension
+  as you can see it creates a hip and valley junction if pulled too far",
+  "another example moved in a little auto converts it which is wrong"). A step
+  at the END of a wall — flush with the next wall, one inside corner A, outer
+  corners B and C, C's far side running straight on past A's wall — had no
+  inside corner D, so `_outlineBumps` never found it: no switch, and its kind
+  decided by the drag. It is found now walking both ways round (`corner:
+  true`, `d: -1`, `dPt` = where A's wall line crosses C's side; only under 0.3
+  of the building's narrower span — deeper is an L's wing), `_bumpPts` gives
+  its four points, and 'mono' builds the main roof with D in place of B and C
+  (barges A–B and C–D, gutter on its end), 'hv' keeps its outer wall out of
+  the squaring. The sheet layout's `_pzMonoBumps` / `_pzMonoBase` read it the
+  same way. `tests/report82.mjs` (13, his roof, a real drag).
 - A ROOF PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate
   and 5-rib share the same standard roofing sheet price, but then a profile
   like RI-925 has it's own more expensive price"). He had added RI-925 and

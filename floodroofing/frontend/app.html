@@ -5213,7 +5213,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-01T20:20:19Z';
+  window.APP_BUILT_AT = '2026-11-02T02:34:32Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -54015,8 +54015,48 @@ function _outlineBumps(ol){
     out.push({ a: ia, b: ib, c: ic, d: id, key: String(ib), depth: (uAB[2] + uCD[2]) / 2, width: uBC[2],
                axis: Math.abs(uBC[0]) >= Math.abs(uBC[1]) ? 1 : 0 });
   }
+  // A CORNER STEP (feedback reports 82 and 83, 2026-11-02, the owner on job
+  // 3314: "these little steps there should be a button to click
+  // mono-extension as you can see it creates a hip and valley junction if
+  // pulled too far", "another example moved in a little auto converts it
+  // which is wrong"). A step at the END of a wall: A an inside corner, B and C
+  // its outer corners, and C's far side runs straight on past the wall A
+  // stands on — flush with the next wall, so there is no inside corner D to
+  // find. D is where that wall's line crosses C's side (dPt; d = -1). Only a
+  // shallow one (under 0.3 of the building's narrower span) — deeper, it is an
+  // L's wing. Found walking both ways round.
+  var bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  ol.forEach(function(p){ bx0 = Math.min(bx0, p[0]); by0 = Math.min(by0, p[1]); bx1 = Math.max(bx1, p[0]); by1 = Math.max(by1, p[1]); });
+  var span = Math.min(bx1 - bx0, by1 - by0), taken = {};
+  // (A bump's own corners — its inside ones included — are never a step's:
+  // the stub between a bump and the building's corner is not a step.)
+  out.forEach(function(b){ taken[b.a] = taken[b.b] = taken[b.c] = taken[b.d] = 1; });
+  [1, -1].forEach(function(dir){
+    var Q = function(k){ return ((dir > 0 ? k : -k) % n + n) % n; };   // the k-th corner walking this way
+    var tq = function(k){ return turn(Q(k)); };   // (convex or inside whichever way it is walked)
+    for (var j = 0; j < n; j++){
+      var iX = Q(j), iY = Q(j + 1), iZ = Q(j + 2), iW = Q(j + 3), iP = Q(j - 1);
+      if (taken[iX] || taken[iY] || taken[iZ]) continue;
+      if (!(tq(j) < 0 && tq(j + 1) > 0 && tq(j + 2) > 0)) continue;
+      var X = ol[iX], Y = ol[iY], Z = ol[iZ], Wp = ol[iW];
+      var u1 = unit(X, Y), u2 = unit(Y, Z), u3 = unit(Z, Wp), uP = unit(ol[iP], X);
+      if (!u1 || !u2 || !u3 || !uP) continue;
+      if (Math.abs(u1[0] * u2[0] + u1[1] * u2[1]) > 0.26 || Math.abs(u2[0] * u3[0] + u2[1] * u3[1]) > 0.26) continue;
+      if (u3[0] * u1[0] + u3[1] * u1[1] > -0.96) continue;                 // C's side runs back past the wall
+      if (uP[0] * u2[0] + uP[1] * u2[1] < 0.96) continue;                   // A on a straight wall, in line with the step's face
+      var t = (X[0] - Z[0]) * u3[0] + (X[1] - Z[1]) * u3[1];              // along C's side to A's wall
+      if (!(t > 1) || u3[2] < t + 3 || t > 0.3 * span) continue;
+      var dPt = [Z[0] + u3[0] * t, Z[1] + u3[1] * t];
+      taken[iX] = taken[iY] = taken[iZ] = 1;
+      out.push({ a: iX, b: iY, c: iZ, d: -1, dPt: dPt, corner: true, key: String(iY), depth: (u1[2] + t) / 2, width: u2[2],
+                 axis: Math.abs(u2[0]) >= Math.abs(u2[1]) ? 1 : 0 });
+    }
+  });
   return out;
 }
+// A bump's four corners as points (a corner step's D is not a corner of the
+// outline but the point on C's side level with A's wall).
+function _bumpPts(b, ol){ return [ol[b.a], ol[b.b], ol[b.c], b.d >= 0 ? ol[b.d] : b.dPt]; }
 function _bumpForCorner(idx){
   var bs = _outlineBumps(DRAW.outline);
   for (var i = 0; i < bs.length; i++){ var b = bs[i]; if (idx === b.a || idx === b.b || idx === b.c || idx === b.d) return b; }
@@ -54025,7 +54065,7 @@ function _bumpForCorner(idx){
 // What the roof over a bump IS on screen: hip & valley when a hip or valley
 // ends at one of its corners, otherwise the main slope carried over it.
 function _bumpShownMode(b){
-  var cs = [b.a, b.b, b.c, b.d].map(function(k){ return DRAW.outline[k]; });
+  var cs = _bumpPts(b, DRAW.outline);
   var hv = (DRAW.lines || []).some(function(l){
     return l && (l.type === 'hip' || l.type === 'valley') && l.pts && l.pts.some(function(p){
       return cs.some(function(c){ return Math.hypot(p[0] - c[0], p[1] - c[1]) < 4; });
@@ -54049,22 +54089,26 @@ function _hipLinesWithBumps(outline){
       outline.some(function(p, k){ return p[0] !== DRAW.outline[k][0] || p[1] !== DRAW.outline[k][1]; })) return buildHipValleyLines(outline);
   var bs = _outlineBumps(outline).filter(function(b){ return modes[b.key] === 'hv' || modes[b.key] === 'mono'; });
   if (!bs.length) return buildHipValleyLines(outline);
-  var drop = {}, extra = [], keep = [];
+  var drop = {}, extra = [], keep = [], insD = {};
   bs.forEach(function(b){
-    var A = outline[b.a], B = outline[b.b], C = outline[b.c], D = outline[b.d];
+    var bp = _bumpPts(b, outline), A = bp[0], B = bp[1], C = bp[2], D = bp[3];
     if (modes[b.key] === 'mono'){
       drop[b.b] = 1; drop[b.c] = 1;
+      // (A corner step's main wall runs on to D, where the step's side met it.)
+      if (b.corner) insD[Math.min(b.b, b.c) === 0 && Math.max(b.b, b.c) === outline.length - 1 ? Math.max(b.b, b.c) : Math.min(b.b, b.c)] = D;
       extra.push({ type: 'barge', pts: [A.slice(), B.slice()], bumpSide: true },
                  { type: 'barge', pts: [C.slice(), D.slice()], bumpSide: true });
     } else {
       keep.push({ axis: b.axis, vals: [B[b.axis], C[b.axis]] });
       // Its own hip end has eaves all round, the short sides included (the
       // outline pass only guttered a side over about 0.8 m of drawing).
-      extra.push({ type: 'gutter', pts: [A.slice(), B.slice()], bumpSide: true },
-                 { type: 'gutter', pts: [C.slice(), D.slice()], bumpSide: true });
+      extra.push({ type: 'gutter', pts: [A.slice(), B.slice()], bumpSide: true });
+      // (A corner step's far side is part of the next wall, guttered with it.)
+      if (!b.corner) extra.push({ type: 'gutter', pts: [C.slice(), D.slice()], bumpSide: true });
     }
   });
-  var ol = outline.filter(function(_, k){ return !drop[k]; });
+  var ol = [];
+  outline.forEach(function(p, k){ if (insD[k]) ol.push(insD[k].slice()); if (!drop[k]) ol.push(p); });
   var lines;
   _SQ_KEEP = keep.length ? keep : null;
   try { lines = buildHipValleyLines(ol) || []; } finally { _SQ_KEEP = null; }

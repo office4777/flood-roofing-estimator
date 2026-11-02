@@ -354,9 +354,7 @@ rules('report 70', r);
 const nOf = r2 => r2.tally.reduce((s, x) => s + x.count, 0);
 const mOf = r2 => r2.tally.reduce((s, x) => s + x.count * x.Lmm, 0);
 const tmplLay = (r2, g) => { const T = r2.faces.find(f => f.id === g.template); return T ? T.lay : null; };
-// (73: 135 since rule 9l, 2026-11-02 — its strips nudged off the apex free
-// a purple sheet; 136 before.)
-for (const [n, want] of [[72, 69], [73, 135]]){
+for (const [n, want] of [[72, 69], [73, 136]]){
   r = await lay(fx('report' + n));
   const gf = gridFaces(r);
   check('report ' + n + ': the wing\'s end is cut from the main\'s slope sheets (whole sheets and feet), ' + want + ' sheets, nothing extra',
@@ -433,8 +431,8 @@ check('report 50: the bottom slope carries the strips its wings\' far hips cut a
 // where the wing's end fed from its own slopes took 74. The roof is still
 // laid both ways and the one ordering fewer sheets kept.
 r = await lay(fx('report71'));
-check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 67 sheets since rule 9l (2026-11-02: the ends\' strips nudged a quarter cover off the apex, their full apex sheets gone), 70 before, 74 before that',
-  gridFaces(r).length === 1 && nOf(r) === 67, tallyOf(r) + ' ' + mOf(r));
+check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 70 sheets where it was 74',
+  gridFaces(r).length === 1 && nOf(r) === 70, tallyOf(r) + ' ' + mOf(r));
 rules('report 71', r);
 // THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's
 // roof, a hip with a 1.4 m step down its west side: "it's all patchy again,
@@ -443,6 +441,9 @@ rules('report 71', r);
 // the bottom hip end was patched with whatever offcuts were over. Now the
 // step's rows are the slope's own sheets A1–A6 in order, and their offcuts
 // are the bottom end's east half ↺A1 … ↺A6, in order, nothing else among them.
+// (Rule 9l is held OFF until the owner's go; these pins switch it on.)
+const rule9l = (on) => pg.evaluate((on) => { PZ_SET_GUARD = on; PZ_APEX_SHIFT = on; }, on);
+await rule9l(true);
 r = await lay(fx('walkthrough'));
 {
   const step = gridFaces(r)[0];
@@ -456,7 +457,12 @@ r = await lay(fx('walkthrough'));
     sl.slice(0, 6).join(',') === 'A1,A2,A3,A4,A5,A6' && aRun.length === 6 && between.length === 6 && nOf(r) === 46,
     JSON.stringify({ step: sl, bottom }) + ' ' + tallyOf(r));
   rules('the walkthrough roof', r);
+  r = await lay(fx('report71'));
+  check('rule 9l, report 71: the ends\' strips nudged a quarter cover off the apex, their full apex sheets gone — 67 sheets (70 without it)', nOf(r) === 67, tallyOf(r));
+  r = await lay(fx('report73'));
+  check('rule 9l, report 73: 135 sheets (136 without it)', nOf(r) === 135, tallyOf(r));
 }
+await rule9l(false);
 // Wings off the top AND the bottom at the same end: both are cut from their
 // slope's columns, both runs start at the wings' end, and the west face —
 // now the main's hip end between two wing slopes — still anchors at its apex.
