@@ -184,6 +184,20 @@ accordingly.
   now, because an A4 sheet's print viewport (~718 px) used to put the stacked phone layout on his PDF.
   `hubui` (125) pins both grids, the four pages, a break moved / removed / added, the print media's
   breaks and the computer's A4 card.
+  THE MEETING DECK'S FERGUS PHOTOS COME SMALL AND TOGETHER (2026-11-03, the owner: "the fergus job
+  photos are taking along time to load, please speed this up to be alot faster, mayb lower the
+  resolution slightly"). Fergus's "thumbnail" is the full photo, so the picker grid pulled every
+  multi-megabyte original one after another through the proxy. `/fergus-files/download?w=<px>`
+  (server.js, `_fergusImageResize`, @napi-rs/canvas — already a backend dependency; the decoder bakes
+  the EXIF orientation in itself, a second turn from the tag put the test photo on its side) answers a
+  JPEG no bigger than w on its long side, kept in `_fgImgCache` per URL + size (240 entries, 6 h) so the
+  second person opening the deck is served at once; a file it cannot decode (HEIC, a PDF) comes back as
+  it is, and no `w` is the old route untouched. The hub (`mtgDlUrl`, `_mtgParallel`, `MTG_THUMB_W` 360,
+  `MTG_PHOTO_W` 1400, `MTG_PAR` 5) fetches the grid's thumbnails five at a time at 360 px and a pull
+  into the slots at 1400 px together, placed in Fergus's order; an API from before `w` sends the
+  original and everything still works, only slower. `ferguskey.mjs` serves an EXIF-6 JPEG from a local
+  port and pins the size, the orientation, the cache and the untouched original; `hubui` (126) pins the
+  picker's URLs and the parallelism with a stubbed fetch.
   `hub-backcost-csv.yml` → `hub-api/scripts/backcost-csv.js` (2026-10-28/29) exports every back-costed
   job as a CSV (`months`, `keep_all`), the source of the owner's 29 Oct back-costing report.
   TWO ON-DEMAND REPORTS RUN WHERE THE PROXY SECRETS LIVE (GitHub Actions, 2026-10-27):

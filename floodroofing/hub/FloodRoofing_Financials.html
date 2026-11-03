@@ -7094,19 +7094,28 @@ async function mtgOpenPicker(jobId,k,id){
   if(!files.length){mtgRenderPicker('empty',(data&&data.hint)||'No photos found for this job.');return;}
   mtgRenderPicker('list');mtgLoadThumbs(jobId);
 }
+// THE PHOTOS COME SMALL AND SEVERAL AT ONCE (2026-11-03, the owner: "the fergus job photos are taking along
+// time to load, please speed this up to be alot faster, mayb lower the resolution slightly"). Fergus's
+// "thumbnail" is the full photo, so the grid used to pull every multi-megabyte original one after another.
+// The backend's download route takes `w` (a copy no bigger than w px, EXIF orientation baked in): the grid
+// asks for MTG_THUMB_W, a slot MTG_PHOTO_W, MTG_PAR at a time. A backend from before `w` sends the original
+// and everything still works, only slower.
+const MTG_THUMB_W=360, MTG_PHOTO_W=1400, MTG_PAR=5;
+function mtgDlUrl(u,w){return rmBackend()+'/fergus-files/download?url='+encodeURIComponent(u)+(w?'&w='+w:'');}
+async function _mtgParallel(items,n,fn){let i=0;const run=async()=>{while(i<items.length){const k=i++;try{await fn(items[k],k);}catch(e){}}};await Promise.all(Array.from({length:Math.min(n,items.length)},run));}
 async function mtgLoadThumbs(jobId){
   const cache=_mtgFergusCache[jobId];if(!cache)return;const auth={Authorization:'Bearer '+rmToken()};
-  for(let i=0;i<cache.files.length;i++){const f=cache.files[i];const fid=f.id||('i'+i);
-    if(cache.thumbs[fid]){const el=document.getElementById('mtgpk-'+i);if(el&&!el.classList.contains('ready')){el.style.backgroundImage="url('"+cache.thumbs[fid]+"')";el.classList.add('ready');}continue;}
-    try{const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.thumbnail||f.url),{headers:auth});if(!r.ok)throw 0;const b=await r.blob();const d=await _blobToDataURL(b);cache.thumbs[fid]=d;const el=document.getElementById('mtgpk-'+i);if(el){el.style.backgroundImage="url('"+d+"')";el.classList.add('ready');}}
+  await _mtgParallel(cache.files,MTG_PAR,async(f,i)=>{const fid=f.id||('i'+i);
+    if(cache.thumbs[fid]){const el=document.getElementById('mtgpk-'+i);if(el&&!el.classList.contains('ready')){el.style.backgroundImage="url('"+cache.thumbs[fid]+"')";el.classList.add('ready');}return;}
+    try{const r=await fetch(mtgDlUrl(f.thumbnail||f.url,MTG_THUMB_W),{headers:auth});if(!r.ok)throw 0;const b=await r.blob();const d=await _blobToDataURL(b);cache.thumbs[fid]=d;const el=document.getElementById('mtgpk-'+i);if(el){el.style.backgroundImage="url('"+d+"')";el.classList.add('ready');}}
     catch(e){const el=document.getElementById('mtgpk-'+i);if(el)el.classList.add('na');}
-  }
+  });
 }
 async function mtgPick(i){
   const t=_mtgPickTarget;if(!t)return;const cache=_mtgFergusCache[t.jobId];if(!cache)return;const f=cache.files[i];if(!f)return;
   const el=document.getElementById('mtgpk-'+i);if(el)el.classList.add('picking');
   const auth={Authorization:'Bearer '+rmToken()};let dataUrl='';
-  try{const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.blob();dataUrl=await mtgNormalizeImage(b);}
+  try{const r=await fetch(mtgDlUrl(f.url,MTG_PHOTO_W),{headers:auth});if(!r.ok)throw new Error('HTTP '+r.status);const b=await r.blob();dataUrl=await mtgNormalizeImage(b);}
   catch(e){alert('Couldn’t download that photo: '+e.message);if(el)el.classList.remove('picking');return;}
   mtgSetSlot(t.k,t.id,dataUrl);mtgClosePicker();renderMeeting();
 }
@@ -7220,19 +7229,20 @@ async function mtgFetchPhotos(id,k,btn){
   const imgs=files.filter(f=>f&&f.url&&(/^image\//i.test(f.contentType||'')||/\.(jpe?g|png|webp|gif|heic)(\?|#|$)/i.test(String(f.name||f.url)))).slice(0,6);
   if(!imgs.length){setL('no photos');setTimeout(renderMeeting,1600);return;}
   const emptySlots=MTG_SLOTS.filter(sl=>!mtgSlotHas(k,sl.id)).map(sl=>sl.id);
-  let si=0;
-  for(const f of imgs){
-    if(si>=emptySlots.length)break;
+  if(!emptySlots.length){setL('slots full');setTimeout(renderMeeting,1600);return;}
+  // the first N photos for the N empty slots, fetched together (small copies), then placed in Fergus's order
+  const want=imgs.slice(0,emptySlots.length);const got=new Array(want.length).fill('');let done=0;
+  await _mtgParallel(want,MTG_PAR,async(f,i)=>{
     try{
-      const r=await fetch(rmBackend()+'/fergus-files/download?url='+encodeURIComponent(f.url),{headers:auth});
-      if(!r.ok)continue;
+      const r=await fetch(mtgDlUrl(f.url,MTG_PHOTO_W),{headers:auth});
+      if(!r.ok)return;
       const blob=await r.blob();
-      const dataUrl=await mtgNormalizeImage(blob);      // bake EXIF orientation so PowerPoint never rotates it
-      if(dataUrl){mtgSetSlot(k,emptySlots[si],dataUrl);si++;}
+      got[i]=await mtgNormalizeImage(blob)||'';      // bake EXIF orientation so PowerPoint never rotates it
     }catch(e){}
-    setL('pulling… '+si);
-  }
-  if(!si)setL('slots full');
+    done++;setL('pulling… '+done+'/'+want.length);
+  });
+  let si=0;got.forEach(d=>{if(d){mtgSetSlot(k,emptySlots[si],d);si++;}});
+  if(!si)setL('couldn’t download');
   renderMeeting();
 }
 function mtgPrint(){document.body.classList.add('mtg-printing');const done=()=>{document.body.classList.remove('mtg-printing');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{try{window.print();}catch(e){done();}},60);}

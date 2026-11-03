@@ -130,6 +130,27 @@ const rep = await pg.evaluate(() => {
 check('the Reports tab opens and carries the Team meeting and Back-costing review buttons', rep.on && rep.here.every(Boolean) && rep.title === 'Reports', JSON.stringify(rep));
 check('…and the two buttons are gone from the Command Centre and the Back Cost tab', rep.gone.every(x => !x), JSON.stringify(rep.gone));
 check('…and each opens its own window from there', rep.mtg && rep.bcr, JSON.stringify(rep));
+// The meeting deck's Fergus photo picker asks the backend for SMALL copies (w=360), several at once, and a pull into
+// the slots asks for w=1400 — not the full photos one after another (2026-11-03, "taking along time to load").
+const pk = await pg.evaluate(async () => {
+  S.set('rmToken', 'test-token'); const realFetch = window.fetch; const calls = []; let inFlight = 0, maxInFlight = 0;
+  const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='), c => c.charCodeAt(0));
+  window.fetch = async (u) => { u = String(u); calls.push(u);
+    if (/fergus-files\/list/.test(u)) return { status: 200, ok: true, json: async () => ({ ok: true, files: Array.from({ length: 8 }, (_, i) => ({ id: 'f' + i, name: 'p' + i + '.jpg', url: 'https://api.fergus.com/x/p' + i + '.jpg', thumbnail: 'https://api.fergus.com/x/p' + i + '.jpg', contentType: 'image/jpeg' })) }) };
+    inFlight++; maxInFlight = Math.max(maxInFlight, inFlight); await new Promise(r => setTimeout(r, 40)); inFlight--;
+    return { status: 200, ok: true, blob: async () => new Blob([png], { type: 'image/png' }) }; };
+  openMeeting(); const k = 'pk-test';
+  await mtgOpenPicker('4242', k, MTG_SLOTS[0].id); await new Promise(r => setTimeout(r, 400));
+  const thumbs = calls.filter(u => /download/.test(u));
+  const ready = document.querySelectorAll('#mtg-picker .mtg-pk-item.ready').length;
+  mtgClosePicker();
+  calls.length = 0; const btn = document.createElement('button');
+  await mtgFetchPhotos('4242', k, btn); await new Promise(r => setTimeout(r, 100));
+  const pulls = calls.filter(u => /download/.test(u)); const filled = MTG_SLOTS.filter(sl => mtgSlotHas(k, sl.id)).length;
+  window.fetch = realFetch; closeMeeting(); S.set('rmToken', '');
+  return { thumbs: thumbs.length, thumbW: thumbs.every(u => /[?&]w=360(&|$)/.test(u)), maxInFlight, ready, pulls: pulls.length, pullW: pulls.every(u => /[?&]w=1400(&|$)/.test(u)), filled, slots: MTG_SLOTS.length };
+});
+check('the meeting deck\'s photo picker asks for 360px copies, several at a time, and the pull into the slots for 1400px copies together', pk.thumbs === 8 && pk.thumbW && pk.maxInFlight >= 3 && pk.ready === 8 && pk.pulls === pk.slots && pk.pullW && pk.filled === pk.slots, JSON.stringify(pk));
 
 // Weekly toolbox talk (2026-10-30): the toolbox app's sheet lives on the Reports tab too
 const tbx = await pg.evaluate(() => {

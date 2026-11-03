@@ -212,6 +212,40 @@ r = await as(B, '/fergus-files/download?url=' + encodeURIComponent('https://127.
 check('…while the exact allowed host still passes the guard (502 — nothing listens)',
   r.status === 502, 'status ' + r.status);
 
+// ── `?w=` hands back a smaller copy, the right way up (2026-11-03, the hub's meeting deck) ──
+// A 1800 × 1200 JPEG carrying EXIF orientation 6 (a phone held upright) is served from a local port the
+// allowed host resolves to; asked for w=360 the server answers a JPEG no bigger than 360 on its long side,
+// turned to portrait (240 × 360) because the orientation is baked in; the second ask is answered from the
+// cache; and with no `w` the original bytes come back untouched.
+{
+  let createCanvas = null; try { ({ createCanvas } = (await import('node:module')).createRequire(pathToFileURL(_j(_ROOT, 'backend', 'server.js')).href)('@napi-rs/canvas')); } catch (e) {}   // the backend's own copy
+  const http = await import('node:http');
+  const jpegDims = buf => { let p = 2; while (p + 9 < buf.length) { if (buf[p] !== 0xFF) break; const m = buf[p + 1], len = buf.readUInt16BE(p + 2); if (m >= 0xC0 && m <= 0xC3) return { h: buf.readUInt16BE(p + 5), w: buf.readUInt16BE(p + 7) }; p += 2 + len; } return null; };
+  if (createCanvas) {
+    const c = createCanvas(1800, 1200); const x = c.getContext('2d'); x.fillStyle = '#4a6'; x.fillRect(0, 0, 1800, 1200); x.fillStyle = '#c33'; x.fillRect(0, 0, 400, 1200);
+    const plain = c.toBuffer('image/jpeg', 90);
+    // APP1 Exif: TIFF little-endian, one IFD entry — tag 0x0112 (orientation), SHORT, count 1, value 6
+    const tiff = Buffer.from([0x49, 0x49, 0x2A, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x12, 0x01, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+    const app1body = Buffer.concat([Buffer.from('Exif\0\0', 'ascii'), tiff]);
+    const app1 = Buffer.concat([Buffer.from([0xFF, 0xE1, (app1body.length + 2) >> 8, (app1body.length + 2) & 0xFF]), app1body]);
+    const exif = Buffer.concat([plain.slice(0, 2), app1, plain.slice(2)]);
+    const srv = http.createServer((rq, rs) => { rs.setHeader('content-type', 'image/jpeg'); rs.end(exif); });
+    await new Promise(res => srv.listen(0, '127.0.0.1', res));
+    const u = 'http://127.0.0.1:' + srv.address().port + '/photo.jpg';
+    r = await as(B, '/fergus-files/download?url=' + encodeURIComponent(u) + '&w=360');
+    const small = Buffer.from(await r.arrayBuffer()); const d = jpegDims(small);
+    check('?w=360 answers a JPEG no bigger than 360 on its long side, turned upright by its EXIF orientation (240 × 360 from an 1800 × 1200 sideways original)',
+      r.status === 200 && /image\/jpeg/.test(r.headers.get('content-type') || '') && r.headers.get('x-resized') === '360' && d && d.w === 240 && d.h === 360 && small.length < exif.length / 10,
+      JSON.stringify({ status: r.status, ct: r.headers.get('content-type'), x: r.headers.get('x-resized'), d, len: small.length, orig: exif.length }));
+    r = await as(B, '/fergus-files/download?url=' + encodeURIComponent(u) + '&w=360');
+    check('…the second ask for the same copy comes from the cache', r.status === 200 && r.headers.get('x-resized') === 'cached', 'x-resized ' + r.headers.get('x-resized'));
+    r = await as(B, '/fergus-files/download?url=' + encodeURIComponent(u));
+    const full = Buffer.from(await r.arrayBuffer());
+    check('…and without w the original bytes come back as they are', r.status === 200 && full.length === exif.length && !r.headers.get('x-resized'), JSON.stringify({ status: r.status, len: full.length, orig: exif.length }));
+    srv.close();
+  } else { check('(@napi-rs/canvas not installed here — the resize pins did not run)', false, 'npm install in floodroofing/backend'); }
+}
+
 // ── clearing the field is how you disconnect — that must still work ──
 // (the app marks a deliberate clear with __cleared since 2026-09-22; a bare
 // blank keeps the stored key, see below)

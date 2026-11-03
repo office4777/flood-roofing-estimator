@@ -12115,16 +12115,45 @@ app.get('/fergus-files/list', requireAuth, requireSubscription, async (req, res)
   res.json({ ok: false, files: [], attempts, hint: 'No candidate path or job-blob scan returned a file array. Each attempt above shows the response status + body shape so we can pick the right one.' });
 });
 
+// A SMALLER COPY OF A FERGUS PHOTO (2026-11-03, the owner on the Finance Hub's meeting deck: "the fergus job
+// photos are taking along time to load, please speed this up to be alot faster, mayb lower the resolution
+// slightly"). Fergus's "thumbnail" IS the full photo (several MB each), so a picker grid of thirty photos was
+// thirty full downloads. `?w=<px>` on /fergus-files/download hands back a JPEG no wider or taller than w,
+// decoded and resized here (@napi-rs/canvas), the EXIF orientation baked into the pixels by the decoder — the
+// resize strips EXIF, so without that every portrait phone photo would come out on its side. A file the decoder cannot
+// read (HEIC, a PDF) comes back as it is. Resized copies are kept a while per URL + size so the second person
+// to open the deck gets them at once; the key never reaches the cache (it is keyed on the file URL).
+const _fgImgCache = new Map();                    // url|w -> { buf, ts }
+const FG_IMG_CACHE_MAX = 240, FG_IMG_TTL_MS = 6 * 3600 * 1000;
+function _fgImgCacheGet(k){ const h = _fgImgCache.get(k); if (h && Date.now() - h.ts < FG_IMG_TTL_MS) { _fgImgCache.delete(k); _fgImgCache.set(k, h); return h.buf; } if (h) _fgImgCache.delete(k); return null; }
+function _fgImgCacheSet(k, buf){ _fgImgCache.set(k, { buf, ts: Date.now() }); while (_fgImgCache.size > FG_IMG_CACHE_MAX) _fgImgCache.delete(_fgImgCache.keys().next().value); }
+// @napi-rs/canvas's loadImage applies the EXIF orientation as it decodes (measured: an 1800 × 1200 JPEG tagged
+// orientation 6 loads as 1200 × 1800), so the resized copy is the right way up with nothing more done — a
+// second turn here, from the tag, put the test photo on its side again.
+async function _fergusImageResize(buf, ct, w){
+  const { createCanvas, loadImage } = require('@napi-rs/canvas');
+  const im = await loadImage(buf);
+  const sw = im.width, sh = im.height; if (!(sw > 0 && sh > 0)) return null;
+  const sc = Math.min(1, w / Math.max(sw, sh));
+  if (sc === 1 && !/jpe?g/i.test(ct || '')) return null;                      // small already and not a JPEG that may carry a tag: as it is
+  const cw = Math.max(1, Math.round(sw * sc)), ch = Math.max(1, Math.round(sh * sc));
+  const c = createCanvas(cw, ch);
+  c.getContext('2d').drawImage(im, 0, 0, cw, ch);
+  return c.toBuffer('image/jpeg', 82);
+}
+
 // Stream a single Fergus file back to the browser. The caller supplies
 // the URL (from /fergus-files/list); we re-fetch with the API key so
 // the bytes never expose the credential to the client. Used by the
 // "Select photo from Fergus" flow to grab the picked image and pipe
-// it into the roof-picture preview.
+// it into the roof-picture preview. `?w=<px>` asks for a smaller copy
+// (above).
 app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, res) => {
   const fergusKey = await _fergusKeyFor(req);
   if (!fergusKey) return res.status(400).json(_FERGUS_NOT_CONNECTED);
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'url query param required' });
+  const wantW = req.query.w ? Math.max(64, Math.min(2400, parseInt(req.query.w, 10) || 0)) : 0;
 
   const allowedHostSuffix = (FERGUS_HOST.replace(/^api\./, '')) || 'fergus.com';
   let fetchUrl, sendAuth = true;
@@ -12147,6 +12176,8 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
     return res.status(400).json({ error: 'invalid url' });
   }
 
+  const cacheKey = wantW ? (fetchUrl + '|' + wantW) : '';
+  if (cacheKey) { const hit = _fgImgCacheGet(cacheKey); if (hit) { res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'private, max-age=86400'); res.set('X-Resized', 'cached'); return res.send(hit); } }
   try {
     let r = await fetch(fetchUrl, {
       method: 'GET',
@@ -12170,14 +12201,24 @@ app.get('/fergus-files/download', requireAuth, requireSubscription, async (req, 
       const text = await r.text().catch(() => '');
       return res.status(r.status).json({ error: 'fergus returned ' + r.status, body: text.slice(0, 400) });
     }
-    res.set('Content-Type', r.headers.get('content-type') || 'application/octet-stream');
+    const ct = r.headers.get('content-type') || 'application/octet-stream';
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (wantW && (/^image\//i.test(ct) || /\.(jpe?g|png|webp|gif)(\?|#|$)/i.test(fetchUrl))) {
+      let small = null;
+      try { small = await _fergusImageResize(buf, ct, wantW); } catch (e) { small = null; }   // HEIC and friends: the original goes back
+      if (small) {
+        _fgImgCacheSet(cacheKey, small);
+        res.set('Content-Type', 'image/jpeg'); res.set('Cache-Control', 'private, max-age=86400'); res.set('X-Resized', String(wantW));
+        return res.send(small);
+      }
+    }
+    res.set('Content-Type', ct);
     const cd = r.headers.get('content-disposition');
     if (cd) res.set('Content-Disposition', cd);
     // The bytes for a given Fergus file URL don't change — let the browser
     // keep them so re-viewing a photo (grid → lightbox, tab revisit) is
     // instant instead of another round-trip through the proxy.
     res.set('Cache-Control', 'private, max-age=86400');
-    const buf = Buffer.from(await r.arrayBuffer());
     res.send(buf);
   } catch (e) {
     res.status(502).json({ error: e.message });
