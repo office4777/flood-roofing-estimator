@@ -4433,6 +4433,18 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
   background:#e8f4ec; color:#1d6b3c; font-size:10.5px; font-weight:700; letter-spacing:.02em;
 }
 .qb-opt.on .qb-rec{ background:#d6ecdd; }
+/* OPTION NOTES (2026-11-04): the office's own word on an option, in the
+   Recommended pill's shape — green, yellow or red. */
+.qb-onote{ display:block; width:fit-content; max-width:100%; margin:0 0 5px; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:600; line-height:1.4; white-space:normal; }
+.qb-onote-green{ background:#e8f4ec; color:#1d6b3c; }
+.qb-onote-yellow{ background:#fdf3d8; color:#7a4e0a; }
+.qb-onote-red{ background:#fdecec; color:#b42318; }
+.qb-onote-add, .qb-rec-ed{ display:inline-block; margin-top:6px; font-size:11px; font-weight:700; color:#0077b3; text-decoration:underline; cursor:pointer; }
+.qb-rec-ed{ margin:0 0 5px 6px; vertical-align:top; padding:3px 0; }
+.qb-onote-add:hover, .qb-rec-ed:hover{ color:#005a8a; }
+.qb-onote-sw{ display:flex; gap:8px; margin:6px 0 2px; flex-wrap:wrap; }
+.qb-onote-sw label{ display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:1.5px solid #d4dce5; cursor:pointer; font-size:12.5px; font-weight:700; }
+.qb-onote-sw input{ margin:0; }
 .qb-up{ font-size:14.5px; font-weight:800; color:#0a1628; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-down{ font-size:14.5px; font-weight:800; color:#1a7f4e; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-lock{ font-size:9.5px; font-style:normal; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8a5a12; background:#fdf6e8; padding:2px 7px; border-radius:5px; margin-left:6px; vertical-align:middle; }
@@ -4800,6 +4812,8 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   html:is(.print-modern,.pdf-modern) .qp-cond-empty,
   html:is(.print-modern,.pdf-modern) .qp-cond-cap-empty,
   html:is(.print-modern,.pdf-modern) .qb-para-empty,
+  html:is(.print-modern,.pdf-modern) .qb-onote-add,
+  html:is(.print-modern,.pdf-modern) .qb-rec-ed,
   html:is(.print-modern,.pdf-modern) .qp-placeholder{display:none!important}
   html:is(.print-modern,.pdf-modern), html:is(.print-modern,.pdf-modern) body{height:auto!important; min-height:0!important; overflow:visible!important}
   html:is(.print-modern,.pdf-modern) .qd-main{display:block!important}
@@ -5214,7 +5228,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-03T23:19:41Z';
+  window.APP_BUILT_AT = '2026-11-03T23:33:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -32784,7 +32798,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras','optNotes','recLabel'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -33640,6 +33654,14 @@ function _qaLiveBarSync(){
 // run from and a quote nobody has been sent has no such date.
 function _qStampCustomerCopy(){
   if (!S.quote) return;
+  // The customer has no Settings: an office default for the Recommended
+  // wording goes onto the quote itself, or they would read the built-in one.
+  try {
+    if (!S.quote.accepted && !String(S.quote.recLabel || '').trim()){
+      var _rl = String((((S.settings || {}).quote_defaults) || {}).rec_label || '').trim();
+      if (_rl) S.quote.recLabel = _rl;
+    }
+  } catch(e){}
   // An ACCEPTED quote's prices are the ones the customer accepted, and nothing
   // the office does to the job afterwards re-prices the customer's copy
   // (2026-10-25, job 3334: re-stamped after the acceptance, its extra roofs read
@@ -34974,8 +34996,8 @@ function _qbExtraRoofRows(planShown){
       return '<button type="button" class="qb-opt'+(r.on ? ' on' : '')+'" data-qb-roof="'+esc2(r.name)+'"'+
           (_qbLocked() ? ' disabled' : ' onclick="'+r.click+'"')+'>'+
           '<span class="qb-tick">'+(r.on ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
-          '<span class="qb-opt-txt"><b>'+esc2(r.name)+'</b>'+
-            '<span class="qb-opt-desc">'+(r.on ? 'Included — tap to take it off' : 'Tap to add it to your quote')+'</span></span>'+
+          '<span class="qb-opt-txt">'+_qbOptPills('roof', { id:r.name })+'<b>'+esc2(r.name)+'</b>'+
+            '<span class="qb-opt-desc">'+(r.on ? 'Included — tap to take it off' : 'Tap to add it to your quote')+'</span>'+_qbOptNoteLink('roof', { id:r.name })+'</span>'+
           '<span class="qb-opt-price"><span class="'+(r.on ? 'qb-inc' : 'qb-up')+'">'+(r.on ? 'Added' : '+' + _qbMoney(r.price))+'</span></span>'+
         '</button>';
     }).join('')+'</div>';
@@ -35879,10 +35901,11 @@ function _qbOptionPage(o){
           // does not know which steel grade or thickness to pick; saying so
           // in words gives them somewhere safe to land. It is their SHED on a
           // pole-shed quote — the one word that gives a shared renderer away.
-          (it.isDefault ? '<span class="qb-rec">Recommended for your '+(_psIsShed() ? 'shed' : 'roof')+'</span>' : '')+
+          _qbOptPills(o.group, it)+
           '<b>'+esc2(it.label)+'</b>'+
           (it.desc ? '<span class="qb-opt-desc">'+esc2(it.desc)+'</span>' : '')+
           (it.warranty ? '<span class="qb-opt-warr">'+it.warranty+'</span>' : '')+
+          _qbOptNoteLink(o.group, it)+
         '</span>'+
         '<span class="qb-opt-price">'+_qbTag(it)+'</span>'+
       '</button>';
@@ -35935,6 +35958,127 @@ function _qbTag(it){
   if (it.delta > 0.005)  return '<span class="qb-up">+'+_qbMoney(it.delta)+'</span>';
   if (it.delta < -0.005) return '<span class="qb-down">−'+_qbMoney(Math.abs(it.delta))+'</span>';
   return '<span class="qb-inc">Included</span>';
+}
+// ── OPTION NOTES AND THE RECOMMENDED WORDING (2026-11-04, the owner: "allow
+// me to type in a custom note, just like the 'Recommended for your roof' on
+// every different option in every section / custom options / custom extras
+// ... with a note colour selection (green/yellow/red) to explain why an
+// option isn't the best option, also allow me to edit the wording on the
+// default green recommended wording"). `S.quote.optNotes['<group>:<id>'] =
+// {text, colour}` and `S.quote.recLabel` ride with the quote, so the customer
+// sees exactly what the office wrote; `_qbOptMarks(group, it)` is the one
+// place a row's pills and the office's links are made.
+var QB_NOTE_COLOURS = ['green', 'yellow', 'red'];
+function _optNoteKey(group, id){ return String(group || '') + ':' + String(id == null ? '' : id); }
+function _optNote(group, id){
+  var m = (S.quote && S.quote.optNotes) || {};
+  var n = m[_optNoteKey(group, id)];
+  return (n && String(n.text || '').trim()) ? n : null;
+}
+function _recLabelDefault(){ return 'Recommended for your ' + (_psIsShed() ? 'shed' : 'roof'); }
+function _recLabel(){
+  var t = String((S.quote && S.quote.recLabel) || '').trim();
+  if (!t && !window.__CUSTOMER_MODE){
+    try { t = String((((S.settings || {}).quote_defaults) || {}).rec_label || '').trim(); } catch(e){}
+  }
+  return t || _recLabelDefault();
+}
+function _optNoteEditable(){
+  return !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE && !window.__PRINTING_MODERN &&
+         !!S.quote && !S.quote.accepted && !S._qvViewing;
+}
+function _qbOptMarks(group, it, opts){
+  opts = opts || {};
+  var ed = _optNoteEditable() && group != null && it && it.id != null;
+  var out = '';
+  if (it && it.isDefault){
+    out += '<span class="qb-rec">' + esc2(_recLabel()) + '</span>' +
+      (ed ? '<span class="qb-rec-ed no-print" title="Change this wording on every recommended pick in this quote" onclick="event.stopPropagation();_recLabelEdit()">✎ wording</span>' : '');
+  }
+  var n = _optNote(group, it && it.id);
+  if (n){
+    var c = QB_NOTE_COLOURS.indexOf(n.colour) >= 0 ? n.colour : 'yellow';
+    out += '<span class="qb-onote qb-onote-' + c + '" data-onote="' + esc2(_optNoteKey(group, it.id)) + '">' + esc2(String(n.text).trim()) + '</span>';
+  }
+  if (opts.addLink !== false && ed) out += _qbOptNoteLink(group, it);
+  return out;
+}
+// The add-note link sits under the description; the pills sit above the name.
+function _qbOptPills(group, it){ return _qbOptMarks(group, it, { addLink:false }); }
+function _qbOptNoteLink(group, it){
+  if (!_optNoteEditable() || !it || it.id == null) return '';
+  var n = _optNote(group, it.id);
+  // The key rides in a data attribute, not in the handler's text, so an option
+  // named "Owner's choice" cannot break the click.
+  return '<span class="qb-onote-add no-print" data-onote-add="' + esc2(_optNoteKey(group, it.id)) + '" onclick="event.stopPropagation();_optNoteEdit(this.getAttribute(\'data-onote-add\'))">' + (n ? '✎ Edit note' : '+ Add note') + '</span>';
+}
+function _optNoteEdit(key){
+  if (!_optNoteEditable() || !key) return;
+  var cur = ((S.quote && S.quote.optNotes) || {})[key];
+  var had = !!(cur && String(cur.text || '').trim());
+  var n = had ? cur : { text:'', colour:'yellow' };
+  var col = QB_NOTE_COLOURS.indexOf(n.colour) >= 0 ? n.colour : 'yellow';
+  var chip = function(c, label){
+    return '<label class="qb-onote-' + c + '"><input type="radio" name="onoteCol" value="' + c + '"' + (c === col ? ' checked' : '') + '>' + label + '</label>';
+  };
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>' + (had ? 'Edit note' : 'Add a note') + '</b><span>A short note on this option for the customer — why it is, or is not, the best choice. It shows above the option, like the Recommended pill.</span></div>' +
+    '<div class="qco-bd">' +
+      '<label class="qco-l" for="onoteText">Note</label>' +
+      '<textarea id="onoteText" maxlength="240" rows="3" style="width:100%;box-sizing:border-box;font:inherit;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px" placeholder="e.g. Not recommended this close to the sea">' + esc2(n.text || '') + '</textarea>' +
+      '<label class="qco-l">Colour</label>' +
+      '<div class="qb-onote-sw">' + chip('green', 'Green') + chip('yellow', 'Yellow') + chip('red', 'Red') + '</div>' +
+    '</div>' +
+    '<div class="qco-ft">' +
+      (had ? '<button type="button" class="qa-btn qa-btn-warn" id="onoteDel" onclick="_optNoteSave(true)">Remove note</button>' : '') +
+      '<span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>' +
+      '<button type="button" class="qa-btn qa-btn-primary" id="onoteSave" onclick="_optNoteSave(false)">Save note</button></div>');
+  host._onoteKey = key;
+  setTimeout(function(){ try { document.getElementById('onoteText').focus(); } catch(e){} }, 30);
+}
+function _optNoteSave(remove){
+  var host = document.getElementById('qcoModal'); if (!host || !host._onoteKey || !_optNoteEditable()) return;
+  var key = host._onoteKey;
+  var text = remove ? '' : String((document.getElementById('onoteText') || {}).value || '').trim().slice(0, 240);
+  var cEl = host.querySelector('input[name="onoteCol"]:checked');
+  var colour = cEl ? cEl.value : 'yellow';
+  _qcoClose();
+  var m = Object.assign({}, S.quote.optNotes || {});
+  if (text) m[key] = { text: text, colour: colour }; else delete m[key];
+  if (Object.keys(m).length) S.quote.optNotes = m; else delete S.quote.optNotes;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _recLabelEdit(){
+  if (!_optNoteEditable()) return;
+  var host = _qcoShell(
+    '<div class="qco-hd"><b>Recommended wording</b><span>The green pill on the option you recommend, on every section of this quote.</span></div>' +
+    '<div class="qco-bd">' +
+      '<label class="qco-l" for="recLblText">Wording</label>' +
+      '<input type="text" id="recLblText" maxlength="60" value="' + esc2(_recLabel()) + '">' +
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px"><input type="checkbox" id="recLblDef"> Use this wording on my new quotes too</label>' +
+    '</div>' +
+    '<div class="qco-ft"><button type="button" class="qa-btn" onclick="_recLabelSave(true)">Reset to “' + esc2(_recLabelDefault()) + '”</button>' +
+      '<span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>' +
+      '<button type="button" class="qa-btn qa-btn-primary" id="recLblSave" onclick="_recLabelSave(false)">Save</button></div>');
+  setTimeout(function(){ try { var i = document.getElementById('recLblText'); i.focus(); i.select(); } catch(e){} }, 30);
+}
+async function _recLabelSave(reset){
+  if (!_optNoteEditable()) return;
+  var t = reset ? '' : String((document.getElementById('recLblText') || {}).value || '').trim().slice(0, 60);
+  var asDef = !reset && !!((document.getElementById('recLblDef') || {}).checked);
+  _qcoClose();
+  if (!t || t === _recLabelDefault()) delete S.quote.recLabel; else S.quote.recLabel = t;
+  if (reset || asDef){
+    try {
+      S.settings = S.settings || {}; S.settings.quote_defaults = S.settings.quote_defaults || {};
+      if (asDef && t && t !== _recLabelDefault()) S.settings.quote_defaults.rec_label = t;
+      else delete S.settings.quote_defaults.rec_label;
+      if (asDef || reset) await saveSettings(true);
+    } catch(e){}
+  }
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
 }
 // The same numbers the A4 cards carry: the stored sell prices on a sent
 // quote, the live ones in the office.
@@ -36329,7 +36473,7 @@ function _qbGutterKit(){
       return '<button type="button" class="qb-opt'+(picked ? ' on' : '')+'" data-qb-opt="'+esc2(group)+'" data-qb-val="'+esc2(it.id)+'"'+
         (_qbLocked() ? ' disabled' : ' onclick="'+set+'(\''+esc2(it.id)+'\')"')+'>'+
         '<span class="qb-tick">'+(picked ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
-        '<span class="qb-opt-txt">'+(it.isDefault ? '<span class="qb-rec">Recommended for your roof</span>' : '')+'<b>'+esc2(it.label)+'</b>'+(it.desc ? '<span class="qb-opt-desc">'+esc2(it.desc)+'</span>' : '')+'</span>'+
+        '<span class="qb-opt-txt">'+_qbOptPills(group, it)+'<b>'+esc2(it.label)+'</b>'+(it.desc ? '<span class="qb-opt-desc">'+esc2(it.desc)+'</span>' : '')+_qbOptNoteLink(group, it)+'</span>'+
         '<span class="qb-opt-price">'+_qbTag(it)+'</span>'+
       '</button>';
     }).join('');
@@ -36661,7 +36805,7 @@ function _ixSection(){
     return '<div class="qb-opt ps-ao ix-row on" data-ix="'+esc2(x.id)+'">'+
         '<div class="ps-ao-hit" style="cursor:default">'+
           '<span class="qb-tick sq">'+tick+'</span>'+
-          '<span class="qb-opt-txt"><b>'+esc2(x.name)+'</b>'+(x.desc ? '<span class="qb-opt-desc">'+esc2(x.desc)+'</span>' : '')+'</span>'+
+          '<span class="qb-opt-txt">'+_qbOptPills('inclx', x)+'<b>'+esc2(x.name)+'</b>'+(x.desc ? '<span class="qb-opt-desc">'+esc2(x.desc)+'</span>' : '')+_qbOptNoteLink('inclx', x)+'</span>'+
           '<span class="qb-opt-price"><span class="qb-up">'+(pr ? '+' + _qbMoney(_qbIncl(pr)) : 'Included')+'</span></span>'+
         '</div>'+
         (edit
@@ -43941,9 +44085,10 @@ function _psmAddons(){
     return '<div class="qb-opt ps-ao'+(on ? ' on' : '')+'" data-ps-addon="'+esc2(a.id)+'">'+
         '<button type="button" class="ps-ao-hit"'+(_qbLocked() ? ' disabled' : ' onclick="_psAddonToggle(\''+esc2(a.id)+'\')"')+'>'+
           '<span class="qb-tick sq">'+tick+'</span>'+
-          '<span class="qb-opt-txt"><b>'+esc2(a.label)+'</b>'+
+          '<span class="qb-opt-txt">'+_qbOptPills('psaddon', a)+'<b>'+esc2(a.label)+'</b>'+
             ((a.desc != null ? a.desc : (a.summary !== a.label ? a.summary : ''))
               ? '<span class="qb-opt-desc">'+esc2(a.desc != null ? a.desc : a.summary)+'</span>' : '')+
+            _qbOptNoteLink('psaddon', a)+
           '</span>'+
           '<span class="qb-opt-price">'+(on
             ? '<span class="qb-up">+'+_qbMoney(_psmDelta(a.price))+'</span>'
@@ -46815,7 +46960,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
