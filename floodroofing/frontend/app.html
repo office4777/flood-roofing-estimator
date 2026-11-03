@@ -5214,7 +5214,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-03T18:45:52Z';
+  window.APP_BUILT_AT = '2026-11-03T23:11:32Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -17372,6 +17372,8 @@ function _psIsShed(){ return !!(window.S && S.quote && S.quote.quoteKind === 'po
 // nothing else: the canvas draws gutter lines only, the quote offers the
 // gutter, its colour, brackets and downpipes, and the pricing is the scaffold
 // and the gutter card. Nothing of a re-roof is priced or shown.
+// The gutter line is drawn corner to corner on a Gutters only job.
+function _gjPolyGutter(){ try { return _isGutterJob(); } catch(e){ return false; } }
 function _isGutterJob(){ try { return !!(window.S && S.quote && S.quote.quoteKind === 'gutters'); } catch(e){ return false; } }
 // The tools a gutters-only canvas offers.
 var GJ_TOOLS = { select:1, gutter:1, tape:1, customscale:1, calibrate:1 };
@@ -36160,6 +36162,18 @@ function _qbGutter(){
       items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:(g.desc || '') + _qbGutterUpNote(CD, g.id) });
     });
   } catch(e){}
+  // A GUTTERS JOB'S GUTTER IS THE JOB (2026-11-04, the owner on quote 3346:
+  // "the gutter selected as recommended should say included, the other gutters
+  // should say their price difference"). On a re-roof a gutter is an extra on
+  // top of the roof, so its whole price is the "+"; here the recommended one is
+  // what the quote is priced at, so each card reads against it. Display only:
+  // the total and the summary still come from _quoteMoney / _custBarRows.
+  if (_gj && items.length){
+    var _gjRec = _qbRecPick('gutterType', items[0].id);
+    var _gjRef = null;
+    items.forEach(function(it){ if (it.id === _gjRec) _gjRef = it.delta; });
+    if (_gjRef != null) items.forEach(function(it){ it.delta = it.delta - _gjRef; });
+  }
   items = _qbRecMark(items, 'gutterType', _gj ? ((items[0] || {}).id || 'none') : 'none');
   if (_gj) return _qpOptPageWrap('gutter', {
     eyebrow:'Your new guttering', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
@@ -54565,19 +54579,23 @@ function _outlineEnterTipSync(){
   try {
     var host = document.getElementById('canvasWrap'); if (!host) return;
     var el = document.getElementById('enterTip');
-    var want = !!(window.DRAW && DRAW.tool === 'outline' && !DRAW.outlineDone &&
+    var _gTip = !!(window.DRAW && DRAW.tool === 'gutter' && _gjPolyGutter());
+    var want = !!(window.DRAW && ((DRAW.tool === 'outline' && !DRAW.outlineDone) || _gTip) &&
                   (DRAW.currentPts || []).length >= 1);
     // Site mode is a tablet on a roof and the playground is a teaser; neither
     // has a keyboard to press Enter on.
     if (document.documentElement.classList.contains('site-mode') || window.__PLAYGROUND) want = false;
     try { if (localStorage.getItem('fr_enter_tip_off') === '1') want = false; } catch(e){}
     if (!want){ if (el) el.remove(); return; }
+    if (el && el.getAttribute('data-kind') !== (_gTip ? 'gutter' : 'outline')){ el.remove(); el = null; }
     if (!el){
       el = document.createElement('div'); el.id = 'enterTip'; el.className = 'no-print';
       el.style.cssText = 'position:absolute;right:10px;z-index:30;background:#0a1628;color:#fff;' +
         'border-radius:10px;padding:12px 14px;font-size:16px;font-weight:700;line-height:1.4;max-width:260px;' +
         'box-shadow:0 8px 24px rgba(10,22,40,.3);font-family:inherit';
-      el.innerHTML = '<div>Press <b style="color:#7dd3fc">Enter</b> when you\u2019ve completed the outline</div>' +
+      el.setAttribute('data-kind', _gTip ? 'gutter' : 'outline');
+      el.innerHTML = '<div>Press <b style="color:#7dd3fc">Enter</b> when you\u2019ve ' +
+        (_gTip ? 'finished your gutter line' : 'completed the outline') + '</div>' +
         '<button type="button" onclick="try{localStorage.setItem(\'fr_enter_tip_off\',\'1\')}catch(e){};' +
         'this.parentNode.remove()" style="background:none;border:none;color:rgba(255,255,255,.6);' +
         'font:inherit;font-size:11px;font-weight:400;text-decoration:underline;cursor:pointer;padding:5px 0 0">' +
@@ -59663,6 +59681,24 @@ function onCanvasClick(e) {
     showCalibratePopup(_upx, 'custom');
     return;
   }
+  // A GUTTERS JOB'S GUTTER LINE TURNS CORNERS (2026-11-04, the owner: "let me
+  // enter a complete boundary gutter as well as an L-shape corner, don't stop
+  // the gutter at each corner ... if it is a dead end, wait till the user
+  // presses enter"). Every click is the next corner; a click back on the first
+  // point closes the boundary; Enter finishes a run that dead-ends.
+  if (DRAW.tool === 'gutter' && _gjPolyGutter()){
+    if (DRAW.currentPts.length >= 3){
+      var _g0 = DRAW.currentPts[0], _gt = getImgTransform();
+      var _gR = _gt ? 20/_gt.s : 20;
+      if (Math.hypot(xy[0]-_g0[0], xy[1]-_g0[1]) < _gR){
+        DRAW.currentPts.push(_g0.slice()); finishCurrent(); return;
+      }
+    }
+    var _gl = DRAW.currentPts[DRAW.currentPts.length-1];
+    if (!_gl || Math.hypot(xy[0]-_gl[0], xy[1]-_gl[1]) >= 0.5) DRAW.currentPts.push(xy);
+    redrawAll();
+    return;
+  }
   if(['ridge','valley','gutter','hip','backtray','barge','unknown'].indexOf(DRAW.tool)>=0) {
     DRAW.currentPts.push(xy);
     if(DRAW.currentPts.length>=2) finishCurrent();
@@ -60036,6 +60072,22 @@ function finishCurrent() {
     return;
   }
 
+  if (t === 'gutter' && _gjPolyGutter() && pts.length >= 2){
+    var _segs = 0, _firstNew = DRAW.lines.length;
+    for (var _gi = 1; _gi < pts.length; _gi++){
+      var _ga = pts[_gi-1], _gb = pts[_gi];
+      if (Math.hypot(_gb[0]-_ga[0], _gb[1]-_ga[1]) < 0.5) continue;
+      DRAW.lines.push({type:'gutter', pts:[_ga.slice(), _gb.slice()], label:'', lengthM:''});
+      calcLineMeasIfCalibrated(DRAW.lines.length-1);
+      _segs++;
+    }
+    DRAW.currentPts = [];
+    if (!_segs){ redrawAll(); return; }
+    DRAW.selectedLine = DRAW.lines.length-1;
+    saveSnapshot();
+    syncToRoofData(); redrawAll(); updateMeasTotals();
+    return;
+  }
   if(['ridge','valley','gutter','hip','barge','apron','changepitch'].indexOf(t)>=0 && pts.length>=2) {
     // A LINE THAT STARTS AND ENDS IN THE SAME PLACE IS NOT A LINE (feedback
     // report 13, 2026-10-13, info@wellingtonroof.co.nz). A double-tap, or a
@@ -63455,7 +63507,7 @@ function redrawAll() {
     });
     // Once three corners are down the shape can be closed — ring the first
     // one so it is obvious that going back to it finishes the outline.
-    if((DRAW.tool==='outline'||DRAW.tool==='section') && DRAW.currentPts.length>=2){
+    if((DRAW.tool==='outline'||DRAW.tool==='section'||(DRAW.tool==='gutter'&&_gjPolyGutter())) && DRAW.currentPts.length>=2){
       // Drawn with a pen a run grows from either end, so ring both of them.
       var _ends = [];
       if (DRAW.currentPts.length >= 3 || _inkWet) _ends.push(DRAW.currentPts[0]);

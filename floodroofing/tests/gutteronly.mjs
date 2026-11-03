@@ -56,6 +56,33 @@ check('the canvas offers Move, Gutter line, the tape and Custom Scale — no out
 check('…and a roof tool asked for anyway becomes the gutter line', v.t1 === 'gutter' && v.t2 === 'gutter', JSON.stringify([v.t1, v.t2]));
 check('gutter lines drawn with no outline are the gutter run', Math.abs(v.lm - 20) < 0.01 && v.runs === 2, JSON.stringify(v));
 
+// ── a gutter line turns corners; Enter ends a dead end, the first point closes a boundary (2026-11-04) ──
+{
+  const toClient = (pts) => pg.evaluate((pts) => { const cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect(), dpr = devicePixelRatio, t = getImgTransform();
+    const k = r.width / (cv.width / dpr); return pts.map(([x, y]) => [r.left + (x * t.s + t.ix) * k, r.top + (y * t.s + t.iy) * k]); }, pts);
+  const state = () => pg.evaluate(() => ({ cur: DRAW.currentPts.length, lines: DRAW.lines.filter(l => l.type === 'gutter').length,
+    corners: _gutterCornersInSegments(DRAW.lines.filter(l => l.type === 'gutter').map(l => l.pts)),
+    tip: (document.getElementById('enterTip') || {}).textContent || '' }));
+  await pg.evaluate(() => { window.__keepGut = JSON.parse(JSON.stringify(DRAW.lines)); DRAW.lines = DRAW.lines.filter(l => l.type !== 'gutter'); DRAW.currentPts = []; localStorage.removeItem('fr_enter_tip_off');
+    document.getElementById('snapGrid') && (document.getElementById('snapGrid').checked = false); setTool('gutter'); redrawAll(); });
+  await pg.evaluate(() => { const c = document.getElementById('roofCanvas'); c.scrollIntoView({ block: 'center' }); });
+  const L = await toClient([[150, 150], [450, 150], [450, 350]]);
+  for (const [x, y] of L){ await pg.mouse.click(x, y); await pg.waitForTimeout(120); }
+  let s1 = await state();
+  check('on a gutters job three clicks are one gutter line still going — no line stops at a corner',
+    s1.cur === 3 && s1.lines === 0, JSON.stringify(s1));
+  check('…and it says to press Enter to finish the gutter line', /Press\s*Enter when you.ve finished your gutter line/.test(s1.tip), s1.tip);
+  await pg.keyboard.press('Enter'); await pg.waitForTimeout(200);
+  let s2 = await state();
+  check('Enter ends a dead-end L: two straights meeting at one corner', s2.cur === 0 && s2.lines === 2 && s2.corners === 1, JSON.stringify(s2));
+  const B = await toClient([[150, 450], [450, 450], [450, 650], [150, 650], [150, 450]]);
+  for (const [x, y] of B){ await pg.mouse.click(x, y); await pg.waitForTimeout(120); }
+  let s3 = await state();
+  check('a click back on the first point closes a whole boundary gutter: four straights, four corners',
+    s3.cur === 0 && s3.lines === 6 && s3.corners === 5, JSON.stringify(s3));
+  await pg.evaluate(() => { DRAW.lines = window.__keepGut; DRAW.currentPts = []; setTool('select'); try { syncToRoofData(); } catch(e){} redrawAll(); });
+}
+
 // ── the quote suits a gutter ──
 v = await pg.evaluate(async () => {
   S.quote.scaffold = Object.assign({}, S.quote.scaffold || {}, { type:'edge', price:2000 });
@@ -86,6 +113,46 @@ check('…and its lines add up to the total', Math.abs(sum - money(v.rows[v.rows
 check('no roof labour or roof materials are priced, only the scaffold',
   v.lines.every(l => l[0] === 'scaffold' || +l[1] === 0) && v.lines.some(l => l[0] === 'scaffold' && +l[1] > 0), JSON.stringify(v.lines));
 check('What you chose lists the gutter, brackets and downpipes only', v.picks[0] === 'Guttering: 125mm Colorsteel Box Gutter' && !v.picks.some(p => /Steel grade|profile|thickness|old roofing/i.test(p)), JSON.stringify(v.picks));
+
+// ── the gutter cards read against the recommended gutter (2026-11-04, quote 3346) ──
+v = await pg.evaluate(() => {
+  const cards = () => { const d = document.createElement('div'); d.innerHTML = _qbGutter();
+    return [...d.querySelectorAll('.qb-opt')].map(o => ({ txt: o.textContent.replace(/\s+/g, ' '),
+      tag: (o.querySelector('.qb-inc,.qb-up,.qb-down') || {}).textContent || '' })); };
+  const CD = _qpCardDeltas(), full = {};
+  _selGutters().forEach(g => { full[g.id] = _qbIncl(CD.gutter[g.id] || 0); });
+  const ids = _selGutters().map(g => g.id);
+  const rows = _custBarRows().map(r => [r.kind, r.value]);
+  const out = { ids, full, a: cards(), rows };
+  // a different gutter recommended: the cards move with it
+  const keep = S.quote.proposalOptions.gutterType;
+  _setProposalOption_gutter(ids[1]);
+  out.b = cards(); out.recB = ids[1];
+  _setProposalOption_gutter(keep);
+  // a roofing quote's gutter cards keep their whole "+"
+  S.quote.quoteKind = 'roofing';
+  const d = document.createElement('div'); d.innerHTML = _qbGutter();
+  out.roof = [...d.querySelectorAll('.qb-opt')].map(o => (o.querySelector('.qb-inc,.qb-up,.qb-down') || {}).textContent || '');
+  S.quote.quoteKind = 'gutters';
+  return out;
+});
+{
+  const m = s => parseFloat(String(s).replace(/[^0-9.]/g, '')) * (/−/.test(s) ? -1 : 1);
+  const rec = v.ids[0], diff = id => v.full[id] - v.full[rec];
+  check('on a gutters job the recommended gutter reads Included', v.a[0] && v.a[0].tag === 'Included', JSON.stringify(v.a.map(c => c.tag)));
+  check('…and every other gutter its difference from it, not its whole price',
+    v.a.slice(1).every((c, i) => Math.abs(m(c.tag) - diff(v.ids[i + 1])) < 0.02 && m(c.tag) < v.full[v.ids[i + 1]] - 1),
+    JSON.stringify(v.a.map(c => c.tag)) + ' full ' + JSON.stringify(v.full));
+  const recB = v.recB, iB = v.ids.indexOf(recB);
+  check('…a different gutter recommended reads Included and the rest move with it, cheaper ones as a −',
+    v.b[iB].tag === 'Included' && v.b.every((c, i) => i === iB || Math.abs(m(c.tag) - (v.full[v.ids[i]] - v.full[recB])) < 0.02)
+      && v.b.some(c => /−/.test(c.tag)) === v.ids.some(id => v.full[id] < v.full[recB] - 0.01),
+    JSON.stringify(v.b.map(c => c.tag)));
+  check('…the price box still carries the gutter at its whole price',
+    v.rows.some(r => r[0] === 'base' && Math.abs(money(r[1]) - v.full[rec]) < 0.02), JSON.stringify(v.rows));
+  check('a roofing quote\'s gutter cards still read their whole "+"',
+    v.roof[0] === 'Included' && v.roof.slice(1).every(t => /^\+/.test(t)), JSON.stringify(v.roof));
+}
 
 // ── the map: the aerial and the gutter lines ──
 v = await pg.evaluate(() => {
