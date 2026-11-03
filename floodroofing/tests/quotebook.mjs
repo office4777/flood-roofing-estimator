@@ -264,9 +264,8 @@ check('…in the true 25:19 proportion off the product sheets',
       (prof.rib.h / prof.corr.h).toFixed(3) + ' vs ' + (25 / 19).toFixed(3));
 
 
-// The last page shows WHICH roofs the quote covers — as a picture, not as a
-// control. They chose on page three; re-offering the choice under the Accept
-// button invites a change nobody meant to make.
+// The last page shows WHICH roofs the quote covers, with their include /
+// exclude buttons since 2026-11-04 (it was a picture only before).
 const lastPlan = await m.pg.evaluate(async () => {
   _qbGo(_qbPages().length - 1); await new Promise(r => setTimeout(r, 450));
   const el = document.getElementById('qbPage');
@@ -278,8 +277,10 @@ const lastPlan = await m.pg.evaluate(async () => {
            name: !!el.querySelector('#qbAcceptName'), terms: !!el.querySelector('#qbAcceptTerms') };
 });
 check('the last page draws the roofs this quote covers', lastPlan.map, lastPlan.title);
-check('…with no buttons to change them', lastPlan.btns === 0, lastPlan.btns + ' buttons');
-check('…and nothing on it inviting a tap', !lastPlan.tapHint);
+// 2026-11-04, the owner: "at the very bottom of the quote, if there are
+// multiple roofs, show the customer buttons to include/exclude the different
+// roofs" — the total sits right above them, so this is where they decide.
+check('…with the buttons to include or leave out each roof (the owner, 2026-11-04)', lastPlan.btns >= 2, lastPlan.btns + ' buttons');
 check('…while the name and the terms tick sit on the page itself',
       lastPlan.name && lastPlan.terms, JSON.stringify(lastPlan));
 // Page three keeps its buttons — that is where the choosing happens.

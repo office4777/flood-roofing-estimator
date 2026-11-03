@@ -5214,7 +5214,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-03T23:11:32Z';
+  window.APP_BUILT_AT = '2026-11-03T23:19:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27339,6 +27339,15 @@ function _profitFigures(view){
         sub: (Math.abs(other - otherCost) >= 0.005) ? 'typed on the quote · price-book items at their cost' : 'typed on the quote · at cost' });
     } catch(e){}
   }
+  // A GUTTERS JOB HAS NO ROOF TO PRICE (2026-11-04, the owner: "the gutter
+  // job type's job profitability doesn't match the quote's amounts"). The roof
+  // labour table still carries its default hours, but the quote charges none
+  // of it (its labour and material lines are 0) — so listing "Roofing" put
+  // $1,080 of revenue in the panel that the customer is never asked for.
+  if (_isGutterJob()){
+    items = items.filter(function(it){ return it.key !== 'roofing'; });
+    out.hrs = 0; out.labourPrice = 0; out.labourCost = 0; out.mat = 0;
+  }
   out.items = items;
   out.revenue = 0; out.cost = 0; out.hrsAll = 0;
   items.forEach(function(it){ out.revenue += f(it.revenue); out.cost += f(it.cost); out.hrsAll += f(it.hrs); });
@@ -27728,6 +27737,33 @@ function renderProfitability(){
 function _profitNudge(kind, dir){
   if (!S.quote || !S.quote.labour) return;
   var f = function(v){ return parseFloat(v) || 0; };
+  // ON A GUTTERS JOB THE GP/hr MOVES THE GUTTER'S LABOUR (2026-11-04): the
+  // roof's rates are not on that quote, so moving them changed nothing the
+  // customer is charged. The step is spread over the gutter's own hours
+  // (or its $/lm when the gutter labour is charged by the metre).
+  if (_isGutterJob()){
+    if (kind !== 'gphr') return;
+    var gg = _profitFigures('total');
+    var gh = gg.hrsAll; if (!(gh > 0)) return;
+    var gcur = (gg.revenue - gg.cost) / gh, gtarget = Math.round(gcur) + (dir > 0 ? 1 : -1);
+    var gdelta = (gtarget - gcur) * gh;
+    var glm = 0; try { glm = f(_selGutterLm()); } catch(e){}
+    if (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0 && glm > 0){
+      _setGutterLabourLm(Math.max(0, Math.round((_gutterLmRate() + gdelta / glm) * 10000) / 10000), false);
+    } else {
+      var st = _gutterLabourState(glm), ghrs = f(st.leadHrs) + f(st.appHrs);
+      if (!(ghrs > 0)) return;
+      var gper = gdelta / ghrs;
+      if (!S.quote.gutterLabour || typeof S.quote.gutterLabour !== 'object') S.quote.gutterLabour = {};
+      S.quote.gutterLabour.leadPrice = Math.max(0, Math.round((f(st.leadPrice) + gper) * 100) / 100);
+      S.quote.gutterLabour.appPrice  = Math.max(0, Math.round((f(st.appPrice)  + gper) * 100) / 100);
+      _gdChanged();
+    }
+    try { renderProfitability(); } catch(e){}
+    try { refreshQuoteProposal(); } catch(e){}
+    try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+    return;
+  }
   var L = S.quote.labour;
   // The view on screen: its hours, its figures. The rates are shared, so a
   // change per hour moves this view by exactly what was asked and every
@@ -36778,12 +36814,16 @@ function _qbSummary(opts){
   var total = _qbTotal();
   var sub = total / (1 + rate);
   var accepted = q.accepted;
-  // The roofs this quote covers, drawn — but with nothing to press. They
-  // chose on page three; this is the receipt, not another decision.
+  // The roofs this quote covers. WITH THEIR BUTTONS (2026-11-04, the owner:
+  // "at the very bottom of the quote, if there are multiple roofs, show the
+  // customer buttons to include/exclude the different roofs") — the total is
+  // right above them, so this is where a customer weighing up the garage
+  // actually decides. Read-only once accepted; the office's own Part of main
+  // / Separate / Exclude rows stay on the proposal page, not here.
   var roofPlan = '';
   try {
-    var rb = _qpInteractiveRoofBlock({ maxH: opts.mapH || 132, mapKey: opts.mapKey || 'booksum', readOnly: true,
-                                       title: 'The roofs in this quote' });
+    var rb = _qpInteractiveRoofBlock({ maxH: opts.mapH || 132, mapKey: opts.mapKey || 'booksum', readOnly: !!accepted,
+                                       noModes: true, title: 'The roofs in this quote' });
     if (rb) roofPlan = '<div class="qb-sum-plan">' + rb + '</div>';
   } catch(e){}
   return ''+
@@ -40974,7 +41014,7 @@ function _qpInteractiveRoofBlock(opts){
     btns = '<div class="qp-incl-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">'+bw.join('')+'</div>'+
       '<div style="font-size:10px;color:var(--ed-text2);font-family:var(--ed-sans);margin-top:5px">Tap to choose which roofs to include — the plan and your price update instantly.</div>';
   }
-  var modes = (!ro && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? _roofModeRowsHtml() : '';
+  var modes = (!ro && !opts.noModes && !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? _roofModeRowsHtml() : '';
   // THE BACKGROUND PICTURE ON/OFF (2026-09-24): the owner could not take a
   // rough hand-drawn sketch off the plan the customer sees. Office only; the
   // same switch as the A4's (S.quote.roofMapShowBg), so every map follows.

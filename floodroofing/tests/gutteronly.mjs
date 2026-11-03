@@ -114,6 +114,21 @@ check('no roof labour or roof materials are priced, only the scaffold',
   v.lines.every(l => l[0] === 'scaffold' || +l[1] === 0) && v.lines.some(l => l[0] === 'scaffold' && +l[1] > 0), JSON.stringify(v.lines));
 check('What you chose lists the gutter, brackets and downpipes only', v.picks[0] === 'Guttering: 125mm Colorsteel Box Gutter' && !v.picks.some(p => /Steel grade|profile|thickness|old roofing/i.test(p)), JSON.stringify(v.picks));
 
+// ── the job profitability is the gutter quote, and GP/hr moves it (2026-11-04) ──
+v = await pg.evaluate(() => {
+  const pf = _profitFigures('total'), sub = _quoteMoney().sub;
+  const gphr = () => { const g = _profitFigures('total'); return (g.revenue - g.cost) / g.hrsAll; };
+  const g0 = gphr();
+  _profitNudge('gphr', 1); const up = { sub: _quoteMoney().sub, rev: _profitFigures('total').revenue, g: gphr() };
+  _profitNudge('gphr', -1); const back = { sub: _quoteMoney().sub, g: gphr() };
+  return { rev: pf.revenue, sub, keys: pf.items.map(i => i.key + ':' + i.label), g0, up, back };
+});
+check('a gutters job\'s profitability is the quote: no roof labour, revenue = the quote\'s total ex GST',
+  Math.abs(v.rev - v.sub) < 0.02 && !v.keys.some(k => /^roofing/.test(k)), JSON.stringify(v));
+check('…and GP/hr + moves the gutter labour, so the quote moves with it',
+  v.up.sub > v.sub + 0.5 && Math.abs(v.up.rev - v.up.sub) < 0.02 && Math.round(v.up.g) === Math.round(v.g0) + 1, JSON.stringify(v.up));
+check('…and − takes it back down', v.back.sub < v.up.sub - 0.5, JSON.stringify(v.back));
+
 // ── the gutter cards read against the recommended gutter (2026-11-04, quote 3346) ──
 v = await pg.evaluate(() => {
   const cards = () => { const d = document.createElement('div'); d.innerHTML = _qbGutter();

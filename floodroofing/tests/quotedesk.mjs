@@ -118,7 +118,7 @@ check('steel grade, profile and thickness are each a full-width section of their
   v.gradeCards >= 3 && v.profileCards >= 2 && v.gaugeCards === 2 && v.noGrid3 && v.rowsWide, JSON.stringify({ g:v.gradeCards, p:v.profileCards, t:v.gaugeCards, grid:v.noGrid3, wide:v.rowsWide }));
 check('…each with a "Recommended for your roof" pick', v.rec >= 3, v.rec + ' badges');
 check('the proposal carries the roof plan with the include/exclude buttons', v.plan && v.planBtns >= 2, v.planBtns + ' buttons');
-check('…and the review shows the roofs read-only', v.reviewPlan && v.reviewBtns === 0, v.reviewBtns + ' buttons');
+check('…and the review shows the roofs with their include/exclude buttons too (the owner, 2026-11-04)', v.reviewPlan && v.reviewBtns >= 2, v.reviewBtns + ' buttons');
 
 // ── the six description lines ────────────────────────────────────
 const lines = await d.pg.evaluate(() => [...document.querySelectorAll('#qd-proposal .qb-incl-row:not(.qb-incl-auto)')].map(e => e.textContent.trim()));
