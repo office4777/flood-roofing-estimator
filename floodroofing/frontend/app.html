@@ -5228,7 +5228,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-03T23:33:27Z';
+  window.APP_BUILT_AT = '2026-11-03T23:41:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33654,20 +33654,20 @@ function _qaLiveBarSync(){
 // run from and a quote nobody has been sent has no such date.
 function _qStampCustomerCopy(){
   if (!S.quote) return;
-  // The customer has no Settings: an office default for the Recommended
-  // wording goes onto the quote itself, or they would read the built-in one.
-  try {
-    if (!S.quote.accepted && !String(S.quote.recLabel || '').trim()){
-      var _rl = String((((S.settings || {}).quote_defaults) || {}).rec_label || '').trim();
-      if (_rl) S.quote.recLabel = _rl;
-    }
-  } catch(e){}
   // An ACCEPTED quote's prices are the ones the customer accepted, and nothing
   // the office does to the job afterwards re-prices the customer's copy
   // (2026-10-25, job 3334: re-stamped after the acceptance, its extra roofs read
   // $1,400.21 where the customer had accepted them at $1,497.33). Undo
   // acceptance clears `accepted`, and stamping carries on.
   if (S.quote.accepted) return;
+  // The customer has no Settings: an office default for the Recommended
+  // wording goes onto the quote itself, or they would read the built-in one.
+  try {
+    if (!String(S.quote.recLabel || '').trim()){
+      var _rl = String((((S.settings || {}).quote_defaults) || {}).rec_label || '').trim();
+      if (_rl) S.quote.recLabel = _rl;
+    }
+  } catch(e){}
   try {
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
       _selMergeCarried((S.settings && S.settings.selectables) || _defaultSelectables(), S.quote.selectablesSnapshot)));
