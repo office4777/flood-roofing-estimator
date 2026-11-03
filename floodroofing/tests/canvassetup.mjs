@@ -50,7 +50,7 @@ let v = await pg.evaluate(() => {
            types:[...m.querySelectorAll('[data-rstype]')].map(x => x.getAttribute('data-rstype')),
            sheets:[...m.querySelectorAll('[data-rssheet]')].map(x => x.getAttribute('data-rssheet')),
            suggested:/SUGGESTED/.test(t),
-           clearliteNote:/Clearlite sheet/.test(t) && /Add items\/details/.test(t),
+           clearliteNote:/This is what the whole roof is sheeted in/.test(t),
            canSkip:!!m.querySelector('#_rsSkip') };
 });
 check('closing an outline asks what the roof is', v.popup, v.title || 'no popup');
@@ -60,8 +60,8 @@ check('…and every sheet material',
   v.sheets && v.sheets.join() === 'steel-corrugate,steel-5rib,clearlite-5rib,clearlite-corrugate',
   (v.sheets||[]).join());
 check('…with the footprint’s own suggestion already picked', v.suggested);
-check('…saying briefly that a few clear sheets are added as an item instead',
-  v.clearliteNote);
+check('…with no note between the sheet material and the pitch (the owner, 2026-11-03: removed)',
+  !v.clearliteNote);
 check('…and a way past it, since a popup you cannot dismiss is a trap', v.canSkip);
 
 // EACH SHAPE IS A PICTURE OF THIS OUTLINE (2026-10-22, feedback report 67:

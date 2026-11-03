@@ -209,6 +209,16 @@ const applied = await pg.evaluate(() => {
 check('answering it sets the roof\'s pitch everywhere',
   applied.pitch === 17.5 && applied.onRoof === 17.5 && applied.box === '17.5', JSON.stringify(applied));
 
+const fifteen = await pg.evaluate(() => {
+  try { document.getElementById('_rsModal') && document.getElementById('_rsModal')._rsClose(); } catch(e){}
+  DRAW.roofs.forEach(r => { r.calPitch = 0; }); DRAW.calPitch = 0;
+  _roofSetupPopup();
+  var el = document.querySelector('#_rsPitch'); var v = el ? el.value : null;
+  try { document.getElementById('_rsModal')._rsClose(); } catch(e){}
+  return v;
+});
+check('…and with no pitch anywhere it offers 15°, not 0 (the owner, 2026-11-03)', fifteen === '15', 'seeded with ' + fifteen);
+
 // ── the pitch on the roof ──────────────────────────────────────────
 await load();
 const painted = () => pg.evaluate(() => {

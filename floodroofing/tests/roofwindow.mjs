@@ -36,6 +36,10 @@ v = await pg.evaluate(() => {
            pics: document.querySelectorAll('#_rsModal [data-rstype] svg').length, lines: DRAW.lines.filter(l => l.type === 'ridge').length };
 });
 check('closing an outline opens the shape window, with Rotate 90° in it', v.open && v.mode === 'new' && v.rotate && v.pics === 6, JSON.stringify(v));
+v = await pg.evaluate(() => { const c = document.querySelector('#_rsModal'); const t = c.textContent; const l = document.getElementById('_rsLead');
+  return { lead: l && l.textContent, size: l && parseFloat(getComputedStyle(l).fontSize), sug: /Suggested: /.test(t), pick: /Pick the shape/.test(t), note: /This is what the whole roof/.test(t) }; });
+check('its one line under the heading says the corners can be changed after, in bigger writing (the owner, 2026-11-03)',
+  v.lead === 'You can modify the individual corners by clicking them after you close this window' && v.size >= 15 && !v.sug && !v.pick && !v.note, JSON.stringify(v));
 await pg.click('#_rsModal [data-rstype="gable"]'); await pg.waitForTimeout(250);
 v = await pg.evaluate(() => ({ open: !!document.getElementById('_rsModal'), type: DRAW.roofType, ridges: DRAW.lines.filter(l => l.type === 'ridge').length }));
 check('a click on a shape builds it on the canvas there and then, the window still open', v.open && v.type === 'gable' && v.ridges === 1, JSON.stringify(v));

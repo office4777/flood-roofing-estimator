@@ -5214,7 +5214,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-02T19:48:34Z';
+  window.APP_BUILT_AT = '2026-11-03T18:45:52Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -54575,13 +54575,12 @@ function _outlineEnterTipSync(){
     if (!el){
       el = document.createElement('div'); el.id = 'enterTip'; el.className = 'no-print';
       el.style.cssText = 'position:absolute;right:10px;z-index:30;background:#0a1628;color:#fff;' +
-        'border-radius:10px;padding:9px 11px;font-size:12px;line-height:1.45;max-width:210px;' +
+        'border-radius:10px;padding:12px 14px;font-size:16px;font-weight:700;line-height:1.4;max-width:260px;' +
         'box-shadow:0 8px 24px rgba(10,22,40,.3);font-family:inherit';
-      el.innerHTML = '<div>When you\u2019ve finished entering your outline, press <b>Enter</b> ' +
-        'to finish the building outline.</div>' +
+      el.innerHTML = '<div>Press <b style="color:#7dd3fc">Enter</b> when you\u2019ve completed the outline</div>' +
         '<button type="button" onclick="try{localStorage.setItem(\'fr_enter_tip_off\',\'1\')}catch(e){};' +
         'this.parentNode.remove()" style="background:none;border:none;color:rgba(255,255,255,.6);' +
-        'font:inherit;font-size:11px;text-decoration:underline;cursor:pointer;padding:5px 0 0">' +
+        'font:inherit;font-size:11px;font-weight:400;text-decoration:underline;cursor:pointer;padding:5px 0 0">' +
         'Don\u2019t show again</button>';
       host.appendChild(el);
     }
@@ -83746,7 +83745,10 @@ function _roofSetupPopup(opts){
   // Seed the pitch box: this roof's own if it has one, otherwise the last roof
   // that was given one — on a house the second roof is usually the same pitch
   // as the first, and offering 0 makes "just press Draw" the wrong answer.
-  var _rsPitch0 = 0;
+  // Nothing to seed from = 15° (the owner, 2026-11-03: "default the roof
+  // pitch to always 15deg") — most NZ re-roofs are near it, and 0 priced
+  // every sheet at its plan length when the box was left alone.
+  var _rsPitch0 = 15;
   try {
     if (typeof DRAW.calPitch === 'number' && DRAW.calPitch > 0) _rsPitch0 = DRAW.calPitch;
     else (DRAW.roofs || []).forEach(function(r){ if (r && +r.calPitch > 0) _rsPitch0 = +r.calPitch; });
@@ -83892,12 +83894,12 @@ function _roofSetupPopup(opts){
   card.innerHTML =
     '<div id="_rsHead" title="Drag to move this window" style="position:sticky;top:0;z-index:2;background:#fff;padding:16px 0 8px;margin-bottom:2px;cursor:move;user-select:none">' +
       '<div id="_rsTitle" style="font-size:16px;font-weight:800;color:#0a1628"></div>' +
-      '<div style="font-size:12px;color:#64748b;margin-top:3px;line-height:1.45">' +
-        esc(opts.message || (settings
-          ? 'Click a shape and the roof changes on the canvas straight away.'
-          : 'Pick the shape and the roof lines are drawn for you as you click. You can change both later.')) +
-        (!settings && sug && sug.reason ? ' <span style="color:#0369a1">Suggested: ' + esc(sug.label) + ' — ' + esc(sug.reason) + '.</span>' : '') +
-      '</div>' +
+      (settings
+        ? '<div style="font-size:12px;color:#64748b;margin-top:3px;line-height:1.45">' +
+            esc(opts.message || 'Click a shape and the roof changes on the canvas straight away.') + '</div>'
+        // THE OWNER, 2026-11-03: one line, bigger, about what comes next.
+        : '<div id="_rsLead" style="font-size:15px;font-weight:600;color:#0a1628;margin-top:6px;line-height:1.4">' +
+            esc(opts.message || 'You can modify the individual corners by clicking them after you close this window') + '</div>') +
     '</div>' +
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin-bottom:6px">Roof shape — each box is this outline with that shape’s lines</div>' +
     '<div id="_rsTypes" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px"></div>' +
@@ -83908,9 +83910,6 @@ function _roofSetupPopup(opts){
     '<div id="_rsLent"></div>' +
     '<div style="font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:#94a3b8;font-weight:800;margin:14px 0 6px">Main sheet material</div>' +
     '<div id="_rsSheets" style="display:flex;flex-wrap:wrap;gap:6px"></div>' +
-    '<div style="font-size:11px;color:#64748b;margin-top:8px;line-height:1.45;background:#f8fafc;border:1px solid #eef1f5;border-radius:8px;padding:8px 10px">' +
-      'This is what the whole roof is sheeted in. For a few clear sheets in a steel roof, leave this on steel and add them one by one with <strong>Add items/details &rarr; Clearlite sheet</strong>.' +
-    '</div>' +
     // The third question, and the one that used to go unasked. Only the roof
     // whose wall was clicked during calibration got a pitch; every other roof
     // stayed at 0 and its sheet lengths came out as plan lengths. Asking here,

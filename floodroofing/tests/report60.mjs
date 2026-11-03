@@ -171,10 +171,10 @@ v = await pg.evaluate(async () => {
 });
 check('nothing is said until a corner actually goes in', v.beforeAnyCorner === null, String(v.beforeAnyCorner));
 check('the first corner says to press Enter to finish the outline',
-  /press\s+Enter/i.test(v.onFirstCorner || '') && /finish the building outline/i.test(v.onFirstCorner || ''),
+  /press\s+Enter/i.test(v.onFirstCorner || '') && /when you.ve completed the outline/i.test(v.onFirstCorner || ''),
   String(v.onFirstCorner));
 check('…in the top right of the canvas, small, and clear of the Shift tip',
-  v.right >= 0 && v.right <= 20 && v.top >= 0 && v.width <= 230 && v.clearsShiftTip,
+  v.right >= 0 && v.right <= 20 && v.top >= 0 && v.width <= 290 && v.clearsShiftTip,
   JSON.stringify({ right: v.right, top: v.top, width: v.width, clears: v.clearsShiftTip }));
 check('…and it goes the moment the outline is finished', v.afterFinish === null, String(v.afterFinish));
 check('…"Don\u2019t show again" keeps it away', v.afterDontShow === null, String(v.afterDontShow));
