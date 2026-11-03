@@ -18,6 +18,8 @@
     elevation: 'Elevations', section: 'Sections', detail_roof: 'Roofing details', detail_other: 'Other details', spec: 'Specification / notes', schedule: 'Schedule',
     structural: 'Structural', services: 'Services', other: 'Other' };
   var ROOFY = { roof_plan: 1, roof_framing: 1, detail_roof: 1, spec: 1, elevation: 1, section: 1 };
+  // A refused key reads as a wall of JSON; say what it is and where it is fixed.
+  function aiErr(e){ e = String(e || ''); return /authentication_error|invalid x-api-key|\b401\b/i.test(e) ? 'the A.I. key on the server was refused (it has been revoked or replaced). A new key needs to go into ANTHROPIC_API_KEY on Railway' : e; }
   function esc(v){ return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
   function root(){ return document.getElementById('tenderRoot'); }
   function onTab(){ return document.body.getAttribute('data-tab') === 'tender'; }
@@ -129,9 +131,9 @@
       '<input type="file" id="tnFile" accept="application/pdf,.pdf" multiple style="display:none" onchange="_tenderFilesPicked(this.files)">' +
       filesHtml(d) + '</div></div>';
     var af = d.aiFailed;
-    if (af && af.pages) h += '<div class="tn-warn">The AI could not read ' + af.pages + ' page' + (af.pages === 1 ? '' : 's') + (af.error ? ': ' + esc(af.error) : '') + '. Those pages are sorted by their title blocks only.</div>';
+    if (af && af.pages) h += '<div class="tn-warn">The AI could not read ' + af.pages + ' page' + (af.pages === 1 ? '' : 's') + (af.error ? ': ' + esc(aiErr(af.error)) : '') + '. Those pages are sorted by their title blocks only.</div>';
     var dt = (d.tasks || [])[0], derr = dt && dt.progress && dt.progress.error;
-    if (!d.doc && derr && !busy()) h += '<div class="tn-err">Drafting the tender did not work: ' + esc(derr) + '. Press “Draft the tender” to try again.</div>';
+    if (!d.doc && derr && !busy()) h += '<div class="tn-err">Drafting the tender did not work: ' + esc(aiErr(derr)) + '. Press “Draft the tender” to try again.</div>';
     if (!d.doc && (d.status === 'indexed' || d.status === 'failed') && d.ai && (d.pages || []).length) h += '<div class="tn-next"><span>The set is read. Next, Claude reads the specification and the drawings and prices the tender.</span><button type="button" class="tn-btn" onclick="_tnDraft()">✨ Draft the tender</button></div>';
     h += '<div id="tnDocHost">' + docHtml(d) + '</div>';
     if (d.doc) h += '<details class="tn-fold" id="tnSheetIdx"><summary class="tn-card-hd" style="border-radius:12px;margin-bottom:10px">Sheet index — ' + (d.pages || []).length + ' pages (click to open)</summary>' + indexHtml(d) + '</details>';

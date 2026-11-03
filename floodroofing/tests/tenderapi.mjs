@@ -491,6 +491,30 @@ check('the named login can start a tender', r.status === 200 && !!r.body.id, JSO
 r = await call(T1, 'GET', '/tender/enabled');
 check('/tender/enabled says the size limit the tab shows', r.body.maxMb === 100, JSON.stringify(r.body));
 
+// A title block laid out as labels over values along the foot of the sheet
+// (Matauri Bay School, architects h + k): the phone number "P. 09 438 8426"
+// is not sheet P-09, H3.2 and R2.2 are not sheet numbers, and "sheet no.",
+// "issue" and "sheet title" name their values.
+{
+  const sh = require(_j(_ROOT, 'backend', 'tender', 'sheets.js'));
+  const W = 2384, H = 1684;
+  const w = (s, fx, fy, h) => ({ s, x: fx * W, y: fy * H, w: s.length * (h || 8) * 0.5, h: h || 8, r: 0 });
+  const words = [
+    w('New H3.2 radiata soffit battens', 0.86, 0.6, 9), w('New Mammoth 90mm R2.2 Wall', 0.86, 0.65, 9),
+    w('P. 09 438 8426', 0.604, 0.972), w('E. office@ahk.co.nz', 0.629, 0.972),
+    w('title', 0.699, 0.933, 7), w('MATAURI BAY SCHOOL', 0.699, 0.939, 11.7),
+    w('sheet title', 0.798, 0.933, 7), w('Plans', 0.798, 0.941, 9.7), w('PROPOSED FLOOR', 0.798, 0.952, 13.6), w('PLAN - BLOCK 1', 0.798, 0.961, 13.6),
+    w('sheet no.', 0.894, 0.952, 7), w('A202', 0.894, 0.957, 15.6), w('scale', 0.894, 0.940, 7), w('As marked at A1', 0.894, 0.945, 7.8),
+    w('issue', 0.944, 0.952, 7), w('P10', 0.944, 0.957, 15.6),
+  ];
+  const lines = words.map(x => ({ s: x.s, x: x.x, y: x.y }));
+  const tb = sh.parseTitleBlock({ width: W, height: H, words, lines });
+  check('labelled title block: sheet A202, issue P10, the title under "sheet title"', tb.sheetId === 'A202' && tb.revision === 'P10' && tb.title === 'PROPOSED FLOOR PLAN - BLOCK 1', JSON.stringify(tb));
+  const bare = sh.parseTitleBlock({ width: W, height: H, words: words.slice(0, 4), lines: lines.slice(0, 4) });
+  check('a phone number, H3.2 and R2.2 are never a sheet number', bare.sheetId === '', JSON.stringify(bare));
+  check('revision P10 is later than P09 and P9', sh.compareRevision('P10', 'P09') > 0 && sh.compareRevision('P10', 'P9') > 0, '');
+}
+
 STORE.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

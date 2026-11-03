@@ -73,6 +73,10 @@ function parseTitleBlock(page){
     while ((m = SHEET_ID_RE.exec(U))) {
       const raw = m[0].replace(/\s+/g, '');
       if (!_plausibleSheetId(raw, U)) continue;
+      // "P. 09 438 8426" is a phone number, not sheet P-09; "H3.2" is a
+      // timber treatment and "R2.2" an insulation rating.
+      if (/^\s*[0-9]{3}/.test(U.slice(m.index + m[0].length))) continue;
+      if (/^[HR][0-9][.\-][0-9]$/.test(raw)) continue;
       const labelled = /\b(SHEET|DWG|DRAWING)\s*(NO|NUMBER|#)?\b/.test(U) ? 0.5 : 0;
       const sc = l.sc + labelled + (/-|\./.test(raw) ? 0.15 : 0);
       if (sc > idScore) { idScore = sc; sheetId = _canonSheetId(raw); idFrom = l; }
@@ -118,6 +122,13 @@ function parseTitleBlock(page){
     const sc = l.sc + upper + near;
     if (sc > tSc) { tSc = sc; title = _titleCase(s); titleFrom = l; }
   }
+  // A labelled block ("sheet no." with A202 under it, "issue" over P10,
+  // "sheet title" over the title) says outright which word is which, so a
+  // value read off its label beats every guess above.
+  const lab = _labelled(page);
+  if (lab.sheetId) { sheetId = lab.sheetId.v; idFrom = lab.sheetId.l; }
+  if (lab.revision) { revision = lab.revision.v; revFrom = lab.revision.l; }
+  if (lab.title) { title = lab.title.v; titleFrom = lab.title.l; }
   // A title that was just the sheet id's own line ("AO-05 ROOF PLAN") loses the id.
   if (title && sheetId) title = _norm(title.replace(new RegExp(sheetId.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&'), 'i'), ''));
 
@@ -126,10 +137,52 @@ function parseTitleBlock(page){
   if (title) confidence += 0.25;
   if (revision) confidence += 0.1;
   if (inBlock.length >= 3) confidence += 0.1;
+  if (lab.sheetId) confidence += 0.15;
   confidence = Math.min(0.95, confidence);
   const at = (l) => l ? { text: l.s, x: +(l.x / W).toFixed(3), y: +(l.y / H).toFixed(3) } : null;
   return { sheetId, title, revision, scale, date, confidence,
     from: { sheetId: at(idFrom), title: at(titleFrom), revision: at(revFrom), scale: at(scaleFrom), date: at(dateFrom) } };
+}
+
+// Read values off their labels, word by word. A label's value sits under
+// it in the same column (or after it on the same line). Returns
+// {sheetId, revision, title} each {v, l} or absent.
+const LBL_ID = /^(sheet|dwg|drawing)\s*(no|number|#)\.?:?$/i;
+const LBL_REV = /^(rev(ision)?|issue)\.?:?$/i;
+const LBL_TITLE = /^(sheet|drawing|dwg)\s*title:?$/i;
+function _labelled(page){
+  const W = page.width || 1;
+  const words = (page.words || []).filter(w => !w.r).map(w => ({ s: _norm(w.s), x: w.x, y: w.y, w: w.w || 0, h: w.h || 0 })).filter(w => w.s);
+  const out = {};
+  const under = (lb, maxLines) => words.filter(w => w !== lb && Math.abs(w.x - lb.x) < Math.max(6, W * 0.012) && w.y > lb.y + lb.h * 0.3 && w.y - lb.y < lb.h * (maxLines || 3.5) + 30)
+    .sort((a, b) => a.y - b.y);
+  const after = (lb) => words.filter(w => w !== lb && Math.abs(w.y - lb.y) < Math.max(2, lb.h * 0.6) && w.x > lb.x && w.x - (lb.x + lb.w) < W * 0.05).sort((a, b) => a.x - b.x);
+  const L = (w) => ({ s: w.s, x: w.x, y: w.y });
+  // Prefer the label lowest on the sheet: a title block is at the foot.
+  const lbls = words.slice().sort((a, b) => b.y - a.y);
+  for (const lb of lbls) {
+    if (!out.sheetId && LBL_ID.test(lb.s)) {
+      for (const w of under(lb).concat(after(lb))) {
+        const raw = w.s.toUpperCase().replace(/\s+/g, '');
+        if (/^[A-Z]{1,3}[0-9]?[-–.]?[0-9]{1,4}(?:[.\-][0-9]{1,3})?$/.test(raw) && _plausibleSheetId(raw, 'SHEET NO')) { out.sheetId = { v: _canonSheetId(raw), l: L(w) }; break; }
+      }
+    }
+    if (!out.revision && LBL_REV.test(lb.s)) {
+      for (const w of under(lb, 2.5).concat(after(lb))) {
+        const v = w.s.toUpperCase().replace(/\s+/g, '');
+        if (/^[A-Z]{0,2}[0-9]{0,3}$/.test(v) && v.length && v.length <= 4) { out.revision = { v, l: L(w) }; break; }
+      }
+    }
+    if (!out.title && LBL_TITLE.test(lb.s)) {
+      const col = under(lb, 6);
+      // The lines under the label that are big enough to be the title (a
+      // small "Plans" there is the drawing's category), joined.
+      const big = col.length ? Math.max.apply(null, col.map(w => w.h)) : 0;
+      const parts = col.filter(w => w.h >= big * 0.8 && /[A-Za-z]{2}/.test(w.s));
+      if (parts.length) out.title = { v: _titleCase(parts.map(w => w.s).join(' ')), l: L(parts[0]) };
+    }
+  }
+  return out;
 }
 
 function _canonSheetId(raw){
@@ -138,6 +191,9 @@ function _canonSheetId(raw){
   const m = /^([A-Z]{1,3}[0-9]?)[-–.]?([0-9]{1,3}(?:[.\-][0-9]{1,3})?)$/.exec(raw.toUpperCase());
   if (!m) return raw.toUpperCase();
   const pre = m[1], num = m[2];
+  // "A202" is how the architect numbered it: a prefix ending in a digit
+  // with no separator is not split into A2-02.
+  if (/[0-9]$/.test(pre) && !/[-–.]/.test(raw.slice(pre.length, pre.length + 1)) && /^[A-Z]+[0-9]{3,4}$/.test(raw.toUpperCase())) return raw.toUpperCase();
   if (/[.]/.test(num)) return pre + '-' + num;
   return pre + '-' + num;
 }
@@ -207,6 +263,8 @@ function parseRegister(lines){
 function compareRevision(a, b){
   a = _up(a); b = _up(b);
   if (!a || !b) return null;
+  const pa = /^([A-Z]+)([0-9]+)$/.exec(a), pb = /^([A-Z]+)([0-9]+)$/.exec(b);
+  if (pa && pb && pa[1] === pb[1]) return Math.sign(parseInt(pa[2], 10) - parseInt(pb[2], 10));
   const ka = /^[0-9]+$/.test(a) ? 0 : 1, kb = /^[0-9]+$/.test(b) ? 0 : 1;
   if (ka !== kb) return ka - kb;
   if (ka === 0) return Math.sign(parseInt(a, 10) - parseInt(b, 10));
