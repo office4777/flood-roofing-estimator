@@ -1566,6 +1566,31 @@ not a saving, and 49 purple to 48 orange.
   Delete this page (`_qcoDelete`: removes a quote option, hides a Settings
   one via `selHide.extras`). `customExtras` is in Q_CONTENT_KEYS,
   Q_FRESH_DROP and a template's `wording`. `tests/sendexact.mjs` sends one.
+- OPTION NOTES AND THE RECOMMENDED PILL (2026-11-04, the owner: a note "on
+  every different option in every section", the Recommended wording his to
+  change, then "allow me to delete the recommended ... also the colour
+  options"). `S.quote.optNotes['<group>:<id>'] = {text, colour}` (green /
+  yellow / red), `S.quote.recLabel`, `recColour`, `recOff` ({group: true},
+  '*' = every section) ride with the quote; `_qbOptMarks(group, it)` is the one
+  place a row's pills and the office's links are made (`_qbOptPills` above the
+  name, `_qbOptNoteLink` under it). On every `_qbOptionPage` row, the gutter
+  kit, custom options, Extras, shed add-ons, the also-available roofs, the
+  locked-gauge cards and each colour section's Undecided row; a COLOUR's note
+  sits under its "Chosen" line (`_qbColourNote`) and its swatch wears a dot
+  (`_qbSwNote`). The Recommended window (`_recLabelEdit(group)`): wording,
+  colour, "use on my new quotes" (`quote_defaults.rec_label` / `rec_colour`,
+  stamped onto the quote by `_qStampCustomerCopy` after its accepted guard),
+  Remove from this section / every section; a removed pill leaves the office a
+  "+ Recommended" link (`_recOn`). Classic A4 shows none of it.
+  A CUSTOM OPTION READS FROM THE PICK, like the steel sections (the same day,
+  on Leaf Diverters): the picked row is Included, the other its difference
+  (−$690 / +$690) — display only, `_rel` in `_qbOptionPage` for `extra:`
+  groups; the total and `_selExtraDelta` unchanged. A HIP END WHOSE WALL HAS
+  EXTRA POINTS ALONG IT is still an end (`_skelHipEnds` walks the straight
+  wall, `e.wall`), so its corners offer Gable / Dutch gable, and the face is
+  named in the outline's own order (it could read the opposite wall). The
+  Background slider starts at full strength (`#bgOpacity` value 1).
+  `tests/optnotes.mjs`, `tests/report80.mjs`.
 - EXTRAS — INCLUDED ITEMS, ON EVERY JOB TYPE (2026-10-30, the owner: "each
   line is an included item, for instance the customer want customer coloured
   downpipes and leaf diverters ... both show as included as show the price ...

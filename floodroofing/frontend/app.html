@@ -4445,6 +4445,13 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .qb-onote-sw{ display:flex; gap:8px; margin:6px 0 2px; flex-wrap:wrap; }
 .qb-onote-sw label{ display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:1.5px solid #d4dce5; cursor:pointer; font-size:12.5px; font-weight:700; }
 .qb-onote-sw input{ margin:0; }
+.qb-rec.qb-rec-c-yellow, .qb-opt.on .qb-rec.qb-rec-c-yellow{ background:#fdf3d8; color:#7a4e0a; }
+.qb-rec.qb-rec-c-red, .qb-opt.on .qb-rec.qb-rec-c-red{ background:#fdecec; color:#b42318; }
+.qb-rec-add{ margin:0 0 5px; opacity:.75; }
+.qb-sw{ position:relative; }
+.qb-sw .qb-sw-note{ position:absolute; top:3px; right:3px; width:9px; height:9px; border-radius:50%; border:1.5px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.15); }
+.qb-sw-note.qb-onote-green{ background:#2f9e5b; } .qb-sw-note.qb-onote-yellow{ background:#d99a14; } .qb-sw-note.qb-onote-red{ background:#d93a2b; }
+.qb-colnote{ margin:6px 0 10px; }
 .qb-up{ font-size:14.5px; font-weight:800; color:#0a1628; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-down{ font-size:14.5px; font-weight:800; color:#1a7f4e; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .qb-lock{ font-size:9.5px; font-style:normal; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8a5a12; background:#fdf6e8; padding:2px 7px; border-radius:5px; margin-left:6px; vertical-align:middle; }
@@ -5228,7 +5235,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-03T23:41:30Z';
+  window.APP_BUILT_AT = '2026-11-04T01:45:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6531,7 +6538,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <label id="bgOpacityWrap" style="display:inline-flex;align-items:center;gap:7px;margin:0;font-size:12px;color:var(--text2);white-space:nowrap"
                title="Left = the background picture is gone completely; right = at full strength">
           <span>Background</span>
-          <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.35" style="width:116px;margin:0" oninput="redrawAll()">
+          <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="1" style="width:116px;margin:0" oninput="redrawAll()">
         </label>
       </div>
 
@@ -32798,7 +32805,7 @@ function _qvBackToDraft(opts){
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
-  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras','optNotes','recLabel'];
+  'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras','optNotes','recLabel','recColour','recOff'];
 function _qContentFp(q){
   if (!q) return null;
   var o = {}; Q_CONTENT_KEYS.forEach(function(k){ if (q[k] != null) o[k] = q[k]; });
@@ -33666,6 +33673,10 @@ function _qStampCustomerCopy(){
     if (!String(S.quote.recLabel || '').trim()){
       var _rl = String((((S.settings || {}).quote_defaults) || {}).rec_label || '').trim();
       if (_rl) S.quote.recLabel = _rl;
+    }
+    if (!S.quote.recColour){
+      var _rc = String((((S.settings || {}).quote_defaults) || {}).rec_colour || '');
+      if (_rc === 'yellow' || _rc === 'red') S.quote.recColour = _rc;
     }
   } catch(e){}
   try {
@@ -35887,7 +35898,12 @@ function _qbOptionPage(o){
   // THE STEEL CHOICES READ FROM WHAT IS PICKED (2026-09-23): with 0.55 picked,
   // 0.40 shows what going back saves ("−$2,732.54"), not "Included", and the
   // pick itself is "Included" because the total already carries it.
-  var _rel = (o.group === 'steelGrade' || o.group === 'profile' || o.group === 'steelThickness');
+  // …and so does a CUSTOM OPTION (2026-11-04, the owner on Leaf Diverters:
+  // "should show included, then the discount not to add them, and vice versa
+  // if i click the different buttons"). Display only: the total, the summary
+  // row and the stamped prices read _selExtraDelta as before.
+  var _rel = (o.group === 'steelGrade' || o.group === 'profile' || o.group === 'steelThickness' ||
+              String(o.group || '').indexOf('extra:') === 0);
   var _pk = (o.items || []).find(function(x){ return x.id === o.current; });
   var _off = (_rel && _pk && isFinite(_pk.delta)) ? +_pk.delta : 0;
   var rows = (o.items || []).map(function(it){
@@ -35983,6 +35999,41 @@ function _recLabel(){
   }
   return t || _recLabelDefault();
 }
+// THE RECOMMENDED PILL'S COLOUR, AND TAKING IT OFF (2026-11-04, the owner:
+// "allow me to delete the recommended in this attached window, also the colour
+// options ... isn't showing here"). `S.quote.recColour` (green / yellow / red,
+// the quote's own, else Settings' default, else green) and `S.quote.recOff`
+// ({<group>: true}, '*' = every section) ride with the quote.
+function _recColour(){
+  var c = String((S.quote && S.quote.recColour) || '');
+  if (!c && !window.__CUSTOMER_MODE){
+    try { c = String((((S.settings || {}).quote_defaults) || {}).rec_colour || ''); } catch(e){}
+  }
+  return QB_NOTE_COLOURS.indexOf(c) >= 0 ? c : 'green';
+}
+function _recIsOff(group){
+  var m = (S.quote && S.quote.recOff) || {};
+  return !!(m['*'] || (group != null && m[String(group)]));
+}
+function _recOn(group){
+  if (!_optNoteEditable()) return;
+  var m = Object.assign({}, S.quote.recOff || {});
+  delete m['*']; if (group != null) delete m[String(group)];
+  if (Object.keys(m).length) S.quote.recOff = m; else delete S.quote.recOff;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _recOff(all){
+  var host = document.getElementById('qcoModal');
+  var g = host && host._recGroup;
+  if (!_optNoteEditable()) return;
+  _qcoClose();
+  var m = Object.assign({}, S.quote.recOff || {});
+  if (all) m['*'] = true; else if (g != null && g !== '') m[String(g)] = true; else m['*'] = true;
+  S.quote.recOff = m;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
 function _optNoteEditable(){
   return !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE && !window.__PRINTING_MODERN &&
          !!S.quote && !S.quote.accepted && !S._qvViewing;
@@ -35992,8 +36043,13 @@ function _qbOptMarks(group, it, opts){
   var ed = _optNoteEditable() && group != null && it && it.id != null;
   var out = '';
   if (it && it.isDefault){
-    out += '<span class="qb-rec">' + esc2(_recLabel()) + '</span>' +
-      (ed ? '<span class="qb-rec-ed no-print" title="Change this wording on every recommended pick in this quote" onclick="event.stopPropagation();_recLabelEdit()">✎ wording</span>' : '');
+    if (_recIsOff(group)){
+      // Taken off by the office: a faint link puts it back (office only).
+      if (ed) out += '<span class="qb-rec-ed qb-rec-add no-print" data-rec-grp="' + esc2(String(group)) + '" title="Show the Recommended pill on this section again" onclick="event.stopPropagation();_recOn(this.getAttribute(\'data-rec-grp\'))">+ Recommended</span>';
+    } else {
+      out += '<span class="qb-rec qb-rec-c-' + _recColour() + '">' + esc2(_recLabel()) + '</span>' +
+        (ed ? '<span class="qb-rec-ed no-print" data-rec-grp="' + esc2(String(group)) + '" title="Change the wording or colour, or take it off" onclick="event.stopPropagation();_recLabelEdit(this.getAttribute(\'data-rec-grp\'))">✎ edit</span>' : '');
+    }
   }
   var n = _optNote(group, it && it.id);
   if (n){
@@ -36002,6 +36058,20 @@ function _qbOptMarks(group, it, opts){
   }
   if (opts.addLink !== false && ed) out += _qbOptNoteLink(group, it);
   return out;
+}
+// A COLOUR CARRIES A NOTE TOO (2026-11-04, "notes on every possible
+// selection"): a swatch is too small to hold a pill, so a swatch with a note
+// wears a dot in its colour, and the note itself sits under the "Chosen" line
+// while that colour is the pick — with the office's add / edit link for it.
+function _qbSwNote(group, name){
+  var n = _optNote(group, name); if (!n) return '';
+  var c = QB_NOTE_COLOURS.indexOf(n.colour) >= 0 ? n.colour : 'yellow';
+  return '<em class="qb-sw-note qb-onote-' + c + '" title="' + esc2(String(n.text).trim()) + '"></em>';
+}
+function _qbColourNote(group, cur){
+  if (!cur || cur === QB_COLOUR_UNDECIDED) return '';
+  var h = _qbOptMarks(group, { id: cur });
+  return h ? '<div class="qb-colnote" data-colnote="' + esc2(group) + '">' + h + '</div>' : '';
 }
 // The add-note link sits under the description; the pills sit above the name.
 function _qbOptPills(group, it){ return _qbOptMarks(group, it, { addLink:false }); }
@@ -36049,31 +36119,45 @@ function _optNoteSave(remove){
   try { refreshQuoteProposal(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
 }
-function _recLabelEdit(){
+function _recLabelEdit(group){
   if (!_optNoteEditable()) return;
+  var col = _recColour();
+  var chip = function(c, label){
+    return '<label class="qb-onote-' + c + '"><input type="radio" name="recCol" value="' + c + '"' + (c === col ? ' checked' : '') + '>' + label + '</label>';
+  };
   var host = _qcoShell(
-    '<div class="qco-hd"><b>Recommended wording</b><span>The green pill on the option you recommend, on every section of this quote.</span></div>' +
+    '<div class="qco-hd"><b>Recommended pill</b><span>The pill on the option you recommend. The wording and colour apply to every section of this quote.</span></div>' +
     '<div class="qco-bd">' +
       '<label class="qco-l" for="recLblText">Wording</label>' +
       '<input type="text" id="recLblText" maxlength="60" value="' + esc2(_recLabel()) + '">' +
-      '<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px"><input type="checkbox" id="recLblDef"> Use this wording on my new quotes too</label>' +
+      '<label class="qco-l">Colour</label>' +
+      '<div class="qb-onote-sw">' + chip('green', 'Green') + chip('yellow', 'Yellow') + chip('red', 'Red') + '</div>' +
+      '<label style="display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px"><input type="checkbox" id="recLblDef"> Use this wording and colour on my new quotes too</label>' +
     '</div>' +
     '<div class="qco-ft"><button type="button" class="qa-btn" onclick="_recLabelSave(true)">Reset to “' + esc2(_recLabelDefault()) + '”</button>' +
+      '<button type="button" class="qa-btn qa-btn-warn" id="recOffOne" onclick="_recOff(false)">Remove from this section</button>' +
+      '<button type="button" class="qa-btn qa-btn-warn" id="recOffAll" onclick="_recOff(true)">Remove from every section</button>' +
       '<span style="flex:1"></span><button type="button" class="qa-btn" onclick="_qcoClose()">Cancel</button>' +
       '<button type="button" class="qa-btn qa-btn-primary" id="recLblSave" onclick="_recLabelSave(false)">Save</button></div>');
+  host._recGroup = (group == null) ? '' : String(group);
   setTimeout(function(){ try { var i = document.getElementById('recLblText'); i.focus(); i.select(); } catch(e){} }, 30);
 }
 async function _recLabelSave(reset){
   if (!_optNoteEditable()) return;
   var t = reset ? '' : String((document.getElementById('recLblText') || {}).value || '').trim().slice(0, 60);
   var asDef = !reset && !!((document.getElementById('recLblDef') || {}).checked);
+  var cEl = document.querySelector('#qcoModal input[name="recCol"]:checked');
+  var colour = reset ? 'green' : (cEl ? cEl.value : _recColour());
   _qcoClose();
   if (!t || t === _recLabelDefault()) delete S.quote.recLabel; else S.quote.recLabel = t;
+  if (colour === 'green') delete S.quote.recColour; else S.quote.recColour = colour;
   if (reset || asDef){
     try {
       S.settings = S.settings || {}; S.settings.quote_defaults = S.settings.quote_defaults || {};
       if (asDef && t && t !== _recLabelDefault()) S.settings.quote_defaults.rec_label = t;
       else delete S.settings.quote_defaults.rec_label;
+      if (asDef && colour !== 'green') S.settings.quote_defaults.rec_colour = colour;
+      else delete S.settings.quote_defaults.rec_colour;
       if (asDef || reset) await saveSettings(true);
     } catch(e){}
   }
@@ -36243,8 +36327,8 @@ function _qbThickness(){
         '<p class="qb-para">You have chosen 5-Rib, which is rolled in 0.55 gauge only — the heavier steel that resists denting. There is nothing to choose here, and it is included in your price.</p>'+
         '<div class="qb-opts"><div class="qb-opt on qb-opt-static">'+
           '<span class="qb-tick"><svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
-          '<span class="qb-opt-txt"><b>0.55 gauge <em class="qb-lock">Locked for 5-Rib</em></b>'+
-            '<span class="qb-opt-desc">Switch back to Corrugate on the previous page if you would rather choose 0.40 gauge.</span></span>'+
+          '<span class="qb-opt-txt">'+_qbOptPills('steelThickness', { id:'0.55' })+'<b>0.55 gauge <em class="qb-lock">Locked for 5-Rib</em></b>'+
+            '<span class="qb-opt-desc">Switch back to Corrugate on the previous page if you would rather choose 0.40 gauge.</span>'+_qbOptNoteLink('steelThickness', { id:'0.55' })+'</span>'+
           '<span class="qb-opt-price"><span class="qb-inc">Included</span></span>'+
         '</div></div>'+
       '</div>';
@@ -36305,7 +36389,7 @@ function _qbColour(){
     var on = (c.name === cur);
     return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-qb-colour="'+esc2(c.name)+'"'+
       (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_colour(\''+esc2(String(c.name).replace(/'/g,"\\'"))+'\')"')+'>'+
-      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(c.name)+'</i></button>';
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span>'+_qbSwNote('colour', c.name)+'<i>'+esc2(c.name)+'</i></button>';
   }).join('');
   return ''+
     '<div class="qb-body">'+
@@ -36317,13 +36401,14 @@ function _qbColour(){
       '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-colour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
         (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_colour(\''+QB_COLOUR_UNDECIDED+'\')"')+'>'+
         '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
-        '<span class="qb-opt-txt"><b>Undecided — I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
+        '<span class="qb-opt-txt">'+_qbOptPills('colour', { id:QB_COLOUR_UNDECIDED })+'<b>Undecided — I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span>'+_qbOptNoteLink('colour', { id:QB_COLOUR_UNDECIDED })+'</span>'+
       '</button>'+
       _qbProfileFigure(p.profile || ((_selProfiles()[0] || {}).id) || 'corrugate')+
       '<div class="qb-chosen">'+(undecided
         ? 'Chosen: <b>Undecided</b> — we will confirm it with you'
         : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
               : '<em>No colour chosen yet — tap one below, or Undecided above.</em>')+'</div>'+
+      _qbColourNote('colour', cur)+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
       // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
       // roofing quote, allow me to delete the roof colour section"), the
@@ -36412,7 +36497,7 @@ function _qbGutterColour(){
   if (P.kind === 'classic'){
     return '<div class="qb-body">' + head +
       _qSecPara('gcolour_classic', 'Marley Classic spouting comes in white only.') +
-      '<div class="qb-chosen">Chosen: <b>White</b></div>' +
+      '<div class="qb-chosen">Chosen: <b>White</b></div>' + _qbColourNote('gcolour', 'White') +
       '<div class="qb-swatches"><button type="button" class="qb-sw on" disabled title="White" data-qb-gcolour="White"><span style="background:#f4f4ef"></span><i>White</i></button></div>' +
       del + '</div>';
   }
@@ -36422,7 +36507,7 @@ function _qbGutterColour(){
     var on = (c.name === cur);
     return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-qb-gcolour="'+esc2(c.name)+'"'+
       (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+esc2(String(c.name).replace(/'/g,"\\'"))+'\')"')+'>'+
-      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(c.name)+'</i></button>';
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span>'+_qbSwNote('gcolour', c.name)+'<i>'+esc2(c.name)+'</i></button>';
   }).join('');
   var range = P.kind === 'typhoon' ? 'the Marley Typhoon range' : 'the Colorsteel\u00ae range';
   return '<div class="qb-body">' + head +
@@ -36430,10 +36515,11 @@ function _qbGutterColour(){
     '<button type="button" class="qb-undecided'+(undecided ? ' on' : '')+'" data-qb-gcolour="'+esc2(QB_COLOUR_UNDECIDED)+'"'+
       (_qbLocked() ? ' disabled' : ' onclick="_setProposalOption_gutterColour(\''+QB_COLOUR_UNDECIDED+'\')"')+'>'+
       '<span class="qb-tick">'+(undecided ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
-      '<span class="qb-opt-txt"><b>Undecided \u2014 I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span></span>'+
+      '<span class="qb-opt-txt">'+_qbOptPills('gcolour', { id:QB_COLOUR_UNDECIDED })+'<b>Undecided \u2014 I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span>'+_qbOptNoteLink('gcolour', { id:QB_COLOUR_UNDECIDED })+'</span>'+
     '</button>'+
     '<div class="qb-chosen">'+(undecided ? 'Chosen: <b>Undecided</b> \u2014 we will confirm it with you'
        : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : '<em>No colour chosen yet \u2014 tap one below, or Undecided above.</em>')+'</div>'+
+    _qbColourNote('gcolour', cur)+
     '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
     del + '</div>';
 }
@@ -44030,8 +44116,8 @@ function _psmThickness(){
       _qSecPara('psthicklock', 'You have chosen '+_pn+', which is rolled in '+_lk+' gauge only. There is nothing to choose here, and it is counted in the price on the previous page.')+
       '<div class="qb-opts"><div class="qb-opt on qb-opt-static">'+
         '<span class="qb-tick"><svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
-        '<span class="qb-opt-txt"><b>'+esc2(_lk)+' gauge <em class="qb-lock">Locked for '+esc2(_pn)+'</em></b>'+
-          '<span class="qb-opt-desc">Pick a different profile on the previous page if you would rather choose the gauge yourself.</span></span>'+
+        '<span class="qb-opt-txt">'+_qbOptPills('psSelThickness', { id:_lk })+'<b>'+esc2(_lk)+' gauge <em class="qb-lock">Locked for '+esc2(_pn)+'</em></b>'+
+          '<span class="qb-opt-desc">Pick a different profile on the previous page if you would rather choose the gauge yourself.</span>'+_qbOptNoteLink('psSelThickness', { id:_lk })+'</span>'+
         '<span class="qb-opt-price"><span class="qb-inc">Included</span></span>'+
       '</div></div>'
     );
@@ -44053,7 +44139,7 @@ function _psmColour(){
     var on = (c.name === cur);
     return '<button type="button" class="qb-sw'+(on ? ' on' : '')+'" title="'+esc2(c.name)+'" data-ps-colour="'+esc2(c.name)+'"'+
       (_qbLocked() ? ' disabled' : ' onclick="_setPsColour(\''+esc2(String(c.name).replace(/'/g, "\\'"))+'\')"')+'>'+
-      '<span style="background:'+esc2(c.hex || '#999')+'"></span><i>'+esc2(String(c.name).replace(/\u00ae/g, ''))+'</i></button>';
+      '<span style="background:'+esc2(c.hex || '#999')+'"></span>'+_qbSwNote('psSelColour', c.name)+'<i>'+esc2(String(c.name).replace(/\u00ae/g, ''))+'</i></button>';
   }).join('');
   return _psmBody(
     '<span class="qb-eyebrow">The look of it</span>'+
@@ -44063,6 +44149,7 @@ function _psmColour(){
     '<div class="qb-chosen">'+(cur
       ? 'Chosen: <b>'+esc2(cur)+'</b>'
       : '<em>No colour chosen yet \u2014 tap one below.</em>')+'</div>'+
+    _qbColourNote('psSelColour', cur)+
     '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your builder will confirm the colour range with you.</p>')+'</div>'
   );
 }
@@ -46960,7 +47047,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes','recOff',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
@@ -82299,11 +82386,27 @@ function _skelHipEnds(lines, outline){
       if (hips.length !== 2) return;
       if (lines.some(function(l){ return l !== r && (l.type === 'valley' || l.type === 'ridge') && (near(l.pts[0], R) || near(l.pts[1], R)); })) return;
       var ci = hips.map(function(x){ return _endCornerIdx(outline, x.h.pts[1 - x.e], 5); });
-      if (ci[0] < 0 || ci[1] < 0) return;
-      var d = Math.abs(ci[0] - ci[1]);
-      if (!(d === 1 || d === n - 1)) return;
+      if (ci[0] < 0 || ci[1] < 0 || ci[0] === ci[1]) return;
+      // NEIGHBOURS ALONG ONE STRAIGHT WALL (2026-11-04, the owner on a T whose
+      // wing's end wall carried two extra points along it: "where [are] the
+      // buttons ... to convert this corner?"). A point lying on the wall
+      // between the two hip corners is not a corner, so the end is still an
+      // end. Walk the outline from one to the other either way round.
+      var onWall = function(a, b){
+        var A = outline[a], B = outline[b], L = Math.hypot(B[0]-A[0], B[1]-A[1]); if (L < 1) return false;
+        for (var i = (a + 1) % n, g = 0; i !== b && g++ < n; i = (i + 1) % n){
+          var P = outline[i];
+          if (Math.abs((P[0]-A[0])*(B[1]-A[1]) - (P[1]-A[1])*(B[0]-A[0])) / L > 2.5) return false;
+        }
+        return true;
+      };
+      var from, to;
+      if (onWall(ci[0], ci[1])){ from = ci[0]; to = ci[1]; }
+      else if (onWall(ci[1], ci[0])){ from = ci[1]; to = ci[0]; }
+      else return;
+      // Straight neighbours keep the key they always had, so a saved end still reads.
       var lo = Math.min(ci[0], ci[1]), hi = Math.max(ci[0], ci[1]);
-      out.push({ ridge: r, ei: ei, R: R.slice(), hips: hips, corners: ci, key: 'e:' + lo + '-' + hi });
+      out.push({ ridge: r, ei: ei, R: R.slice(), hips: hips, corners: ci, wall: [from, to], key: 'e:' + lo + '-' + hi });
     });
   });
   return out;
@@ -82533,8 +82636,14 @@ function _cornerEndCands(idx){
       sk = sk.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
       var P = DRAW.outline[idx];
       _skelHipEnds(sk, ol).forEach(function(e){
-        var cs = e.corners.map(function(i){ return ol[i]; });
-        if (!cs.some(function(c){ return Math.hypot(c[0]-P[0], c[1]-P[1]) < 3; })) return;
+        // the wall in the outline's own order, so the face it is named for is
+        // the way it really faces (it read the hips' order, and an end could be
+        // named for the opposite wall)
+        var cs = e.wall.map(function(i){ return ol[i]; });
+        // a click on any point of that wall offers it, the extra ones included
+        var onIt = false, wi = e.wall[0], g = 0;
+        while (g++ <= ol.length){ var c = ol[wi]; if (Math.hypot(c[0]-P[0], c[1]-P[1]) < 3){ onIt = true; break; } if (wi === e.wall[1]) break; wi = (wi + 1) % ol.length; }
+        if (!onIt) return;
         var key = e.key;
         out.push({ face: _endFaceName(cs[0], cs[1], ol), kinds: END_KINDS_3,
           cur: (DRAW.endKinds && DRAW.endKinds[key]) || type,

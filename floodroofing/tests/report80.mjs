@@ -212,6 +212,25 @@ v = await pg.evaluate(() => {
 });
 check('with no end changed, hip, dutch and mono roofs are built exactly as before', v);
 
+// ── a hip end whose wall carries extra points along it (2026-11-04, the
+// owner: "where [are] the buttons under the move corner popup to convert this
+// corner?") — a T's wing with two points on its straight end wall ──
+v = await pg.evaluate(() => {
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[675,290],[780,290],[780,230],[843,230],[910,230],[945,230],[945,290],[1090,290],[1090,487],[675,487]];
+  finishCurrent(); DRAW.scaleMetresPerPx = 0.03; autoGenerateRoof('hip');
+  try { const m = document.getElementById('_rsModal'); if (m) m.remove(); } catch(e){}
+  const f = i => _cornerEndCands(i).map(c => c.face).join('|');
+  const out = { c2: f(2), c3: f(3), c5: f(5), w: f(0), e: f(7) };
+  const c = _cornerEndCands(5)[0]; _endCommit(c, 'gable');
+  out.barges = DRAW.lines.filter(l => l.type === 'barge').length;
+  out.wingHips = DRAW.lines.filter(l => l.type === 'hip' && l.pts.some(p => p[1] < 240)).length;
+  return out;
+});
+check('a hip end with extra points on its wall still offers Gable / Dutch gable, named for the way it faces',
+  v.c2 === 'North' && v.c3 === 'North' && v.c5 === 'North' && v.w === 'West' && v.e === 'East', JSON.stringify(v));
+check('…and making it a gable end draws the two barges, its hips gone', v.barges === 2 && v.wingHips === 0, JSON.stringify(v));
+
 check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();
 const bad = results.filter(x => !x).length;

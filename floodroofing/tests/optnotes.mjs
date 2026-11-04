@@ -106,16 +106,90 @@ v = await pg.evaluate(() => ({ pill: !!document.querySelector('#qpRoot [data-ono
 check('Remove note takes it off', !v.pill && !v.stored, JSON.stringify(v));
 
 // ── the Recommended wording ──
-await pg.locator('#qpRoot .qb-rec-ed').first().click();
+await pg.evaluate(() => document.querySelector('#qpRoot .qb-rec-ed').click());
 await pg.waitForTimeout(200);
 await pg.fill('#recLblText', 'Our pick for this house');
-await pg.click('#recLblSave');
+await pg.evaluate(() => document.getElementById('recLblSave').click());
 await pg.waitForTimeout(400);
 v = await pg.evaluate(() => ({ label: S.quote.recLabel, pills: [...document.querySelectorAll('#qpRoot .qb-rec')].map(e => e.textContent) }));
 check('the green Recommended wording is the office\'s to change, on every recommended pick',
   v.label === 'Our pick for this house' && v.pills.length >= 3 && v.pills.every(t => t === 'Our pick for this house'), JSON.stringify(v));
 v = await pg.evaluate(() => ({ keys: Q_CONTENT_KEYS.includes('optNotes') && Q_CONTENT_KEYS.includes('recLabel'), drop: Q_FRESH_DROP.includes('optNotes') }));
 check('…both ride with the quote\'s content', v.keys && v.drop, JSON.stringify(v));
+
+const tap = sel => pg.evaluate(s => document.querySelector(s).click(), sel);
+// ── a CUSTOM OPTION reads from the pick (Leaf Diverters, 2026-11-04) ──
+const tot = () => pg.evaluate(() => _custBarTotalValue());
+await pg.evaluate(() => {
+  S.quote.customExtras = [{ id:'leafdiv', title:'Leaf Diverters', desc:'Marley Curve leaf diverters',
+    rows:[ { id:'excl', name:'Exclude', desc:"No, don't add Leaf Diverters", price:0 }, { id:'incl', name:'Include', desc:'Yes, add them', price:600 } ] }];
+  _setProposalOption_extra('leafdiv', 'incl'); refreshQuoteProposal();
+});
+await pg.waitForTimeout(300);
+const tagOf = () => pg.evaluate(() => {
+  const o = {}; document.querySelectorAll('#qpRoot [data-qb-opt="extra:leafdiv"]').forEach(b => { o[b.getAttribute('data-qb-val')] = b.querySelector('.qb-opt-price').textContent.trim(); });
+  return o; });
+const totIncl = await tot();
+v = await tagOf();
+check('Include picked: Include reads Included, Exclude reads the saving', /included/i.test(v.incl || '') && /^−\$690\.00$/.test(v.excl || ''), JSON.stringify(v));
+await tap('#qpRoot [data-qb-opt="extra:leafdiv"][data-qb-val="excl"]');
+await pg.waitForTimeout(400);
+v = await tagOf();
+const totExcl = await tot();
+check('…click Exclude: it reads Included and Include reads +$690.00', /included/i.test(v.excl || '') && /^\+\$690\.00$/.test(v.incl || ''), JSON.stringify(v));
+check('…and the total still moves by the option\'s price', Math.abs((totIncl - totExcl) - 690) < 0.02, totIncl + ' / ' + totExcl);
+
+// ── the colours, Undecided and the locked gauge take notes too ──
+v = await pg.evaluate(() => {
+  S.quote.proposalOptions.colour = 'Ironsand®'; refreshQuoteProposal();
+  const k = e => e ? e.getAttribute('data-onote-add') : null;
+  return { col: k(document.querySelector('#qpRoot [data-colnote="colour"] [data-onote-add]')),
+           und: k(document.querySelector('#qpRoot .qb-undecided [data-onote-add]')) };
+});
+check('the picked roof colour and the Undecided row offer a note', v.col === 'colour:Ironsand®' && v.und === 'colour:Undecided', JSON.stringify(v));
+await tap('#qpRoot [data-colnote="colour"] [data-onote-add]');
+await pg.waitForTimeout(200);
+await pg.fill('#onoteText', 'Shows dust in summer');
+await pg.check('#qcoModal input[value="yellow"]');
+await tap('#onoteSave');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ pill: (document.querySelector('#qpRoot [data-colnote="colour"] .qb-onote') || {}).textContent,
+  dot: !!document.querySelector('#qpRoot [data-qb-colour="Ironsand®"] .qb-sw-note.qb-onote-yellow') }));
+check('…the colour note shows under Chosen, and its swatch carries a yellow dot', v.pill === 'Shows dust in summer' && v.dot, JSON.stringify(v));
+v = await pg.evaluate(() => { S.quote.proposalOptions.profile = '5rib'; refreshQuoteProposal();
+  const r = !!document.querySelector('#qpRoot .qb-opt-static [data-onote-add="steelThickness:0.55"]');
+  S.quote.proposalOptions.profile = 'corrugate'; refreshQuoteProposal(); return r; });
+check('…and the "Locked for 5-Rib" gauge card offers one', v, String(v));
+
+// ── the Recommended pill: its colour, and taking it off ──
+await tap('#qd-grade .qb-rec-ed');
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({ cols: document.querySelectorAll('#qcoModal input[name="recCol"]').length,
+  one: !!document.getElementById('recOffOne'), all: !!document.getElementById('recOffAll') }));
+check('the Recommended window offers green / yellow / red and both Removes', v.cols === 3 && v.one && v.all, JSON.stringify(v));
+await pg.check('#qcoModal input[name="recCol"][value="yellow"]');
+await tap('#recLblSave');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ c: S.quote.recColour, all: [...document.querySelectorAll('#qpRoot .qb-rec')].every(e => e.classList.contains('qb-rec-c-yellow')) }));
+check('…a yellow pill on every section', v.c === 'yellow' && v.all, JSON.stringify(v));
+await tap('#qd-grade .qb-rec-ed');
+await pg.waitForTimeout(200);
+await tap('#recOffOne');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ grade: !!document.querySelector('#qd-grade .qb-rec'), back: !!document.querySelector('#qd-grade .qb-rec-add'),
+  others: document.querySelectorAll('#qpRoot .qb-rec').length, off: S.quote.recOff }));
+check('Remove from this section takes it off that section only', !v.grade && v.back && v.others >= 2 && v.off && v.off.steelGrade, JSON.stringify(v));
+await tap('#qd-grade .qb-rec-add');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ grade: !!document.querySelector('#qd-grade .qb-rec'), off: S.quote.recOff || null }));
+check('…"+ Recommended" puts it back', v.grade && !v.off, JSON.stringify(v));
+await tap('#qd-grade .qb-rec-ed');
+await pg.waitForTimeout(200);
+await tap('#recOffAll');
+await pg.waitForTimeout(300);
+v = await pg.evaluate(() => ({ n: document.querySelectorAll('#qpRoot .qb-rec').length, keys: Q_CONTENT_KEYS.includes('recColour') && Q_CONTENT_KEYS.includes('recOff') }));
+check('Remove from every section takes them all off', v.n === 0 && v.keys, JSON.stringify(v));
+await pg.evaluate(() => { delete S.quote.recOff; delete S.quote.recColour; delete S.quote.customExtras; refreshQuoteProposal(); });
 
 // ── paper: the notes print, the links do not ──
 v = await pg.evaluate(() => {
@@ -136,11 +210,11 @@ const q = {
   date:'19/09/2026', validUntil:'30 days', gstRate:15, coverTitle:'Whittaker Residence',
   condMaterial:'Corrugate Colorsteel', condAge:'34 years', condPhotos:[{ src:PHOTO, caption:'North face' }],
   baseGrade:'maxam', materialBase:9200, gutterLm:48, gutterLines:4, scaffoldBase:4200,
-  optNotes:{ 'steelGrade:zincalume':{ text:'Not suited this close to the sea', colour:'red' }, 'profile:5rib':{ text:'Costs more but sheds water faster', colour:'yellow' } },
-  recLabel:'Our pick for this house',
+  optNotes:{ 'colour:Ironsand':{ text:'Shows dust in summer', colour:'yellow' }, 'steelGrade:zincalume':{ text:'Not suited this close to the sea', colour:'red' }, 'profile:5rib':{ text:'Costs more but sheds water faster', colour:'yellow' } },
+  recLabel:'Our pick for this house', recColour:'red', recOff:{ profile:true },
   sectionDesc:{ grade:'This roof is 300 m from the tide, so the grade matters more here.' },
   proposalOptions:{ extraRoofsSel:{}, steelGrade:'maxam', profile:'corrugate', steelThickness:'40',
-                    colour:'', gutterType:'none', gutterBracket:'internal', downpipes:'no', disposal:'dispose' },
+                    colour:'Ironsand', gutterType:'none', gutterBracket:'internal', downpipes:'no', disposal:'dispose' },
   lineItems:[{ desc:'Strip and re-roof', qty:1, unit:31200 }], total:31200,
 };
 const cctx = await b.newContext({ viewport:{ width:1366, height:850 } });
@@ -160,12 +234,17 @@ const cust = await cpg.evaluate(() => ({
   customer: !!window.__CUSTOMER_MODE,
   notes: [...document.querySelectorAll('#qpRoot .qb-onote')].map(e => [e.getAttribute('data-onote'), e.className.replace('qb-onote ', ''), e.textContent]),
   recs: [...document.querySelectorAll('#qpRoot .qb-rec')].map(e => e.textContent),
+  red: [...document.querySelectorAll('#qpRoot .qb-rec')].every(e => e.classList.contains('qb-rec-c-red')),
+  profRec: !!document.querySelector('#qd-profile .qb-rec'),
+  colNote: (document.querySelector('#qpRoot [data-colnote="colour"] .qb-onote') || {}).textContent,
   links: document.querySelectorAll('#qpRoot .qb-onote-add, #qpRoot .qb-rec-ed').length,
 }));
 check('the customer reads the office\'s notes in their colours', cust.customer &&
   cust.notes.some(n => n[0] === 'steelGrade:zincalume' && n[1] === 'qb-onote-red' && /sea/.test(n[2])) &&
   cust.notes.some(n => n[0] === 'profile:5rib' && n[1] === 'qb-onote-yellow'), JSON.stringify(cust.notes));
 check('…and the office\'s Recommended wording', cust.recs.length >= 2 && cust.recs.every(t => t === 'Our pick for this house'), JSON.stringify(cust.recs));
+check('…in red, and not on the section the office took it off', cust.red && !cust.profRec, JSON.stringify([cust.red, cust.profRec]));
+check('…and the colour\'s note under Chosen', cust.colNote === 'Shows dust in summer', String(cust.colNote));
 check('…with no "+ Add note" or "✎ wording" for them', cust.links === 0, String(cust.links));
 check('nothing on the customer screen threw', cerrs.length === 0, cerrs.join(' | ') || 'clean');
 
