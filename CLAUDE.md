@@ -1867,6 +1867,18 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   when picked) straight after the brackets line, ahead of "Seal all joints".
   The classic A4's scope prose is the office's and is not touched.
   `tests/scaffoldopts.mjs` (34).
+- A GUTTER THE OFFICE ADDS IS PRICED, AND SETTINGS SHOWS THE PRICE IN USE
+  (2026-11-05, the owner: a 175mm box gutter added to the products and priced
+  at $40/lm on Default Items read "Included" on the quote; and the Typhoon
+  boxes in Settings sat at 0.00 while the Pricing tab charged $19.27 and the
+  rest). `_gutterTotalChargeFor` returned 0 for any id outside the three
+  shipped gutters (`SEL_GUTTER_MATERIAL_PER_LM` / `GUTTER_MATERIAL_PRICES`)
+  although `_gutterMaterialPerLm` read its `<id>_lm` correctly — it now prices
+  any gutter in `_selGuttersAll()`. And `renderPriceBookUI` fills an unpriced
+  gutter box (blank or 0, which `_gutterSupply` treats as "not priced") with
+  the built-in figure from `defaultSettings().price_book.gutter` — the one the
+  quote falls back to — so Settings shows what is charged and a save stores
+  that same figure. `tests/gutterown.mjs`.
 - THE PITCH PLATE STAYS OFF THE RIDGE, AND COMES OFF WITH A CLICK (2026-11-05,
   the owner with his 15° plate on the ridge's 16.26m measure: "put it off to
   the side, also allow me to click to delete it, also in the 'edit font size'

@@ -5270,7 +5270,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T22:26:52Z';
+  window.APP_BUILT_AT = '2026-11-04T22:31:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -15383,6 +15383,18 @@ function renderPriceBookUI(){
   setN('pbRivetsEach',    pb.rivets_each);
   setN('pbDownpipeEach',  pb.downpipe_ea);
   var g = pb.gutter || {};
+  // SETTINGS SHOWS WHAT THE QUOTE CHARGES (2026-11-05, the owner: "Marley
+  // Typhoon doesn't have any prices. But then in the quotes pricing tab, they
+  // show all the prices ... make sure the setting shows exactly what they're
+  // priced at"). An unpriced box falls back to the built-in price everywhere
+  // a gutter is priced (_gutterSupply: 0 is "not priced"), so a blank box here
+  // was a price nobody could see. It is filled with that figure instead.
+  var _gDef = {}; try { _gDef = (defaultSettings().price_book || {}).gutter || {}; } catch(e){}
+  g = (function(){
+    var o = {}; Object.keys(_gDef).concat(Object.keys(g)).forEach(function(k){
+      var v = parseFloat(g[k]); o[k] = (isFinite(v) && v > 0) ? v : _gDef[k];
+    }); return o;
+  })();
   setN('pbGutTyphoonSpouting', g.typhoon_spouting_lm);
   setN('pbGutTyphoonBracket',  g.typhoon_bracket_ea);
   setN('pbGutTyphoonOutlet',   g.typhoon_outlet_ea);
@@ -31556,7 +31568,15 @@ function _gutterTotalCharge(id, lm){
 // Same sum for an arbitrary run — used by the per-roof breakdown, which needs
 // each roof's own lm / line / corner counts rather than the whole job's.
 function _gutterTotalChargeFor(id, lm, lines, corners){
-  if (!SEL_GUTTER_MATERIAL_PER_LM[id] && !GUTTER_MATERIAL_PRICES[id]) return 0;
+  // A GUTTER THE OFFICE ADDED IS PRICED TOO (2026-11-05, the owner: "I just
+  // added 175 box gutter ... added the cost ... but then the quote, it doesn't
+  // show the cost, it just says included"). This test knew only the three
+  // shipped gutters, so any other product came to $0 here even though its own
+  // $/lm was read correctly a line below — and $0 reads "Included".
+  if (!SEL_GUTTER_MATERIAL_PER_LM[id] && !GUTTER_MATERIAL_PRICES[id]){
+    var known = false; try { known = _selGuttersAll().some(function(g){ return g && g.id === id; }); } catch(e){}
+    if (!known) return 0;
+  }
   return _gutterMaterialCharge(id, lm, lines, corners) + _gutterLabourCharge(lm);
 }
 // The gutter run drawn on ONE roof, and what it costs at the priced product.
