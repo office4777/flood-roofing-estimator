@@ -5270,7 +5270,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T22:11:40Z';
+  window.APP_BUILT_AT = '2026-11-04T22:19:19Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26900,7 +26900,9 @@ function _scaffoldAreaFor(i){
 }
 var SCAFF_DIY_RATE_KEYS = ['leadPrice', 'appPrice', 'leadCost', 'appCost'];
 function _scaffoldDiySync(i){
-  var sc = _roofScaffold(i || 0);
+  // Reads without making: a roof with no scaffold of its own yet (or one
+  // being renumbered away) must not be handed a default one from here.
+  var sc = (i >= 1) ? ((S.quote && S.quote.roofScaffold) || {})[i] : (S.quote && S.quote.scaffold);
   if (!sc || sc.mode !== 'diy') return sc;
   if (!sc.diy || typeof sc.diy !== 'object') sc.diy = {};
   var d = sc.diy; if (!d.own || typeof d.own !== 'object') d.own = {};
