@@ -124,6 +124,38 @@ check('…Fergus gets no scaffolding and a gutter has no platform upgrade to cha
 v = await pg.evaluate(() => { _scaffoldSetExcluded(false); return { l: _qbInclusionLines()[0], p: _scaffoldEff(S.quote.scaffold).price }; });
 check('…and Scaffolding included puts it all back', /scaffold/i.test(v.l) && v.p === 2500, JSON.stringify(v));
 
+// ── the quote summary carries the scaffold priced here, plus GST; Hide / Show ──
+v = await pg.evaluate(async () => {
+  DRAW.scaleMetresPerPx = 0.05; DRAW.outline = [[100,100],[500,100],[500,350],[100,350]]; DRAW.lines = []; DRAW.calPitch = 15;
+  autoGenerateRoof('gable'); try { renderMaterialPriceTable(); } catch(e){}
+  _scaffoldSetExcluded(false); _scaffoldSetMode('diy'); calcLabour();
+  const money = t => parseFloat(String(t).replace(/[^0-9.]/g, ''));
+  const g = 1 + (+S.quote.gstRate || 0) / 100;
+  const rows = () => _custBarRows().map(r => [r.kind, money(r.value), r.label]);
+  const eff1 = _scaffoldEff(S.quote.scaffold).price, r1 = rows();
+  _scaffoldSetMode('out'); calcLabour();
+  const eff2 = _scaffoldEff(S.quote.scaffold).price, r2 = rows();
+  const note = (document.getElementById('scOnQuote') || {}).textContent || '';
+  S.quote.style = 'modern'; gotoTab('quote'); await new Promise(r => setTimeout(r, 300)); refreshQuoteProposal(); await new Promise(r => setTimeout(r, 200));
+  const hideBtn = Array.from(document.querySelectorAll('#qpRoot .qb-sc-tog button')).map(b => b.textContent);
+  _qpScaffoldHide(true); await new Promise(r => setTimeout(r, 150));
+  const r3 = rows(), showBtn = Array.from(document.querySelectorAll('#qpRoot .qb-sc-tog button')).map(b => b.textContent);
+  window.__CUSTOMER_MODE = true; refreshQuoteProposal(); const custBtns = document.querySelectorAll('#qpRoot .qb-sc-tog').length; window.__CUSTOMER_MODE = false;
+  _qpScaffoldHide(false); const r4 = rows();
+  return { g, eff1, r1, eff2, r2, note, hideBtn, r3, showBtn, custBtns, r4 };
+});
+const sc = r => (r.find(x => x[0] === 'scaffold') || [])[1];
+const tot = r => (r.find(x => x[0] === 'total') || [])[1];
+const base = r => (r.find(x => x[0] === 'base') || [])[1];
+check('do it ourselves: the summary\'s Scaffolding row is the crew\'s price plus GST', Math.abs(sc(v.r1) - v.eff1 * v.g) < 0.02, JSON.stringify([v.eff1, v.r1]));
+check('outsourced: the summary\'s Scaffolding row is the scaffolder\'s price plus GST', Math.abs(sc(v.r2) - v.eff2 * v.g) < 0.02, JSON.stringify([v.eff2, v.r2]));
+check('…and the Pricing card says what the summary will show, incl. GST', /On the quote summary/.test(v.note) && /incl\. GST/.test(v.note), v.note);
+check('the office sees "Hide scaffolding price" beside the scaffold row', v.hideBtn.some(t => /Hide scaffolding price/.test(t)), JSON.stringify(v.hideBtn));
+check('hidden: no scaffold row, the re-roof line carries it, the total unchanged', !v.r3.some(x => x[0] === 'scaffold') &&
+  Math.abs(base(v.r3) - (base(v.r2) + sc(v.r2))) < 0.02 && Math.abs(tot(v.r3) - tot(v.r2)) < 0.01 && /Re-roof/.test(v.r3[0][2]), JSON.stringify([v.r2, v.r3]));
+check('…with "Show scaffolding price" to bring it back, and the customer sees neither button', v.showBtn.some(t => /Show scaffolding price/.test(t)) && v.custBtns === 0, JSON.stringify([v.showBtn, v.custBtns]));
+check('Show puts the scaffold row back as it was', JSON.stringify(v.r4) === JSON.stringify(v.r2), JSON.stringify(v.r4));
+
 // ── a gutters job: off by default, folded ──
 v = await pg.evaluate(async () => {
   _resetQuoteForFreshJob({ client:'Irene Mears', addr:'263 Puketotara Road' });

@@ -1896,6 +1896,26 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   ticked while any roof shows one (`_pitchAnyShown`, synced by
   `_syncPitchLabelBtn` and on opening the menu). Labels only — the pitch never
   changes. `tests/pitchplate.mjs`.
+- HIDE THE SCAFFOLDING PRICE, AND SAY WHAT THE SUMMARY SHOWS (2026-11-05, the
+  owner: "the scaffolding price on the quote summary is way off, it doesn't
+  match my priced scaffolding in the pricing tab ... put a button next to the
+  quote summary scaffold to 'Hide Scaffolding price' (which combines it with
+  the re-roof price ...) then when combined, add a 'Show Scaffolding price'").
+  Measured on a fresh roofing job in both modes: the summary's scaffold row IS
+  the Pricing tab's figure — plus GST, like every figure on the summary
+  ($2,500 → $2,875.00). The scaffold card now says so (`#scOnQuote`: "On the
+  quote summary: $X incl. GST ($Y + 15% GST)"). If he still sees a
+  difference, ask for both figures and the job: a custom line elsewhere whose
+  words say "scaffold" is counted as scaffold by `_qpScaffoldInLines`, and an
+  extra roof's own scaffold rides inside that roof's price, not this row.
+  `S.quote.scaffoldInBase` folds the row into the main line
+  (`_qpBaseScaffoldShown` = 0, read by `_custBarRows` on the roofing and
+  gutters paths and by the A4's `buildAcceptSummaryRows`); the base row says
+  "Re-roof — main scope of work" with `scaffIn`. The money and the total never
+  move. `_qpScaffoldToggleHtml(r)` puts "Hide scaffolding price" under the
+  scaffold row and "Show scaffolding price" under the folded base row, in the
+  Review section and the computer rail, office only, never on paper.
+  `tests/scaffoldopts.mjs` (41); `typesnap.json` regenerated (deskText only).
 - A QUOTE SECTION MOVES UP OR DOWN ONE PLACE, AND THE LINE EDITOR SITS LEFT
   (2026-11-05, the owner: "move the attached 'edit: [line name]' window to the
   left side, because it's always behind a picture. then have a up/down arrow in

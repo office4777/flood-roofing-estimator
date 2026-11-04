@@ -4665,6 +4665,10 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 .qd-nav button.on{ color:#fff; background:#0099e0; }
 .qd-wrap{ max-width:1280px; margin:0 auto; padding:22px 24px 60px; display:grid; grid-template-columns:minmax(0,1fr) 318px; gap:24px; align-items:start; }
 .qd-main{ min-width:0; display:flex; flex-direction:column; gap:22px; }
+.qb-sc-tog{ margin:2px 0 6px; text-align:right; }
+.qb-sc-tog button{ background:#eef6ff; border:1px solid #cfe0f5; color:#0a6fa0; border-radius:7px; font:600 11.5px/1.2 inherit; padding:4px 9px; cursor:pointer; }
+.qb-sc-tog button:hover{ background:#0099cc; color:#fff; border-color:#0099cc; }
+html:is(.print-modern,.pdf-modern) .qb-sc-tog{ display:none!important; }
 .qd-move{ position:absolute; top:10px; right:10px; z-index:6; display:flex; gap:4px; }
 .qd-move button{ width:30px; height:30px; border-radius:8px; border:1px solid #cfe0f5; background:#eef6ff; color:#0a1628; font-size:15px; font-weight:800; line-height:1; cursor:pointer; padding:0; box-shadow:0 1px 3px rgba(10,22,40,.12); }
 .qd-move button:hover:not(:disabled){ background:#0099cc; color:#fff; border-color:#0099cc; }
@@ -5276,7 +5280,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T23:23:42Z';
+  window.APP_BUILT_AT = '2026-11-04T23:36:49Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -27302,6 +27306,15 @@ function calcLabour(){
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
       '</div>')+
+      // WHAT THE CUSTOMER SEES (2026-11-05, the owner: "the scaffolding price on
+      // the quote summary is way off, it doesn't match my priced scaffolding"):
+      // every figure on the quote summary carries GST, every figure here does not.
+      (isBaseRoof ? (function(){
+        var _g = parseFloat((S.quote && S.quote.gstRate)) || 0;
+        var _ex = _scEff.price + _roofCustomTotal('scaffold', ri);
+        return '<div id="scOnQuote" style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:7px 10px">On the quote summary: <strong>'+
+          fmtMoney(_ex * (1 + _g/100))+'</strong> incl. GST ('+fmtMoney(_ex)+' + '+_g+'% GST)'+(_qpScaffoldHidden() ? ' \u2014 folded into the re-roof price, not shown on its own' : '')+'</div>';
+      })() : '')+
       // What the type means for the customer's gutter option. The prices
       // above are charged as entered either way — the type decides whether
       // choosing a gutter adds the edge-protection → platform upgrade.
@@ -32723,7 +32736,7 @@ function buildAcceptSummaryRows(){
   // re-roof line now excludes it and the scaffold carries its own price. Same
   // two numbers, same total.
   var _acScaff = 0;
-  try { if (!opts.length) _acScaff = _qpBaseScaffold(); } catch(e){ _acScaff = 0; }
+  try { if (!opts.length) _acScaff = _qpBaseScaffoldShown(); } catch(e){ _acScaff = 0; }
   var _acSplit = (_acScaff > 0 && _acScaff * (1+rate) < baseTot);
   rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
     '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">'+
@@ -37499,7 +37512,7 @@ function _qbSummary(opts){
   try { rows = _custBarRows(); } catch(e){}
   var body = rows.map(function(r){
     if (r.kind === 'total') return '';
-    return '<div class="qb-sum-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(r.label)+'</span><b>'+esc2(r.value)+'</b></div>';
+    return '<div class="qb-sum-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(r.label)+'</span><b>'+esc2(r.value)+'</b></div>'+_qpScaffoldToggleHtml(r);
   }).join('');
   var picks = _qbPicksList();
   var total = _qbTotal();
@@ -38022,7 +38035,7 @@ function _qdRail(){
   try { rows = _custBarRows(); } catch(e){}
   var lines = rows.filter(function(r){ return r.kind !== 'total'; }).map(function(r){
     var lab = r.short || r.label.replace(/\s*\([^)]*\)\s*$/, '');
-    return '<div class="qd-rail-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(lab)+'</span><b>'+esc2(r.value)+'</b></div>';
+    return '<div class="qd-rail-row'+((r.kind === 'base' || r.kind === 'scaffold') ? ' base' : '')+'"><span>'+esc2(lab)+'</span><b>'+esc2(r.value)+'</b></div>'+_qpScaffoldToggleHtml(r);
   }).join('');
   var picks = _qbPicksList();
   var accepted = q.accepted;
@@ -38422,6 +38435,29 @@ function _qpBaseScaffold(){
   var q = (window.S && S.quote) || {};
   return _qpScaffoldInLines(q.lineItems);
 }
+// HIDE THE SCAFFOLDING PRICE (2026-11-05, the owner: "put a button next to the
+// quote summary scaffold to 'Hide Scaffolding price' (which combines it with
+// the re-roof price so the customer doesn't see it) then when combined, add a
+// 'Show Scaffolding price' which uncombines it"). `S.quote.scaffoldInBase`:
+// the summary's scaffold row folds back into the main line — the money and the
+// total never move, only how it is shown. Office buttons: `_qpScaffoldToggleHtml`.
+function _qpScaffoldHidden(){ return !!(window.S && S.quote && S.quote.scaffoldInBase); }
+function _qpBaseScaffoldShown(){ return _qpScaffoldHidden() ? 0 : _qpBaseScaffold(); }
+function _qpScaffoldHide(on){
+  if (!S.quote || window.__CUSTOMER_MODE) return;
+  if (on) S.quote.scaffoldInBase = true; else delete S.quote.scaffoldInBase;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _qpScaffoldToggleHtml(r){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || window.__PRINTING_MODERN) return '';
+  var hide = r && r.kind === 'scaffold', show = r && r.kind === 'base' && r.scaffIn;
+  if (!hide && !show) return '';
+  return '<div class="qb-sc-tog no-print"><button type="button" onclick="event.stopPropagation();_qpScaffoldHide(' + (hide ? 'true' : 'false') + ')" title="' +
+    (hide ? 'Fold the scaffolding into the re-roof price so the customer does not see it on its own' : 'Show the scaffolding as its own line again') + '">' +
+    (hide ? 'Hide scaffolding price' : 'Show scaffolding price') + '</button></div>';
+}
 function _qpScaffoldLabel(){
   var q = (window.S && S.quote) || {};
   return (q.scaffold && q.scaffold.type === 'platform')
@@ -38461,13 +38497,13 @@ function _custBarRows(){
       var _gb = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
       var _grl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
       var _gsub = _qpBaseSub(), _gsc = 0;
-      try { _gsc = _qpBaseScaffold(); } catch(e){ _gsc = 0; }
+      try { _gsc = _qpBaseScaffoldShown(); } catch(e){ _gsc = 0; }
       if (!(_gsc > 0) || _gsc > _gsub) _gsc = 0;
       var _chg = _qpSelectionChanges();
       var _gr = _chg.filter(function(c){ return c && c.key === 'gutter'; })[0] || null;
       var _gpo = (S.quote.proposalOptions || {});
       var _gnm = ''; try { _gnm = ((_selGutterOf(_gpo.gutterType) || {}).name) || ''; } catch(e){}
-      rows.push({ kind:'base', label: _gb || ('Gutters' + (_gnm ? ' \u2014 ' + _gnm : ' \u2014 main scope of work')), short: _gb || 'Gutters',
+      rows.push({ kind:'base', scaffIn: _qpScaffoldHidden() && _qpBaseScaffold() > 0, label: _gb || ('Gutters' + (_gnm ? ' \u2014 ' + _gnm : ' \u2014 main scope of work')), short: _gb || 'Gutters',
                   value: fmtMoney((_gsub - _gsc + (_gr ? (+_gr.delta || 0) : 0)) * (1 + rate)) });
       if (_gsc > 0) rows.push({ kind:'scaffold', label:_qpScaffoldLabel(), short:'Scaffolding', value: fmtMoney(_gsc * (1 + rate)) });
       _chg.forEach(function(c){
@@ -38486,13 +38522,14 @@ function _custBarRows(){
   // The scaffold comes OUT of the re-roof figure and goes on its own line
   // straight under it. Same two numbers added up; the customer can see both.
   var scaffSub = 0;
-  try { if (!mainOpt) scaffSub = _qpBaseScaffold(); } catch(e){ scaffSub = 0; }
+  try { if (!mainOpt) scaffSub = _qpBaseScaffoldShown(); } catch(e){ scaffSub = 0; }
   // The office's own words for the main line (Edit summary), e.g. "Re-screw
   // & paint — main scope of work"; the money is never editable.
   var _bl = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
   var _rl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
   if (!(scaffSub > 0) || scaffSub >= baseSub){
-    rows.push({ kind: 'base', label: _bl || 'Original quote — main scope of work', short: _bl || 'Main scope of work',
+    var _scHid = false; try { _scHid = _qpScaffoldHidden() && _qpBaseScaffold() > 0; } catch(e){}
+    rows.push({ kind: 'base', label: _bl || (_scHid ? 'Re-roof — main scope of work' : 'Original quote — main scope of work'), short: _bl || (_scHid ? 'Re-roof' : 'Main scope of work'), scaffIn: _scHid,
                 value: fmtMoney(baseSub * (1 + rate)) });
   } else {
     rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof',
