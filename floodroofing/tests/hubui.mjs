@@ -364,7 +364,7 @@ const bc = await pg.evaluate(() => {
 check('the 12-Month History opens the Back Cost tab, open, newest month first', bc.top === 'bc-strip-card' && bc.stripVis && bc.strip >= 12 && bc.newest === bc.want, JSON.stringify({ top: bc.top, strip: bc.strip, newest: bc.newest, want: bc.want }));
 check('…with All Back Costing straight under it', /^All Back Costing/.test(bc.first), bc.first);
 check('…on a phone it is a list, not the wide table', bc.list && !bc.table, JSON.stringify({ list: bc.list, table: bc.table }));
-check('…every job is two lines: the job number and a short address, then the figures', bc.jobs > 0 && bc.twoLine && bc.withNo >= 9 && /^#3240\s*\S/.test(bc.firstL1), JSON.stringify({ jobs: bc.jobs, withNo: bc.withNo, l1: bc.firstL1 }));
+check('…every job is two lines: the job number and a short address, then the figures', bc.jobs > 0 && bc.twoLine && bc.withNo === bc.jobs && /^#3240\s*\S/.test(bc.firstL1), JSON.stringify({ jobs: bc.jobs, withNo: bc.withNo, l1: bc.firstL1 }));
 check('…and the short address is short (no town, no postcode)', !/Whangarei|Northland/.test(bc.firstL1), bc.firstL1);
 check('every month ends on its own total, before the next month starts', bc.months.length >= 2 && bc.months.every(m => m.endsOnTotal), JSON.stringify(bc.months));
 check('…and each month\'s total is that month\'s jobs added up', bc.months.every(m => m.shown === m.want), JSON.stringify(bc.months));
