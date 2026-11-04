@@ -1867,6 +1867,23 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   when picked) straight after the brackets line, ahead of "Seal all joints".
   The classic A4's scope prose is the office's and is not touched.
   `tests/scaffoldopts.mjs` (34).
+- THE PITCH PLATE STAYS OFF THE RIDGE, AND COMES OFF WITH A CLICK (2026-11-05,
+  the owner with his 15° plate on the ridge's 16.26m measure: "put it off to
+  the side, also allow me to click to delete it, also in the 'edit font size'
+  add a tick box to 'show roof pitch' which adds or deletes the roof pitch on
+  all roofs"). `_clearOfMeasures(p, w, h, segs)` read the measure pills as a
+  top-left corner when they record their CENTRE, so its box sat half a label
+  away and the plate landed on the ridge's measure; it now takes every box as
+  a centre, avoids the sheet-length labels too, and keeps clear of the roof's
+  ridge / hip / valley / change-of-pitch / apron / barge lines (`segs`,
+  screen px), trying SIDEWAYS first. A click with no drag on a plate opens
+  `#pitchPlatePop` ("Roof pitch 15° · ✕ Remove from map", `_pitchPlateRemove`
+  → `pitchLabel.off`, the right-click's own store); a drag still moves it.
+  Canvas view (Edit font size) carries `#viewShowPitch`, "Show roof pitch"
+  (`_showPitchAll`): every roof's plate off, or back on at its default place;
+  ticked while any roof shows one (`_pitchAnyShown`, synced by
+  `_syncPitchLabelBtn` and on opening the menu). Labels only — the pitch never
+  changes. `tests/pitchplate.mjs`.
 - A TURNED ROOF IS REBUILT, NOT SPUN (feedback report 84, 2026-11-05, job
   FR-59839: "straight gable not good, barges showing outside of outline and
   the barge sides are showing a gutters"). Rotate 90° on a "Gable + hip/valley

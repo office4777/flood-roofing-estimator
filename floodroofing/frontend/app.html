@@ -5270,7 +5270,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T22:19:19Z';
+  window.APP_BUILT_AT = '2026-11-04T22:26:52Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6564,6 +6564,9 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
             </label>
             <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px">
               <input type="checkbox" id="showDimLabels" checked onchange="redrawAll()"> Show AI dimensions
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;margin:0 0 8px" title="Shows or hides the pitch plate on every roof. A plate can also be clicked to remove it, or dragged.">
+              <input type="checkbox" id="viewShowPitch" checked onchange="_showPitchAll(this.checked)"> Show roof pitch
             </label>
             <label style="display:flex;align-items:center;gap:6px;margin:0" title="Multiplier applied ONLY to the on-canvas sheet-length labels (e.g. 4.35m) — does not affect line measurements or letter tags.">
               Sheet text
@@ -54033,6 +54036,7 @@ function toggleViewMenu(e){
   if(e){ e.stopPropagation(); }
   var m=document.getElementById('viewMenu'); if(!m) return;
   m.style.display = (m.style.display==='block') ? 'none' : 'block';
+  try { _syncPitchLabelBtn(); } catch(err){}
 }
 function closeViewMenu(){
   var m=document.getElementById('viewMenu'); if(m) m.style.display='none';
@@ -56055,6 +56059,7 @@ function onCanvasMouseUp(e) {
   }
   if(DRAG_PITCH){
     if (DRAG_PITCH.moved){ SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_PITCH.preSnap); }
+    else { SUPPRESS_NEXT_CLICK = true; try { _pitchPlatePop(DRAG_PITCH.roofIdx, e.clientX, e.clientY); } catch(err){} }
     DRAG_PITCH = null;
     var _pcv1 = document.getElementById('roofCanvas');
     if (_pcv1) _pcv1.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -56180,6 +56185,7 @@ document.addEventListener('mouseup', function(e) {
   }
   if(DRAG_PITCH){
     if (DRAG_PITCH.moved) { SUPPRESS_NEXT_CLICK = true; _pushSnap(DRAG_PITCH.preSnap); }
+    else { SUPPRESS_NEXT_CLICK = true; try { var _pt0 = (e.changedTouches && e.changedTouches[0]) || e; _pitchPlatePop(DRAG_PITCH.roofIdx, _pt0.clientX, _pt0.clientY); } catch(err){} }
     DRAG_PITCH = null;
     var _pcv2 = document.getElementById('roofCanvas');
     if (_pcv2) _pcv2.style.cursor = DRAW.tool === 'select' ? 'grab' : 'crosshair';
@@ -63894,6 +63900,12 @@ function redrawAll() {
       : [{ outline: DRAW.outline, pitch: DRAW.calPitch, low: DRAW.lowPitch,
            lines: DRAW.lines, lbl: DRAW.pitchLabel, idx: 0 }];
     // A white plate so it reads over an aerial photo as well as over paper.
+    var _pSegs = [];
+    list.forEach(function(R){ (R.lines || []).forEach(function(l){
+      if (!l || !l.pts || l.pts.length !== 2) return;
+      if (!/^(ridge|hip|valley|changepitch|apron|barge)$/.test(l.type)) return;
+      _pSegs.push([dp(l.pts[0]), dp(l.pts[1])]);
+    }); });
     function plate(p, txt, dragged, hitIdx){
       ctx.save();
       ctx.font = '700 15px Inter, -apple-system, sans-serif';
@@ -63903,7 +63915,7 @@ function redrawAll() {
       // The middle of a small roof is exactly where its measure labels crowd
       // together, so if the plate would land on one, step it off. Only when it
       // has not been dragged — once the user has placed it, it stays put.
-      if (!dragged) p = _clearOfMeasures(p, w, h);
+      if (!dragged) p = _clearOfMeasures(p, w, h, _pSegs);
       ctx.fillStyle = 'rgba(255,255,255,.93)';
       ctx.strokeStyle = '#0a1628'; ctx.lineWidth = 1.5;
       if (ctx.roundRect){ ctx.beginPath(); ctx.roundRect(p[0]-w/2, p[1]-h/2, w, h, 6); ctx.fill(); ctx.stroke(); }
@@ -66109,23 +66121,37 @@ function _pitchLabelAnchor(outline, lbl){
 // more clear room above the ridge than beside it. Gives up after the last ring
 // and draws at the centroid regardless: a plate slightly over a measure is
 // better than one adrift on the neighbour's roof.
-function _clearOfMeasures(p, w, h){
-  var boxes = ((window._roofCanvasHits && window._roofCanvasHits.measures) || [])
-    .concat((window._roofCanvasHits && window._roofCanvasHits.pitch) || [])
-    .map(function(b){
-      // measures carry a top-left x/y, pitch plates a centre — normalise both
-      // to a centre-and-size box.
-      return (typeof b.roofIdx === 'number')
-        ? { x:b.x, y:b.y, w:b.w, h:b.h }
-        : { x:b.x + b.w/2, y:b.y + b.h/2, w:b.w, h:b.h };
-    });
-  if (!boxes.length) return p;
+// OFF THE RIDGE (2026-11-05, the owner: "the roof pitch always goes straight
+// over top of usually a ridge measure, put it off to the side"). Every box here
+// is a CENTRE and a size — the measure pills, the sheet-length labels and the
+// other plates all record their middle. The measures used to be read as a
+// top-left corner, so their box sat half a label to the right of the label and
+// the plate landed on the ridge's own measure; and the ridge itself (any
+// roof line, `segs`, in screen pixels) was never avoided at all.
+function _clearOfMeasures(p, w, h, segs){
+  var H = window._roofCanvasHits || {};
+  var boxes = (H.measures || []).concat(H.sheets || []).concat(H.pitch || [])
+    .map(function(b){ return { x:b.x, y:b.y, w:b.w, h:b.h }; });
+  segs = segs || [];
+  if (!boxes.length && !segs.length) return p;
+  function segHit(cx, cy){
+    var hx = w/2 + 4, hy = h/2 + 4;
+    for (var i = 0; i < segs.length; i++){
+      var a = segs[i][0], b = segs[i][1];
+      var L = Math.hypot(b[0]-a[0], b[1]-a[1]), n = Math.max(1, Math.ceil(L / 3));
+      for (var k = 0; k <= n; k++){
+        var x = a[0] + (b[0]-a[0]) * k / n, y = a[1] + (b[1]-a[1]) * k / n;
+        if (Math.abs(x - cx) <= hx && Math.abs(y - cy) <= hy) return true;
+      }
+    }
+    return false;
+  }
   function clashes(cx, cy){
     for (var i = 0; i < boxes.length; i++){
       var b = boxes[i];
       if (Math.abs(cx - b.x) < (w + b.w)/2 + 3 && Math.abs(cy - b.y) < (h + b.h)/2 + 3) return true;
     }
-    return false;
+    return segHit(cx, cy);
   }
   if (!clashes(p[0], p[1])) return p;
   // Sixteen directions and five rings. A small roof is a thicket of labels —
@@ -66136,10 +66162,11 @@ function _clearOfMeasures(p, w, h){
   for (var a = 0; a < 16; a++){
     // Start at straight up and alternate sides, so the plate lands above or
     // below the middle before it wanders out to a corner.
-    var ang = -Math.PI/2 + (a % 2 ? 1 : -1) * Math.ceil(a/2) * (Math.PI/8);
+    // Sideways first (2026-11-05: "put it off to the side"), then round.
+    var ang = Math.PI + (a % 2 ? 1 : -1) * Math.ceil(a/2) * (Math.PI/8);
     dirs.push([Math.cos(ang), Math.sin(ang)]);
   }
-  for (var r = 1; r <= 5; r++){
+  for (var r = 1; r <= 7; r++){
     for (var d = 0; d < dirs.length; d++){
       var cx = p[0] + dirs[d][0] * h * 1.35 * r;
       var cy = p[1] + dirs[d][1] * h * 1.35 * r;
@@ -66154,6 +66181,61 @@ function _clearOfMeasures(p, w, h){
 // every length on the drawing is worked out from, and a roof that can now
 // carry TWO of them has to say so where the roof is, not only in a panel.
 // Still removable: this button, or a click on the plate itself.
+// CLICK TO DELETE, AND ONE TICK FOR ALL (2026-11-05, the owner: "allow me to
+// click to delete it, also in the 'edit font size' add a tick box to 'show roof
+// pitch' which adds or deletes the roof pitch on all roofs"). A click on a plate
+// (no drag) opens a small pop-up beside it; Remove takes that roof's plate off
+// (`pitchLabel.off`, the right-click's own store). `#viewShowPitch` in the
+// Canvas view menu shows or hides every roof's plate at once. Labels only —
+// the pitch itself never changes here.
+function _pitchRoofObj(i){ return (i === DRAW.activeRoofIdx || !(DRAW.roofs && DRAW.roofs.length)) ? DRAW : DRAW.roofs[i]; }
+function _pitchPlateClose(){ var m = document.getElementById('pitchPlatePop'); if (m) m.remove(); }
+function _pitchPlatePop(roofIdx, cx, cy){
+  _pitchPlateClose();
+  var r = _pitchRoofObj(roofIdx); if (!r) return;
+  var deg = Math.round((+((roofIdx === DRAW.activeRoofIdx) ? DRAW.calPitch : r.calPitch) || 0) * 10) / 10;
+  var m = document.createElement('div');
+  m.id = 'pitchPlatePop';
+  m.style.cssText = 'position:fixed;z-index:9000;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 10px 28px rgba(10,22,40,.22);padding:8px 10px;font-size:12px;color:#0a1628;display:flex;align-items:center;gap:8px';
+  m.style.left = Math.min(window.innerWidth - 260, (cx || 0) + 12) + 'px';
+  m.style.top = Math.max(8, (cy || 0) - 18) + 'px';
+  m.innerHTML = '<strong>Roof pitch ' + deg + '\u00b0</strong>' +
+    '<button type="button" id="pitchPlateDel" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;padding:4px 10px;font-weight:700;cursor:pointer" onclick="_pitchPlateRemove(' + (+roofIdx) + ')">\u2715 Remove from map</button>' +
+    '<button type="button" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:14px" onclick="_pitchPlateClose()" aria-label="Close">\u00d7</button>';
+  document.body.appendChild(m);
+  setTimeout(function(){
+    document.addEventListener('pointerdown', function _o(ev){
+      if (m.contains(ev.target)) return;
+      _pitchPlateClose(); document.removeEventListener('pointerdown', _o, true);
+    }, true);
+  }, 0);
+}
+function _pitchPlateRemove(roofIdx){
+  try { saveSnapshot(); } catch(e){}
+  var r = _pitchRoofObj(roofIdx); if (r) r.pitchLabel = { off: true };
+  try { _syncCurrentToRoof(); } catch(e){}
+  try { _syncPitchLabelBtn(); } catch(e){}
+  _pitchPlateClose();
+  try { redrawAll(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _pitchAnyShown(){
+  var rs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.map(function(r, i){ return _pitchRoofObj(i); }) : [DRAW];
+  return rs.some(function(r){ return !(r && r.pitchLabel && r.pitchLabel.off); });
+}
+function _showPitchAll(on){
+  try { saveSnapshot(); } catch(e){}
+  var n = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs.length : 1;
+  for (var i = 0; i < n; i++){
+    var r = _pitchRoofObj(i); if (!r) continue;
+    if (on){ if (r.pitchLabel && r.pitchLabel.off) r.pitchLabel = { dx: 0, dy: 0 }; }
+    else r.pitchLabel = { off: true };
+  }
+  try { _syncCurrentToRoof(); } catch(e){}
+  try { _syncPitchLabelBtn(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
 function togglePitchLabel(){
   var on = !(DRAW.pitchLabel && DRAW.pitchLabel.off);
   DRAW.pitchLabel = on ? { off: true } : { dx: 0, dy: 0 };
@@ -66164,6 +66246,8 @@ function togglePitchLabel(){
 function _syncPitchLabelBtn(){
   var b = document.getElementById('roofPitchShowBtn');
   if (b) b.checked = !(DRAW.pitchLabel && DRAW.pitchLabel.off);
+  var v = document.getElementById('viewShowPitch');
+  if (v) { try { v.checked = _pitchAnyShown(); } catch(e){} }
 }
 // ── TWO PITCHES ON ONE ROOF ──────────────────────────────────────
 // The owner, 2026-10-08 (feedback reports 9 and 10, info@wellingtonroof.co.nz
