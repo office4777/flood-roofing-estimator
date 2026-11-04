@@ -318,13 +318,96 @@ Discipline (non-negotiable):
    **Promote to Production**. Never report a change as live on the strength
    of the branch or the hook alone.
 
-## THE SHEET LAYOUT DIAGRAM — THE OWNER'S RULES (read before touching it)
+## THE SHEET LAYOUT AND SHEET PRE-CUT DIAGRAMS — THE OWNER'S RULES (read before touching either)
 
 The owner has had to teach this logic to new sessions over and over (his
 words, 2026-10-27: "i keep having to teach a new session the logic and it
-keeps getting lost"). These are HIS rules, in the order they apply. The long
-history of how each came about is the "THE SHEET LAYOUT IS THE PUZZLE" bullet
-under Conventions, and `docs/SHEET_LAYOUT.md`; this list is what to obey.
+keeps getting lost ... write your learnings into the claude.md file for the
+sheet layout diagram and plain hip logic, cookie cutter ect"). These are HIS
+rules. This section is the authority: where the long history bullet "THE
+SHEET LAYOUT IS THE PUZZLE" under Conventions, or `docs/SHEET_LAYOUT.md`,
+says something different, this section wins. Rule NUMBERS are stable — other
+bullets cite them ("rule 4b", "rule 8's `cutShortPx`") — so a new rule gets a
+new number or letter, never a renumbering.
+
+TWO DIAGRAMS, ONE LAY. Both come from `_sheetPuzzleBuild` at the foot of
+`floodroofing/frontend/sheet-plan.js`:
+- THE SHEET LAYOUT (the roof with every sheet drawn on it, coloured by block,
+  numbered A1, B7 …; a hatched ↺C9 is a piece cut from C9's offcut; a dashed
+  ✂C5 is a foot carried under C5): `_renderSheetPuzzleCanvas`. Job Pack page 2.
+- THE SHEET PRE-CUT LAYOUT (the "sheet cut diagram": every ordered sheet laid
+  flat, full length, side by side, with its cut lines and the label of every
+  piece that comes out of it): `_renderSheetPrecutCanvas` / `_sheetPrecutPlan`.
+  Job Pack page 3.
+- The LAYOUT'S TALLY IS THE ORDER (rule 12): the cut list, the Job Pack's
+  sheet quantities and the quote's sheets line all read it. The old counting
+  ENGINE (`_ridgeClaimSections`, the 37-shape gate) still runs underneath as
+  the guard and for the suites that pin it, and never feeds the puzzle.
+
+THE WORDS (used throughout; the owner uses most of them himself):
+- FACE: one plane of roof between roof lines. STRIP: a face cut into widths
+  of one sheet cover, square to the gutter. PIECE: the part of a strip one
+  sheet or offcut covers.
+- BLOCK: a set of sheets ordered at ONE length, one colour and one letter in
+  the picture and the key (A = 7 @ 5.01 m). A sheet's NUMBER is its place in
+  its block, counted face by face along the gutter.
+- DONOR: a full sheet whose hip- or valley-cut leaves an OFFCUT. An offcut is
+  SPUN (end for end), never FLIPPED, so its HAND (long side left or right,
+  looking from the square end to the cut) decides which pieces it can feed.
+- SET / RUN: offcuts feeding neighbouring strips in order (↺C1 … ↺C9) off
+  neighbouring donors. PATCHY (his word): colours or sheet-vs-offcut changing
+  back and forth along a face; a STRAY is a piece whose colour no strip beside
+  it shares and is not its face's own.
+- EXTRA: a sheet ordered for one piece no offcut could feed. PUSHED-IN: one
+  full sheet added at the head of a run so every offcut moves one strip out
+  (rule 8). CLOSER: a run's last sheet, lapped flush at the far corner.
+- TEMPLATE / COOKIE CUTTER: a wing's face cut out of the main's plain-hip
+  sheets where they lie (rule 4). SCRAP / TRIM: a sliver trimmed off an offcut.
+
+THE PRIORITY ORDER — what wins when two rules pull different ways. The
+owner, in his own words: "The rule should not be fewer sheets first. It should
+be less steel first and utilizing most of the offcut" (2026-10-31); "I don't
+like seeing mismatched colors where I think the offcut would actually work
+there, and I'm seeing too much wastage. Prioritize those two rules"; "main
+rule is keep the offcut sets used in the same area so the colours and order is
+matched in their set" (2026-11-01); "always try to prioritize just using the
+offcut set with no middle extra apex sheet" (2026-11-02); "Always try to keep
+the same size ... We don't want too many different size sheets in an order
+because it confuses the roofer". In order, highest first:
+P1. GEOMETRY, never traded for anything (rules 1, 2): perpendicular to the
+    gutter, never parallel to a gutter or ridge, 45° to a hip or valley only,
+    never across a roof line, square ordered ends, spun never flipped.
+P2. A REAL ORDER: every sheet in the picture must actually cut as drawn — the
+    pre-cut must be able to pack it (`_pzCuttable`); the order never carries
+    less steel than the roof's own area (`_pzTallyCovers`, the engine stands
+    in); an extra is a FULL sheet and never two extras from one sheet (rule
+    9); ONE LENGTH, NOT A STAIRCASE — a sheet that would be ordered at a length
+    of its own is ordered at its block's full length (rule 9b). Fewer
+    different lengths beats a little steel.
+P3. LESS STEEL, between whole lays (rule 10): every legitimate lay is tried
+    and `better` keeps the one with less steel; under `_PZ_STEEL_TIE_MM`
+    (1 m) either way is a TIE, and then FEWER SHEETS win, then the first lay.
+P4. USE THE OFFCUTS before ordering anything: an offcut that fits feeds the
+    piece — pushed-in sheets, the closer carrying the longest row, a nick not
+    a cut, valley donors, extras moved onto offcuts (rules 8–8c, 9c, 9d;
+    optimiser moves 1, 3, 5, 7).
+P5. CLEAN SETS — one colour a run, in order, the smallest offcut starting
+    the set, the set next to its donors and unbroken on the ground, no stray,
+    no full sheet in the middle of an apex unless it is needed (rules 8d,
+    9e–9l). A clean set MAY cost a little, and only inside these budgets:
+    never a new length; never more sheets, except 9e's one sheet per two
+    pieces put right (the owner OK'd report 17 33 → 34 for one-colour
+    valleys: "absolutely perfect"); at most 1 m more steel (move 8, 9i), one
+    sheet's length (9l), or one donor sheet (9d). Outside its budget a clean
+    set loses to P3/P4 and the less-steel lay stands.
+P6. FEWER SHEETS — the tie-break after steel (P3), never a reason on its own
+    to cut a set or order a new length.
+P7. THE PICTURE (rules 11–11c) — labels, key, turning, pages. It never
+    changes what is ordered.
+So steel decides between whole LAYS (P3), while inside a lay the optimiser
+tidies sets within the P5 budgets; a tidy that would break P1/P2 or blow a
+budget is not kept. Every optimiser move is kept only when the order is no
+bigger and the roof no patchier (`straysNow`, `_pzBreaks`).
 
 THE PROCESS, every time:
 - NEVER put a sheet-layout change live without sending him before/after
@@ -341,6 +424,19 @@ THE PROCESS, every time:
 - `tests/sheetlayout.mjs` pins each rule on the shapes he counted. The
   37-shape gate (`docs/ci_sheet_tests.js`) is the ENGINE's count and must stay
   byte-identical; the puzzle never feeds it.
+- Name the pictures by version, "Sheet layout vN - <what changed>", so he can
+  say which one he means; send the PRE-CUT page too when a change moves which
+  offcut feeds what (that is where a bad pairing shows).
+- BEFORE JUDGING A LAYOUT, CHECK THE ROOF IS SCALED AND TRUE (2026-11-02:
+  "The roof map isn't scaled, it's showing way too many sheets, and the job
+  pack hasn't got the labels on the sheets"): an unscaled roof
+  (`DRAW.scaleMetresPerPx` unset) gives nonsense counts and no labels; a hip
+  drawn even 1 px off 45° costs ~30 mm over 7 m and can make an offcut miss
+  its strip ("The connecting hips and the sheet lengths are different sizes
+  ... did the default drawing not snap them to true 45deg?" — the junction
+  now snaps 42–48° to 45°, see THE RIDGE / VALLEY JUNCTION IS DRAGGABLE).
+- A new rule ships behind a switch where it could move other roofs
+  (`PZ_SET_GUARD`, `PZ_APEX_SHIFT`, `window.__PZ_*`), OFF until his "go".
 
 THE GEOMETRY, never broken:
 1. Sheets run perpendicular to the gutter (to the ridge only where a face has
@@ -449,7 +545,12 @@ THE FILL:
    rule 10's less steel — a lay that is nearer but orders more steel loses —
    and decides between lays and fits that tie on steel. On the double
    cascade mock it is already as close as the steel allows: the corner by
-   C5 and the triangle by C7 can only come off C6 or C16. NOT YET BUILT.
+   C5 and the triangle by C7 can only come off C6 or C16. BUILT IN PARTS
+   (rule 9k): the end's set on its exact fits (move 8), the run in order
+   (move 9a), a trim off the nearest offcut (move 9), the set carrying on
+   (move 10), numbers face by face. A general "nearest donor" score for
+   every fit is NOT built — the fill's `matchPool` still ranks home, then
+   surplus, then distance.
 9. An extra is a FULL sheet — never two extras cut from one sheet ("e1
    should just be a full sheet with a small amount of wasteage").
 9b. ONE LENGTH, NOT A STAIRCASE (2026-10-31, the owner on report 17's pink
@@ -706,10 +807,17 @@ THE FILL:
     set packed in every order — a first-fit pass reports "no fit" where an
     arrangement exists, so the engine's version must search the same way.
     THE PRE-CUT PACKS AGAINST THE FIRST CUT (asked the same day: "bring that
-    small double cut C16 right to the edge of the main C16"): the mock places
-    each offcut piece as LOW as it fits, flush with the sheet's own cut, so
-    the leftover is one clean piece at the far end; `_sheetPrecutPlan` still
-    places it as high as it fits.
+    small double cut C16 right to the edge of the main C16"): every piece a
+    sheet's offcut feeds is packed together as LOW as it fits, flush with the
+    sheet's own cut, tried in every order, so the leftover is one clean piece
+    at the far end (`_sheetPrecutPlan`, "THE OFFCUT PIECES GO FLUSH AGAINST
+    THE FIRST CUT"; the optimiser's packer `_pzPlaceOne` packs the same way).
+    Only a sheet the packer cannot place whole falls back to the old drawing,
+    one piece at a time from the far end down. AND A PIECE USES ITS WHOLE
+    OFFCUT (the same morning: "All offcut triangle sheets, if applicable,
+    should utilize the full offcut, starting right from the edge of the
+    smallest or longest offcut, whichever is applicable. Usually the smallest
+    offcut first") — rule 9j is that rule for a set.
 
 THE PICTURE:
 11. EVERY LABEL STARTS AT THE GUTTER (2026-10-27: "start all the sheet
@@ -738,6 +846,20 @@ THE PICTURE:
     hatch, the ✂ chip the 22% tint with a dashed edge — the first block's
     colour on the two examples. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
+THE SHEET PRE-CUT LAYOUT (the sheet cut diagram) AND THE JOB PACK PAGES —
+in short, then in full below:
+- Every ORDERED sheet, full length, square end at the bottom, block by block
+  in the layout's colours, labels exactly as on the layout.
+- Sheets cut by ONE roof line lie side by side so the cut is ONE straight
+  chalk line across them (a RUN, rising or falling); runs first, one row each
+  where they fit; uncut sheets last.
+- The FIRST CUT (the sheet's own piece) is RED and in line; anything cut
+  again out of an offcut is BLUE (the second cut). Waste is grey.
+- Offcut pieces pack FLUSH against the first cut, so what is left is one
+  clean piece (rule 10's note). Spun, never flipped.
+- One A4 page, one scale, the largest that fits; never turned (only the map
+  and the layout turn, rule 11c). Page order: 1 Detailed map, 2 Sheet layout,
+  3 Sheet pre-cut layout, then the cut lists.
 11b. THE SHEET PRE-CUT LAYOUT IS THE JOB PACK'S PAGE 2 (2026-10-31: "show
     the 7 orange sheets of full 5.01m length layed out in a rectangle format
     side by side ... as they would be before they are cut, and show the
@@ -891,6 +1013,81 @@ grid shifted −0.5…+0.5 of a cover (never under 177), and the shared slope
 laid from both ends and lapped where the wing's hip starts (179). Laid from
 the wing's corner with the closer ordered, F1 IS fed at 177 sheets — a swap,
 not a saving, and 49 purple to 48 orange.
+
+LESSONS — mistakes made more than once on these two diagrams:
+- DO NOT DRAW FROM THE COUNTING ENGINE. The first rebuild drew the picture
+  from `_lastSheetSections` and the owner threw it out ("Boy oh boy it's very
+  wrong! Don't try to use my sheet calculation method ... start fresh ...
+  make the puzzle then fill it afterwards"). Faces → strips → fill, always.
+- READ HIS SKETCH LITERALLY. "Cookie cutter" means the wing is cut OUT of
+  the plain hip's sheets where they lie; the first attempt laid the wing
+  afresh beside a template and was "quite different". When he names sheets
+  ("B7 blue offcut should actually be the offcut to A8"), reproduce that
+  exact pairing first, then say what it cost.
+- HIS EXAMPLE IS AN EXAMPLE: "They don't have to go specifically where i
+  said ... it should go which ever way is most efficient" — lay it both ways
+  and keep the better, never hard-code the one shape he drew.
+- A FIRST-FIT PASS SAYS "NO FIT" WHERE AN ARRANGEMENT EXISTS. Search every
+  assignment of loose pieces to offcuts with room, each sheet's set packed in
+  every order (the double-cascade mock found 67 sheets nothing else could).
+- THE HAND DECIDES. A47/A48 on report 76 stay orange because a purple offcut
+  there would have to be FLIPPED. Check the hand before promising a swap.
+- A RULE MOVES OTHER ROOFS. Every new rule changed a shape he had already
+  called perfect at least once (the gable-roof `swapPass` on the 24 × 12 L
+  and the cross; move 6's green sheet on the double cascade, "fix that double
+  cascade back to how it was before"). Diff EVERY fixture before showing,
+  scope the rule (gable roofs only, a switch), and put any moved roof in the
+  pictures.
+- WITHDRAWN, DO NOT BRING BACK: two extras cut from one sheet ("e1 should
+  just be a full sheet with a small amount of wasteage"); a staircase of
+  shorter and shorter extras (rule 9b); face badges F1… on the picture ("it's
+  pushing the sheet label out of line"); lengths printed on each sheet; any
+  explanation text under or over the picture.
+- PATCHY IS MEASURABLE. He judges by eye; the code counts it — `straysNow`
+  (strays) and `_pzBreaks` (colour or sheet/offcut changes walking a face).
+  A change that saves steel but adds breaks is the one he sends back.
+- THE PRE-CUT EXPOSES BAD PAIRINGS. A staggered run or a double-cut piece
+  on the pre-cut page ("there are two C16 offcuts being cut from the purple
+  C16 sheet") is a fill problem, not a drawing problem — fix the pairing.
+- SPEED IS PART OF IT. Every picture used to lay the roof again (the Job Pack
+  laid job 3314 ten times, 52 s): `_sheetPuzzleBuild` caches its answer
+  (`_PZ_BUILD_CACHE`, `_pzBuildKey`) and the packer memoises
+  (`_PZ_PLACE_MEMO`) — see ONE LAY PER ROOF SHAPE under Conventions. Any new
+  option the builder reads MUST go into `_pzBuildKey`, or a stale lay is
+  served. `window.__PZ_NO_CACHE = true` bypasses it while debugging.
+
+SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
+`PZ_SET_GUARD` and `PZ_APEX_SHIFT` (rule 9l, on), `window.__PZ_SET_CORNER`,
+`__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
+on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
+`_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
+it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
+10 mm), `_PZ_STEEL_TIE_MM` 1000 (rule 10's tie), a nick 76 mm at the gutter /
+50 mm under the ridge cap (rule 8b), a part-width corner strip under 0.6 of a
+cover (9k a), a scrap under a third of a cover wide.
+
+WHERE IT LIVES: `_sheetPuzzleBuild` (lays both ways, `better`, the 9l tries)
+→ `_sheetPuzzleBuildRaw` → `_pzRoofGeom` (faces, `_pzMonoBase`) → strips
+(`_pzStripsOf`, `_pzVirtualSpan`, templates / `adoptOn`) → `_sheetPuzzleFill`
+(blocks, `seriesFeed`, `matchPool`, `pushPass`, `swapPass`) → `fin`
+(`_pzMonoExtend`, then `_pzOptimise` moves 1–10 in this order: 1 extras onto
+offcuts, 2 shorter-block swaps, 3 valley sheet in full, 4 one length, 5 valley
+donors, 6 one-colour runs, 7 the set in order, 8 an end as one set, 9a the run
+in order, 10 the set carries on, 9 trims off the nearest offcut) →
+`_pzApplyClears` (rule 12b). Pictures: `_renderSheetPuzzleCanvas`,
+`_renderSheetPrecutCanvas`, `_jpRotWidePuzzle`; the pre-cut's runs
+`_pzChalkRuns` / `_pzCutLine`. Counts: `_pzTallyOfRoof`,
+`_sheetPuzzleTallyFor`, `_pzTallyCovers`. Look at it:
+`node floodroofing/tools/sheet-shots.mjs <fixture> <outdir>`.
+
+STILL OPEN (put to the owner, not answered — pick up if he answers, do not
+re-ask): the double-L's square-pyramid middle block (34 one-off extras; its
+strips could pair across each hip off one sheet each); report 76's wing end
+(above); the Big-L's junction strip now a 7.73 pushed in at the apex where a
+3.52 extra stood (same 64 sheets, ~4 m more steel); the double-L's orange
+↺A12 landing in a purple corner (rule 9j); the plain gable on a T outline
+drawing oddly (the gable BUILDER's lines, not the puzzle).
 
 ## Conventions
 
