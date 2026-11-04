@@ -1896,6 +1896,19 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   ticked while any roof shows one (`_pitchAnyShown`, synced by
   `_syncPitchLabelBtn` and on opening the menu). Labels only — the pitch never
   changes. `tests/pitchplate.mjs`.
+- A QUOTE SECTION MOVES UP OR DOWN ONE PLACE, AND THE LINE EDITOR SITS LEFT
+  (2026-11-05, the owner: "move the attached 'edit: [line name]' window to the
+  left side, because it's always behind a picture. then have a up/down arrow in
+  the quotes sections so i can re oragnize a section be jumping it up or down
+  one section at a time"). `#propPanel` is `left:12px` on the canvas (the
+  Photos panel covers the right). On the computer layout every section
+  between the proposal and the total carries ↑ ↓ (`_qdMoveHtml`, `.qd-move`,
+  office only — never the customer, never paper); `_qdSecShift` swaps it with
+  the movable section beside it (`_qdMovable`: not the cover, the condition,
+  the proposal or the last) and writes `S.quote.modernOrder`, the template
+  editor's own store, so the phone book follows. A locked job asks first, like
+  any edit. `typesnap.json` regenerated (deskText only, the arrows).
+  `tests/secmove.mjs`.
 - A TURNED ROOF IS REBUILT, NOT SPUN (feedback report 84, 2026-11-05, job
   FR-59839: "straight gable not good, barges showing outside of outline and
   the barge sides are showing a gutters"). Rotate 90° on a "Gable + hip/valley

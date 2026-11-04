@@ -4665,6 +4665,12 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 .qd-nav button.on{ color:#fff; background:#0099e0; }
 .qd-wrap{ max-width:1280px; margin:0 auto; padding:22px 24px 60px; display:grid; grid-template-columns:minmax(0,1fr) 318px; gap:24px; align-items:start; }
 .qd-main{ min-width:0; display:flex; flex-direction:column; gap:22px; }
+.qd-move{ position:absolute; top:10px; right:10px; z-index:6; display:flex; gap:4px; }
+.qd-move button{ width:30px; height:30px; border-radius:8px; border:1px solid #cfe0f5; background:#eef6ff; color:#0a1628; font-size:15px; font-weight:800; line-height:1; cursor:pointer; padding:0; box-shadow:0 1px 3px rgba(10,22,40,.12); }
+.qd-move button:hover:not(:disabled){ background:#0099cc; color:#fff; border-color:#0099cc; }
+.qd-move button:disabled{ opacity:.35; cursor:default; }
+html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
+.qd-sec{ position:relative; }
 .qd-sec{ background:#fff; border-radius:18px; overflow:hidden; box-shadow:0 1px 3px rgba(10,22,40,.06), 0 8px 26px rgba(10,22,40,.05); scroll-margin-top:66px; }
 .qd-sec .qb-body{ padding:26px 28px 24px; }
 .qd-hero{ aspect-ratio:21/8; max-height:340px; min-height:200px; }
@@ -5270,7 +5276,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T22:31:41Z';
+  window.APP_BUILT_AT = '2026-11-04T23:23:42Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6876,7 +6882,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <div id="clearPopupOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:999" onclick="cancelClearPopup()"></div>
 
       <!-- Properties panel - shows context-sensitive editor -->
-      <div id="propPanel" style="display:none;position:absolute;top:12px;right:12px;z-index:60;width:248px;max-height:calc(100% - 24px);overflow-y:auto;background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #cfe6f2;border-left:3px solid #0099cc;box-shadow:0 8px 28px rgba(0,0,0,.18)">
+      <div id="propPanel" style="display:none;position:absolute;top:12px;left:12px;z-index:60;width:248px;max-height:calc(100% - 24px);overflow-y:auto;background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #cfe6f2;border-left:3px solid #0099cc;box-shadow:0 8px 28px rgba(0,0,0,.18)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
           <span style="font-weight:600;font-size:13px;color:#0a1628;flex:1" id="propTitle">Properties</span>
           <button onclick="DRAW.selectedLine=-1;DRAW.selectedSection=-1;DRAW.selectedPen=-1;hidePropPanel();redrawAll()" title="Close" style="background:none;border:none;font-size:18px;line-height:1;color:#94a3b8;cursor:pointer;padding:0 2px">×</button>
@@ -37875,18 +37881,55 @@ function _qdWithParked(secs){
   });
   return out;
 }
+// MOVE A SECTION UP OR DOWN ONE PLACE (2026-11-05, the owner: "have a up/down
+// arrow in the quotes sections so i can re oragnize a section be jumping it up
+// or down one section at a time"). Office only, never on paper. The cover, the
+// roof condition (always straight after it), the proposal and the total stay
+// where they are; every other section swaps with the movable one beside it.
+// It writes `modernOrder`, the template editor's own store, so the phone book
+// (`_qbPages` → `_qModernApply`) follows and a saved template carries it.
+function _qdMovable(secs){
+  var keys = (secs || _qdSections()).map(function(sc){ return sc.key; });
+  var last = keys[keys.length - 1];
+  return keys.filter(function(k){ return k !== 'cover' && k !== 'condition' && k !== 'proposal' && k !== last; });
+}
+function _qdMoveHtml(key, mv){
+  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || window.__PRINTING_MODERN) return '';
+  var i = (mv || []).indexOf(key); if (i < 0) return '';
+  var k = esc2(key);
+  return '<div class="qd-move no-print" data-qd-move="'+k+'">'+
+    '<button type="button" title="Move this section up one" aria-label="Move up"'+(i === 0 ? ' disabled' : '')+' onclick="event.stopPropagation();_qdSecShift(\''+k+'\',-1)">\u2191</button>'+
+    '<button type="button" title="Move this section down one" aria-label="Move down"'+(i === mv.length - 1 ? ' disabled' : '')+' onclick="event.stopPropagation();_qdSecShift(\''+k+'\',1)">\u2193</button>'+
+  '</div>';
+}
+function _qdSecShift(key, dir){
+  if (window.__CUSTOMER_MODE || !S.quote) return;
+  var secs = _qdSections();
+  var keys = secs.map(function(sc){ return sc.key; });
+  var mv = _qdMovable(secs);
+  var mi = mv.indexOf(key), mj = mi + (dir < 0 ? -1 : 1);
+  if (mi < 0 || mj < 0 || mj >= mv.length) return;
+  var a = keys.indexOf(key), b = keys.indexOf(mv[mj]);
+  keys[a] = mv[mj]; keys[b] = key;
+  S.quote.modernOrder = keys.filter(function(k){ return k !== 'cover' && k !== 'review' && k !== 'summary'; });
+  try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { var el = document.getElementById('qd-' + key); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); } catch(e){}
+}
 function _qdRender(){
   var root = document.getElementById('qpRoot'); if (!root) return;
   var secs = _qdSections();
   var br = (S.settings && S.settings.branding) || {};
   var logo = br.logo_url || br.logo || '';
   var q = S.quote || {};
+  var _mv = _qdMovable(secs);
   var main = _qdWithPlaceholders(secs).map(function(sc){
     if (sc.key === '__addopt' || sc.key === '__addinclx') return '<section class="qd-sec qd-addopt no-print" data-qd-addopt="1">'+_qbInsertBtnHtml(sc.key)+'</section>';
     if (sc.parked) return '<section class="qd-sec qd-parked no-print" data-qd-parked="'+esc2(sc.key)+'">'+_qbInsertBtnHtml(sc.key)+'</section>';
     var inner = '';
     try { inner = sc.html(); } catch(e){ console.warn('quote desk section', sc.key, e); inner = ''; }
-    return '<section class="qd-sec qd-sec-'+esc2(sc.key)+'" id="qd-'+esc2(sc.key)+'" data-qd-sec="'+esc2(sc.key)+'">'+inner+'</section>';
+    return '<section class="qd-sec qd-sec-'+esc2(sc.key)+'" id="qd-'+esc2(sc.key)+'" data-qd-sec="'+esc2(sc.key)+'">'+_qdMoveHtml(sc.key, _mv)+inner+'</section>';
   }).join('');
   root.innerHTML =
     '<div class="qd" id="qdRoot">'+
