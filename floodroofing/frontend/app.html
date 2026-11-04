@@ -5086,6 +5086,36 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
 </style>
   <!-- Google Maps API - Replace YOUR_MAPS_API_KEY with your actual key -->
   <script>
+    // ── THE COUNTRY: NEW ZEALAND OR AUSTRALIA (2026-11-04, the owner: "I'll
+    // only advertise roofmap.com in Australia and roofmap.co.nz in nz, and make
+    // the user enter their country ... all the terminology and products need
+    // tweaking to suit Australian roofers"). A signed-in business's country is
+    // the company's own (`fr_company.country`, set at sign-up, changed in
+    // Settings → Branding); a business saved before that has none and is NZ.
+    // The customer's quote page reads the country stamped on the quote. With
+    // neither, the site they are on decides: roofmap.com is Australia.
+    function _hostCountry(){
+      var h = String((location && location.hostname) || '').toLowerCase();
+      return /(^|\.)roofmap\.com$/.test(h) ? 'AU' : 'NZ';
+    }
+    function _country(){
+      try {
+        if (window.__CUSTOMER_MODE){
+          var q = window.S && S.quote;
+          if (q && q.country) return String(q.country).toUpperCase() === 'AU' ? 'AU' : 'NZ';
+          return _hostCountry();
+        }
+      } catch(e){}
+      try {
+        var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+        if (c && (c.id || c.name || c.country)) return String(c.country || '').toUpperCase() === 'AU' ? 'AU' : 'NZ';
+      } catch(e){}
+      return _hostCountry();
+    }
+    function _isAU(){ return _country() === 'AU'; }
+    function _defaultGstRate(){ return _isAU() ? 10 : 15; }
+    // A plan price in the business's own currency: A$79 in Australia.
+    function _curP(p){ return _isAU() ? ('A' + p) : p; }
     var GOOGLE_MAPS_KEY = 'YOUR_MAPS_API_KEY';
     function loadGoogleMaps() {
       if(!GOOGLE_MAPS_KEY || GOOGLE_MAPS_KEY === 'YOUR_MAPS_API_KEY') return;
@@ -5206,6 +5236,11 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       <input id="su-name" type="text" placeholder="Matt" class="li-input">
       <label class="li-label">Company</label>
       <input id="su-company" type="text" placeholder="Your company name" class="li-input">
+      <label class="li-label">Where is your business?</label>
+      <div id="su-country" style="display:flex;gap:16px;margin:0 0 12px">
+        <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="radio" name="su-country" value="NZ" style="width:16px;height:16px;margin:0" onchange="_suCountryHints()"> New Zealand</label>
+        <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="radio" name="su-country" value="AU" style="width:16px;height:16px;margin:0" onchange="_suCountryHints()"> Australia</label>
+      </div>
       <label class="li-label">Email</label>
       <input id="su-email" type="email" placeholder="you@yourcompany.co.nz" class="li-input">
       <label class="li-label">Phone</label>
@@ -5235,7 +5270,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T01:45:30Z';
+  window.APP_BUILT_AT = '2026-11-04T21:35:31Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5495,6 +5530,23 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
       btn.style.display='block'; spin.style.display='none';
     }
   };
+  // THE COUNTRY ON SIGN-UP (2026-11-04): New Zealand or Australia, the same
+  // question signup.html asks. Pre-picked from the site they came in on
+  // (roofmap.com = Australia), else New Zealand; one is always ticked.
+  window._suCountryHints=function(){
+    var au=((document.querySelector('input[name=su-country]:checked')||{}).value==='AU');
+    var em=document.getElementById('su-email'), ph=document.getElementById('su-phone');
+    if(em) em.placeholder=au?'you@yourcompany.com.au':'you@yourcompany.co.nz';
+    if(ph) ph.placeholder=au?'0400 000 000':'021 000 0000';
+  };
+  (function(){
+    try{
+      var def=(typeof _hostCountry==='function'?_hostCountry():'NZ');
+      var r=document.querySelector('input[name=su-country][value="'+def+'"]');
+      if(r && !document.querySelector('input[name=su-country]:checked')) r.checked=true;
+      window._suCountryHints();
+    }catch(e){}
+  })();
   window.doRegister=async function(){
     var name=document.getElementById('su-name').value.trim();
     var companyName=(document.getElementById('su-company')||{value:''}).value.trim();
@@ -5509,12 +5561,13 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
     if(phone.replace(/\D/g,'').length<7){ err.textContent='Please add a phone number we can reach you on.'; err.style.display='block'; return; }
     var interests=Array.prototype.map.call(document.querySelectorAll('input[name=su-interest]:checked'),function(i){return i.value;});
     if(!interests.length){ err.textContent='Pick the one thing that drew you here.'; err.style.display='block'; return; }
+    var country=((document.querySelector('input[name=su-country]:checked')||{}).value==='AU')?'AU':'NZ';
     if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
     if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
     var btn=document.getElementById('setup-btn'), spin=document.getElementById('setup-spinner');
     btn.style.display='none'; spin.style.display='block';
     try{
-      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite,interests:interests})});
+      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite,interests:interests,country:country})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not set up your login');
       if(d.verify){
@@ -9316,6 +9369,14 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
         <div><label>GST number</label><input type="text" id="brGstNumber" placeholder="123 456 789"></div>
       </div>
       <div class="f2">
+        <div><label>Business country <span style="font-weight:400;color:var(--text2)">— sets GST, products, the address search and your billing currency</span></label>
+          <select id="brCountry" data-noautosave onchange="_countrySet(this.value)" style="width:100%">
+            <option value="NZ">New Zealand</option>
+            <option value="AU">Australia</option>
+          </select></div>
+        <div></div>
+      </div>
+      <div class="f2">
         <div><label>Prepared by <span style="font-weight:400;color:var(--text2)">— the name on the customer's quote</span></label><input type="text" id="brPreparedBy" placeholder="Aron Flood"></div>
       </div>
       <div class="f3" style="margin-top:8px">
@@ -10103,7 +10164,106 @@ var PROXY='https://flood-roofing-estimator-production.up.railway.app';
 // office user still working on the *.vercel.app host must never hand a
 // customer (or a teammate) that address. A company's own quote domain,
 // when configured, still wins over this.
-var CUSTOMER_QUOTE_BASE='https://roofmap.co.nz';
+// ── AUSTRALIA: THE COUNTRY SETTING AND THE WORDS (2026-11-04) ──
+function _countrySyncUI(){
+  var el = document.getElementById('brCountry'); if (el) el.value = _country();
+  var g = document.getElementById('brGstNumber'); if (g) g.placeholder = _isAU() ? '12 345 678 901' : '123 456 789';
+}
+// Changing the business's country (owner only, server PUT /company/country).
+// GST on new quotes follows when it is still the other country's default, and
+// the page reloads so every list, chart and search starts from the new one.
+async function _countrySet(v){
+  v = (v === 'AU') ? 'AU' : 'NZ';
+  var before = _country();
+  if (v === before) return;
+  if (!_companyIsOwner()){ alert('Only the account owner can change the business country.'); _countrySyncUI(); return; }
+  var words = v === 'AU'
+    ? 'Switch this business to Australia?\n\nNew quotes use 10% GST, the COLORBOND\u00ae colour chart and Australian wording, the address search looks in Australia, and your RoofMap subscription is billed in AUD. Quotes already written keep their own figures.'
+    : 'Switch this business to New Zealand?\n\nNew quotes use 15% GST and NZ wording, the address search looks in New Zealand, and your RoofMap subscription is billed in NZD. Quotes already written keep their own figures.';
+  if (!confirm(words)){ _countrySyncUI(); return; }
+  try { await api('PUT', '/company/country', { country: v }); }
+  catch(e){ alert('Could not change the country: ' + (e && e.message || e)); _countrySyncUI(); return; }
+  _setCompanyBrief(Object.assign({}, _companyBrief(), { country: v }));
+  try {
+    var qd = S.settings && S.settings.quote_defaults;
+    var oldDef = before === 'AU' ? 10 : 15;
+    if (qd && (qd.gst_rate == null || parseFloat(qd.gst_rate) === oldDef)){
+      qd.gst_rate = _defaultGstRate();
+      var gi = document.getElementById('qdGst'); if (gi) gi.value = qd.gst_rate;
+      await saveSettings(true);
+    }
+  } catch(e){}
+  location.reload();
+}
+// THE WORDS AN AUSTRALIAN ROOFER USES. A reviewed list, nothing clever: only
+// text nodes, never what somebody typed into a box, and only on an Australian
+// account or an Australian customer's quote. A New Zealand screen never runs
+// it past the first test.
+var AU_TERMS = [
+  [/Colorsteel\u00ae/g, 'COLORBOND\u00ae'], [/Colorsteel/g, 'COLORBOND'], [/COLORSTEEL/g, 'COLORBOND'],
+  [/NZ Steel\u2019s/g, 'BlueScope\u2019s'], [/NZ Steel's/g, "BlueScope's"], [/NZ Steel/g, 'BlueScope'],
+  [/\bspouting\b/g, 'guttering'], [/\bSpouting\b/g, 'Guttering'], [/\bSPOUTING\b/g, 'GUTTERING'],
+  [/\bbuilding consent\b/g, 'building approval'], [/\bBuilding consent\b/g, 'Building approval'],
+  [/\b0\.40 gauge\b/g, '0.42 BMT'], [/\b0\.55 gauge\b/g, '0.48 BMT'],
+  [/\b0\.40mm\b/g, '0.42 BMT'], [/\b0\.55mm\b/g, '0.48 BMT'],
+  [/the bulk of New Zealand re-roofs/g, 'most Australian re-roofs'], [/\bNZ re-roofs\b/g, 'Australian re-roofs'],
+  [/\/month \+ GST/g, '/month AUD'], [/\/year \+ GST/g, '/year AUD'],
+  [/\bGST number\b/g, 'ABN'], [/\bKiwi\b/g, 'Aussie'], [/\bKiwis\b/g, 'Aussies']
+];
+function _auText(t){
+  if (!t || typeof t !== 'string') return t;
+  for (var i = 0; i < AU_TERMS.length; i++) if (AU_TERMS[i][0].test(t)){ AU_TERMS[i][0].lastIndex = 0; t = t.replace(AU_TERMS[i][0], AU_TERMS[i][1]); }
+  return t;
+}
+var _AU_SKIP = { SCRIPT:1, STYLE:1, TEXTAREA:1, INPUT:1, SELECT:1, OPTION:0, NOSCRIPT:1 };
+function _auTermsPass(root){
+  try {
+    if (!_isAU() || !root) return 0;
+    var n = 0, w = document.createTreeWalker(root.nodeType === 3 ? root.parentNode || root : root, NodeFilter.SHOW_TEXT, null);
+    var act = document.activeElement, node;
+    while ((node = w.nextNode())){
+      var par = node.parentNode;
+      if (!par || _AU_SKIP[par.nodeName]) continue;
+      if (act && act.isContentEditable && act.contains(node)) continue;
+      var v = node.nodeValue;
+      if (!v || v.length < 3) continue;
+      var nv = _auText(v);
+      if (nv !== v){ node.nodeValue = nv; n++; }
+    }
+    // A placeholder or a title reads the same way.
+    if (root.querySelectorAll) Array.prototype.forEach.call(root.querySelectorAll('[placeholder],[title]'), function(el){
+      ['placeholder','title'].forEach(function(a){ var v = el.getAttribute(a); if (v){ var nv = _auText(v); if (nv !== v) el.setAttribute(a, nv); } });
+    });
+    return n;
+  } catch(e){ return 0; }
+}
+(function(){
+  var pend = [], timer = null;
+  function flush(){
+    timer = null;
+    var roots = pend; pend = [];
+    if (!_isAU()) return;
+    roots.forEach(function(r){ if (r && r.isConnected !== false) _auTermsPass(r); });
+  }
+  function start(){
+    try {
+      _auTermsPass(document.body);
+      new MutationObserver(function(muts){
+        if (!_isAU()) return;
+        for (var i = 0; i < muts.length; i++){
+          var m = muts[i];
+          if (m.type === 'characterData') pend.push(m.target.parentNode);
+          else for (var j = 0; j < m.addedNodes.length; j++) pend.push(m.addedNodes[j].nodeType === 3 ? m.addedNodes[j].parentNode : m.addedNodes[j]);
+        }
+        if (!timer) timer = setTimeout(flush, 30);
+      }).observe(document.body, { childList:true, subtree:true, characterData:true });
+    } catch(e){}
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+// Australia's links are on roofmap.com (2026-11-04).
+try { Object.defineProperty(window, 'CUSTOMER_QUOTE_BASE', { configurable:true,
+  get:function(){ return _isAU() ? 'https://roofmap.com' : 'https://roofmap.co.nz'; } }); } catch(e){}
 var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],files:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
@@ -14156,7 +14316,7 @@ function defaultSettings(){
                 // with the user's standard copy.  See defaultQuote() for
                 // the keys read out of this object.
                 proposal_template: null },
-    quote_defaults: { validity_days: 30, gst_rate: 15, terms: '', next_job_no: '06121',
+    quote_defaults: { validity_days: 30, gst_rate: _defaultGstRate(), terms: '', next_job_no: '06121',
                       options: [], sections: [],
                       // Email recipients (comma-separate for more than one).
                       // Stored here so it persists without a DB migration.
@@ -14621,7 +14781,7 @@ function collectSettingsFromUI(){
   // logo_data_url is set by onLogoFile()
   var q = S.settings.quote_defaults;
   q.validity_days = parseInt((document.getElementById('qdValidity')||{}).value || 30, 10);
-  q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || 15);
+  q.gst_rate      = parseFloat((document.getElementById('qdGst')||{}).value || _defaultGstRate());
   q.next_job_no   = ((document.getElementById('qdNextJobNo')||{}).value || q.next_job_no || '06121').trim() || '06121';
   // Retired: the free-typed quote-link domain. A domain typed with no DNS
   // behind it sent every customer a dead link (quote.floodroofing.co.nz,
@@ -17421,7 +17581,7 @@ function _gjPalette(id){
   var nm = String(id + ' ' + ((g && g.name) || '')).toLowerCase();
   if (/classic/.test(nm)) return { kind:'classic', list:[{ name:'White', hex:'#f4f4ef' }] };
   if (/typhoon|marley|pvc/.test(nm)) return { kind:'typhoon', list:MARLEY_TYPHOON_COLOURS };
-  return { kind:'colorsteel', list:MAXAM_COLOURS };
+  return { kind:'colorsteel', list:(_isAU() ? COLORBOND_COLOURS : MAXAM_COLOURS) };
 }
 // A colour the new gutter does not come in is no pick; Classic is white.
 function _gjColourFit(p){
@@ -19065,6 +19225,7 @@ function refreshSettingsUI(){
   set('brPhone', b.phone); set('brEmail', b.email); set('brWebsite', b.website); set('brAddress', b.address);
   set('brPreparedBy', b.prepared_by_name || '');
   set('brGstNumber', b.gst_number);
+  try { _countrySyncUI(); } catch(e){}
   set('brPrimary', b.primary_color||'#0099cc'); set('brDark', b.dark_color||'#0a1628'); set('brAccent', b.accent_color||'#1a3a5c');
   var lp = document.getElementById('brLogoPreview');
   if (b.logo_data_url) { lp.src = b.logo_data_url; lp.style.display = 'inline-block'; } else { lp.style.display = 'none'; }
@@ -19074,7 +19235,7 @@ function refreshSettingsUI(){
     else { hp.style.display = 'none'; hp.removeAttribute('src'); }
   }
   try { _accredSettingsRender(); } catch(e){}
-  set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?15:q.gst_rate); set('qdTerms', q.terms);
+  set('qdValidity', q.validity_days||30); set('qdGst', q.gst_rate==null?_defaultGstRate():q.gst_rate); set('qdTerms', q.terms);
   set('qdNextJobNo', q.next_job_no || '06121');
   var _qlInfo = document.getElementById('qdQuoteLinkInfo');
   if (_qlInfo) { try { _qlInfo.textContent = (_companyQuoteBase() || 'https://roofmap.co.nz') + '/?q=…'; } catch(e){} }
@@ -23669,7 +23830,7 @@ function _planGateModalHtml(){
   var cards = _planTiersShown(SUBSCRIPTION).map(function(t){
     return '<div class="pg-card">' +
       '<div class="pg-name">' + t.name + '</div>' +
-      '<div class="pg-price">' + t.price + '<span>/month + GST</span></div>' +
+      '<div class="pg-price">' + _curP(t.price) + '<span>/month + GST</span></div>' +
       '<div class="pg-blurb">' + t.blurb + '</div>' +
       '<button onclick="_planGatePick(\'' + t.key + '\',this)">Choose ' + t.name + '</button>' +
     '</div>';
@@ -23894,9 +24055,9 @@ function _billingRenderSection(){
       var current = !!(s && s.plan && s.plan === t.key);
       var yearlyHere = _billingCycle === 'annual' && annualAvail[t.key];
       var priceLine = yearlyHere
-        ? t.yearly + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/year + GST</span>' +
+        ? _curP(t.yearly) + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/year + GST</span>' +
           ' <span style="font-size:10px;font-weight:800;color:#15803d;background:#ecfdf5;border-radius:10px;padding:1px 7px;vertical-align:middle">2 months free</span>'
-        : t.price + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/month + GST' +
+        : _curP(t.price) + '<span style="font-size:12px;font-weight:500;color:var(--text2)">/month + GST' +
           (_billingCycle === 'annual' ? ' · monthly only' : '') + '</span>';
       return '<div style="border:1.5px solid ' + (current ? '#0099cc' : 'var(--border)') + ';border-radius:12px;padding:16px 16px 14px;background:#fff">' +
         '<div style="font-size:14px;font-weight:800">' + t.name + (current ? ' <span style="font-size:10px;color:#0099cc;font-weight:800;letter-spacing:.06em">CURRENT</span>' : '') + '</div>' +
@@ -29533,7 +29694,7 @@ function _defaultQuoteInner(){
   // at which point new proposals start pre-populated with their copy.
   var tpl = (S.settings && S.settings.branding && S.settings.branding.proposal_template) || {};
   var validityDays = ((qd.validity_days || 30)) + ' days';
-  var gst = (qd.gst_rate != null) ? qd.gst_rate : 15;
+  var gst = (qd.gst_rate != null) ? qd.gst_rate : _defaultGstRate();
   var todayStr = (document.getElementById('jobDate')||{}).value || new Date().toLocaleDateString('en-NZ');
   var scopeChips = Array.from(document.querySelectorAll('#scopeGrid .chk-item.on'))
                         .map(function(el){return el.dataset.item;});
@@ -29559,7 +29720,9 @@ function _defaultQuoteInner(){
     scope: scopeChips.length ? scopeChips.map(function(s){return '• '+s;}).join('\n') : '',
     notes: scopeNotes,
     terms: terms,
-    gstRate: parseFloat(gst) || 15,
+    gstRate: parseFloat(gst) || _defaultGstRate(),
+    // The customer's page reads the wording and the products off this.
+    country: _isAU() ? 'AU' : undefined,
     lineItems: defaultQuoteLineItems(),
     // When false, the printed proposal shows only the combined total
     // (Subtotal / GST / Total / Deposit) on the Price page; line items
@@ -29740,13 +29903,30 @@ var ARMORSTEEL_COLOURS = [
 // steel grade and every swatch grid, colour picker and order form offers
 // Armorsteel's range instead of NZ Steel's. Anything unrecognised keeps the
 // Colorsteel palette, so a custom grade never strands the colour picker.
+// The COLORBOND® standard colours (2026-11-04). The swatches are screen
+// approximations; the final colour is always off BlueScope's own chart.
+var COLORBOND_COLOURS = [
+  { name:'Basalt®', hex:'#6d6c6e' }, { name:'Bluegum®', hex:'#969799' },
+  { name:'Classic Cream™', hex:'#e9dcb8' }, { name:'Cottage Green®', hex:'#304c3c' },
+  { name:'Deep Ocean®', hex:'#364152' }, { name:'Dover White™', hex:'#f2f2ea' },
+  { name:'Dune®', hex:'#b1ada3' }, { name:'Evening Haze®', hex:'#c5c2aa' },
+  { name:'Gully®', hex:'#857e73' }, { name:'Ironstone®', hex:'#3e434c' },
+  { name:'Jasper®', hex:'#6c6153' }, { name:'Mangrove®', hex:'#737562' },
+  { name:'Manor Red®', hex:'#5e1d0e' }, { name:'Monument®', hex:'#323233' },
+  { name:'Night Sky®', hex:'#1b1b1c' }, { name:'Pale Eucalypt®', hex:'#7c846a' },
+  { name:'Paperbark®', hex:'#cabfa4' }, { name:'Shale Grey™', hex:'#bdbfba' },
+  { name:'Surfmist®', hex:'#e4e2d5' }, { name:'Wallaby®', hex:'#7f7c78' },
+  { name:'Windspray®', hex:'#888b8a' }, { name:'Woodland Grey®', hex:'#4b4c46' }
+];
 function _paletteForGradeId(id){
   id = String(id || '').toLowerCase();
+  if (_isAU()) return COLORBOND_COLOURS;
   if (id.indexOf('colorzen') >= 0 || id.indexOf('armorsteel') >= 0) return ARMORSTEEL_COLOURS;
   return MAXAM_COLOURS;
 }
 function _paletteBrandForGradeId(id){
   id = String(id || '').toLowerCase();
+  if (_isAU()) return { title:'COLORBOND\u00ae', chip:'BlueScope&rsquo;s COLORBOND\u00ae colour chart' };
   if (id.indexOf('colorzen') >= 0 || id.indexOf('armorsteel') >= 0)
     return { title:'Armorsteel ColorZen', chip:'Armorsteel&rsquo;s physical ColorZen chip card' };
   return { title:'Colorsteel\u00ae', chip:'NZ Steel&rsquo;s physical Colorsteel\u00ae chip card' };
@@ -30427,7 +30607,48 @@ function _selFixedGroups(){
       { id:'keep',    label:'Keep all existing material on site', desc:'We leave all old sheets and flashings stacked on site for you.' }] },
   ];
 }
+// THE AUSTRALIAN STARTING LIST (2026-11-04, the owner picked "Lysaght /
+// COLORBOND set"): COLORBOND® / ZINCALUME® grades, Lysaght's four profiles at
+// their real effective covers, and the common gutters. The base grade keeps
+// the internal id 'maxam' on purpose — thirty places fall back to it — and
+// only its NAME is Australian. Prices are blank until the roofer types theirs
+// (No price, no send catches it), and the grade percentages are starting
+// points for the office to correct in Settings, not supplier figures.
+function _defaultSelectablesAU(){
+  return {
+    grades: [
+      { id:'maxam',     name:'COLORBOND\u00ae steel', pct: 0, base: true,
+        desc:'BlueScope\u2019s prepainted steel \u2014 the most-used roofing in Australia, in the full COLORBOND\u00ae colour range.',
+        warranty:'BlueScope warranty, <b>environment dependent</b>.' },
+      { id:'colorbond_ultra', name:'COLORBOND\u00ae Ultra steel (coastal)', pct: 0.15,
+        desc:'Heavier coating for severe coastal and industrial sites, within about 200\u2013400 m of breaking surf.',
+        warranty:'BlueScope warranty for <b>severe coastal</b> environments.' },
+      { id:'zincalume', name:'ZINCALUME\u00ae steel (unpainted)', pct: -0.25,
+        desc:'Natural silver aluminium\u2013zinc coated steel \u2014 the workhorse finish, unpainted.',
+        warranty:'BlueScope warranty, <b>environment dependent</b>.' }
+    ],
+    profiles: [
+      { id:'corrugate', name:'Custom Orb\u00ae (corrugated)', locksGauge: '', coverMm: 762,
+        desc:'The classic corrugated profile \u2014 the traditional Australian roof.' },
+      { id:'trimdek', name:'Trimdek\u00ae', locksGauge: '', coverMm: 762,
+        desc:'Bold trapezoidal rib with a clean, modern look; spans well on low pitches.' },
+      { id:'kliplok', name:'Klip-Lok 700\u00ae', locksGauge: '', coverMm: 700,
+        desc:'Concealed-fixed \u2014 no screws through the sheet, for long runs and low pitches.' },
+      { id:'spandek', name:'Spandek\u00ae', locksGauge: '', coverMm: 700,
+        desc:'Strong, lightweight trapezoidal profile; a crisp contemporary line.' }
+    ],
+    gutters: [
+      { id:'quad', name:'Quad gutter (COLORBOND\u00ae)', priceKey:'quad_lm', scaffoldUplift:true,
+        desc:'The everyday Australian gutter \u2014 roll-formed to match the new roof.' },
+      { id:'hiquad', name:'Hi-Quad gutter (COLORBOND\u00ae)', priceKey:'hiquad_lm', scaffoldUplift:true,
+        desc:'Higher-capacity quad profile \u2014 for big roofs and heavy downpours.' },
+      { id:'halfround', name:'Half-round gutter (COLORBOND\u00ae)', priceKey:'halfround_lm', scaffoldUplift:true,
+        desc:'Classic half-round profile \u2014 suits older and character homes.' }
+    ]
+  };
+}
 function _defaultSelectables(){
+  if (_isAU()) return _defaultSelectablesAU();
   return {
     grades: [
       { id:'maxam',      name:'Colorsteel® MAXAM',      pct:  0,     base: true },
@@ -33607,6 +33828,9 @@ function _companyQuoteBase(){
   var own = String(c.domain || '').trim().toLowerCase();
   if (own) return 'https://' + own;
   var slug = String(c.slug || '').trim().toLowerCase();
+  // No business subdomains on roofmap.com yet (its DNS is not Vercel's, so a
+  // wildcard cannot be served): an Australian link is plain roofmap.com.
+  if (_isAU()) return '';
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }
 // A sent quote is LIVE, not a snapshot. The customer's link is served from
@@ -33667,6 +33891,8 @@ function _qStampCustomerCopy(){
   // $1,400.21 where the customer had accepted them at $1,497.33). Undo
   // acceptance clears `accepted`, and stamping carries on.
   if (S.quote.accepted) return;
+  // The customer's page has no company to ask: an Australian quote says so.
+  try { if (_isAU() && !S.quote.country) S.quote.country = 'AU'; } catch(e){}
   // The customer has no Settings: an office default for the Recommended
   // wording goes onto the quote itself, or they would read the built-in one.
   try {
@@ -35339,6 +35565,9 @@ function _qeCommitSection(el, key, def){
   var v = String(el.innerText == null ? '' : el.innerText).replace(/\s+/g, ' ').trim();
   if (v === QE_SEC_PROMPT) v = '';
   if (def && v === String(def).replace(/\s+/g, ' ').trim()) v = '';
+  // On an Australian account the standard wording is shown in Australian
+  // words; clicking in and out of it is still the standard wording.
+  try { if (def && v && _isAU() && v === _auText(String(def)).replace(/\s+/g, ' ').trim()) v = ''; } catch(e){}
   var m = (S.quote.sectionDesc && typeof S.quote.sectionDesc === 'object' && !Array.isArray(S.quote.sectionDesc))
     ? S.quote.sectionDesc : null;
   var was = (m && m[key] != null) ? String(m[key]) : '';
@@ -37801,7 +38030,7 @@ async function _invCreate(type){
     body.total_incl = bal;
     body.description = 'Final invoice on completion' + (S.quote && S.quote.addr ? ' \u2014 ' + S.quote.addr : '');
   }
-  body.gst_rate = (S.quote && S.quote.gstRate) || 15;
+  body.gst_rate = (S.quote && S.quote.gstRate) || _defaultGstRate();
   try {
     await api('POST', '/jobs/' + S.currentJobId + '/invoices', body);
     _invSay('Invoice raised.');
@@ -42740,7 +42969,7 @@ function _poleShedMoney(){
   if (_drawer != null) base = _drawer;
   var delta = _poleShedSelDelta();
   var sub = base + delta;
-  var rate = (S.quote && S.quote.gstRate != null ? parseFloat(S.quote.gstRate) : 15) / 100;
+  var rate = (S.quote && S.quote.gstRate != null ? parseFloat(S.quote.gstRate) : _defaultGstRate()) / 100;
   var gst = sub * rate;
   var tot = sub + gst;
   var pct = (S.quote && S.quote.psConsent === 'consented') ? 60 : 50;
@@ -46103,7 +46332,7 @@ function refreshQuoteProposal(){
             '<div class="ed-serif" style="font-size:15px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(accSub)+'</div>'+
           '</div>'+
           '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:3px 0">'+
-            '<div class="ed-body" style="font-size:12px;color:var(--ed-ink-2)">GST ('+(S.quote.gstRate!=null?S.quote.gstRate:15)+'%)</div>'+
+            '<div class="ed-body" style="font-size:12px;color:var(--ed-ink-2)">GST ('+(S.quote.gstRate!=null?S.quote.gstRate:_defaultGstRate())+'%)</div>'+
             '<div class="ed-serif" style="font-size:15px;font-weight:600;color:var(--ed-ink)">'+fmtMoney(accSub*accRate)+'</div>'+
           '</div>'+
           '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0 0;margin-top:4px;border-top:1px solid var(--ed-line)">'+
@@ -76652,7 +76881,7 @@ async function pushQuotePricingToFergus(btn, opts){
       : '';
     _qaMsg('Creating new quote version in Fergus job ' + _fergusDisplayNo() + '…');
     var sub = (typeof quoteSubtotal === 'function') ? quoteSubtotal() : 0;
-    var gst = sub * ((S.quote.gstRate || 15) / 100);
+    var gst = sub * ((S.quote.gstRate || _defaultGstRate()) / 100);
     S.quote.fergusQuoteRev = (S.quote.fergusQuoteRev || 0) + 1;
     var title = 'Quote ' + (S.quote.ref || '') + ' — ' + (S.quote.client || 'Client') + ' (v' + S.quote.fergusQuoteRev + ')';
     var dueDays = (function(){ var m = String(S.quote.validUntil || S.quote.validDays || '').match(/(\d+)/); return m ? parseInt(m[1], 10) : 30; })();
@@ -85721,6 +85950,9 @@ function captureFromMapbox(lat, lon, zoom) {
 // The key: the platform's (GET /imagery-config, LINZ_BASEMAPS_KEY on the
 // server) unless this browser has one of its own typed in.
 function _linzKeyNow(){
+  // LINZ flies New Zealand only: an Australian account goes straight to the
+  // satellite source that covers Australia.
+  try { if (_isAU()) return ''; } catch(e){}
   try { var own = localStorage.getItem('linzApiKey'); if (own) return own; } catch(e){}
   return window._linzPlatformKey || '';
 }
@@ -86080,7 +86312,7 @@ var _aerialSuggestTimer=null, _jobAddrSuggestTimer=null;
 
 function nominatimSuggest(query, cb) {
   if(!query||query.length<3){cb([]);return;}
-  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=nz&q='+encodeURIComponent(query),{headers:{'User-Agent':'FloodRoofing/1.0'}})
+  fetch('https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes='+(_isAU()?'au':'nz')+'&q='+encodeURIComponent(query),{headers:{'User-Agent':'FloodRoofing/1.0'}})
     .then(function(r){return r.json();}).then(cb).catch(function(){cb([]);});
 }
 
@@ -86231,7 +86463,7 @@ document.addEventListener('mousedown',function(e){
         var q = inp.value.trim(); if (!q) return;
         var hint = document.getElementById('aerialHint');
         if (hint) hint.textContent = 'Searching...';
-        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(q) + '.json?country=nz&proximity=174.3166,-35.7275&access_token=' + T)
+        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(q) + '.json?' + (_isAU() ? 'country=au' : 'country=nz&proximity=174.3166,-35.7275') + '&access_token=' + T)
         .then(function(r){return r.json();}).then(function(d){
           if (d.features && d.features.length > 0) {
             var f = d.features[0];

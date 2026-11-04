@@ -164,10 +164,19 @@
     </div>
 
     <div class="card">
-      <form id="suForm" autocomplete="on" novalidate>
-        <div class="field">
-          <label for="suCompany">Business name</label>
-          <input id="suCompany" name="organization" type="text" placeholder="Acme Roofing Ltd" autocomplete="organization" required>
+      <form id="suForm" autocomplete="on" novalidate data-default-country="NZ">
+        <div class="two keep">
+          <div class="field">
+            <label for="suCompany">Business name</label>
+            <input id="suCompany" name="organization" type="text" placeholder="Acme Roofing Ltd" autocomplete="organization" required>
+          </div>
+          <div class="field" id="suCountryWrap">
+            <label for="suCountry">Country</label>
+            <select id="suCountry" name="country" autocomplete="country">
+              <option value="NZ">New Zealand</option>
+              <option value="AU">Australia</option>
+            </select>
+          </div>
         </div>
         <div class="two">
           <div class="field">
@@ -274,6 +283,26 @@
     msg.textContent = text || '';
     msg.style.color = kind === 'bad' ? '#b91c1c' : kind === 'good' ? '#15803d' : 'var(--muted)';
   }
+  // THE COUNTRY (2026-11-04): New Zealand or Australia. roofmap.com is the
+  // Australian site, roofmap.co.nz the New Zealand one; the form's own
+  // data-default-country says which this copy of the page is.
+  (function(){
+    var host = String(location.hostname || '').toLowerCase();
+    var def = (form.getAttribute('data-default-country') || 'NZ').toUpperCase();
+    if (/(^|\.)roofmap\.com$/.test(host)) def = 'AU';
+    if (/(^|\.)roofmap\.co\.nz$/.test(host)) def = 'NZ';
+    var sel = document.getElementById('suCountry');
+    if (sel) sel.value = (def === 'AU' ? 'AU' : 'NZ');
+    function hints(){
+      var au = ((sel || {}).value === 'AU');
+      var em = document.getElementById('suEmail'), ph = document.getElementById('suPhone'), co = document.getElementById('suCompany');
+      if (em) em.placeholder = au ? 'sam@acmeroofing.com.au' : 'sam@acmeroofing.co.nz';
+      if (ph) ph.placeholder = au ? '0400 000 000' : '021 000 0000';
+      if (co) co.placeholder = au ? 'Acme Roofing Pty Ltd' : 'Acme Roofing Ltd';
+    }
+    if (sel) sel.addEventListener('change', hints);
+    hints();
+  })();
   form.addEventListener('submit', async function(ev){
     ev.preventDefault();
     var company = document.getElementById('suCompany').value.trim();
@@ -284,6 +313,7 @@
     var website = (document.getElementById('suWebsite') || {}).value || '';
     var invite  = (document.getElementById('suInvite') || {}).value || '';
     var interests = Array.prototype.map.call(document.querySelectorAll('input[name=interest]:checked'), function(i){ return i.value; });
+    var country = ((document.getElementById('suCountry') || {}).value === 'AU') ? 'AU' : 'NZ';
     if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
     if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
@@ -294,7 +324,7 @@
     try {
       var r = await fetch(API + '/auth/register', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website, interests:interests })
+        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website, interests:interests, country:country })
       });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok){
