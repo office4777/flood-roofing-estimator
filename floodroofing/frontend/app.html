@@ -5270,7 +5270,7 @@ html.qp-desk-preview .qd-rail-in{ top:calc(var(--qp-stick) + 70px); }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T21:35:31Z';
+  window.APP_BUILT_AT = '2026-11-04T22:11:40Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -23249,6 +23249,13 @@ else _installNextButtons();
 function _setJobType(k){
   window._pendingJobType = _quoteKindNorm(k);
   if (S.quote) S.quote.quoteKind = window._pendingJobType;
+  try {
+    var _sc0 = S.quote && S.quote.scaffold;
+    if (_sc0 && !_sc0.exclTouched){
+      if (window._pendingJobType === 'gutters'){ _sc0.excluded = true; _sc0.exclAuto = true; }
+      else if (_sc0.exclAuto){ delete _sc0.excluded; delete _sc0.exclAuto; }
+    }
+  } catch(e){}
   try { _gutterJobSync(); } catch(e){}
   _syncJobTypeToggle();
   try { _syncQuoteKindToggle(); } catch(e){}
@@ -26812,6 +26819,7 @@ function _pricingState(){
   }
   if (!S.quote.scaffold) {
     S.quote.scaffold = { price: num(lp.scaffold_price,2500), cost: num(lp.scaffold_cost,2000), type: 'edge' };
+    if (S.quote.quoteKind === 'gutters'){ S.quote.scaffold.excluded = true; S.quote.scaffold.exclAuto = true; }
   }
   // Settings → quote: the Labour table rates (cost/hr, price/hr) and the
   // scaffold cost/price start from Settings → Labour and stay in sync with it
@@ -26847,11 +26855,115 @@ function _scaffoldPlatformPct(){
 // (_selScaffoldBasePrice returns 0 on a platform job, which zeroes it).
 function _scaffoldEff(sc){
   sc = sc || (S.quote && S.quote.scaffold) || {};
+  // NOT ON THIS QUOTE (2026-11-04): nothing charged, nothing costed, and the
+  // "What we will do" list leaves the scaffold out (_qbInclusionLines).
+  if (sc.excluded) return { cost: 0, price: 0, mult: 1, excluded: true, hrs: 0 };
+  // DO IT OURSELVES: the crew's hours at the crew's rates, like the roof's
+  // own labour table (_scaffoldDiySync keeps the hours and rates current).
+  if (sc.mode === 'diy'){
+    var d = sc.diy || {}, n = function(v){ return parseFloat(v) || 0; };
+    return {
+      cost:  +(n(d.leadHrs) * n(d.leadCost)  + n(d.appHrs) * n(d.appCost)).toFixed(2),
+      price: +(n(d.leadHrs) * n(d.leadPrice) + n(d.appHrs) * n(d.appPrice)).toFixed(2),
+      mult: 1, diy: true, hrs: n(d.leadHrs) + n(d.appHrs), d: d
+    };
+  }
   return {
     cost:  parseFloat(sc.cost)  || 0,
     price: parseFloat(sc.price) || 0,
     mult:  1,
   };
+}
+// THE SCAFFOLD: ON THE QUOTE OR NOT, AND OURS OR OUTSOURCED (2026-11-04, the
+// owner: "have a button to click to exclude scaffold from this quote ... in
+// the gutter job type, always default the scaffold to not included and
+// collapse the scaffolding section ... in the roofing job type ... 'Do it
+// ourselves' or 'outsource' ... default the scaffolding labour time to 4 hrs
+// on a house 0-50m2, 6hrs on 51-100m2, 8hrs on 100m2-160m2, 10hrs on
+// 161-230m2, 12hrs on 230m2 to 330m2, 15hrs on 330m2 +").
+// `sc.excluded` (true = no scaffold; `exclAuto` = put there by the Gutters
+// only default, `exclTouched` = the office chose), `sc.mode` 'diy' | absent
+// (= outsource, the cost / price boxes as they always were), `sc.diy` =
+// {leadHrs, appHrs, leadPrice, appPrice, leadCost, appCost, hrsManual, own}.
+// A quote that has none of these reads exactly as it did.
+var SCAFF_DIY_TIERS = [[50, 4], [100, 6], [160, 8], [230, 10], [330, 12]];
+function _scaffoldDiyHrsForArea(a){
+  a = parseFloat(a) || 0;
+  for (var i = 0; i < SCAFF_DIY_TIERS.length; i++) if (a <= SCAFF_DIY_TIERS[i][0]) return SCAFF_DIY_TIERS[i][1];
+  return 15;
+}
+function _scaffoldAreaFor(i){
+  var idxs = [i || 0];
+  try { var g = _pricingRoofGroup(i || 0); if (g && g.length) idxs = g; } catch(e){}
+  var a = 0; idxs.forEach(function(k){ a += _labourAreaForRoof(k); });
+  return a;
+}
+var SCAFF_DIY_RATE_KEYS = ['leadPrice', 'appPrice', 'leadCost', 'appCost'];
+function _scaffoldDiySync(i){
+  var sc = _roofScaffold(i || 0);
+  if (!sc || sc.mode !== 'diy') return sc;
+  if (!sc.diy || typeof sc.diy !== 'object') sc.diy = {};
+  var d = sc.diy; if (!d.own || typeof d.own !== 'object') d.own = {};
+  // The rates follow the roof's own labour table until one is typed here.
+  var r = {}; try { r = (i >= 1) ? _roofLabourRates(i) : _labourRates(); } catch(e){}
+  SCAFF_DIY_RATE_KEYS.forEach(function(k){ if (!d.own[k]) d[k] = parseFloat(r[k]) || 0; });
+  if (!d.hrsManual){
+    var h = _scaffoldDiyHrsForArea(_scaffoldAreaFor(i || 0));
+    d.leadHrs = h; d.appHrs = h;
+  }
+  return sc;
+}
+function _scaffoldChanged(){
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _scaffoldSetExcluded(on){
+  var sc = _roofScaffold(_pricingRoofIdx());
+  if (on) sc.excluded = true; else delete sc.excluded;
+  delete sc.exclAuto; sc.exclTouched = true;
+  _scaffoldChanged();
+}
+function _scaffoldSetMode(m){
+  var ri = _pricingRoofIdx();
+  var sc = _roofScaffold(ri);
+  if (m === 'diy') sc.mode = 'diy'; else delete sc.mode;
+  _scaffoldDiySync(ri);
+  _scaffoldChanged();
+}
+function _scaffoldDiyUpd(key, val){
+  var ri = _pricingRoofIdx();
+  var sc = _roofScaffold(ri); if (sc.mode !== 'diy') return;
+  if (!sc.diy) sc.diy = {}; var d = sc.diy; if (!d.own) d.own = {};
+  if (key === 'leadHrs' || key === 'appHrs'){
+    d[key] = Math.max(0, parseFloat(val) || 0); d.hrsManual = true;
+  } else if (SCAFF_DIY_RATE_KEYS.indexOf(key) >= 0){
+    if (val === '' || val == null){ delete d.own[key]; }
+    else { d[key] = Math.max(0, parseFloat(val) || 0); d.own[key] = true; }
+  }
+  _scaffoldDiySync(ri);
+  _scaffoldChanged();
+}
+function _scaffoldDiyReset(){
+  var ri = _pricingRoofIdx();
+  var sc = _roofScaffold(ri); if (!sc.diy) return;
+  delete sc.diy.hrsManual; sc.diy.own = {};
+  _scaffoldDiySync(ri);
+  _scaffoldChanged();
+}
+// Nothing on the quote is scaffolding: the scaffold is taken off, or it
+// comes to nothing and no line was typed on its card.
+function _scaffoldNone(){
+  var q = (window.S && S.quote) || {};
+  var sc = q.scaffold || {};
+  if (sc.excluded) return true;
+  try {
+    if (_scaffoldEff(sc).price > 0) return false;
+    if (_qpBaseScaffold && _qpBaseScaffold() > 0) return false;
+  } catch(e){ return false; }
+  return !!q.scaffold;
 }
 function updateScaffoldType(val){
   var sc = _roofScaffold(_pricingRoofIdx());
@@ -26978,6 +27090,10 @@ function calcLabour(){
   // apprentice. Typed over, they stay typed (`labourHrsManual`) — the same
   // rule the roofing auto-calc follows.
   try { _shedLabourToHours(); } catch(e){}
+  try {
+    var _scAll = [0]; try { if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) _scAll = _pricingRoofTabIdxs(); } catch(e){}
+    _scAll.forEach(function(i){ try { _scaffoldDiySync(i); } catch(e){} });
+  } catch(e){}
   function row(label, hrsKey, costKey, priceKey){
     var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
     return '<tr>'+
@@ -27102,17 +27218,67 @@ function calcLabour(){
     var _scPct = _scaffoldPlatformPct();
     var _scEff = _scaffoldEff(scR);
     var _scPlat = scR.type === 'platform';
+    var _scOff = !!scR.excluded;
+    var _scDiy = !_scOff && scR.mode === 'diy';
+    var _scDiyOk = !_isGutterJob() && !_psIsShed();
+    var _scHead =
+      '<div style="display:flex;gap:8px;margin-bottom:10px" id="scIncl">'+
+        _labourModeBtnHtml('_scaffoldSetExcluded(false)', 'Scaffolding included', 'priced on this quote', !_scOff)+
+        _labourModeBtnHtml('_scaffoldSetExcluded(true)', 'No scaffolding', 'not on this quote', _scOff)+
+      '</div>'+
+      ((!_scOff && _scDiyOk)
+        ? '<div style="display:flex;gap:8px;margin-bottom:10px" id="scMode">'+
+            _labourModeBtnHtml("_scaffoldSetMode('diy')", 'Do it ourselves', 'our crew\u2019s hours', _scDiy)+
+            _labourModeBtnHtml("_scaffoldSetMode('out')", 'Outsource', 'a scaffolder\u2019s price', !_scDiy)+
+          '</div>'
+        : '');
+    var _scDiyHtml = '';
+    if (_scDiy){
+      var _d = scR.diy || {};
+      var _drow = function(label, hk, ck, pk){
+        var h = f(_d[hk]), c = f(_d[ck]), pr = f(_d[pk]);
+        var inp = function(k, v, step){ return '<input type="number" step="'+step+'" min="0" value="'+v+'" onchange="_scaffoldDiyUpd(\''+k+'\',this.value)" style="width:100%;font-size:12px;padding:5px 7px" data-scdiy="'+k+'">'; };
+        return '<tr><td style="font-weight:600">'+label+'</td>'+
+          '<td>'+inp(hk, h, '0.5')+'</td>'+
+          '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span>'+inp(ck, c, '0.5')+'</div></td>'+
+          '<td><div style="display:flex;align-items:center;gap:2px"><span style="color:var(--text2);font-size:11px">$</span>'+inp(pk, pr, '0.5')+'</div></td>'+
+          '<td style="text-align:right;font-weight:600">$'+(h*pr).toFixed(2)+'</td></tr>';
+      };
+      var _scArea = _scaffoldAreaFor(ri);
+      _scDiyHtml =
+        '<table class="labour-table" id="scDiyTable" style="width:100%;font-size:12px"><thead><tr>'+
+          '<th style="text-align:left">Worker</th><th>Hours</th><th>Cost/hr</th><th>Price/hr</th><th style="text-align:right">Total</th>'+
+        '</tr></thead><tbody>'+
+          _drow('Lead Roofer', 'leadHrs', 'leadCost', 'leadPrice')+
+          _drow('Apprentice', 'appHrs', 'appCost', 'appPrice')+
+        '</tbody></table>'+
+        '<div style="margin-top:6px;font-size:11.5px;color:var(--text2)">'+
+          (_d.hrsManual
+            ? 'Hours typed for this job. <a href="#" onclick="_scaffoldDiyReset();return false">\u21bb Back to the roof area\u2019s hours</a>'
+            : 'Hours from the roof area: '+_scArea.toFixed(1)+' m\u00b2 \u2192 '+_scaffoldDiyHrsForArea(_scArea)+' hrs each. Rates follow the roof labour table.')+
+        '</div>'+
+        '<div style="display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+          '<strong style="font-size:12.5px">Scaffolding labour \u00b7 '+(f(_d.leadHrs)+f(_d.appHrs)).toFixed(1)+' hrs</strong>'+
+          '<span style="font-weight:700;color:#2e7d32" id="scDiyTotal">$'+_scEff.price.toFixed(2)+'</span></div>';
+    }
     scw.innerHTML =
-      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(isBaseRoof?'· included in every quote':'· added to this roof’s price')+'</div>'+
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(_scOff ? '\u00b7 not on this quote' : (isBaseRoof?'· included in every quote':'· added to this roof’s price'))+'</div>'+
+      _scHead+
+      (_scOff
+        ? '<div style="margin-bottom:6px;font-size:11.5px;color:#0a1628;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px" id="scOffNote">No scaffolding on this quote \u2014 nothing is charged for it, and \u201cWhat we will do\u201d leaves it out.</div>'+
+          _qCustomRowsHtml(_qCustomArea('scaffold', ri))
+        : '')+
+      (_scOff ? '' :
       '<div style="margin-bottom:10px"><label style="display:block;font-size:11px;color:var(--text2);margin-bottom:4px">Scaffolding type</label>'+
         '<select onchange="updateScaffoldType(this.value)" style="width:100%;font-size:12px;padding:6px 8px">'+
           '<option value="edge"'+(_scPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
           '<option value="platform"'+(_scPlat?' selected':'')+'>Platform Scaffolding</option>'+
         '</select></div>'+
+      (_scDiy ? _scDiyHtml :
       '<div class="f2">'+
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
-      '</div>'+
+      '</div>')+
       // What the type means for the customer's gutter option. The prices
       // above are charged as entered either way — the type decides whether
       // choosing a gutter adds the edge-protection → platform upgrade.
@@ -27131,7 +27297,7 @@ function calcLabour(){
       // the main roof, and folding it away would quietly take money off quotes
       // that already exist. Set it to 0 for a lean-to the main scaffold reaches.
       (isBaseRoof ? _foldedScaffoldRowsHtml() : '')+
-      _qCustomRowsHtml(_qCustomArea('scaffold', ri));
+      _qCustomRowsHtml(_qCustomArea('scaffold', ri)));
   }
 
   // Roll up to the quote (price feeds the combined quote total; cost +
@@ -27601,13 +27767,19 @@ function _pxToggle(id, ev){
   var folds = _pxFolds();
   var now = !card.classList.contains('px-collapsed');
   card.classList.toggle('px-collapsed', now);
-  folds[id] = now;
+  folds[_pxFoldKey(id)] = now;
   try { localStorage.setItem(PX_FOLD_KEY, JSON.stringify(folds)); } catch(e){}
 }
+// A Gutters only job keeps its OWN fold for the scaffold, closed until the
+// office opens it (the scaffold is off by default there).
+function _pxFoldKey(id){ return (id === 'scaffoldCard' && _isGutterJob()) ? 'scaffoldCard_gj' : id; }
 function _pxFoldsApply(){
   var folds = _pxFolds();
   ['scaffoldCard', 'roofPriceTile', 'gutterDownpipeCard', 'profitCard'].forEach(function(id){
-    var card = document.getElementById(id); if (card) card.classList.toggle('px-collapsed', !!folds[id]);
+    var card = document.getElementById(id); if (!card) return;
+    var k = _pxFoldKey(id);
+    var on = (k in folds) ? !!folds[k] : (k === 'scaffoldCard_gj');
+    card.classList.toggle('px-collapsed', on);
   });
 }
 function _pxUnfold(id){ var c = document.getElementById(id); if (c && c.classList.contains('px-collapsed')) _pxToggle(id); }
@@ -27618,7 +27790,8 @@ function _pxHeadTotals(){
   try {
     var ri = _pricingRoofIdx();
     var sc = _scaffoldEff(_roofScaffold(ri));
-    set('scaffoldCard', fmtMoney(sc.price + _roofCustomTotal('scaffold', ri)) + (sc.type === 'platform' || (_roofScaffold(ri) || {}).type === 'platform' ? ' \u00b7 platform' : ''));
+    if (sc.excluded && !(_roofCustomTotal('scaffold', ri) > 0)) set('scaffoldCard', 'Excluded', true);
+    else set('scaffoldCard', fmtMoney(sc.price + _roofCustomTotal('scaffold', ri)) + (sc.diy ? ' \u00b7 our crew' : '') + (sc.type === 'platform' || (_roofScaffold(ri) || {}).type === 'platform' ? ' \u00b7 platform' : ''));
   } catch(e){ set('scaffoldCard', ''); }
   try {
     var ri2 = _pricingRoofIdx();
@@ -31587,6 +31760,8 @@ function _selScaffoldBasePrice(){
   // (office breakdown, Selections page, the priced snapshot the share link
   // reads) is a multiple of this figure.
   if (sc.type === 'platform') return 0;
+  // No scaffold on the quote: nothing to upgrade.
+  if (sc.excluded) return 0;
   var b = parseFloat(q.scaffoldBase);
   if (isFinite(b) && b > 0) return b;
   return parseFloat(sc.price) || 0;
@@ -35283,7 +35458,33 @@ function _custDescLines(){
 function _qbInclusionLines(){
   var g = _qbGradeName();
   var own = _custDescLines().map(function(l){ return l.replace(/\{grade\}/gi, g); }).slice(0, 12);
-  return _qbAddOptionLines(own, _qbOptionLines().incl);
+  // WHAT WE WILL DO FOLLOWS THE OPTIONS (2026-11-04, the owner: "the 'what we
+  // will do' needs to alway reflect the options ... if there's no scaffolding
+  // required then it doesn't say it"). No scaffold, no scaffold line.
+  var _noSc = false; try { _noSc = _scaffoldNone(); } catch(e){}
+  if (_noSc) own = own.filter(function(l){ return !/scaffold|edge[\s-]*protection/i.test(l); });
+  var add = _qbOptionLines().incl;
+  if (!_isGutterJob()) return _qbAddOptionLines(own, add);
+  // A Gutters only job: the downpipes kept are not taken away, and the new
+  // gutter goes in after its brackets, before the joints are sealed.
+  var p = (S.quote && S.quote.proposalOptions) || {};
+  var newDp = (p.downpipes === 'yes');
+  if (!newDp) own = own.map(function(l){
+    return /^\s*remove existing spouting and downpipes and take them away\s*$/i.test(l) ? 'Remove existing spouting and take it away' : l;
+  });
+  var gl = add.filter(function(l){ return /^supply & install new /i.test(l); });
+  var rest = add.filter(function(l){ return gl.indexOf(l) < 0; });
+  if (newDp) gl = gl.concat(['Supply & install new downpipes']);
+  var seen = {}; own.forEach(function(l){ seen[l.toLowerCase()] = 1; });
+  gl = gl.filter(function(l){ return !seen[l.toLowerCase()]; });
+  if (gl.length){
+    var at = -1;
+    own.forEach(function(l, i){ if (/bracket/i.test(l)) at = i; });
+    if (at < 0) own.forEach(function(l, i){ if (at < 0 && /^\s*seal/i.test(l)) at = i - 1; });
+    if (at < 0) at = Math.max(-1, own.length - 2);
+    own = own.slice(0, at + 1).concat(gl, own.slice(at + 1));
+  }
+  return _qbAddOptionLines(own, rest);
 }
 // THE OPTIONS WRITE THEIR OWN LINES (2026-10-02, the owner's: "the
 // recommended choice should be added to the line item of the what's included,
@@ -44665,8 +44866,8 @@ function refreshQuoteProposal(){
     // behind for the share link to charge on.
     try {
       var _scPlatQ = !!(S.quote.scaffold && S.quote.scaffold.type === 'platform');
-      var _scp = (S.quote.scaffold && parseFloat(S.quote.scaffold.price)) || 0;
-      if (_scPlatQ) S.quote.scaffoldBase = 0;
+      var _scp = S.quote.scaffold ? (_scaffoldEff(S.quote.scaffold).price || 0) : 0;
+      if (_scPlatQ || (S.quote.scaffold && S.quote.scaffold.excluded)) S.quote.scaffoldBase = 0;
       else if (_scp > 0) S.quote.scaffoldBase = _scp;
     } catch(e){}
     // Freeze the office's current guttering + downpipe unit prices (Settings →
@@ -54767,7 +54968,7 @@ function regenerateAutoRoofLines(roofType){
     else if (roofType === 'stepgable') lines = (typeof buildStepGableRoofLines === 'function')
       ? buildStepGableRoofLines(DRAW.outline, (Math.round((DRAW.rotation || 0) / 90) % 2) === 1) : null;
     else if (roofType === 'gable-hv') lines = (typeof buildGableRoofLines_legacy === 'function')
-      ? buildGableRoofLines_legacy(DRAW.outline) : null;
+      ? _gableHvLines(DRAW.outline, DRAW.rotation || 0) : null;
     else if (roofType === 'dutch') lines = _dutchLinesWithEnds(DRAW.outline);
     else if (roofType === 'mono')  lines = _monoLinesWithEnds(DRAW.outline, DRAW.rotation || 0);
     if (lines) lines.forEach(function(l){
@@ -76628,7 +76829,14 @@ function _buildFergusItemisedSections(opts){
   // ── Scaffolding (base — the platform upgrade delta is routed in below) ──
   var scaff = [];
   var sc = _scaffoldEff(st.sc);
-  if ((+sc.price) > 0) scaff.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price, sc.cost));
+  // Our own crew putting it up: their hours go as LABOUR, in a Scaffolding
+  // section of their own (2026-11-04), never folded into the materials.
+  var _scDiyFg = !!sc.diy;
+  if (_scDiyFg){
+    var _sd = sc.d || {};
+    if ((+_sd.leadHrs) > 0) scaff.push(labLine('Scaffolding \u2014 Lead Roofer', _sd.leadHrs, +_sd.leadPrice || 0, +_sd.leadCost || 0));
+    if ((+_sd.appHrs)  > 0) scaff.push(labLine('Scaffolding \u2014 Apprentice',  _sd.appHrs,  +_sd.appPrice  || 0, +_sd.appCost || 0));
+  } else if ((+sc.price) > 0) scaff.push(matLine('Scaffolding' + (st.sc.type === 'platform' ? ' (platform)' : ''), 1, sc.price, sc.cost));
 
   // ── Gutter labour + material (itemised) + downpipes ──
   var gutterLabour = [], gutterMat = [], downpipes = [];
@@ -76743,7 +76951,8 @@ function _buildFergusItemisedSections(opts){
     addSection('Downpipes',     downpipes);
   } else {
     addSection('Labour', roofLabour);
-    scaff.forEach(function(s){ roofMat.push(s); });   // no gutter → fold scaffold into materials as before
+    if (_scDiyFg) addSection('Scaffolding', scaff);
+    else scaff.forEach(function(s){ roofMat.push(s); });   // no gutter → fold scaffold into materials as before
     addSection('Materials', roofMat);
   }
   var _labCount = sections.reduce(function(a, s){ return a + s.lineItems.filter(function(li){ return li.isLabour; }).length; }, 0);
@@ -84682,6 +84891,34 @@ function _roofOrientForOutline(outline){
   if (_mnx*(_mmx-_mcx) + _mny*(_mmy-_mcy) < 0){ _mnx = -_mnx; _mny = -_mny; }
   return { baseHoriz: baseHoriz, monoBaseDeg: Math.atan2(_mny, _mnx) * 180 / Math.PI };
 }
+// A GABLE + HIP/VALLEY ROOF TURNED A QUARTER (feedback report 84, 2026-11-05:
+// "straight gable not good, barges showing outside of outline and the barge
+// sides are showing a gutters"). On four corners it IS a straight gable, so a
+// turn is the straight gable's own turn (ridge across the other way, barges
+// on the other two walls). An L's hip and valley are decided by its arms, so
+// a turn there changes nothing. It used to spin the built lines about the
+// middle, which only fits a square: on his 20 x 16 m shed the ridge and the
+// barges stood 2 m outside the walls and all four walls read as gutters.
+function _gableHvLines(outline, rot){
+  var odd = (Math.round((((rot || 0) % 360) + 360) % 360 / 90) % 2) === 1;
+  if (odd && outline && outline.length === 4 && typeof buildGableRoofLines === 'function') return buildGableRoofLines(outline, true);
+  return buildGableRoofLines_legacy(outline);
+}
+// Does a quarter (or half) turn about the middle lay the outline back on
+// itself? Only then can the built lines be turned with it.
+function _outlineTurnsOntoItself(outline, steps){
+  if (!outline || outline.length < 3) return false;
+  var cx = 0, cy = 0;
+  outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
+  cx /= outline.length; cy /= outline.length;
+  var tol = 2;
+  return outline.every(function(p){
+    var dx = p[0] - cx, dy = p[1] - cy;
+    for (var k = 0; k < steps; k++){ var nx = -dy, ny = dx; dx = nx; dy = ny; }
+    var q = [cx + dx, cy + dy];
+    return outline.some(function(o){ return Math.hypot(o[0] - q[0], o[1] - q[1]) <= tol; });
+  });
+}
 // The lines one shape draws on an outline — the builders, and nothing else.
 // Hip+valley-corner gable: hip/valley skeleton with the OUTER hip ends
 // converted to rake barges — the L corner keeps its hip + valley junction
@@ -84692,7 +84929,7 @@ function _roofLinesForType(type, outline, rot){
   if (type === 'hip')       return _hipLinesWithEnds(outline);
   if (type === 'gable')     return buildGableRoofLines(outline, rotSteps % 2 === 1);
   if (type === 'stepgable') return buildStepGableRoofLines(outline, rotSteps % 2 === 1);
-  if (type === 'gable-hv')  return buildGableRoofLines_legacy(outline);
+  if (type === 'gable-hv')  return _gableHvLines(outline, rot);
   if (type === 'dutch')     return _dutchLinesWithEnds(outline);
   if (type === 'mono')      return _monoLinesWithEnds(outline, rot || 0);
   return [];
@@ -84810,7 +85047,10 @@ function autoGenerateRoof(type, rotation) {
   var rot = ((rotation || 0) % 360 + 360) % 360;
   var rotSteps = Math.round(rot / 90) % 4;
   var lines = _roofLinesForType(type, DRAW.outline, rot);
-  if (rotSteps && type !== 'mono' && type !== 'gable' && type !== 'stepgable') {
+  // Spinning the built lines is only right where the outline lands on itself
+  // (report 84): anywhere else they stand outside the walls.
+  if (rotSteps && type !== 'mono' && type !== 'gable' && type !== 'stepgable' && type !== 'gable-hv' &&
+      _outlineTurnsOntoItself(DRAW.outline, rotSteps)) {
     var cx = 0, cy = 0;
     DRAW.outline.forEach(function(p){ cx += p[0]; cy += p[1]; });
     cx /= DRAW.outline.length; cy /= DRAW.outline.length;

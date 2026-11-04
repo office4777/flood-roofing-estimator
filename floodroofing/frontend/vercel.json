@@ -146,6 +146,28 @@
   ],
   "redirects": [
     {
+      "source": "/robots.txt",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/robots.txt",
+      "permanent": false
+    },
+    {
+      "source": "/sitemap.xml",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/sitemap-au.xml",
+      "permanent": false
+    },
+    {
       "source": "/landing.html",
       "destination": "/",
       "permanent": true
@@ -301,6 +323,126 @@
         }
       ],
       "destination": "/app.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/landing.html"
+    },
+    {
+      "source": "/pricing",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/pricing.html"
+    },
+    {
+      "source": "/signup",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/signup.html"
+    },
+    {
+      "source": "/features/roof-measuring",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/features-measuring.html"
+    },
+    {
+      "source": "/features/quotes",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/features-quotes.html"
+    },
+    {
+      "source": "/features/job-pack",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/features-job-pack.html"
+    },
+    {
+      "source": "/roofmap-and-fergus",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/fergus.html"
+    },
+    {
+      "source": "/about",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/about.html"
+    },
+    {
+      "source": "/early-access",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/early-access.html"
+    },
+    {
+      "source": "/tools/roof-pitch-calculator",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/tools-roof-pitch-calculator.html"
+    },
+    {
+      "source": "/tools/roofing-sheet-calculator",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/tools-roofing-sheet-calculator.html"
+    },
+    {
+      "source": "/sitemap-au.xml",
+      "has": [
+        {
+          "type": "host",
+          "value": "roofmap.com"
+        }
+      ],
+      "destination": "/au/sitemap.xml"
     },
     {
       "source": "/",

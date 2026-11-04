@@ -135,7 +135,7 @@ const VERCEL_PROJECT_PREFIXES = [
 const APP_DOMAINS = [
   'floodroofing.co.nz',   // quote.floodroofing.co.nz — our own roofing company's
   'roofmap.co.nz',        // the product, New Zealand
-  'roofmap.com',          // the product, international
+  'roofmap.com',          // the product, Australia (2026-11-04) — roofmap.com and www.roofmap.com
 ];
 
 function isAllowedOrigin(origin) {
@@ -1350,7 +1350,7 @@ function _mustRead(res, what){
 // invite it is owed has been accepted.
 const _companyCache = new Map();
 const COMPANY_CACHE_MS = 60 * 1000;
-async function _companyOf(userId){
+async function _companyOf(userId, opts){
   if (!userId) return null;
   const _cc = _companyCache.get(userId);
   if (_cc && Date.now() - _cc.at < COMPANY_CACHE_MS) return _cc.cid;
@@ -1386,7 +1386,17 @@ async function _companyOf(userId){
       try { await supabase.from('company_users').insert({ company_id: cid, user_id: userId, role: 'owner' }); } catch(e){}
     } else {
       const cname = (prof && (prof.company || prof.name || prof.email)) || '';
-      const { data: co, error } = await supabase.from('companies').insert({ name: cname || 'My Company' }).select('id').single();
+      // The country the person signing up chose (POST /auth/register); a
+      // database without the column yet makes the business without it, which
+      // reads as NZ — the same as every business before it.
+      const ins = { name: cname || 'My Company' };
+      if (opts && opts.country) ins.country = _normCountry(opts.country);
+      let { data: co, error } = await supabase.from('companies').insert(ins).select('id').single();
+      if (error && ins.country && _missingColumn(error, 'country')){
+        if (ins.country === 'AU') recordError('company-country', new Error('companies.country is not migrated yet — an Australian business was created without its country, so it reads as NZ'), { route: 'POST /auth/register' });
+        delete ins.country;
+        ({ data: co, error } = await supabase.from('companies').insert(ins).select('id').single());
+      }
       if (error) console.error('[company] could not create a company for ' + userId + ':', error.message);
       if (!error && co) {
         cid = co.id;
@@ -1575,6 +1585,64 @@ const BILLING_ENABLED = process.env.BILLING_ENABLED === 'false'
 // deploy, so they get the canonical domain, full stop — PUBLIC_APP_URL
 // exists only for staging.
 const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
+
+// AUSTRALIA (2026-11-04). A business is in New Zealand or Australia:
+// `companies.country`, 'NZ' or 'AU', and a missing or unknown value is NZ —
+// every business that existed before this is a New Zealand one, and an old
+// database without the column reads exactly as it always has. Australia is
+// sold on roofmap.com, so an Australian business's emailed links go there
+// (PUBLIC_APP_URL_AU), and it pays in AUD at the same numbers as NZD.
+const PUBLIC_APP_URL_AU = (process.env.PUBLIC_APP_URL_AU || 'https://roofmap.com').replace(/\/+$/, '');
+function _normCountry(v){ return String(v == null ? '' : v).trim().toUpperCase() === 'AU' ? 'AU' : 'NZ'; }
+function _publicUrlFor(country){ return _normCountry(country) === 'AU' ? PUBLIC_APP_URL_AU : PUBLIC_APP_URL; }
+function _currencyFor(country){ return _normCountry(country) === 'AU' ? 'aud' : 'nzd'; }
+function _countryWords(country){ return _normCountry(country) === 'AU' ? 'Australia' : 'New Zealand'; }
+function _missingColumn(err, col){
+  const m = String((err && (err.message || err.details || err.hint)) || err || '');
+  return m.indexOf(col) >= 0 && /does not exist|could not find|schema cache/i.test(m);
+}
+// The business's country. A column the migration has not added yet is NZ —
+// that IS what every row on such a database is. Any other failure: with
+// `strict` it is an error (a checkout must never quietly bill an Australian
+// business in NZD because a read blinked), without it NZ, because the callers
+// that pass no `strict` only choose which of two working domains a link uses.
+async function _companyCountry(cid, strict){
+  if (!cid) return 'NZ';
+  let r;
+  try { r = await supabase.from('companies').select('country').eq('id', cid).maybeSingle(); }
+  catch (e) { r = { error: e }; }
+  if (r && r.error){
+    if (_missingColumn(r.error, 'country')) return 'NZ';
+    if (strict){
+      const e = new Error('Could not read your business — the database did not answer. Try again in a moment.');
+      e.upstream = true; e.status = 503; e.detail = String((r.error && r.error.message) || r.error);
+      throw e;
+    }
+    return 'NZ';
+  }
+  return _normCountry(r && r.data && r.data.country);
+}
+// The same, for a person: the business their profile names, else their first
+// membership. Never throws; for links only.
+async function _countryOfUser(userId){
+  if (!userId) return 'NZ';
+  try {
+    let cid = null;
+    const { data: p } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
+    cid = (p && p.company_id) || null;
+    if (!cid){
+      const { data: cu } = await supabase.from('company_users').select('company_id, created_at').eq('user_id', userId)
+        .order('created_at', { ascending: true }).limit(1);
+      cid = (cu && cu[0] && cu[0].company_id) || null;
+    }
+    return await _companyCountry(cid);
+  } catch (e) { return 'NZ'; }
+}
+async function _countryOfSub(sub){
+  if (!sub) return 'NZ';
+  if (sub.company_id) return _companyCountry(sub.company_id);
+  return _countryOfUser(sub.user_id);
+}
 
 // The BUSINESS's subscription. One licence covers everyone in the company, so
 // an invited teammate is already paid for and never needs a trial of their own.
@@ -1827,6 +1895,7 @@ app.get('/subscription', requireAuth, async (req, res) => {
     if (ids) roofs = { roofs_limit: limit, roofs_used: Math.min(limit, ids.size), roofs_left: Math.max(0, limit - ids.size), roof_jobs: Array.from(ids) };
     else roofs = { roofs_limit: limit, roofs_used: null, roofs_left: null, roof_jobs: [] };
   }
+  const _subCountry = await _companyCountry(req.companyId);
   res.json({
     status: (sub && sub.status) || 'none',
     billing: BILLING_ENABLED,        // false = the gate is open regardless
@@ -1842,6 +1911,9 @@ app.get('/subscription', requireAuth, async (req, res) => {
     // (A SECOND GO AT THE TRIAL): the app offers the button when this is true.
     restart_ok: (function(){ try { return BILLING_ENABLED && !_trialRestartWhy(sub, req.user.email); } catch (e) { return false; } })(),
     plan: await _planOf(req.companyId),
+    // Where the business is and what it pays in (AUSTRALIA, 2026-11-04).
+    country: _subCountry,
+    currency: _currencyFor(_subCountry),
     // The terms it is on and, on a capped plan, this month's roofs (the app
     // shows "12 of 30 roofs this month" and opens the plans at the cap).
     terms: await (async () => { try { return (await _planInfo(req.companyId)).legacy ? 'legacy' : 'current'; } catch (e) { return 'current'; } })(),
@@ -2071,6 +2143,9 @@ async function _companyBrief(cid, userId){
     const { data } = await supabase.from('companies').select('id, name, slug').eq('id', cid).maybeSingle();
     const brief = data || { id: cid };
     brief.role = await _roleOf(userId);
+    // NZ or AU — what the app sells in and which site it points at. Read on
+    // its own so an old database without the column still answers the rest.
+    brief.country = await _companyCountry(cid);
     // The business's own verified domain, if it has one — quote links prefer it
     // over the roofmap.co.nz address.
     try {
@@ -2116,8 +2191,10 @@ app.get('/team', requireAuth, async (req, res) => {
     const plan = pi.plan;
     const lim = _limitsFor(plan, pi.legacy);
     const seats = { used: members.length + invites.length, allowed: lim.seats === Infinity ? null : lim.seats };
+    const _co = co || { id: req.companyId };
+    _co.country = await _companyCountry(req.companyId);
     res.json({
-      company: co || { id: req.companyId },
+      company: _co,
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
       members, invites,
       plan: { id: plan, label: lim.label, seats: seats,
@@ -2153,7 +2230,8 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
     const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
     if (error) return res.status(500).json({ error: error.message });
-    const link = PUBLIC_APP_URL + '/app?invite=' + encodeURIComponent(raw);   // /app, not the landing page — see /auth/forgot
+    // /app, not the landing page — see /auth/forgot; on the business's own site (NZ or AU).
+    const link = _publicUrlFor(await _companyCountry(req.companyId)) + '/app?invite=' + encodeURIComponent(raw);
     const { data: co } = await supabase.from('companies').select('name').eq('id', req.companyId).maybeSingle();
     const coName = (co && co.name) || 'your team';
     const who = req.user.email || 'a colleague';
@@ -2684,9 +2762,11 @@ function _cleanPhone(p){
   return s.replace(/\D/g, '').length >= 7 ? s : '';
 }
 function _verifyRequired(){ return EMAIL_ENABLED && process.env.VERIFY_EMAIL !== 'false'; }
-async function _sendVerifyMail(userId, email, name){
+async function _sendVerifyMail(userId, email, name, country){
   const t = jwt.sign({ id: userId, email, purpose: 'verify' }, JWT_SECRET, { expiresIn: '3d' });
-  const link = PUBLIC_APP_URL + '/app?verify=' + encodeURIComponent(t);
+  // The site they signed up on: roofmap.com for Australia, roofmap.co.nz otherwise.
+  if (country === undefined) country = await _countryOfUser(userId);
+  const link = _publicUrlFor(country) + '/app?verify=' + encodeURIComponent(t);
   const hi = name ? 'Hi ' + String(name).split(/\s+/)[0] + ',' : 'Hi,';
   await _dispatchMail({
     to: email,
@@ -2702,6 +2782,9 @@ async function _sendVerifyMail(userId, email, name){
 
 app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailKey), async (req, res) => {
   const { email, password, name, company } = req.body;
+  // NZ or AU (2026-11-04). Anything else, or nothing, is NZ — the sign-up
+  // pages that predate Australia send no country at all.
+  const country = _normCountry((req.body || {}).country);
   if (String((req.body || {}).website || '').trim()) {
     // The honeypot. A person cannot see the field; whoever filled it is a script.
     console.warn('[auth] signup honeypot tripped from ' + req.ip);
@@ -2767,7 +2850,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     // INVITE_COMPANY_ID could only ever name ONE company, so every person who
     // signed up with the shared code landed in that same business — fine while
     // there was one, wrong the moment RoofMap has subscribers.
-    const cid = await _companyOf(userId);
+    const cid = await _companyOf(userId, { country: country });
     // A registration with no company is not a registration: every table is
     // scoped by company_id, so the account would come up empty and stay empty,
     // and the only visible symptom is a missing row in `companies`. Undo the
@@ -2802,12 +2885,12 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
     // Tell the owner. A trial starting is the one event worth a ring, and
     // until now nobody was told — signups were a number in the metrics.
-    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst }).catch(function(){});
+    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst, country }).catch(function(){});
     if (verifyFirst) {
       // No session until the address is confirmed. The account exists, so a
       // second signup with this email says "already registered" — the resend
       // route is the way back in.
-      try { await _sendVerifyMail(userId, email, name); }
+      try { await _sendVerifyMail(userId, email, name, country); }
       catch (e) {
         console.error('[auth] verification mail failed, opening the account anyway:', e.message);
         await supabase.from('profiles').update({ verify_pending: false }).eq('id', userId);
@@ -2858,13 +2941,15 @@ async function _signupAlert(o){
   if (!SIGNUP_ALERT_TO || !EMAIL_ENABLED) return;
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
   const who = [o.company, o.name].filter(Boolean).join(' · ') || o.email;
+  const au = _normCountry(o.country) === 'AU';
   await _dispatchMail({
     to: SIGNUP_ALERT_TO, fromName: 'RoofMap', replyTo: o.email,
-    subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who,
+    subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who + (au ? ' (Australia)' : ''),
     text: (o.confirmed
       ? 'They have confirmed their email — the ' + _TRIAL_WORDS() + ' trial of Team is under way.\n\n'
       : 'A new business has signed up for the ' + _TRIAL_WORDS() + ' trial of Team.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
+      'Country: ' + _countryWords(o.country) + '\n' +
       nice('Drawn here by', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
       '\nReply to this email and it goes straight to them.',
@@ -2902,10 +2987,11 @@ async function _trialOwnerFor(sub){
   } catch (e) {}
   return null;
 }
-function _trialEndedMail(p, sub){
+function _trialEndedMail(p, sub, country){
   const token = jwt.sign({ purpose: 'cancel-trial', id: p.id, email: p.email, cid: sub.company_id || null }, JWT_SECRET, { expiresIn: '60d' });
-  const planUrl = PUBLIC_APP_URL + '/app?billing=plans';
-  const cancelUrl = PUBLIC_APP_URL + '/trial-ended?t=' + encodeURIComponent(token);
+  const base = _publicUrlFor(country);
+  const planUrl = base + '/app?billing=plans';
+  const cancelUrl = base + '/trial-ended?t=' + encodeURIComponent(token);
   const first = String(p.name || '').split(' ')[0] || 'there';
   const text = 'Hi ' + first + ',\n\nYour free RoofMap trial has ended.\n\n' +
     'Everything you measured, drew and quoted is still there — pick a plan and carry on where you left off:\n' + planUrl + '\n\n' +
@@ -2946,7 +3032,7 @@ async function _trialEndedSweep(){
       // the other order costs a duplicate every hour.
       const { error: uerr } = await supabase.from('subscriptions').update({ trial_ended_mail_at: new Date().toISOString() }).eq('id', sub.id);
       if (uerr) throw new Error(uerr.message);
-      await _dispatchMail(_trialEndedMail(p, sub));
+      await _dispatchMail(_trialEndedMail(p, sub, await _countryOfSub(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[trial-ended] ' + (e && e.message)); }
   }
@@ -3081,6 +3167,13 @@ const WINBACK_SUBJECT = 'RoofMap has come a long way since you tried it — have
 const WINBACK_VIDEO = PUBLIC_APP_URL + '/media/roofmap-demo.mp4';
 const WINBACK_THUMB = PUBLIC_APP_URL + '/media/roofmap-demo-email.jpg';
 const WINBACK_RESTART = PUBLIC_APP_URL + '/app?restart=trial';
+// An Australian business gets the same email pointed at roofmap.com, and a
+// footer that does not tell it RoofMap is a New Zealand product.
+function _winbackLinks(country){
+  if (_normCountry(country) !== 'AU') return { video: WINBACK_VIDEO, thumb: WINBACK_THUMB, restart: WINBACK_RESTART, home: PUBLIC_APP_URL, au: false };
+  const b = _publicUrlFor('AU');
+  return { video: b + '/media/roofmap-demo.mp4', thumb: b + '/media/roofmap-demo-email.jpg', restart: b + '/app?restart=trial', home: b, au: true };
+}
 const WINBACK_POINTS = [
   ['A coach that walks you through your first roof', 'find the house, line the photo up, trace it, pick the roof type. No guessing what to press next.'],
   ['A sheet layout for every roof', 'every sheet numbered, the offcuts used where they fit, and a pre-cut page for the boys on the ground.'],
@@ -3088,21 +3181,23 @@ const WINBACK_POINTS = [
   ['Files, photos and every email on the job', 'in one place, alongside your Fergus files if you use Fergus.'],
   ['AI Tendering on the Team plan', 'drop the plans in and get a tender quote back.'],
 ];
-function _winbackText(){
+function _winbackText(country){
+  const L = _winbackLinks(country);
   return 'Hi there,\n\n' +
     'You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the ' +
     'first ten minutes were confusing, so I have spent the last two months fixing exactly that.\n\n' +
-    'Watch the 41-second demo (an address to a sent quote): ' + WINBACK_VIDEO + '\n\n' +
+    'Watch the 41-second demo (an address to a sent quote): ' + L.video + '\n\n' +
     'What is new:\n' + WINBACK_POINTS.map(function(p){ return '- ' + p[0] + ': ' + p[1]; }).join('\n') + '\n\n' +
     'I would like you to have another go, free. The new trial is ' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS +
     ' days, whichever comes first, and no card. Everything from last time is still in your account.\n\n' +
-    'Restart my free trial: ' + WINBACK_RESTART + '\n\n' +
+    'Restart my free trial: ' + L.restart + '\n\n' +
     'Sign in with the email you used last time (forgotten the password? there is a reset link on the sign-in page).\n\n' +
     'Any questions, just reply — it comes straight to me.\n\n' +
     'Aron\nFounder, RoofMap\n\n' +
     'Not interested? Reply "stop" and I will not email you again.';
 }
-function _winbackHtml(){
+function _winbackHtml(country){
+  const L = _winbackLinks(country);
   const P = 'margin:0 0 16px;font-size:15px;line-height:1.6;color:#0a1628';
   const btn = function(href, label){
     return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 18px"><tr><td style="border-radius:10px;background:#0099cc">' +
@@ -3115,21 +3210,23 @@ function _winbackHtml(){
       '<p style="' + P + '">Hi there,</p>' +
       '<p style="' + P + '">You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the first ten minutes were confusing, so I have spent the last two months fixing exactly that.</p>' +
     '</td></tr>' +
-    '<tr><td style="padding:0 28px 18px"><a href="' + WINBACK_VIDEO + '" style="text-decoration:none">' +
-      '<img src="' + WINBACK_THUMB + '" width="544" alt="Watch the 41-second RoofMap demo: an address to a sent quote" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px"></a></td></tr>' +
+    '<tr><td style="padding:0 28px 18px"><a href="' + L.video + '" style="text-decoration:none">' +
+      '<img src="' + L.thumb + '" width="544" alt="Watch the 41-second RoofMap demo: an address to a sent quote" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px"></a></td></tr>' +
     '<tr><td style="padding:0 28px 4px">' +
       '<p style="margin:0 0 10px;font-size:16px;font-weight:bold;color:#0a1628">What’s new</p>' +
       '<ul style="margin:0 0 18px;padding:0 0 0 20px;font-size:15px;line-height:1.55;color:#0a1628">' +
         WINBACK_POINTS.map(function(p){ return '<li style="margin:0 0 8px"><b>' + _esc(p[0]) + '</b> — ' + _esc(p[1]) + '</li>'; }).join('') +
       '</ul>' +
       '<p style="' + P + '">I would like you to have another go, free. The new trial is <b>' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS + ' days</b>, whichever comes first, and no card. Everything from last time is still in your account.</p>' +
-      btn(WINBACK_RESTART, 'Restart my free trial') +
+      btn(L.restart, 'Restart my free trial') +
       '<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#64748b">Sign in with the email you used last time. Forgotten the password? There is a reset link on the sign-in page.</p>' +
       '<p style="' + P + '">Any questions, just reply — it comes straight to me.</p>' +
       '<p style="' + P + '">Aron<br><span style="color:#64748b">Founder, RoofMap</span></p>' +
     '</td></tr>' +
     '<tr><td style="padding:14px 28px 22px;border-top:1px solid #e3e8ef;font-size:12px;line-height:1.5;color:#94a3b8">' +
-      'Not interested? Reply “stop” and I won’t email you again. RoofMap · Whangarei, New Zealand · <a href="' + PUBLIC_APP_URL + '" style="color:#94a3b8">roofmap.co.nz</a></td></tr>' +
+      'Not interested? Reply “stop” and I won’t email you again. RoofMap · ' + (L.au
+        ? '<a href="' + L.home + '" style="color:#94a3b8">' + L.home.replace(/^https?:\/\//, '') + '</a>'
+        : 'Whangarei, New Zealand · <a href="' + PUBLIC_APP_URL + '" style="color:#94a3b8">roofmap.co.nz</a>') + '</td></tr>' +
     '</table></td></tr></table></body></html>';
 }
 function _winbackLooksTest(r){
@@ -3141,10 +3238,11 @@ async function _winbackList(){
     .select('id, user_id, company_id, status, trial_ends_at, created_at, paid_since, trial_restarted_at, stripe_customer_id').limit(5000), 'subscriptions');
   // A company with ANY paying row is a customer, whatever its other rows say.
   const paying = new Set((subs || []).filter(s => s.company_id && (s.status === 'active' || s.paid_since)).map(s => s.company_id));
-  const names = new Map();
+  const names = new Map(), countries = new Map();
   try {
-    const { data: cos } = await supabase.from('companies').select('id, name').limit(5000);
-    (cos || []).forEach(c => names.set(c.id, c.name || ''));
+    let r = await supabase.from('companies').select('id, name, country').limit(5000);
+    if (r.error && _missingColumn(r.error, 'country')) r = await supabase.from('companies').select('id, name').limit(5000);
+    (r.data || []).forEach(c => { names.set(c.id, c.name || ''); countries.set(c.id, _normCountry(c.country)); });
   } catch (e) {}
   // Who told us why they left, on the trial-ended form: shown beside them so
   // the owner reads it before deciding to write again.
@@ -3169,6 +3267,7 @@ async function _winbackList(){
     seen.add(key);
     const r = { sub_id: sub.id, email: String(p.email).trim(), name: p.name || '', company: names.get(sub.company_id) || p.company || '',
       ended: sub.trial_ends_at || sub.created_at || null,
+      country: countries.get(sub.company_id) || 'NZ',
       left_why: leftWhy.get('c:' + sub.company_id) || leftWhy.get('u:' + (p.id || sub.user_id)) || '' };
     r.test = _winbackLooksTest(r);
     out.push(r);
@@ -3181,15 +3280,15 @@ async function _winbackSent(){
   if (r.error) throw Object.assign(new Error(r.error.message), { upstream: true });
   return (r.data && r.data.value) || null;
 }
-function _winbackMail(bcc, to){
+function _winbackMail(bcc, to, country){
   return { to: to || WINBACK_FROM, bcc: bcc && bcc.length ? bcc.join(', ') : undefined, subject: WINBACK_SUBJECT,
-    text: _winbackText(), html: _winbackHtml(), fromName: 'Aron at RoofMap', fromAddress: WINBACK_FROM, replyTo: WINBACK_FROM, platform: true };
+    text: _winbackText(country), html: _winbackHtml(country), fromName: 'Aron at RoofMap', fromAddress: WINBACK_FROM, replyTo: WINBACK_FROM, platform: true };
 }
 app.get('/admin/winback', async (req, res) => {
   if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   try {
     res.json({ list: await _winbackList(), sent: await _winbackSent(), subject: WINBACK_SUBJECT, from: 'Aron at RoofMap <' + WINBACK_FROM + '>',
-      sendable: _platformMailboxSendable(WINBACK_FROM), html: _winbackHtml() });
+      sendable: _platformMailboxSendable(WINBACK_FROM), html: _winbackHtml(), html_au: _winbackHtml('AU') });
   } catch (e) {
     if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     res.status(500).json({ error: e.message });
@@ -3200,7 +3299,7 @@ app.post('/admin/winback/test', async (req, res) => {
   try {
     const to = String((req.body || {}).to || WINBACK_FROM).trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'That is not an email address.' });
-    const r = await _dispatchMail(_winbackMail(null, to));
+    const r = await _dispatchMail(_winbackMail(null, to, (req.body || {}).country));
     if (r && r.held) return res.status(503).json({ error: 'Held — RoofMap cannot send as ' + WINBACK_FROM + ' on this server.' });
     res.json({ ok: true, to: to });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -3222,11 +3321,16 @@ app.post('/admin/winback/send', async (req, res) => {
     const up = await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: stamp.sent_at }, { onConflict: 'key' });
     if (up.error) throw new Error(up.error.message);
     // Resend takes 50 addresses a message; the owner's own copy is the To.
-    const emails = list.map(r => r.email);
-    for (let i = 0; i < emails.length; i += 45){
-      const part = emails.slice(i, i + 45);
-      try { const r = await _dispatchMail(_winbackMail(part)); stamp.batches.push({ n: part.length, ok: !(r && r.held), id: r && r.messageId || null }); }
-      catch (e) { stamp.batches.push({ n: part.length, ok: false, error: String(e && e.message || e).slice(0, 200) }); }
+    // New Zealand first, exactly as before; an Australian business gets its
+    // own copy pointed at roofmap.com, in batches of its own.
+    for (const ctry of ['NZ', 'AU']){
+      const emails = list.filter(r => _normCountry(r.country) === ctry).map(r => r.email);
+      for (let i = 0; i < emails.length; i += 45){
+        const part = emails.slice(i, i + 45);
+        const b = ctry === 'AU' ? { country: 'AU' } : {};
+        try { const r = await _dispatchMail(_winbackMail(part, null, ctry)); stamp.batches.push(Object.assign({ n: part.length, ok: !(r && r.held), id: r && r.messageId || null }, b)); }
+        catch (e) { stamp.batches.push(Object.assign({ n: part.length, ok: false, error: String(e && e.message || e).slice(0, 200) }, b)); }
+      }
     }
     try { await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: new Date().toISOString() }, { onConflict: 'key' }); } catch (e) {}
     const bad = stamp.batches.filter(b => !b.ok);
@@ -3446,9 +3550,9 @@ function _dripText(step, first, appUrl, roofs){
     'pick a plan and it carries on exactly where you left it:\n\n' + appUrl + '?billing=plans\n\n' +
     'Not sure it earns its keep? Reply and tell me what is missing. If it is something I can build, I usually will.' + sig;
 }
-function _trialDripMail(step, p, roofs){
+function _trialDripMail(step, p, roofs, country){
   const first = String(p.name || '').split(' ')[0] || 'there';
-  const text = _dripText(step, first, PUBLIC_APP_URL + '/app', step.key === 'd12' ? roofs : null);
+  const text = _dripText(step, first, _publicUrlFor(country) + '/app', step.key === 'd12' ? roofs : null);
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
     text.split('\n\n').map(par => '<p>' + _esc(par).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0099cc">$1</a>') + '</p>').join('') + '</div>';
   return { to: p.email, subject: (roofs && step.roofSubject) || step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
@@ -3513,7 +3617,7 @@ async function _trialDripSweep(){
       const { error: uerr } = await supabase.from('subscriptions').update({ trial_drip: drip }).eq('id', sub.id);
       if (uerr) throw new Error(uerr.message);
       if (!p){ out.skipped++; continue; }
-      await _dispatchMail(_trialDripMail(send, p, await _trialRoofsLeft(sub)));
+      await _dispatchMail(_trialDripMail(send, p, await _trialRoofsLeft(sub), await _countryOfSub(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[trial-drip] ' + (e && e.message)); }
   }
@@ -3662,7 +3766,9 @@ app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
   try {
     const { data: was } = await supabase.from('profiles').select('verify_pending, name, company, phone').eq('id', payload.id).maybeSingle();
     await supabase.from('profiles').update({ verify_pending: false, email_verified_at: new Date().toISOString() }).eq('id', payload.id);
-    if (was && was.verify_pending) _signupAlert({ company: was.company, name: was.name, email: payload.email, phone: was.phone, confirmed: true }).catch(function(){});
+    if (was && was.verify_pending) _countryOfUser(payload.id).then(function(c){
+      return _signupAlert({ company: was.company, name: was.name, email: payload.email, phone: was.phone, confirmed: true, country: c });
+    }).catch(function(){});
     const cid = await _companyOf(payload.id);
     const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: await _tokenVersion(payload.id) }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
@@ -3711,7 +3817,7 @@ app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
     // reads (2026-10-22, tyler@tgmroofing.co.nz: "This keeps just taking me
     // back to the home page"). vercel.json and landing.html forward /?reset=
     // as well, for links already in inboxes.
-    const link = PUBLIC_APP_URL + '/app?reset=' + encodeURIComponent(t);
+    const link = _publicUrlFor(await _countryOfUser(userId)) + '/app?reset=' + encodeURIComponent(t);
     await _dispatchMail({
       to: email,
       subject: 'Reset your RoofMap password',
@@ -6643,12 +6749,66 @@ const STRIPE_PRICES_ANNUAL = {
   team:     process.env.STRIPE_PRICE_TEAM_ANNUAL     || '',
   business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || '',
 };
+// AUSTRALIA (2026-11-04): an Australian business pays in AUD, the same
+// numbers as NZD. The normal way is ONE price per plan carrying an `aud`
+// currency option (_ensureAudCurrencyOptions adds it) and the checkout asking
+// for currency=aud. A separate AUD price may be named instead; when it is,
+// that price is used and no currency is passed.
+const STRIPE_PRICES_AUD = {
+  measure:  process.env.STRIPE_PRICE_MEASURE_AUD  || '',
+  solo:     process.env.STRIPE_PRICE_SOLO_AUD     || '',
+  team:     process.env.STRIPE_PRICE_TEAM_AUD     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS_AUD || '',
+};
+const STRIPE_PRICES_ANNUAL_AUD = {
+  measure:  process.env.STRIPE_PRICE_MEASURE_ANNUAL_AUD  || '',
+  solo:     process.env.STRIPE_PRICE_SOLO_ANNUAL_AUD     || '',
+  team:     process.env.STRIPE_PRICE_TEAM_ANNUAL_AUD     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL_AUD || '',
+};
 function _stripePlanOfPrice(priceId){
   // Both cycles resolve to the same plan — a portal switch from monthly to
-  // yearly must not change what the business is entitled to.
-  return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; })
-      || Object.keys(STRIPE_PRICES_ANNUAL).find(function(k){ return STRIPE_PRICES_ANNUAL[k] && STRIPE_PRICES_ANNUAL[k] === priceId; })
-      || '';
+  // yearly must not change what the business is entitled to. So does an AUD
+  // price named on its own.
+  const inMap = function(m){ return Object.keys(m).find(function(k){ return m[k] && m[k] === priceId; }); };
+  return inMap(STRIPE_PRICES) || inMap(STRIPE_PRICES_ANNUAL) || inMap(STRIPE_PRICES_AUD) || inMap(STRIPE_PRICES_ANNUAL_AUD) || '';
+}
+// Every configured price gets an AUD currency option at its own NZD numbers
+// (A$79 / A$149 / A$299, the yearly prices likewise), with the price's own tax
+// behaviour. Idempotent: a price that already has one — or IS an AUD price —
+// is left alone. Runs a minute after boot and from POST /admin/aud-prices/run.
+async function _ensureAudCurrencyOptions(){
+  const out = { checked: 0, added: 0, already: 0, skipped: 0, errors: 0, prices: [] };
+  if (!process.env.STRIPE_SECRET_KEY) return Object.assign(out, { off: 'billing off' });
+  const ids = [], seen = new Set();
+  [[STRIPE_PRICES, 'monthly'], [STRIPE_PRICES_ANNUAL, 'annual']].forEach(function(pair){
+    Object.keys(pair[0]).forEach(function(plan){
+      const id = pair[0][plan];
+      if (id && !seen.has(id)){ seen.add(id); ids.push({ id: id, plan: plan, cycle: pair[1] }); }
+    });
+  });
+  for (const x of ids){
+    const rec = { id: x.id, plan: x.plan, cycle: x.cycle };
+    try {
+      const p = await _stripeGet('/v1/prices/' + encodeURIComponent(x.id) + '?expand%5B%5D=currency_options');
+      out.checked++;
+      const opts = p.currency_options || {};
+      if (String(p.currency || '').toLowerCase() === 'aud' || opts.aud){ out.already++; rec.state = 'already'; out.prices.push(rec); continue; }
+      if (p.unit_amount == null){ out.skipped++; rec.state = 'no unit_amount (tiered or custom price)'; out.prices.push(rec); continue; }
+      const params = { 'currency_options[aud][unit_amount]': p.unit_amount };
+      // Only a real choice is copied: 'unspecified' is what an option with no
+      // tax_behavior already is.
+      if (p.tax_behavior === 'exclusive' || p.tax_behavior === 'inclusive') params['currency_options[aud][tax_behavior]'] = p.tax_behavior;
+      await _stripeCall('/v1/prices/' + encodeURIComponent(x.id), params);
+      out.added++; rec.state = 'added'; rec.unit_amount = p.unit_amount; out.prices.push(rec);
+    } catch (e) {
+      out.errors++; rec.state = 'error'; rec.error = String(e && e.message || e).slice(0, 200); out.prices.push(rec);
+      recordError('aud-prices', new Error('Could not give Stripe price ' + x.id + ' (' + x.plan + ', ' + x.cycle + ') an AUD option — ' + rec.error +
+        '. Until it has one, an Australian checkout falls back to NZD.'), { route: 'aud-prices' });
+    }
+  }
+  if (out.added || out.errors) console.log('[stripe] AUD prices: added ' + out.added + ', already ' + out.already + ', errors ' + out.errors);
+  return out;
 }
 // One POST to Stripe, form-encoded the way its API wants. params is a flat
 // object whose keys may already carry Stripe's bracket syntax.
@@ -6815,7 +6975,13 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     // Yearly = two months free; anything that isn't exactly 'annual' bills
     // monthly, so an old client that never sends the field changes nothing.
     const annual = String((req.body || {}).billing || '').toLowerCase() === 'annual';
-    const priceId = annual ? STRIPE_PRICES_ANNUAL[plan] : STRIPE_PRICES[plan];
+    // Australia pays in AUD (2026-11-04). The country is read strictly: a read
+    // that failed must not bill an Australian business in NZD by default.
+    const country = await _companyCountry(req.companyId, true);
+    const au = country === 'AU';
+    const nzPriceId = annual ? STRIPE_PRICES_ANNUAL[plan] : STRIPE_PRICES[plan];
+    const audPriceId = au ? (annual ? STRIPE_PRICES_ANNUAL_AUD[plan] : STRIPE_PRICES_AUD[plan]) : '';
+    const priceId = audPriceId || nzPriceId;
     if (!priceId) return res.status(400).json({ error: annual
       ? ('Yearly billing for that plan isn\'t configured yet (STRIPE_PRICE_' + plan.toUpperCase() + '_ANNUAL).')
       : ('That plan has no Stripe price configured yet (STRIPE_PRICE_' + plan.toUpperCase() + ').') });
@@ -6829,8 +6995,8 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       mode: 'subscription',
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': 1,
-      success_url: PUBLIC_APP_URL + '/index.html?billing=success',
-      cancel_url:  PUBLIC_APP_URL + '/index.html?billing=cancelled',
+      success_url: _publicUrlFor(country) + '/index.html?billing=success',
+      cancel_url:  _publicUrlFor(country) + '/index.html?billing=cancelled',
       client_reference_id: req.companyId,
       'metadata[company_id]': req.companyId,
       'metadata[user_id]': req.user.id,
@@ -6865,9 +7031,59 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       try { const _row = await _companySettingsRow(req); _billTo = String((_row && _row.billing_email) || '').trim(); } catch (e) {}
       params.customer_email = _billTo || req.user.email || undefined;
     }
-    const session = await _stripeCall('/v1/checkout/sessions', params);
-    res.json({ url: session.url });
-  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+    if (au){
+      // The same price in AUD — its currency option — unless an AUD price of
+      // its own is named, which already is AUD.
+      if (!audPriceId) params.currency = 'aud';
+      params['metadata[country]'] = 'AU';
+    }
+    let session, currency = au ? 'aud' : undefined;
+    try {
+      session = await _stripeCall('/v1/checkout/sessions', params);
+    } catch (e) {
+      // Stripe refused the AUD checkout over the currency (the price has no
+      // AUD option yet, or the customer already pays in NZD). Selling beats
+      // blocking: once more in NZD, and never silently.
+      if (!(au && nzPriceId && /currenc/i.test(String(e && e.message || '')))) throw e;
+      recordError('aud-checkout', new Error('An Australian checkout was refused in AUD and sold in NZD instead — ' + e.message +
+        ' (plan ' + plan + (annual ? ', yearly' : ', monthly') + ', price ' + priceId + '). Run POST /admin/aud-prices/run or set STRIPE_PRICE_' +
+        plan.toUpperCase() + (annual ? '_ANNUAL' : '') + '_AUD.'), { route: 'POST /billing/checkout', company: req.companyId });
+      const nz = Object.assign({}, params);
+      delete nz.currency;
+      nz['line_items[0][price]'] = nzPriceId;
+      session = await _stripeCall('/v1/checkout/sessions', nz);
+      currency = 'nzd';
+    }
+    res.json(currency ? { url: session.url, currency: currency } : { url: session.url });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Where the business is: NZ or AU. The OWNER's to change (it decides the
+// currency they are billed in), and only their own business's.
+app.put('/company/country', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const want = String((req.body || {}).country || '').trim().toUpperCase();
+    if (want !== 'NZ' && want !== 'AU') return res.status(400).json({ error: 'Pick a country: NZ or AU.' });
+    const { error } = await supabase.from('companies').update({ country: want }).eq('id', req.companyId);
+    if (error){
+      if (_missingColumn(error, 'country'))
+        return res.status(503).json({ error: 'The server is still being updated — try again in a minute.', code: 'NOT_MIGRATED' });
+      return res.status(503).json({ error: 'Could not save that — the database did not answer. Try again in a moment.', code: 'UPSTREAM_UNAVAILABLE' });
+    }
+    // Nothing caches a country (every reader asks the companies row), but the
+    // plan and membership caches are dropped too so the next sign-in brief is
+    // read whole.
+    _planCache.delete(req.companyId);
+    _companyCache.delete(req.user.id);
+    res.json({ country: await _companyCountry(req.companyId, true) });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
 });
 
 // ── ASKING STRIPE DIRECTLY ──────────────────────────────────────────
@@ -7053,7 +7269,7 @@ app.post('/billing/portal', requireAuth, async (req, res) => {
     if (!sub || !sub.stripe_customer_id) return res.status(400).json({ error: 'No billing account yet — subscribe first.' });
     const session = await _stripeCall('/v1/billing_portal/sessions', {
       customer: sub.stripe_customer_id,
-      return_url: PUBLIC_APP_URL + '/index.html',
+      return_url: _publicUrlFor(await _companyCountry(req.companyId)) + '/index.html',
     });
     res.json({ url: session.url });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
@@ -7093,11 +7309,17 @@ function _subInvoiceNumbers(inv){
   const total = cents(inv.amount_paid != null ? inv.amount_paid : (inv.total != null ? inv.total : inv.amount_due));
   // Stripe Tax on → believe it. Off → derive from the GST-inclusive total.
   const stripeTax = inv.tax != null ? cents(inv.tax) : null;
+  const currency = String(inv.currency || 'nzd').toUpperCase();
   let gst, net;
   if (stripeTax != null && stripeTax > 0) { gst = stripeTax; net = Math.round((total - gst) * 100) / 100; }
-  else if (SUB_GST_RATE > 0) { net = Math.round((total / (1 + SUB_GST_RATE / 100)) * 100) / 100; gst = Math.round((total - net) * 100) / 100; }
+  // The GST-inclusive fallback is New Zealand's: an AUD payment (Australia,
+  // 2026-11-04 — RoofMap is not GST-registered there, so Stripe Tax adds
+  // nothing) carries no GST, and pretending 15% of it was GST would be wrong.
+  else if (SUB_GST_RATE > 0 && currency === 'NZD') { net = Math.round((total / (1 + SUB_GST_RATE / 100)) * 100) / 100; gst = Math.round((total - net) * 100) / 100; }
   else { net = total; gst = 0; }
-  return { total, net, gst, currency: String(inv.currency || 'nzd').toUpperCase() };
+  const out = { total, net, gst, currency };
+  if (!(gst > 0) && currency !== 'NZD') out.noGst = true;
+  return out;
 }
 function _subInvoiceEmail(inv){
   const n = _subInvoiceNumbers(inv);
@@ -7115,8 +7337,11 @@ function _subInvoiceEmail(inv){
   rows.push(['Invoice', num]);
   rows.push(['Paid', when.toLocaleDateString('en-NZ')]);
   const gstLine = n.gst > 0 ? ('GST (' + (SUB_GST_RATE || '') + '%)') : null;
+  // Not New Zealand's money and no GST on it: an invoice, not a tax invoice,
+  // and it says plainly that no GST was charged. An NZ invoice reads as before.
+  const title = n.noGst ? 'RoofMap — subscription invoice' : 'RoofMap — subscription tax invoice';
   const lines = [
-    'RoofMap — subscription tax invoice',
+    title,
     '',
     desc,
     periodTxt ? ('Period: ' + periodTxt) : '',
@@ -7126,7 +7351,8 @@ function _subInvoiceEmail(inv){
     n.gst > 0 ? ('Subtotal: ' + _money(n.net) + ' ' + n.currency) : '',
     n.gst > 0 ? (gstLine + ': ' + _money(n.gst) + ' ' + n.currency) : '',
     'Total paid: ' + _money(n.total) + ' ' + n.currency,
-    SUB_GST_NUMBER ? ('GST number: ' + SUB_GST_NUMBER) : '',
+    n.noGst ? 'No GST charged' : '',
+    (SUB_GST_NUMBER && !n.noGst) ? ('GST number: ' + SUB_GST_NUMBER) : '',
     '',
     inv.invoice_pdf ? ('Stripe PDF: ' + inv.invoice_pdf) : '',
     inv.hosted_invoice_url ? ('View online: ' + inv.hosted_invoice_url) : '',
@@ -7134,7 +7360,7 @@ function _subInvoiceEmail(inv){
     'Questions about this invoice — just reply to this email.',
   ].filter(function(x){ return x !== ''; });
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap — tax invoice</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">' + (n.noGst ? 'RoofMap — invoice' : 'RoofMap — tax invoice') + '</div>' +
     '<h2 style="font-size:19px;margin:8px 0 14px">' + esc(_money(n.total)) + ' ' + esc(n.currency) + ' paid — thank you</h2>' +
     '<table style="border-collapse:collapse;font-size:13px;margin-bottom:14px">' +
       rows.map(function(r){ return '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(r[0]) +
@@ -7144,12 +7370,13 @@ function _subInvoiceEmail(inv){
       (n.gst > 0 ? '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">Subtotal</td><td style="padding:3px 0">' + esc(_money(n.net)) + '</td></tr>' +
                    '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(gstLine) + '</td><td style="padding:3px 0">' + esc(_money(n.gst)) + '</td></tr>' : '') +
       '<tr><td style="padding:5px 18px 3px 0;color:#5f6b7a"><strong>Total paid</strong></td><td style="padding:5px 0"><strong>' + esc(_money(n.total)) + ' ' + esc(n.currency) + '</strong></td></tr>' +
+      (n.noGst ? '<tr><td colspan="2" style="padding:3px 0;color:#5f6b7a">No GST charged</td></tr>' : '') +
     '</table>' +
-    (SUB_GST_NUMBER ? '<p style="font-size:12px;color:#5f6b7a">GST number: ' + esc(SUB_GST_NUMBER) + '</p>' : '') +
+    ((SUB_GST_NUMBER && !n.noGst) ? '<p style="font-size:12px;color:#5f6b7a">GST number: ' + esc(SUB_GST_NUMBER) + '</p>' : '') +
     (inv.hosted_invoice_url ? '<p><a href="' + esc(inv.hosted_invoice_url) + '" style="display:inline-block;background:#0a1628;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">View or download the invoice</a></p>' : '') +
     '<p style="font-size:12px;color:#5f6b7a">Questions about this invoice — just reply to this email.</p>' +
   '</div>';
-  return { subject: 'RoofMap tax invoice ' + num + ' — ' + _money(n.total) + ' ' + n.currency,
+  return { subject: (n.noGst ? 'RoofMap invoice ' : 'RoofMap tax invoice ') + num + ' — ' + _money(n.total) + ' ' + n.currency,
            text: lines.join('\n'), html: html };
 }
 function _subFailedEmail(inv){
@@ -7239,8 +7466,9 @@ async function _subRowForStripe(subId, custId){
 // Who the business is, for the email: its name, the owner's name, email and
 // phone, when it signed up, and what the paying businesses now come to.
 async function _newPayerDetails(row){
-  const out = { company: '', name: '', email: '', phone: '', signedUp: '', payingCount: 0, mrr: 0 };
+  const out = { company: '', name: '', email: '', phone: '', signedUp: '', payingCount: 0, mrr: 0, country: 'NZ' };
   try {
+    if (row.company_id) out.country = await _companyCountry(row.company_id);
     if (row.company_id){
       const { data: co } = await supabase.from('companies').select('name, created_at').eq('id', row.company_id).maybeSingle();
       if (co){ out.company = co.name || ''; out.signedUp = co.created_at || ''; }
@@ -7269,10 +7497,17 @@ function _newPayerEmail(row, d, o){
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
   const days = (isFinite(Date.parse(d.signedUp)) && isFinite(Date.parse(o.paidAt)))
     ? Math.max(0, Math.round((Date.parse(o.paidAt) - Date.parse(d.signedUp)) / 864e5)) : null;
-  const paidLine = o.amount > 0 ? ('$' + o.amount.toFixed(2) + ' ' + String(o.currency || 'nzd').toUpperCase() + ' incl. GST') : '';
+  // An AUD payment (Australia, 2026-11-04) carries no GST: say so, and
+  // price the plan in A$. NZ reads exactly as before.
+  const aud = String(o.currency || '').toLowerCase() === 'aud';
+  const auCo = _normCountry(d.country) === 'AU';
+  const cur = String(o.currency || 'nzd').toUpperCase();
+  const paidLine = o.amount > 0 ? ('$' + o.amount.toFixed(2) + ' ' + cur + (aud ? ' — no GST charged' : ' incl. GST')) : '';
+  const priceWords = price ? (aud ? 'A$' + price + ' a month' : '$' + price + ' + GST a month') : '';
   const text = 'Congratulations — ' + who + ' has started paying for RoofMap.\n\n' +
     nice('Business', d.company) + nice('Name', d.name) + nice('Email', d.email) + nice('Phone', d.phone) +
-    'Plan: ' + plan + (price ? ' ($' + price + ' + GST a month)' : '') + '\n' +
+    (auCo ? 'Country: Australia\n' : '') +
+    'Plan: ' + plan + (price ? ' (' + priceWords + ')' : '') + '\n' +
     nice('First payment', paidLine) +
     'Paying since: ' + _nzDateWords(o.paidAt) + '\n' +
     nice('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' — ' + days + ' day' + (days === 1 ? '' : 's') + ' before paying' : '')) : '') +
@@ -7287,7 +7522,8 @@ function _newPayerEmail(row, d, o){
     '<div style="margin-top:4px;color:#cfe3f5">' + h(who) + ' has started paying on ' + h(plan) + '.</div></div>' +
     '<table style="margin:14px 0;border-collapse:collapse;font-size:14px">' +
     row2('Business', d.company) + row2('Name', d.name) + row2('Email', d.email) + row2('Phone', d.phone) +
-    row2('Plan', plan + (price ? ' — $' + price + ' + GST a month' : '')) + row2('First payment', paidLine) +
+    (auCo ? row2('Country', 'Australia') : '') +
+    row2('Plan', plan + (price ? ' — ' + priceWords : '')) + row2('First payment', paidLine) +
     row2('Paying since', _nzDateWords(o.paidAt)) +
     row2('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' (' + days + ' day' + (days === 1 ? '' : 's') + ' before paying)' : '')) : '') +
     '</table>' +
@@ -8438,7 +8674,9 @@ async function _reminderQuoteLink(job, share){
       } catch (e) {}
     }
   }
-  if (!base) base = PUBLIC_APP_URL;
+  // No domain or address of its own: the business's site — roofmap.com for
+  // an Australian business, roofmap.co.nz otherwise.
+  if (!base) base = _publicUrlFor(await _companyCountry(job.company_id));
   let link = base + '/?q=' + share.token;
   if (job.ref) link += '&j=' + encodeURIComponent(String(job.ref).replace(/[^A-Za-z0-9\-]/g, ''));
   link += '&i=' + encodeURIComponent(String(job.id));
@@ -8804,6 +9042,11 @@ async function _officeOwedTick(){
       ', skipped ' + r.skipped + ', errors ' + r.errors);
   } catch (e) { console.error('[office-owed] tick failed: ' + (e && e.message)); }
 }
+app.post('/admin/aud-prices/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _ensureAudCurrencyOptions()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/paid-since/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _paidSinceBackfill()); }
@@ -13795,6 +14038,9 @@ const _MIGRATION_SQL = [
   // the default is 'trial' — full access — and nobody loses a feature the day
   // this ships.
   "alter table public.companies add column if not exists plan text not null default 'trial'",
+  // Where the business is: 'NZ' or 'AU' (2026-11-04). Null is NZ — every
+  // business before Australia was sold — so there is no default to backfill.
+  "alter table public.companies add column if not exists country text",
   "create unique index if not exists idx_companies_slug on public.companies (lower(slug)) where slug is not null",
   // Per-company invitations. Replaces INVITE_COMPANY_ID, which could only ever
   // point at ONE company — so every invited person landed in that same
@@ -14899,10 +15145,11 @@ app.post('/admin/support/reply', async (req, res) => {
         const convo = mine.concat([row]).slice(-12);
         const line = function(m){ return (m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + ': ' + String(m.body || '').trim(); };
         const escH = function(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        const appBase = _publicUrlFor(lastUser.company_id ? await _companyCountry(lastUser.company_id) : await _countryOfUser(lastUser.user_id));
         const text = 'Hi' + (first ? ' ' + first : '') + ',\n\n' + 'We have replied to your message in RoofMap.\n\n' +
           'Our reply:\n' + body + '\n\n— ' + row.author + '\n\n' +
           'Your conversation so far:\n' + convo.map(line).join('\n\n') + '\n\n' +
-          'To reply, open RoofMap (' + PUBLIC_APP_URL + '/app) and click the Help bubble at the bottom right — or just reply to this email.';
+          'To reply, open RoofMap (' + appBase + '/app) and click the Help bubble at the bottom right — or just reply to this email.';
         const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0a1628;line-height:1.5;max-width:560px">' +
           '<p>Hi' + (first ? ' ' + escH(first) : '') + ',</p><p>We have replied to your message in RoofMap.</p>' +
           '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;margin:12px 0;white-space:pre-wrap">' + escH(body) +
@@ -14911,7 +15158,7 @@ app.post('/admin/support/reply', async (req, res) => {
           convo.map(function(m){ return '<div style="margin:6px 0;padding:8px 11px;border-radius:10px;white-space:pre-wrap;' +
             (m.sender === 'support' ? 'background:#f0f9ff;border:1px solid #cfe8f5' : 'background:#f1f5f9') + '"><b style="font-size:12px">' +
             escH(m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + '</b><br>' + escH(String(m.body || '').trim()) + '</div>'; }).join('') +
-          '<p style="margin-top:16px">To reply, open <a href="' + PUBLIC_APP_URL + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
+          '<p style="margin-top:16px">To reply, open <a href="' + appBase + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
         // FROM ROOFMAP OR NOT AT ALL (2026-10-01, the owner's: "it can never
         // come from the roofing company"): platform mail, so it is held until the
         // platform can send as support@roofmap.co.nz — the bubble pops open
@@ -15709,6 +15956,16 @@ app.listen(PORT, () => {
   // The paid-since dates of businesses that were paying before they were kept.
   const _psKick = setTimeout(function(){ _paidSinceBackfill().catch(function(e){ console.warn('[stripe] paid-since backfill: ' + e.message); }); }, 75e3);
   if (_psKick.unref) _psKick.unref();
+  // Every Stripe price gets its AUD option (AUSTRALIA, 2026-11-04). Only
+  // against the real Stripe unless AUD_PRICES_BOOT=true says otherwise, so a
+  // suite's stand-in is never written to behind its back; AUD_PRICES_BOOT=false
+  // switches it off.
+  if (process.env.STRIPE_SECRET_KEY && process.env.AUD_PRICES_BOOT !== 'false' &&
+      (process.env.AUD_PRICES_BOOT === 'true' || STRIPE_API_BASE === 'https://api.stripe.com')){
+    const _audMs = Math.max(0, parseInt(process.env.AUD_PRICES_BOOT_MS || '60000', 10) || 0);
+    const _audKick = setTimeout(function(){ _ensureAudCurrencyOptions().catch(function(e){ console.warn('[stripe] AUD prices: ' + e.message); }); }, _audMs);
+    if (_audKick.unref) _audKick.unref();
+  }
   // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
   const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
   if (_atKick.unref) _atKick.unref();

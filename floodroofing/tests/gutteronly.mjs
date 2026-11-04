@@ -103,7 +103,7 @@ check('…and the phone book the same, ending on the total', v.book.join() === '
 check('no steel grade, profile, thickness, roof colour or old roofing anywhere', !/grade|profile|thickness|^colour|disposal/.test(v.desk.concat(v.book).join(',')), v.desk.join());
 check('it is always the modern layout', v.style === 'modern', v.style);
 check('the proposal is a Guttering Proposal and says what is done to the gutters',
-  v.title === 'Guttering Proposal' && v.incl.some(l => /spouting and downpipes/i.test(l)) && v.incl.some(l => /Supply & install new 125mm/i.test(l)) && !v.incl.some(l => /roofing sheets|underlay|flashings/i.test(l)),
+  v.title === 'Guttering Proposal' && v.incl.some(l => /^Remove existing spouting/i.test(l)) && v.incl.some(l => /Supply & install new 125mm/i.test(l)) && !v.incl.some(l => /roofing sheets|underlay|flashings/i.test(l)),
   JSON.stringify(v.incl));
 check('the summary\'s first line is the Gutters, with the scaffold beside it',
   v.rows[0][0] === 'base' && /^Gutters — /.test(v.rows[0][1]) && v.rows.some(r => r[0] === 'scaffold') && !v.rows.some(r => /Re-roof/.test(r[1])), JSON.stringify(v.rows));

@@ -1788,6 +1788,98 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   named in the outline's own order (it could read the opposite wall). The
   Background slider starts at full strength (`#bgOpacity` value 1).
   `tests/optnotes.mjs`, `tests/report80.mjs`.
+- AUSTRALIA (2026-11-04, the owner: "set up the AUD prices and invoice
+  wording, also setup my domain roofmap.com ... I'll only advertise roofmap.com
+  in Australia and roofmap.co.nz in nz, and make the user enter their country
+  (New Zealand or Australia) on sign up. Also all the terminology and products
+  need tweaking to suit Australian roofers"; his answers: the same numbers in
+  AUD, the Lysaght / COLORBOND set, the core pages only — the guides stay NZ).
+  THE COUNTRY IS THE BUSINESS'S: `companies.country` ('NZ' | 'AU', boot DDL;
+  no value = NZ, so every business before this is New Zealand). Asked at
+  sign-up on BOTH forms (signup.html's `#suCountry` select, defaulting from
+  `data-default-country` and the host; the app's `#su-country` radios) and sent
+  as `country`; changed by the OWNER only on Settings → Branding (`#brCountry`
+  → `PUT /company/country`, `_countrySet` reloads). THE APP: `_country()`
+  (customer mode → `S.quote.country`, else the signed-in company, else the
+  host — roofmap.com is AU), `_isAU()`, `_defaultGstRate()` (10 / 15),
+  `_curP()` ('A$79'). On AU: GST 10 % as the default, quote links on
+  roofmap.com (`CUSTOMER_QUOTE_BASE` is a getter; no company subdomains), the
+  address search in Australia, LINZ off, the products `_defaultSelectablesAU()`
+  (COLORBOND® steel / Ultra / Zincalume — the grade percentages are starting
+  guesses for the owner to set; Custom Orb, Trimdek, Klip-Lok 700, Spandek;
+  Quad / Hi-Quad / half-round gutters) and `COLORBOND_COLOURS` (22), and the
+  WORDS: `AU_TERMS` rewrites text nodes, placeholders and titles (never an
+  input, a textarea or a box being typed in) through a MutationObserver —
+  Colorsteel → COLORBOND, spouting → guttering, building consent → building
+  approval, 0.40/0.55 → 0.42/0.48 BMT, GST number → ABN, "/month + GST" →
+  "/month AUD". A quote stamps `country:'AU'` so the customer's copy reads
+  Australian too. THE SERVER: `_publicUrlFor(country)` (PUBLIC_APP_URL_AU,
+  default https://roofmap.com) for every link it sends — verify, invite, trial
+  ended, win-back (sent in two batches, NZ and AU); `/subscription` answers
+  `country` and `currency`; an AU checkout asks Stripe for `currency=aud` on
+  the SAME price (its AUD currency option, A$ at the NZD numbers, added by
+  `_ensureAudCurrencyOptions` a minute after boot and `POST
+  /admin/aud-prices/run`; an `STRIPE_PRICE_<PLAN>[_ANNUAL]_AUD` price wins
+  where set) and lands back on roofmap.com; a currency refusal sells in NZD and
+  pages (`aud-checkout`). RoofMap is not GST-registered in Australia, so an AUD
+  invoice reads "RoofMap — invoice", "No GST charged", no GST number
+  (`_subInvoiceNumbers.noGst`). THE SITE: roofmap.com is the SAME Vercel
+  project; `vercel.json` sends that host's core pages to `frontend/au/*.html`
+  (quote, reset and invite links first), built by `tools/build-au-site.mjs`
+  from the NZ pages — NEVER hand-edit `frontend/au/`; change the NZ page or a
+  rule there (a rule that no longer matches THROWS) and rerun it
+  (`sitemap-dates.mjs` calls it). hreflang en-NZ / en-AU pairs, an AU sitemap
+  and robots. NEEDS THE OWNER: roofmap.com added to the Vercel project (the
+  MCP is refused, 403) and its DNS at Network Solutions pointed at Vercel.
+  `tests/australia.mjs` (UI), `aucountry.mjs` (API), `ausite.mjs` (UI),
+  `signup.mjs`.
+- THE SCAFFOLD: ON THE QUOTE OR NOT, OURS OR OUTSOURCED (2026-11-04, the owner:
+  "have a button to click to exclude scaffold from this quote ... in the gutter
+  job type, always default the scaffold to not included and collapse the
+  scaffolding section ... 'Do it ourselves' or 'outsource' ... default the
+  scaffolding labour time to 4 hrs on a house 0-50m2, 6hrs on 51-100m2, 8hrs on
+  100m2-160m2, 10hrs on 161-230m2, 12hrs on 230m2 to 330m2, 15hrs on 330m2 +
+  ... when pushing the pricing to fergus ... those labour hours are put as
+  labour hours in it's own ... section", and "if there's no scaffolding
+  required then it doesn't say it in the 'what we will do'"). On the scaffold
+  object (per roof, `_roofScaffold`): `excluded` (with `exclAuto` when the
+  Gutters only default put it there, `exclTouched` once the office chose),
+  `mode: 'diy'` and `diy` {leadHrs, appHrs, leadPrice, appPrice, leadCost,
+  appCost, hrsManual, own}. `_scaffoldEff` is still the ONE reader: excluded =
+  0 / 0, diy = hours × the crew's rates; a scaffold with none of it reads as
+  it always did. `_scaffoldDiySync` (run from `calcLabour` for every priced
+  roof) keeps the hours on the area tiers (`SCAFF_DIY_TIERS`, the roof and the
+  roofs folded into it) until one is typed, and the rates on the roof's own
+  labour table until one is typed (blank / ↻ puts them back). The card: two
+  big buttons, Scaffolding included / No scaffolding, then on a roofing job Do
+  it ourselves / Outsource; Do it ourselves swaps the cost and price boxes for
+  a Lead Roofer / Apprentice hours table. A Gutters only job starts with No
+  scaffolding (a new quote, and `_setJobType` on a scaffold nobody chose) and
+  its section FOLDED (`_pxFoldKey` → its own `scaffoldCard_gj` fold), and gets
+  no do-it-ourselves choice; a gutters quote saved before keeps its scaffold.
+  No scaffold = no platform uplift (`_selScaffoldBasePrice`, `scaffoldBase`
+  0). FERGUS: do it ourselves goes as LABOUR lines in a "Scaffolding" section
+  of its own, gutter or none; outsourced is unchanged. WHAT WE WILL DO
+  (`_qbInclusionLines`) drops any scaffold / edge-protection line when
+  `_scaffoldNone()` (excluded, or nothing priced and no line typed), and on a
+  gutters job reads "Remove existing spouting and take it away" while the
+  downpipes are kept, puts "Supply & install new <gutter>" (and new downpipes
+  when picked) straight after the brackets line, ahead of "Seal all joints".
+  The classic A4's scope prose is the office's and is not touched.
+  `tests/scaffoldopts.mjs` (34).
+- A TURNED ROOF IS REBUILT, NOT SPUN (feedback report 84, 2026-11-05, job
+  FR-59839: "straight gable not good, barges showing outside of outline and
+  the barge sides are showing a gutters"). Rotate 90° on a "Gable + hip/valley
+  corner" roof spun the BUILT lines about the outline's middle, which only
+  lands on a square: on his 20.4 × 16.3 m shed the ridge and the barges stood
+  26 px outside the walls and every wall was re-laid as a gutter. Hip and
+  dutch roofs on any non-square outline did the same. `_gableHvLines`: on
+  four corners an odd turn is the straight gable's own turn
+  (`buildGableRoofLines(outline, true)`), used by the build AND the corner-drag
+  rebuild; an L's hip and valley ignore the turn. Every other shape is spun
+  only where `_outlineTurnsOntoItself` (a square). A roof already saved in the
+  bad state is put right by turning it again or picking the shape.
+  `tests/report84.mjs`.
 - EXTRAS — INCLUDED ITEMS, ON EVERY JOB TYPE (2026-10-30, the owner: "each
   line is an included item, for instance the customer want customer coloured
   downpipes and leaf diverters ... both show as included as show the price ...
