@@ -182,10 +182,34 @@ check('signing up posts the business, the person, the phone and the password',
   posts[0].email === 'sam@acmeroofing.co.nz' && posts[0].phone === '021 555 0100' && !!posts[0].password,
   JSON.stringify(Object.assign({}, posts[0], { password:'***' })));
 check('…with the honeypot empty, because a person never saw it', posts[0] && posts[0].website === '');
+check('…and the country, New Zealand unless they pick Australia', posts[0] && posts[0].country === 'NZ', posts[0] && posts[0].country);
 check('…then opens the app, signed in', /\/app$/.test(pg.url()), pg.url());
 v = await pg.evaluate(() => ({ tok: localStorage.getItem('fr_token'), co: localStorage.getItem('fr_company') }));
 check('…with the session and the business stored', v.tok === 'tok' && /Acme Roofing/.test(v.co || ''));
 await ctx.close();
+
+// ── the country (2026-11-04): New Zealand or Australia, sent with the sign-up ──
+mode = 'ok'; posts.length = 0;
+({ ctx, pg } = await open('signup.html', 1360, 900));
+v = await pg.evaluate(() => ({ opts: Array.from(document.querySelectorAll('#suCountry option')).map(o => o.value).join(','),
+  picked: document.getElementById('suCountry').value,
+  def: document.getElementById('suForm').getAttribute('data-default-country') }));
+check('signup asks the country — New Zealand or Australia, New Zealand picked here', v.opts === 'NZ,AU' && v.picked === 'NZ' && v.def === 'NZ', JSON.stringify(v));
+await pg.selectOption('#suCountry', 'AU');
+v = await pg.evaluate(() => document.getElementById('suEmail').placeholder);
+check('…Australia shows Australian examples', /\.com\.au$/.test(v), v);
+await pg.fill('#suCompany','Acme Roofing Pty Ltd'); await pg.fill('#suName','Sam');
+await pg.fill('#suEmail','sam@acmeroofing.com.au'); await pg.fill('#suPhone','0400 555 010'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
+await pg.click('#suBtn'); await pg.waitForTimeout(900);
+check('…and an Australian sign-up posts country AU', posts.length === 1 && posts[0].country === 'AU', posts[0] && posts[0].country);
+await ctx.close();
+{
+  const appHtml = await readFile(_j(DIR, 'app.html'), 'utf8');
+  const q = appHtml.slice(appHtml.indexOf('id="su-country"'), appHtml.indexOf('id="su-country"') + 800);
+  check("the app's own sign-up asks the same country question",
+    (q.match(/type="radio" name="su-country"/g) || []).length === 2 && /value="NZ"/.test(q) && /value="AU"/.test(q) &&
+    /country:country/.test(appHtml), (q.match(/name="su-country"/g) || []).length + ' radios');
+}
 
 // ── keeping bots off: phone required, a field people cannot see ──
 mode = 'ok'; posts.length = 0;
