@@ -4485,7 +4485,7 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
    carries the size chips and a whole opening letter, which in that column
    wrapped to three words a line. The facts take the width as a grid of their
    own below the letter. */
-.qd-cover-body.ps-cover-body{ grid-template-columns:minmax(0,1fr); gap:18px; }
+.qd-cover-body.ps-cover-body{ display:grid; grid-template-columns:minmax(0,1fr); gap:18px; }
 .ps-cover-body .qb-meta{ grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); column-gap:26px; border-top:none; }
 .ps-cover-body .qb-meta > div:first-child, .ps-cover-body .qb-meta > div{ border-top:1px solid #e6ebf1; border-bottom:none; }
 .ps-cover-body .qb-meta{ border-bottom:1px solid #e6ebf1; }
@@ -5282,7 +5282,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T19:36:10Z';
+  window.APP_BUILT_AT = '2026-11-05T19:50:53Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
