@@ -2091,6 +2091,27 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   remembered on the device per Fergus job + acceptance time
   (`fr_fg_autopushed`, `_fgAutoPushSeen`). An undo and a fresh acceptance (a
   new time) still pushes. `tests/autopush.mjs` (13).
+- AN OPTIONAL ROOF REACHES FERGUS AS HOURS, AND THE MAIN ROOF'S MATERIALS ARE
+  THE MAIN ROOF'S (2026-11-06, job 3349, the owner: "the labour hours in fergus
+  is way low compared to the accepted quote on the total priced labour across
+  the selected roofs"). Two faults in `_buildFergusItemisedSections`, the money
+  right both times: (1) each optional roof's labour went as ONE line, "Garage —
+  roof labour 1 × $920", no hours and no cost, so Fergus read 40 hours for a
+  78-hour job; it is now that roof's crew (`_roofLabLines(idx)`: Lead Roofer,
+  Apprentice and any labourer, hours × the roof's own rates and cost) named
+  "Garage — Lead Roofer", with one "— labour adjustment" line for whatever the
+  hours do not explain (priced by the m², a typed labour line). The crew is
+  stamped on `S.quote.extraRoofs[i].lab` and `share.priced.extraRoofSplit[i].lab`,
+  so the SERVER's automatic version (`_fergusComposeSections`, falling back to
+  `quote.extraRoofs[i].lab`) does the same; an acceptance stamped before this
+  pushes from the live roof (`roofIdx` on the priced changes). (2)
+  `_readFergusMaterialItems` built the material rows from the Job Pack's pick —
+  every roof the customer took — and each optional roof was then added again as
+  its own material lump, cancelled by "Adjustment to quoted total −$9,185.97";
+  it reads the main roof's group now (`_pricingRoofGroup(0)` under
+  `_matSelOverride`, as `_materialsCostForRoofIdx(0)` does), which also fixes the
+  base plan the server composes from. `tests/fergussplit.mjs` (21),
+  `fergusauto.mjs` (43).
 - THE JOB TILE IS A QUIET CARD (2026-11-06, the owner: "i really don't like
   the look of this left job menu ... make it obvious that it's not part of the
   main app's tab buttons but ... tie into the look of the rest of the app and

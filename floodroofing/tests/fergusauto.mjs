@@ -28,6 +28,7 @@ const published = new Set();     // quote ids Fergus now holds as Published
 const sentIds = new Set();       // …and as Sent (Send → Mark as sent)
 const unsentIds = new Set();     // …and ones Fergus describes as "Published - not sent"
 const jobDesc = {};              // Fergus jobs by id → their Job Description
+let titleWrites = 0;
 let jobUpdateStatus = 200;       // what a job update answers
 let jobUpdateTakes = true;       // …and whether it actually changes the job
 let markSentStatus = 200;        // what the mark-sent endpoint answers
@@ -61,10 +62,13 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
   const jone = path.match(/^\/jobs\/([^/]+)$/);
   if (method === 'GET' && jone) return jobDesc[jone[1]] === undefined
     ? j(404, { message: 'no such job' })
-    : j(200, { data: { id: jone[1], description: jobDesc[jone[1]] } });
+    // Fergus's own shape (read off job 3341, 2026-11-06): `description` is
+    // the job's title, `longDescription` the Job Description box.
+    : j(200, { data: { id: jone[1], description: 'Title of ' + jone[1], longDescription: jobDesc[jone[1]] } });
   if ((method === 'PATCH' || method === 'PUT') && jone){
-    if (jobUpdateStatus < 300 && jobUpdateTakes)
-      jobDesc[jone[1]] = (typeof body === 'string' ? JSON.parse(body || '{}') : body).description;
+    const b = (typeof body === 'string' ? JSON.parse(body || '{}') : body) || {};
+    if (b.description !== undefined && b.description !== 'Title of ' + jone[1]) titleWrites++;
+    if (jobUpdateStatus < 300 && jobUpdateTakes) jobDesc[jone[1]] = b.longDescription;
     return j(jobUpdateStatus, {});
   }
   if (method === 'POST' && /\/send\b/.test(path)) return j(200, { EMAILED_THE_CUSTOMER: true });   // the one shape that must never be hit
@@ -80,7 +84,9 @@ const priced = { v: 1, gstRate: 15, base: 10000,
   gutter: { none: 0, box125: 1500, marley_classic: 900 }, gutterLabel: { box125: '125mm Colorsteel Box Gutter', marley_classic: 'Marley Classic (PVC)' },
   gutterUplift: { box125: true, marley_classic: true }, gutterOverride: null, bracketExt: { box125: 120, marley_classic: 60 },
   scaffoldUplift: 250, downpipes: 300, extraRoof: [2000], extraRoofLabel: ['Garage'],
-  extraRoofSplit: [{ materials: 1200, labour: 700, scaffold: 100 }], gutterExcluded: false, extras: {} };
+  extraRoofSplit: [{ materials: 1200, labour: 700, scaffold: 100,
+    // the garage's crew (job 3349, 2026-11-06): its hours reach Fergus as hours
+    lab: [{ name: 'Lead Roofer', hrs: 4, price: 100, cost: 45 }, { name: 'Apprentice', hrs: 4, price: 70, cost: 25 }] }], gutterExcluded: false, extras: {} };
 const line = (name, qty, price, lab) => ({ itemName: name, itemQuantity: qty, itemPrice: price, itemRrp: price, itemCost: 0,
   unitOfMeasureSell: null, isLabour: !!lab, sortOrder: 10, discountRate: 0, isCombined: false });
 const plan = { jobId: 'FJ-77', rev: 1, lastQuoteId: 'fq1', title: 'Quote 3231 — Matawaia Marae', dueDays: 30, notes: 'Re-roof',
@@ -141,8 +147,17 @@ check('…with the same total Fergus is told, GST on top',
 const names = (c1.sections || []).map(s => s.name);
 check('…the gutter, scaffold upgrade, downpipes and the garage in sections of their own',
   names.indexOf('Guttering') >= 0 && names.indexOf('Scaffolding') >= 0 && names.indexOf('Downpipes') >= 0 &&
-  (c1.sections || []).some(s => s.name === 'Labour' && s.lineItems.some(li => /Garage — roof labour/.test(li.itemName) && li.isLabour)),
+  (c1.sections || []).some(s => s.name === 'Labour' && s.lineItems.some(li => /^Garage — /.test(li.itemName) && li.isLabour)),
   names.join(', '));
+{
+  const lab = ((c1.sections || []).find(s => s.name === 'Labour') || { lineItems: [] }).lineItems;
+  const gl = lab.find(li => li.itemName === 'Garage — Lead Roofer') || {}, ga = lab.find(li => li.itemName === 'Garage — Apprentice') || {};
+  const gx = lab.find(li => li.itemName === 'Garage — labour adjustment') || {};
+  check('…the garage\u2019s crew as HOURS at its own rates and cost, the rest of its labour price as one line (job 3349)',
+    gl.itemQuantity === 4 && gl.itemPrice === 100 && gl.itemCost === 45 && ga.itemQuantity === 4 && ga.itemPrice === 70 &&
+    Math.abs((gx.itemPrice || 0) - 20) < 0.01 && !lab.some(li => /Garage — roof labour/.test(li.itemName)),
+    JSON.stringify(lab.map(li => li.itemName + ' ' + li.itemQuantity + '×' + li.itemPrice)));
+}
 check('…the base lines untouched', (c1.sections.find(s => s.name === 'Materials') || { lineItems: [] }).lineItems.some(li => li.itemName === 'Roofing sheets' && li.itemQuantity === 100));
 check('…titled as the customer’s selections, a version up', /\(v2 — customer/.test(c1.title || ''), c1.title);
 check('…as a draft that is then published', c1.status === 'Draft' && fergus.some(c => /\/fq10[0-9]\/publish$/.test(c.path) || /publish$/.test(c.path)),
@@ -246,6 +261,7 @@ let dd = await desc({ jobId: 'FJ-90', summary: 'Quote 3270\nTotal (incl. GST): $
 check('the quote summary is written onto the Fergus job', dd.ok === true && /Quote 3270/.test(jobDesc['FJ-90']), JSON.stringify(dd));
 check('…and the customer’s own enquiry is still above it, untouched',
   jobDesc['FJ-90'].startsWith(ENQUIRY) && /RoofMap quote summary/.test(jobDesc['FJ-90']), JSON.stringify(jobDesc['FJ-90']));
+check('…in the Job Description (longDescription), never over the job\u2019s title', titleWrites === 0, String(titleWrites));
 check('…verified by reading the job back, not by the 2xx alone', dd.verified === true && fergus.filter(c => c.method === 'GET' && /^\/jobs\/FJ-90$/.test(c.path)).length >= 2, JSON.stringify(dd.attempts));
 
 // A second push replaces the block instead of stacking another copy under it.

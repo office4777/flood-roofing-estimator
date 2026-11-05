@@ -129,6 +129,56 @@ const grade = await pg.evaluate(() => {
 check('an upgrade is still one material line, not split like a roof',
   grade.every(g => !g.labour), JSON.stringify(grade));
 
+// ── JOB 3349 (2026-11-06): "the labour hours in fergus is way low compared to
+// the accepted quote on the total priced labour across the selected roofs" ──
+// Three real roofs, the two optional ones taken, each with its own crew and
+// rates. Fergus must read every roof's HOURS, and the material lines must be
+// the main roof's alone (they were every roof's, then each optional roof was
+// added again and an "Adjustment to quoted total -$9,185.97" cancelled it).
+const r49 = await pg.evaluate(async () => {
+  clearAll(true); DRAW.scaleMetresPerPx = 0.03; DRAW.calPitch = 25;
+  var drawRoof = function(pts){ setTool('outline'); DRAW.currentPts = pts; finishCurrent();
+    var m = document.getElementById('_rsModal'); if (m) m.remove(); autoGenerateRoof('gable', 0); DRAW.calPitch = 25; };
+  drawRoof([[200,200],[600,200],[600,500],[200,500]]);
+  _addAndSwitchToNewRoof(); drawRoof([[650,220],[850,220],[850,420],[650,420]]);
+  _addAndSwitchToNewRoof(); drawRoof([[900,200],[1250,200],[1250,560],[900,560]]);
+  autoCalcLineMeasurements(); redrawAll(); gotoTab('quote');
+  S.quote.gstRate = 15; S.quote.accepted = null;
+  S.quote.labour = Object.assign(S.quote.labour || {}, { leadHrs: 20, appHrs: 20, leadPrice: 220, appPrice: 130, leadCost: 45, appCost: 25, extras: [] });
+  _setLabourHrsManual(0, true);
+  _updateRoofLabour(1, 'leadHrs', 4); _updateRoofLabour(1, 'appHrs', 4); _setRoofLabourRate(1, 'leadPrice', 100);
+  _updateRoofLabour(2, 'leadHrs', 15); _updateRoofLabour(2, 'appHrs', 15); _setRoofLabourRate(2, 'leadPrice', 100); _setRoofLabourRate(2, 'appPrice', 80);
+  S.quote.proposalOptions = Object.assign({}, S.quote.proposalOptions, { extraRoofsSel: { 0: true, 1: true } });
+  calcLabour(); refreshQuoteProposal(); recalcQuoteTotals();
+  await new Promise(r => setTimeout(r, 400));
+  var out = _buildFergusItemisedSections();
+  var lines = []; out.sections.forEach(function(s){ s.lineItems.forEach(function(li){ lines.push({ sec: s.name, d: li.itemName, q: li.itemQuantity, p: li.itemPrice, c: li.itemCost, lab: !!li.isLabour }); }); });
+  var hrs = lines.filter(function(l){ return l.lab; }).reduce(function(a, l){ return a + (+l.q || 0); }, 0);
+  var sheets0 = (function(){ var lv = _roofScopeEnter(), pv = null; try { _syncCurrentToRoof(); pv = _matSelOverride(_pricingRoofGroup(0)); return _buildMaterialPriceRows().filter(function(r){ return /Roofing sheets/i.test(r.label); }).map(function(r){ return r.autoQty; })[0]; } finally { _matSelOverride(pv); lv(); } })();
+  var P = _qpBuildPriced();
+  return { lines: lines, hrs: hrs, sheets0: sheets0, labs: (P.extraRoofSplit || []).map(function(x){ return x.lab || null; }),
+           sub: _quoteMoney().sub, sum: lines.reduce(function(a, l){ return a + (+l.q || 0) * (+l.p || 0); }, 0),
+           roofs: (S.quote.extraRoofs || []).map(function(r){ return r.name + ':' + r.labour; }) };
+});
+const L49 = (re) => r49.lines.filter(l => re.test(l.d));
+const gl = L49(/^Roof 2 — Lead Roofer$/)[0] || {}, ga = L49(/^Roof 2 — Apprentice$/)[0] || {};
+const sl = L49(/^Roof 3 — Lead Roofer$/)[0] || {}, sa = L49(/^Roof 3 — Apprentice$/)[0] || {};
+check('job 3349: each optional roof\u2019s crew reaches Fergus as hours at its own rates and cost',
+  gl.lab && gl.q === 4 && gl.p === 100 && gl.c === 45 && ga.q === 4 && ga.p === ((r49.lines.find(l => l.d === 'Apprentice') || {}).p) && ga.c === 25 &&
+  sl.q === 15 && sl.p === 100 && sa.q === 15 && sa.p === 80,
+  JSON.stringify(r49.lines.filter(l => l.lab)));
+check('…so Fergus\u2019s labour hours are every roof the customer took (40 + 8 + 30)', Math.abs(r49.hrs - 78) < 0.01, String(r49.hrs) + ' ' + JSON.stringify(r49.roofs));
+check('…and no hourless "— roof labour" lump is left', L49(/— roof labour$/).length === 0, JSON.stringify(L49(/roof labour/)));
+const sheetLine = r49.lines.find(l => /^Roofing sheets/.test(l.d)) || {};
+check('the material lines are the MAIN roof\u2019s alone, not every roof\u2019s',
+  sheetLine.q > 0 && Math.abs(sheetLine.q - Math.ceil(r49.sheets0)) <= 1, JSON.stringify({ line: sheetLine, main: r49.sheets0 }));
+const adj = L49(/Adjustment to quoted total/)[0];
+check('…so there is no large "Adjustment to quoted total" cancelling a double count',
+  !adj || Math.abs(adj.p) < 1, JSON.stringify(adj || null));
+check('…and the Fergus quote still totals the quote to the cent', Math.abs(r49.sum - r49.sub) < 0.02, r49.sum.toFixed(2) + ' vs ' + (+r49.sub).toFixed(2));
+check('the crew is stamped with the customer\u2019s copy, for the server\u2019s own push',
+  r49.labs.length === 2 && r49.labs.every(x => Array.isArray(x) && x.some(y => y.name === 'Lead Roofer')), JSON.stringify(r49.labs));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 const fails = results.filter(x => !x).length;

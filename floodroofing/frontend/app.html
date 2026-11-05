@@ -5305,7 +5305,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T21:32:59Z';
+  window.APP_BUILT_AT = '2026-11-05T21:43:42Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -18688,6 +18688,21 @@ function _roofLabourHours(idx){
   var h = f(rl.leadHrs) + f(rl.appHrs);
   _roofLabourExtras(idx).forEach(function(x){ h += f(x.hrs); });
   return h;
+}
+// An extra roof's crew as lines - who, how long, at what charge-out and cost -
+// for Fergus, which should read the garage's hours the way it reads the
+// house's (2026-11-06, job 3349: each optional roof went across as one
+// "Garage — roof labour 1 × $920" with no hours and no cost).
+function _roofLabLines(idx){
+  var out = [];
+  if (!(idx >= 1)) return out;
+  try {
+    var rl = _roofLabour(idx), r = _roofLabourRates(idx), f = function(v){ return parseFloat(v) || 0; };
+    if (f(rl.leadHrs) > 0) out.push({ name: 'Lead Roofer', hrs: f(rl.leadHrs), price: r.leadPrice, cost: r.leadCost });
+    if (f(rl.appHrs) > 0)  out.push({ name: 'Apprentice',  hrs: f(rl.appHrs),  price: r.appPrice,  cost: r.appCost });
+    _roofLabourExtras(idx).forEach(function(x){ if (f(x.hrs) > 0) out.push({ name: x.name || 'Labourer', hrs: f(x.hrs), price: f(x.price), cost: f(x.cost) }); });
+  } catch(e){}
+  return out;
 }
 // Office edits an extra roof's labour hours (in the Labour section, scoped to
 // the selected roof). Re-renders labour (which refreshes the breakdown) + the
@@ -32152,7 +32167,9 @@ function _qpBuildPriced(){
     // the total. extraRoofs has carried it all along; it was being thrown away
     // here and again in _qpSelectionChanges.
     extraRoofSplit: (q.extraRoofs || []).map(function(rr){
-      return { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 };
+      var o = { materials: +rr.materials || 0, labour: +rr.labour || 0, scaffold: +rr.scaffold || 0 };
+      if (Array.isArray(rr.lab) && rr.lab.length) o.lab = rr.lab;
+      return o;
     }),
     gutterExcluded: !!_gutterExcluded()
   };
@@ -32216,7 +32233,7 @@ function _qpSelectionChangesPriced(P){
       var _nm = (P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2));
       var _sp = (P.extraRoofSplit || [])[i] || null;
       out.push({ label: 'Optional extra roof — ' + _nm, delta: price,
-                 roofName: _nm, split: _sp });
+                 roofName: _nm, split: _sp, roofIdx: ((q.extraRoofs || [])[i] || {}).idx });
     }
   });
   var baseG = q.baseGrade || 'maxam';
@@ -45300,6 +45317,7 @@ function refreshQuoteProposal(){
           _extra.push({ idx: _ri, name: (DRAW.roofs[_ri].name || ('Roof ' + (_ri + 1))),
                         area: +(_areaOf(_ri)).toFixed(1),
                         materials: +_matI.toFixed(2), labour: +_labI.toFixed(2), scaffold: +_scaffI.toFixed(2),
+                        lab: _roofLabLines(_ri),
                         price: +_priceI.toFixed(2) });
         }
         S.quote.extraRoofs = _extra;
@@ -77276,7 +77294,17 @@ function _readFergusMaterialItems(){
   var out = [];
   try {
     if (typeof _buildMaterialPriceRows !== 'function') return out;
-    var rows = _buildMaterialPriceRows() || [];
+    // THE MAIN ROOF'S MATERIALS ONLY (2026-11-06, job 3349). Unscoped, the
+    // rows follow the Job Pack's pick - every roof the customer took - and
+    // each optional roof then went across AGAIN as its own material lump, an
+    // "Adjustment to quoted total -$9,185.97" cancelling the double count.
+    // The main roof and the roofs folded into its price, as its pricing tab.
+    var rows;
+    if (!_psIsShed() && window.DRAW && DRAW.roofs && DRAW.roofs.length > 1 && typeof _matSelOverride === 'function'){
+      var _leave = _roofScopeEnter(), _prevSel = null;
+      try { _syncCurrentToRoof(); _prevSel = _matSelOverride(_pricingRoofGroup(0)); rows = _buildMaterialPriceRows() || []; }
+      finally { _matSelOverride(_prevSel); _leave(); }
+    } else rows = _buildMaterialPriceRows() || [];
     var del = (typeof MATERIAL_DELETED !== 'undefined') ? MATERIAL_DELETED : {};
     var ovs = (typeof MATERIAL_OVERRIDES !== 'undefined') ? MATERIAL_OVERRIDES : {};
     rows.forEach(function(r){
@@ -77474,7 +77502,21 @@ function _buildFergusItemisedSections(opts){
     // the garage the same way it reads the house.
     if (c.split && (c.split.materials || c.split.labour || c.split.scaffold)){
       var _rn = c.roofName || lbl;
-      if (c.split.labour)    roofLabour.push(labLine(_rn + ' — roof labour', 1, c.split.labour, 0));
+      if (c.split.labour){
+        // The roof's own crew, hours and all; whatever the hours do not
+        // explain (priced by the m², a typed labour line) rides as one line so
+        // the total is still the roof's price to the cent.
+        var _lab = (Array.isArray(c.split.lab) && c.split.lab.length) ? c.split.lab
+                 : ((c.roofIdx >= 1) ? _roofLabLines(c.roofIdx) : []);
+        var _labSum = 0;
+        _lab.forEach(function(x){
+          var h = +x.hrs || 0, pr = +x.price || 0; if (h <= 0) return;
+          roofLabour.push(labLine(_rn + ' — ' + (x.name || 'Labour'), h, pr, +x.cost || 0));
+          _labSum += +(h.toFixed(2)) * pr;
+        });
+        var _labRem = +(c.split.labour - _labSum).toFixed(2);
+        if (Math.abs(_labRem) >= 0.01) roofLabour.push(labLine(_rn + (_labSum ? ' — labour adjustment' : ' — roof labour'), 1, _labRem, 0));
+      }
       if (c.split.materials) roofMat.push(matLine(_rn + ' — roof material', 1, c.split.materials));
       if (c.split.scaffold)  scaff.push(matLine(_rn + ' — scaffolding', 1, c.split.scaffold));
       // Rounding: the three parts are stored to the cent and the total was

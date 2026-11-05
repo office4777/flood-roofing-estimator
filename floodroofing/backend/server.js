@@ -11393,7 +11393,9 @@ function _fergusSelectionChanges(P, quote){
   (P.extraRoof || []).forEach(function(price, i){
     if (erSel[i] && price > 0){
       const nm = (P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2));
-      out.push({ label: 'Optional extra roof — ' + nm, delta: +price, roofName: nm, split: (P.extraRoofSplit || [])[i] || null });
+      const xr = (Array.isArray(quote && quote.extraRoofs) ? quote.extraRoofs : [])[i] || {};
+      out.push({ label: 'Optional extra roof — ' + nm, delta: +price, roofName: nm, split: (P.extraRoofSplit || [])[i] || null,
+                 lab: Array.isArray(xr.lab) ? xr.lab : null });
     }
   });
   const baseG = quote.baseGrade || 'maxam';
@@ -11470,7 +11472,20 @@ function _fergusComposeSections(plan, P, quote){
     if (low.indexOf('scaffold') >= 0){ section('Scaffolding').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (c.split && (c.split.materials || c.split.labour || c.split.scaffold)){
       const rn = c.roofName || c.label;
-      if (c.split.labour)    section(labourName).lineItems.push(mk('lab', rn + ' — roof labour', 1, c.split.labour, 0));
+      if (c.split.labour){
+        // The roof's own crew as hours (job 3349, 2026-11-06), the app's rule:
+        // the hours at their rates, then one line for whatever they do not
+        // explain, so the roof still totals its price to the cent.
+        const lab = (Array.isArray(c.split.lab) && c.split.lab.length) ? c.split.lab : (c.lab || []);
+        let labSum = 0;
+        lab.forEach(x => {
+          const h = +(+x.hrs || 0).toFixed(2), pr = +(+x.price || 0).toFixed(2); if (h <= 0) return;
+          section(labourName).lineItems.push(mk('lab', rn + ' — ' + (x.name || 'Labour'), h, pr, +x.cost || 0));
+          labSum += h * pr;
+        });
+        const labRem = +(c.split.labour - labSum).toFixed(2);
+        if (Math.abs(labRem) >= 0.01) section(labourName).lineItems.push(mk('lab', rn + (labSum ? ' — labour adjustment' : ' — roof labour'), 1, labRem, 0));
+      }
       if (c.split.materials) section(matName).lineItems.push(mk('mat', rn + ' — roof material', 1, c.split.materials));
       if (c.split.scaffold)  section('Scaffolding').lineItems.push(mk('mat', rn + ' — scaffolding', 1, c.split.scaffold));
       const rem = +(c.delta - ((c.split.materials || 0) + (c.split.labour || 0) + (c.split.scaffold || 0))).toFixed(2);
