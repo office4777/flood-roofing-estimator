@@ -1219,8 +1219,16 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
    rest, the words on the left, half blue under the pointer, solid blue
    pressed. A Save that has just answered keeps its green or red. */
 .nav-job-btn{transition:background .15s,color .15s,border-color .15s}
-.nav-job-btn:not(.sv-ok):not(.sv-bad):hover{background:rgba(0,153,204,.5)!important;border-color:rgba(0,153,204,.6)!important;color:#0a1628!important}
-.nav-job-btn:not(.sv-ok):not(.sv-bad):active{background:#0099cc!important;border-color:#0099cc!important;color:#fff!important}
+/* THE JOB TILE'S BUTTONS ARE REVIEW-QUOTE BLUE (2026-11-06, the owner: "make
+   all the buttons in the left job menu (inside the light blue tile) ... the
+   blue colour from the 'review quote' button"): .qd-rail-btn's #0099e0 with
+   white words; its own hover; the save's green / red feedback keeps its own. */
+.nav-job-btn:not(.sv-ok):not(.sv-bad){background:#0099e0!important;border-color:#0099e0!important;color:#fff!important}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):hover{background:#0088c8!important;border-color:#0088c8!important;color:#fff!important}
+.nav-job-btn:not(.sv-ok):not(.sv-bad):active{background:#0077b0!important;border-color:#0077b0!important;color:#fff!important}
+#navJobHistCount,#navJobFilesCount{background:#fff!important;color:#0099e0!important}
+#navJobBox .nrs-btn{background:#0099e0!important;border-color:#0099e0!important;color:#fff!important}
+#navJobBox .nrs-btn:hover{background:#0088c8!important}
 .nav-btn.active svg{stroke:var(--accent)}
 .nav-btn svg{
   width:16px;height:16px;flex-shrink:0;
@@ -5282,7 +5290,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T19:50:53Z';
+  window.APP_BUILT_AT = '2026-11-05T20:22:13Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -30245,10 +30253,14 @@ function defaultProposalUpgrade(name){
 
 function defaultQuoteLineItems(){
   var items = [];
-  if (S.labour > 0)    items.push({desc:'Labour',    qty:1, unit:S.labour});
-  if (S.materials > 0) items.push({desc:'Materials', qty:1, unit:S.materials});
+  // Keyed and named exactly as _syncQuoteBaseLineItems keys and names them.
+  // "Scaffolding (platform)" here was a line the sync could not recognise once
+  // the scaffold price moved, so it stayed beside the sync's own and the
+  // scaffold was charged twice (job 3350: $5,000 + a stale $5,500).
+  if (S.labour > 0)    items.push({desc:'Labour',    qty:1, unit:S.labour, _base:'labour'});
+  if (S.materials > 0) items.push({desc:'Materials', qty:1, unit:S.materials, _base:'materials'});
   var scP = (S.quote && S.quote.scaffold) ? _scaffoldEff(S.quote.scaffold).price : 0;
-  if (scP > 0)         items.push({desc: (S.quote.scaffold.type === 'platform' ? 'Scaffolding (platform)' : 'Scaffolding'), qty:1, unit:scP});
+  if (scP > 0)         items.push({desc:'Scaffolding', qty:1, unit:scP, _base:'scaffold'});
   if (items.length === 0) items.push({desc:'', qty:1, unit:0});
   return items;
 }
@@ -33234,8 +33246,106 @@ function _qvFreshDraft(q){
 function _qvSnapshot(label){
   var q = S.quote || {};
   var M = (typeof _quoteMoney === 'function') ? _quoteMoney() : { tot: 0 };
-  return { id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: new Date().toISOString(),
+  var snap = { id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), at: new Date().toISOString(),
            label: label || 'Draft', total: Math.round((M.tot || 0) * 100) / 100, client: q.client || '', quote: _qvCopyOf(q) };
+  // The material table's typed prices / quantities / deleted rows are the
+  // JOB's (state.matOv / matDel), not the quote's — so a version kept only
+  // the quote, and a duplicate re-priced the material table from whatever
+  // the job held later (2026-11-06, the owner: "the whole pricing tab
+  // including any custom added material should be EXACTLY THE SAME").
+  try {
+    snap.pricing = { matOv: JSON.parse(JSON.stringify(typeof MATERIAL_OVERRIDES === 'object' ? MATERIAL_OVERRIDES : {})),
+                     matDel: JSON.parse(JSON.stringify(typeof MATERIAL_DELETED === 'object' ? MATERIAL_DELETED : {})) };
+  } catch(e){}
+  return snap;
+}
+// THE ROOFS A VERSION WAS PRICED ON (2026-11-06, job 3350: "the duplicate
+// this version still doesn't bring through the EXACT quote"). Every per-roof
+// setting on a quote — its mode (part of main / separate / excluded), the
+// customer's pick of it, its labour, scaffold and custom lines — is keyed by
+// the roof's NUMBER, and renumbering the roofs (Make main roof, a roof
+// deleted or added) moves the live quote's keys (_roofRemap) but never a
+// saved version's. Duplicating that version then put "Lower Main Roof: part
+// of main" onto whichever roof now has its old number. The version's own map
+// data (roofMapGeom.roofs: idx, name, outline, mode) says which roof was
+// which, so its numbers can be lined up with today's again: the same outline
+// first, else the same name. Returns null when nothing moved.
+function _roofIdxMapFromGeom(g){
+  try {
+    var old = (g && Array.isArray(g.roofs)) ? g.roofs : [];
+    if (!old.length || !window.DRAW || !Array.isArray(DRAW.roofs) || !DRAW.roofs.length) return null;
+    try { _syncCurrentToRoof(); } catch(e){}
+    var cen = function(pts){ var x = 0, y = 0, n = 0; (pts || []).forEach(function(p){ if (p){ x += +p[0]; y += +p[1]; n++; } }); return n ? [x / n, y / n, n] : null; };
+    var today = DRAW.roofs.map(function(r, i){ return { i: i, name: String((r && r.name) || '').trim().toLowerCase(), c: cen(r && r.outline) }; });
+    var used = {}, map = {}, moved = false;
+    old.forEach(function(o){
+      if (!o || !(o.idx >= 0)) return;
+      var oc = cen(o.pts), hit = null;
+      if (oc) hit = today.filter(function(t){ return !used[t.i] && t.c && t.c[2] === oc[2] && Math.abs(t.c[0] - oc[0]) < 3 && Math.abs(t.c[1] - oc[1]) < 3; })[0] || null;
+      var nm = String(o.name || '').trim().toLowerCase();
+      if (!hit && nm){ var byName = today.filter(function(t){ return !used[t.i] && t.name === nm; }); if (byName.length === 1) hit = byName[0]; }
+      if (!hit) return;
+      used[hit.i] = true; map[o.idx] = hit.i;
+      if (hit.i !== o.idx) moved = true;
+    });
+    if (!moved) return null;
+    return function(i){ return (map[i] != null) ? map[i] : ((i === 0) ? 0 : -1); };
+  } catch(e){ return null; }
+}
+// A material override's key is "<roof>:<row>" on a multi-roof job.
+function _matOvRemapObj(o, mapFn){
+  var out = {};
+  Object.keys(o || {}).forEach(function(k){
+    var m = /^(\d+):(.*)$/.exec(k);
+    if (!m){ out[k] = o[k]; return; }
+    var n = mapFn(+m[1]); if (!(n >= 0)) return;
+    out[n + ':' + m[2]] = o[k];
+  });
+  return out;
+}
+// Put a version's (or a saved draft's) quote, now S.quote, back onto today's
+// roofs: renumbered keys, the modes and the customer's roof picks as they
+// were, and — for a version that kept them — the material table's own typed
+// prices. V is the version / draft record (its .quote is what S.quote came
+// from).
+function _qvRealignToRoofs(V){
+  var q = S.quote; if (!q) return;
+  var g = q.roofMapGeom || null;
+  var mapFn = _roofIdxMapFromGeom(g);
+  var id = function(i){ return i; };
+  var mf = mapFn || id;
+  // the customer's roof picks, by roof, read off the version's own map data
+  var by = {};
+  try {
+    var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+    ((g && g.roofs) || []).forEach(function(r){ if (r && r.extraPos != null && sel[r.extraPos]) by[r.idx] = sel[r.extraPos]; });
+  } catch(e){}
+  if (mapFn){ try { _roofRemapQuoteOnly(mapFn); } catch(e){} }
+  // each roof's mode exactly as the customer was shown it
+  try {
+    ((g && g.roofs) || []).forEach(function(r){
+      if (!r || !(r.idx > 0) || !r.mode) return;
+      var n = mf(r.idx); if (!(n > 0)) return;
+      q.roofSeparate = (q.roofSeparate && typeof q.roofSeparate === 'object') ? q.roofSeparate : {};
+      q.roofExcluded = (q.roofExcluded && typeof q.roofExcluded === 'object') ? q.roofExcluded : {};
+      q.roofSeparate[n] = (r.mode === 'separate');
+      q.roofExcluded[n] = (r.mode === 'excluded');
+    });
+  } catch(e){}
+  if (Object.keys(by).length){ try { _roofExtraSelRestore(by, mf); } catch(e){} }
+  try {
+    var P = V && V.pricing;
+    if (P && P.matOv && typeof P.matOv === 'object'){
+      MATERIAL_OVERRIDES = mapFn ? _matOvRemapObj(P.matOv, mapFn) : JSON.parse(JSON.stringify(P.matOv));
+      MATERIAL_DELETED = (P.matDel && typeof P.matDel === 'object') ? (mapFn ? _matOvRemapObj(P.matDel, mapFn) : JSON.parse(JSON.stringify(P.matDel))) : {};
+    }
+  } catch(e){}
+}
+function _qvViewingRecord(){
+  var v = _qvStore(), w = S._qvViewing; if (!v || !w) return null;
+  if (w.kind === 'accepted') return v.accepted || null;
+  if (w.kind === 'sent') return (w.id ? _qvSends(v).find(function(d){ return d.id === w.id; }) : null) || v.sent || null;
+  return null;
 }
 function _qvWhen(iso){
   try { var d = new Date(iso); return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase(); }
@@ -33398,12 +33508,16 @@ function _qvNewDraft(){
       if (_dupFrom){ try { var _sv = _asSentVersionSub(S._qvViewing.total); if (_sv != null) _dupFrom.sub = _sv; } catch(e){} }
     }
   } catch(e){}
+  var _rec = null; try { _rec = _qvViewingRecord(); } catch(e){}
   var go = function(){
     var base = _qvFreshDraft(S.quote);                // what is on screen, minus any acceptance
     if (_dupFrom) base.dupFrom = _dupFrom; else delete base.dupFrom;
     var keep = S.quote.versions;
     S.quote = base;
     S.quote.versions = keep;
+    // A duplicate of a sent / accepted copy is that copy on today's roofs:
+    // its per-roof settings lined up again, its material table's typed prices.
+    if (_rec){ try { _qvRealignToRoofs(_rec); } catch(e){} }
     S.quote.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     S.quote.draftStartedAt = new Date().toISOString();
     S._qvViewing = null; S._qvWork = null;
@@ -33439,6 +33553,7 @@ function _qvOpenDraft(id){
     var keep = S.quote.versions;
     S.quote = _qvFreshDraft(_qvQuoteOf(d));
     S.quote.versions = keep;
+    try { _qvRealignToRoofs(d); } catch(e){}
     S.quote.draftId = d.id;
     // Opened as it was saved: nothing done to it yet.
     S.quote.tplFresh = true; S.quote.tplFp = null;
@@ -38614,7 +38729,22 @@ function _custBarRows(){
   // & paint — main scope of work"; the money is never editable.
   var _bl = (S.quote && String(S.quote.summaryBaseLabel || '').trim()) || '';
   var _rl = (S.quote && S.quote.summaryRowLabels && typeof S.quote.summaryRowLabels === 'object') ? S.quote.summaryRowLabels : {};
-  if (!(scaffSub > 0) || scaffSub >= baseSub){
+  // THE SCAFFOLD ROW IS THE SCAFFOLD OF THE ROOFS ON THE QUOTE (2026-11-06,
+  // the owner: "it should only show the scaffold totals for the roofs
+  // selected"). An optional roof the customer has taken carries its own
+  // scaffold inside its price; that part moves to the Scaffolding row and out
+  // of the roof's own line. The same money, row for row; the total never moves.
+  var _chgAll = _qpSelectionChanges();
+  var _roofSc = 0;
+  if (!mainOpt && !_qpScaffoldHidden()){
+    _chgAll.forEach(function(c){ var sc = (c && c.split && +c.split.scaffold) || 0; if (sc > 0 && c.delta > sc){ _roofSc += sc; c._scMoved = sc; } });
+  }
+  var _baseOnly = !(scaffSub > 0) || scaffSub >= baseSub;
+  if (_baseOnly && _roofSc > 0){
+    var _scHid0 = false; try { _scHid0 = _qpScaffoldHidden() && _qpBaseScaffold() > 0; } catch(e){}
+    rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof', value: fmtMoney(baseSub * (1 + rate)) });
+    rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding', value: fmtMoney(_roofSc * (1 + rate)) });
+  } else if (_baseOnly){
     var _scHid = false; try { _scHid = _qpScaffoldHidden() && _qpBaseScaffold() > 0; } catch(e){}
     rows.push({ kind: 'base', label: _bl || (_scHid ? 'Re-roof — main scope of work' : 'Original quote — main scope of work'), short: _bl || (_scHid ? 'Re-roof' : 'Main scope of work'), scaffIn: _scHid,
                 value: fmtMoney(baseSub * (1 + rate)) });
@@ -38622,7 +38752,7 @@ function _custBarRows(){
     rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof',
                 value: fmtMoney((baseSub - scaffSub) * (1 + rate)) });
     rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding',
-                value: fmtMoney(scaffSub * (1 + rate)) });
+                value: fmtMoney((scaffSub + _roofSc) * (1 + rate)) });
   }
   var extra = optsAll.slice(1).filter(function(o){ return o.selected === true; }).map(function(o){
     var ri = optsAll.indexOf(o);
@@ -38632,8 +38762,9 @@ function _custBarRows(){
   // Only picks that actually move the price are listed — "included"/$0 items
   // (scaffolding, disposal choice, etc.) would bulk the bar out without
   // adding information; the full itemised record is on the acceptance page.
-  extra.concat(_qpSelectionChanges()).forEach(function(c){
+  extra.concat(_chgAll).forEach(function(c){
     if (!c.delta) return;
+    if (c._scMoved){ c = Object.assign({}, c, { delta: c.delta - c._scMoved }); }
     // The office's own words for a priced line (Edit summary), keyed by the
     // line's own label; the money is never the office's to retype here.
     var _own = String(_rl[String(c.label)] || '').trim();
@@ -40636,6 +40767,23 @@ function _syncQuoteBaseLineItems(){
       updated = true;
     }
   });
+  // THE SYNC'S OWN LEFTOVERS GO (2026-11-06, job 3350: the summary's scaffold
+  // read $12,075 incl. GST for a $5,000 scaffold). A line with the sync's own
+  // name — or the old default's "Scaffolding (platform)" — and no key, beside
+  // a keyed base line of the same kind, is a stale copy the sync left behind
+  // when the price moved before it was keyed; it was charged on top. The
+  // office's own lines are keyed _custom (the cards) or worded their own way.
+  try {
+    var _ownNames = { labour: ['Labour'], materials: ['Materials'], scaffold: ['Scaffolding', 'Scaffolding (platform)'] };
+    Object.keys(_ownNames).forEach(function(k){
+      if (!S.quote.lineItems.some(function(x){ return x && x._base === k; })) return;
+      var before = S.quote.lineItems.length;
+      S.quote.lineItems = S.quote.lineItems.filter(function(x){
+        return !(x && !x._custom && !x._base && _ownNames[k].indexOf(String(x.desc || '').trim()) >= 0);
+      });
+      if (S.quote.lineItems.length !== before) updated = true;
+    });
+  } catch(e){}
   // A POLE SHED'S psSubtotal IS A STAMP of what the drawer came to, not a
   // second opinion: the plan chips (_psPlanSubtotalAt), the A4 and the
   // customer's copy all read that field, and they must read the shed the
@@ -85793,6 +85941,12 @@ function _roofExtraSelRestore(by, mapFn){
   p.extraRoofsSel = out;
 }
 function _roofRemap(mapFn){
+  _roofRemapQuoteOnly(mapFn);
+  // A price typed on a roof's material table is keyed by its number too.
+  try { MATERIAL_OVERRIDES = _matOvRemapObj(MATERIAL_OVERRIDES, mapFn); MATERIAL_DELETED = _matOvRemapObj(MATERIAL_DELETED, mapFn); } catch(e){}
+  _roofRemapRest(mapFn);
+}
+function _roofRemapQuoteOnly(mapFn){
   var q = (window.S && S.quote) || null;
   var numObj = function(o){
     if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
@@ -85827,6 +85981,18 @@ function _roofRemap(mapFn){
     if (q.roofExcluded) delete q.roofExcluded[0];
   }
   try { _qCustomRemap(mapFn); } catch(e){}
+}
+function _roofRemapRest(mapFn){
+  var numObj = function(o){
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return o;
+    var out = {};
+    Object.keys(o).forEach(function(k){
+      var n = parseInt(k, 10);
+      if (!isFinite(n) || String(n) !== k){ out[k] = o[k]; return; }
+      var m = mapFn(n); if (m >= 0) out[m] = o[k];
+    });
+    return out;
+  };
   try { if (S.jobPack && Array.isArray(S.jobPack.roofSel)) S.jobPack.roofSel = S.jobPack.roofSel.map(mapFn).filter(function(i){ return i >= 0; }); } catch(e){}
   DRAW.basicLabelOverrides = numObj(DRAW.basicLabelOverrides);
   DRAW.matSheetByRoof = numObj(DRAW.matSheetByRoof);

@@ -1965,6 +1965,44 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   moved with them. `tests/nofergus.mjs` (36, UI list) walks the whole journey
   on the real server; against the old code it fails where each fault was.
   `acceptflow.mjs`'s fixture now carries a Fergus key (Flood Roofing's list).
+- A DUPLICATE IS THE QUOTE IT WAS MADE FROM, AND THE SCAFFOLD ROW IS THE ROOFS
+  ON THE QUOTE (2026-11-06, the owner on job 3350: Duplicate this quote off
+  Sent quote 1 at $45,173.07 gave a draft of $46,841.43 with the Lower Main
+  Roof an optional extra; "the price should be EXACTLY the same, all the
+  sections ... and the whole pricing tab including any custom added material";
+  then "the scaffolding shown in the quote summary is still wrong, it should
+  only show the scaffold totals for the roofs selected" — $12,075 incl. GST
+  against a $5,000 main scaffold).
+  THE ROOFS MOVED UNDER THE VERSION: every per-roof key on a quote
+  (roofSeparate / roofExcluded, roof labour, scaffold, buffer / mark-up,
+  custom lines `area#idx`, `extraRoofsSel`) is a roof NUMBER, and `_roofRemap`
+  renumbers only the LIVE quote — a sent copy taken before a roof was deleted
+  or made main keeps the old numbers, so its duplicate put Roof 2's settings
+  on Roof 3. `_qvRealignToRoofs(V)` runs in `_qvNewDraft` (on the version
+  being viewed, `_qvViewingRecord`) and `_qvOpenDraft`: `_roofIdxMapFromGeom`
+  matches the version's `roofMapGeom.roofs` to today's roofs by outline
+  centroid (then a unique name), `_roofRemapQuoteOnly` moves its keys, the
+  modes come from the geom, the customer's roof picks are put back by roof.
+  And THE MATERIAL TABLE'S TYPED PRICES ARE JOB-LEVEL (`MATERIAL_OVERRIDES`,
+  `MATERIAL_DELETED`), so no version ever carried them: `_qvSnapshot` stores
+  them as `snap.pricing` and a duplicate restores them (remapped,
+  `_matOvRemapObj`); `_roofRemap` now remaps them too. A version from before
+  this has no `pricing` and leaves today's alone.
+  THE $10,500 SCAFFOLD was an orphan line: `defaultQuoteLineItems` named its
+  third line "Scaffolding (platform)" while the sync keys its own
+  "Scaffolding", so an old quote could carry BOTH — the orphan at a stale
+  price, counted as scaffold by `_qpScaffoldInLines`. New quotes' base lines
+  are keyed (`_base`) and named as the sync names them, and
+  `_syncQuoteBaseLineItems` drops an unkeyed, non-custom Labour / Materials /
+  Scaffolding / Scaffolding (platform) line once a keyed one of its kind
+  exists. And a SELECTED extra roof's own scaffold now joins the summary's
+  scaffold row (its line reads its price less that scaffold, `_scMoved` in
+  `_custBarRows`) — the total never moves; not when the scaffold price is
+  hidden or the quote is option-priced. THE JOB TILE'S BUTTONS (Save job,
+  Change job, History & Communications, Files & Photos, the lock, Viewing all)
+  are Review-quote blue #0099e0 with white words (the Saved / Not saved flash
+  keeps its own colours). `tests/dupexact.mjs` (13, UI list; 10 fail on the
+  old build, reading his $12,075).
 - A QUOTE SECTION MOVES UP OR DOWN ONE PLACE, AND THE LINE EDITOR SITS LEFT
   (2026-11-05, the owner: "move the attached 'edit: [line name]' window to the
   left side, because it's always behind a picture. then have a up/down arrow in
@@ -6126,7 +6164,7 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   'change job' and then put the 'unlocked/locked' button at the bottom").
   THE LEFT MENU: Save job, Change job, History & Communications, Files &
   Photos (`#navJobFilesBtn`, a count once read), then the lock strip — the
-  all five the lock strip's grey (2026-10-28, "grey colour the save job and change job too"), class `.nav-job-btn`, words on the left, half-transparent blue under the pointer and solid blue pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
+  all five Review-quote blue since 2026-11-06 (they were the lock strip's grey from 2026-10-28; see A DUPLICATE IS THE QUOTE IT WAS MADE FROM), class `.nav-job-btn`, words on the left, a darker blue under the pointer and pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
   THE BYTES NEVER GO IN THE JOB ROW (that is how the database stalled in
   September): a private Storage bucket 'job-files' (`_jfStorage()`, the
   tender's `tender/storage.js` made generic: `create(supabase, {bucket,

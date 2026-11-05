@@ -167,12 +167,12 @@ check('the left menu reads Save job, Change job, History & Communications, Files
   v.inOrder, JSON.stringify(v));
 check('…History & Communications and Files & Photos are buttons of their own there, shown with the job',
   v.shown && /History & Communications/.test(v.txt) && /Files & Photos/.test(v.ftxt), JSON.stringify(v));
-// 2026-10-28, the owner: "change the blue buttons to a grey button, same as
-// 'locked/unlocked' and center the words", then "grey colour the save job and
-// change job too" — all five are the lock strip's grey (words on the left since 2026-10-29).
-check('…every job button is the lock strip\'s grey, words on the left',
-  v.greys.every(g => g === v.greys[4]) && !/rgb\(0, *153, *204\)/.test(v.greys[0]) &&
-  v.align.every(a => a === 'left'), JSON.stringify([v.greys, v.align]));
+// 2026-11-06, the owner: "make all the buttons in the left job menu (inside
+// the light blue tile) ... the blue colour from the 'review quote' button" —
+// all five are #0099e0 with white words (grey from 2026-10-28, words on the
+// left since 2026-10-29).
+check('…every job button is Review-quote blue, white words on the left',
+  v.greys.every(g => g === 'rgb(0, 153, 224)') && v.align.every(a => a === 'left'), JSON.stringify([v.greys, v.align]));
 // 2026-10-29, the owner: "move the wording on each button to the left side,
 // then highlight the button in the 50/50 transparent blue colour then go solid
 // blue when it's clicked, the same in the main tab buttons, do a 50/50
@@ -181,13 +181,13 @@ const hv = await pg.evaluate(() => {
   const rules = [];
   for (const sh of document.styleSheets){ try { for (const r of sh.cssRules) if (r.selectorText) rules.push(r); } catch(e){} }
   const find = (sel, st) => rules.some(r => r.selectorText.includes(sel) && r.style.backgroundColor.replace(/\s/g,'') === st);
-  return { jobHover: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):hover', 'rgba(0,153,204,0.5)'),
-           jobPress: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):active', 'rgb(0,153,204)'),
+  return { jobHover: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):hover', 'rgb(0,136,200)'),
+           jobPress: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):active', 'rgb(0,119,176)'),
            tabHover: find('.nav-btn:hover', 'rgba(10,22,40,0.5)'),
            classed: ['navJobSaveBtn','navJobChangeBtn','navJobHistBtn','navJobFilesBtn','navJobLockSide']
              .every(id => document.getElementById(id).classList.contains('nav-job-btn')) };
 });
-check('…half blue under the pointer, solid blue pressed; the tabs half navy under the pointer',
+check('…a darker blue under the pointer and pressed; the tabs half navy under the pointer',
   hv.jobHover && hv.jobPress && hv.tabHover && hv.classed, JSON.stringify(hv));
 // ── the history window ──
 await pg.evaluate(() => { S.currentJobId = 'j1'; _jobHistoryOpen(); });
