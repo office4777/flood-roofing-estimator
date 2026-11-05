@@ -2035,6 +2035,50 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   adds, or — a different gutter picked — drops the Gutter Labour / Material
   sections for the picked one's price. Roofing and pole shed unchanged.
   `tests/gutteronly.mjs` (41).
+- AN ACCEPTED JOB STAYS ACCEPTED WHILE THE OFFICE WORKS A DRAFT (2026-11-06,
+  job 3341, the owner: "the app automatically created a new quote draft, which
+  then made it look like it wasn't accepted"). A draft made off an accepted
+  quote (`_qvFreshDraft`) sets the link back to 'sent', and the Home board reads
+  the status alone, so the job dropped out of Quotes accepted until somebody
+  re-opened the Accepted version. The feed (`_quoteShareRowsPg` /
+  `_quoteShareRowsRead` and the fallback reader) now reads the frozen
+  `versions.accepted` too, and `_feedKeptAcceptance` keeps the row Accepted
+  (with who and how much, `draftAfterAccept`) until the office UNDOES the
+  acceptance (`share.unacceptedAt`, stamped by `unacceptQuote`; an older undo
+  reads 'opened' with no `draftAfterAccept` mark) or SENDS the customer a new
+  quote (`sentAt` after the acceptance). A decline or a question wins.
+  `tests/feedaccepted.mjs` (8, API list).
+- THE FERGUS JOB GETS THE CUSTOMER'S SELECTIONS, AS TEXT AND AS A PAGE
+  (2026-11-06, the owner on job 3341: "can the customer selections be uploaded
+  to the job files in a small PDF ... And ... the Fergus job description ...
+  updated with those customer selections too?"). FERGUS'S "JOB DESCRIPTION" IS
+  `longDescription`; `description` is the job's TITLE ("Doug Rodgers - 704A
+  State Highway 10, Oromahoe - Gutter Replacement", shown in every job list) —
+  read off job 3341 by `hub-jobupdate-probe.yml` →
+  `hub-api/scripts/fergus-jobupdate-probe.js` (read-only; its update bodies fail
+  validation on purpose, and the hub's proxy is GET-only anyway, "Only GET is
+  allowed"). `_fergusJobDescOf` read `description` first and the update wrote
+  the block into both, so 3341's Job Description never changed (and a write
+  that landed would have replaced the title). It reads and writes
+  `longDescription` only now: PATCH sends it alone, a PUT sends the title back
+  exactly as read. WHICH UPDATE ROUTE FERGUS TAKES IS STILL UNKNOWN — the first
+  failure on an acceptance is reported once (`recordError`, route
+  `fergus-on-accept`, every attempt's status; `share.fergusAccept.descFailTold`)
+  — pin `FERGUS_JOB_UPDATE_PATH` from that email. THE PAGE: `_selectionsPdf`
+  (`_pdfDocument`, Helvetica, one A4: the company, "Customer selections", quote
+  and customer, address, who accepted and when, the accepted total, then
+  `_quoteChoiceLines` — the same list the acceptance email and the description
+  carry) is uploaded through `/attachments` as "Customer selections - Quote
+  <ref> - <client>.pdf" beside the accepted quote's PDF; claimed by
+  `share.fergusAcceptSelAt` on ANY 2xx and tried at most three times
+  (`fergusAccept.selTries`), so the hourly retry can never fill a job's files.
+  `_pdfEscape` keeps Latin-1 (®) and the bullet (WinAnsi 0x95). A KEPT
+  acceptance (a draft made off it, 3341's shape) still gets both: `_fergusOnAccept`
+  reads the frozen Accepted version when the link says 'sent', and the hourly
+  `_officeOwedSweep` picks those jobs up (Fergus half only, no email). Calls on
+  one job queue (`_fgAcceptQ`) so the accept-email call, the 90 s catch-up and
+  the sweep never upload twice. Each success is a `fergus-accept` share event.
+  `tests/custevents.mjs` (60), `acceptstale.mjs`.
 - THE JOB TILE IS A QUIET CARD (2026-11-06, the owner: "i really don't like
   the look of this left job menu ... make it obvious that it's not part of the
   main app's tab buttons but ... tie into the look of the rest of the app and

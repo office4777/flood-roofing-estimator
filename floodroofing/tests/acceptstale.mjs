@@ -77,12 +77,13 @@ const { port, db } = await startFakePostgrest({
   ],
 });
 
-const fergus = { desc: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
+// Fergus's shape: `description` is the job's title, `longDescription` the Job Description box.
+const fergus = { desc: [], job: { id: 'FJ-77', description: 'Aidan - 1 Test Road - Re-roof', longDescription: 'Customer rang about a leak.' } };
 globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
   if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
   if (method === 'GET' && /\/jobs\/FJ-77$/.test(path)) return Promise.resolve({ status: 200, body: JSON.stringify({ data: fergus.job }) });
   if (method === 'PATCH' && /\/jobs\/FJ-77$/.test(path)){
-    fergus.desc.push(String((body || {}).description || '')); fergus.job.description = String((body || {}).description || '');
+    fergus.desc.push(String((body || {}).longDescription || '')); fergus.job.longDescription = String((body || {}).longDescription || '');
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
   }
   return Promise.resolve({ status: 200, body: JSON.stringify({ data: [] }) });

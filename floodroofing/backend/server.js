@@ -6665,7 +6665,13 @@ async function _acceptOfficeCatchUp(jobId){
       .eq('id', jobId).single();
     if (r.error || !r.data || !r.data.quote) return false;
     const job = r.data, quote = r.data.quote, sh = quote.share || {};
-    if ((sh.status || '') !== 'accepted') return false;
+    if ((sh.status || '') !== 'accepted'){
+      // An acceptance kept in the frozen version while the office works a
+      // draft (job 3341) still owes the Fergus job its selections; the office
+      // email, if it was ever owed, went with the acceptance itself.
+      _fergusOnAccept(jobId, null).catch(function(){});
+      return false;
+    }
     // The description is written whether or not the email is still owed: the
     // browser may have sent the email and nothing else.
     _fergusOnAccept(jobId, null).catch(function(){});
@@ -8223,7 +8229,9 @@ async function _quoteShareRowsPg(req, limit){
     "((draw_state->'state'->'quote'->'share') - 'fergus' - 'priced') AS q_share, " +
     "draw_state->'state'->'quote'->'ref' AS q_ref, draw_state->'state'->'quote'->'client' AS q_client, " +
     "draw_state->'state'->'quote'->'accepted' AS q_accepted, draw_state->'state'->'quote'->'fergusAutoPushedFor' AS q_pushed, " +
-    "draw_state->'state'->'linkedJobId' AS q_linked";
+    "draw_state->'state'->'linkedJobId' AS q_linked, " +
+    "draw_state->'state'->'quote'->'versions'->'accepted'->'quote'->'accepted' AS q_vacc, " +
+    "draw_state->'state'->'quote'->'versions'->'accepted'->>'at' AS q_vacc_at";
   const shared = "draw_state->'state'->'quote'->'share'->>'token' IS NOT NULL";
   const client = await pool.connect();
   try {
@@ -8245,7 +8253,8 @@ async function _quoteShareRowsPg(req, limit){
     merged.sort(function(a, b){ return t(b.updated_at) - t(a.updated_at); });
     return merged.slice(0, limit).map(function(j){
       return { id: j.id, client_name: j.client_name, share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
-               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null,
+               vAccepted: j.q_vacc || null, vAcceptedAt: j.q_vacc_at || null };
     }).filter(function(r){ return r.share && r.share.token; });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
@@ -8305,7 +8314,9 @@ async function _quoteShareRowsRead(req, limit){
     // Enough to tell an accepted quote that has reached Fergus from
     // one still waiting for somebody to open the job.
     'q_pushed:draw_state->state->quote->fergusAutoPushedFor,' +
-    'q_linked:draw_state->state->linkedJobId';
+    'q_linked:draw_state->state->linkedJobId,' +
+    'q_vacc:draw_state->state->quote->versions->accepted->quote->accepted,' +
+    'q_vacc_at:draw_state->state->quote->versions->accepted->>at';
   // Only jobs that have actually been SHARED — filtered on the token
   // expression (there's a functional index on it), so Postgres doesn't
   // decompress every job's multi-MB draw_state.
@@ -8327,7 +8338,8 @@ async function _quoteShareRowsRead(req, limit){
     return merged.slice(0, limit).map(function(j){
       return { id: j.id, client_name: j.client_name,
                share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
-               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null,
+               vAccepted: j.q_vacc || null, vAcceptedAt: j.q_vacc_at || null };
     }).filter(function(r){ return r.share && r.share.token; });
   }
   if (/statement timeout|canceling statement|57014/i.test(String(failed.error.message))) {
@@ -8342,13 +8354,41 @@ async function _quoteShareRowsRead(req, limit){
   if (fb.error) { const err = new Error(fb.error.message); err.http = 500; throw err; }
   return (fb.data || []).map(function(j){
     const q = j.quote || {};
+    const va = (q.versions && q.versions.accepted) || null;
     return { id: j.id, client_name: j.client_name,
              share: q.share, ref: q.ref, client: q.client, accepted: q.accepted,
              pushedFor: q.fergusAutoPushedFor || null,
-             linkedJobId: (((j.state || {}).linkedJobId) || null) };
+             linkedJobId: (((j.state || {}).linkedJobId) || null),
+             vAccepted: (va && va.quote && va.quote.accepted) || null, vAcceptedAt: (va && va.at) || null };
   }).filter(function(r){ return r.share && r.share.token; });
 }
 
+// AN ACCEPTED JOB STAYS ACCEPTED WHILE THE OFFICE WORKS A DRAFT (2026-11-06,
+// job 3341: the owner found an accepted gutter job under Quotes sent — "the
+// app automatically created a new quote draft, which then made it look like
+// it wasn't accepted"). A draft made off an accepted quote (_qvFreshDraft: a
+// new draft, a duplicate, the "make a draft?" answer to an edit or a push)
+// sets the link back to 'sent' so the customer's page does not lock on the
+// new draft — and the board read that status alone. The acceptance is still
+// on the job's frozen Accepted version, so the job reads Accepted until the
+// office UNDOES the acceptance (`unacceptedAt`, or an older undo's 'opened'
+// with no draft mark) or SENDS the customer a quote after it (`sentAt`).
+function _feedKeptAcceptance(r){
+  const sh = (r && r.share) || {};
+  if ((sh.status || 'sent') === 'accepted' && r.accepted) return false;   // already accepted as it stands
+  const va = r && r.vAccepted;
+  if (!va || typeof va !== 'object') return false;
+  const at = Date.parse(r.vAcceptedAt || va.at || '');
+  if (!isFinite(at)) return false;
+  const st = sh.status || 'sent';
+  if (st === 'declined' || st === 'queried') return false;
+  const un = Date.parse(sh.unacceptedAt || '');
+  if (isFinite(un) && un >= at) return false;
+  if (st === 'opened' && !sh.draftAfterAccept) return false;            // an undo from before the stamp
+  const sent = Date.parse(sh.sentAt || '');
+  if (isFinite(sent) && sent > at) return false;                         // a new quote went to the customer
+  return true;
+}
 // Office home-screen feed: every job that has a shared quote, with its
 // current status + last activity. Team and up — this is the quote
 // notifications feature the Team tier sells.
@@ -8358,16 +8398,19 @@ app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notificat
     const feed = rows.map(function(r){
       const sh = r.share;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
+      const kept = _feedKeptAcceptance(r);
+      const acc = r.accepted || (kept ? r.vAccepted : null);
       return {
         jobId: r.id,
         client: r.client_name || r.client || '—',
         ref: r.ref || '',
-        status: sh.status || 'sent',
+        status: kept ? 'accepted' : (sh.status || 'sent'),
         token: sh.token,
         openCount: sh.openCount || 0,
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
-        accepted: r.accepted || null,
+        accepted: acc || null,
+        draftAfterAccept: !!(kept && !r.accepted),
         // "Accepted, linked to a Fergus job, and Fergus has not been told" —
         // the state the home board had no way to show.
         fergusPending: !!(r.accepted && r.accepted.at && r.linkedJobId &&
@@ -8847,7 +8890,9 @@ async function _officeOwedSweep(){
   if (!EMAIL_ENABLED) return out;
   const q = await supabase.from('jobs')
     .select('id, user_id, company_id, client_name, site_address, ' +
-            'q_share:draw_state->state->quote->share')
+            'q_share:draw_state->state->quote->share, ' +
+            'q_vacc:draw_state->state->quote->versions->accepted->quote->accepted, ' +
+            'q_vacc_at:draw_state->state->quote->versions->accepted->>at')
     .not('draw_state->state->quote->share->>token', 'is', null)
     .gte('updated_at', new Date(Date.now() - 14 * 86400000).toISOString())
     .order('updated_at', { ascending: false }).limit(500);
@@ -8858,13 +8903,18 @@ async function _officeOwedSweep(){
     // Only an accept, and only one that has an acceptedAt to judge the age by.
     // A decline or a question is sent on the event and is not re-tried here:
     // re-sending a week-old question would read as a new one.
-    if (st !== 'accepted') continue;
-    // The email may be done and the FERGUS description still owed - that half
-    // is retried too, but only on a job that is actually linked, or every
-    // acceptance would cost a read an hour for a fortnight for nothing.
-    const _fgOwed = !!(sh.fergus && sh.fergus.jobId) && !sh.fergusAcceptDescAt;
+    // The email may be done and the FERGUS description or selections PDF still
+    // owed - that half is retried too, but only on a job that is actually
+    // linked, or every acceptance would cost a read an hour for a fortnight.
+    const _fa = sh.fergusAccept || {};
+    const _fgOwed = !!(sh.fergus && sh.fergus.jobId) &&
+      (!sh.fergusAcceptDescAt || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3));
+    // A draft made off an accepted quote (job 3341) reads 'sent' with the
+    // acceptance in its frozen version: only the Fergus half is owed there.
+    const _kept = st !== 'accepted' && _fgOwed && _feedKeptAcceptance({ share: sh, accepted: null, vAccepted: r.q_vacc, vAcceptedAt: r.q_vacc_at });
+    if (st !== 'accepted' && !_kept) continue;
     if (sh.acceptOfficeAt && !_fgOwed) continue;
-    const at = Date.parse(sh.acceptedAt || '');
+    const at = Date.parse(sh.acceptedAt || r.q_vacc_at || (r.q_vacc && r.q_vacc.at) || '');
     if (!isFinite(at)) continue;
     if (isFinite(ACCEPT_OFFICE_FROM) && at < ACCEPT_OFFICE_FROM) { out.floored++; continue; }
     const age = Date.now() - at;
@@ -11214,13 +11264,18 @@ const FERGUS_JOB_UPDATE_CANDIDATES = [
   'PUT /jobs/{job}',
   'POST /jobs/{job}',
 ];
+// FERGUS'S "JOB DESCRIPTION" IS `longDescription` (read off job 3341 by
+// hub-jobupdate-probe.yml, 2026-11-06: longDescription "Quote to replace
+// guttering", the box the office reads; `description` is the job's TITLE,
+// "Doug Rodgers - 704A State Highway 10, Oromahoe - Gutter Replacement",
+// shown in every job list). This read `description` first and wrote the block
+// into both, so a write that landed would have replaced the job's title.
+// The title is never touched now.
 function _fergusJobDescOf(j){
   if (!j || typeof j !== 'object') return null;
-  const d = (j.description != null) ? j.description
-          : (j.longDescription != null) ? j.longDescription
-          : (j.brief_description != null) ? j.brief_description
-          : (j.briefDescription != null) ? j.briefDescription : null;
-  return d == null ? null : String(d);
+  if (j.longDescription != null) return String(j.longDescription);
+  if ('longDescription' in j) return '';
+  return null;
 }
 async function _fergusReadJob(H, jobId){
   try {
@@ -11251,8 +11306,10 @@ async function _fergusUpdateJobDescription(fergusKey, jobId, summary){
     const method = m ? m[1].toUpperCase() : 'PATCH';
     const tpl = m ? m[2] : String(entry).trim();
     const path = FERGUS_PREFIX + tpl.replace('{job}', job);
-    // Both spellings: Fergus reads one and ignores the other.
-    const body = { description: want, longDescription: want };
+    // The long description alone; a PUT, which may want the whole job, gets
+    // the title back exactly as Fergus gave it.
+    const body = method === 'PATCH' ? { longDescription: want }
+      : Object.assign((before && before.description != null) ? { description: before.description } : {}, { longDescription: want });
     try {
       const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
       const a = { path: method + ' ' + tpl, status: r.status };
@@ -11511,7 +11568,47 @@ async function _fergusAutoVersionNow(jobId){
 // IT RE-READS THE JOB ITSELF rather than trusting the copy it was handed:
 // _fergusAutoVersionNow is on a debounce and writes the same share, so a claim
 // decided from a stale copy is a claim that can be made twice.
-async function _fergusOnAccept(jobId, attachment){
+// THE CUSTOMER'S SELECTIONS, AS A PAGE FOR THE FERGUS JOB (2026-11-06, the
+// owner: "can the customer selections be uploaded to the job files in a small
+// PDF showing the customer's selections?"). The same list the acceptance email
+// and the Fergus description carry (_quoteChoiceLines), so the three agree.
+function _selectionsPdf(job, quote, acc, company){
+  quote = quote || {}; acc = acc || {};
+  const client = (job && job.client_name) || quote.client || acc.name || 'Customer';
+  const site = (job && job.site_address) || quote.addr || '';
+  const lines = _quoteChoiceLines(quote);
+  const NAVY = '0.05 0.16 0.33', GREY = '0.35 0.38 0.42';
+  const items = [
+    { text: String(company || '').trim() || 'RoofMap', size: 10, bold: true, colour: GREY },
+    { text: 'Customer selections', size: 20, bold: true, colour: NAVY, gap: 6 },
+    { text: 'Quote ' + (quote.ref || '') + ' \u2014 ' + client, size: 12, bold: true, gap: 10 },
+  ];
+  if (site) items.push({ text: site, size: 11 });
+  if (acc.name || acc.at) items.push({ text: 'Accepted by ' + (acc.name || client) + (acc.at ? ' on ' + _nzWhen(acc.at) : ''), size: 11, gap: 4 });
+  if (acc.total != null) items.push({ text: 'Accepted total: ' + _money(acc.total) + ' incl. GST', size: 11, bold: true });
+  items.push({ text: 'What the customer chose', size: 13, bold: true, colour: NAVY, gap: 16 });
+  (lines.length ? lines : ['As quoted']).forEach(x => {
+    items.push({ text: '\u2022  ' + x, size: 11, gap: 3, indent: 6, hang: 12 });
+  });
+  items.push({ text: 'Accepted online through RoofMap. These are the customer\u2019s own picks on the quote they accepted.', size: 9, colour: GREY, gap: 22 });
+  const safe = t => String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const filename = ('Customer selections - Quote ' + safe(quote.ref) + (client ? ' - ' + safe(client) : '')).slice(0, 96) + '.pdf';
+  return { buf: _pdfDocument(items), filename };
+}
+// ONE AT A TIME PER JOB: the customer's accept-email call (with the PDF), the
+// 90-second catch-up and the hourly sweep can all land on one job, and each
+// re-reads the job and claims what it does - so they queue, and the second
+// sees the first's claims instead of uploading the same page twice.
+const _fgAcceptQ = new Map();
+function _fergusOnAccept(jobId, attachment){
+  const k = String(jobId || '');
+  const prev = _fgAcceptQ.get(k) || Promise.resolve();
+  const run = prev.catch(function(){}).then(function(){ return _fergusOnAcceptNow(jobId, attachment); });
+  _fgAcceptQ.set(k, run);
+  run.finally(function(){ if (_fgAcceptQ.get(k) === run) _fgAcceptQ.delete(k); }).catch(function(){});
+  return run;
+}
+async function _fergusOnAcceptNow(jobId, attachment){
   try {
     if (!jobId) return null;
     const r = await supabase.from('jobs')
@@ -11521,23 +11618,63 @@ async function _fergusOnAccept(jobId, attachment){
     const job = r.data, quote = r.data.quote;
     const plan = ((quote || {}).share || {}).fergus;
     if (!plan || !plan.jobId) return null;              // not a Fergus-linked job
-    const sh = quote.share || {}, acc = quote.accepted || {};
-    if ((sh.status || '') !== 'accepted') return null;
+    const sh = quote.share || {};
+    // THE ACCEPTED QUOTE, wherever it is (job 3341, 2026-11-06): a draft the
+    // office made off it sets the link back to 'sent', and the acceptance then
+    // lives in the frozen Accepted version - the same test the board's feed
+    // uses, so the two agree on whether this job is accepted.
+    let aq = quote;
+    if ((sh.status || '') !== 'accepted' || !quote.accepted){
+      const va = ((quote.versions || {}).accepted) || null;
+      const vq = va && va.quote;
+      if (!vq || !_feedKeptAcceptance({ share: sh, accepted: quote.accepted || null, vAccepted: vq.accepted, vAcceptedAt: va.at })) return null;
+      aq = Object.assign({}, vq, { share: Object.assign({}, vq.share || {}, { priced: ((vq.share || {}).priced) || (sh.priced) }) });
+    }
+    const acc = aq.accepted || {};
+    const fa = sh.fergusAccept || {};
     const needDesc = !sh.fergusAcceptDescAt;
     const needFile = !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
-    if (!needDesc && !needFile) return null;
+    // A Fergus upload that answered 2xx without a body we recognise may still
+    // have landed, so the selections PDF is tried at most three times - a
+    // job's files must never fill up with copies from the hourly retry.
+    const needSel = !sh.fergusAcceptSelAt && (+fa.selTries || 0) < 3;
+    if (!needDesc && !needFile && !needSel) return null;
     const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
     if (!fergusKey) return null;
     const out = {};
+    const events = [];
     if (needDesc){
-      const summary = _fergusJobSummaryText(quote, {
+      const summary = _fergusJobSummaryText(aq, {
         full: true, total: acc.total,
-        acceptedBy: acc.name || job.client_name || quote.client || '',
+        acceptedBy: acc.name || job.client_name || aq.client || '',
         acceptedAt: acc.at ? _nzWhen(acc.at) : '',
         note: 'Accepted online through RoofMap. Accept the quote in Fergus by hand.',
       });
       out.desc = await _fergusUpdateJobDescription(fergusKey, plan.jobId, summary);
-      if (out.desc && out.desc.ok) sh.fergusAcceptDescAt = new Date().toISOString();
+      if (out.desc && out.desc.ok){ sh.fergusAcceptDescAt = new Date().toISOString(); events.push('Fergus job description updated with the customer\u2019s selections'); }
+      else if (!fa.descFailTold){
+        // Said once, not every hour for a fortnight: the owner is emailed
+        // what Fergus answered, which is how the right route gets pinned.
+        fa.descFailTold = new Date().toISOString();
+        try { recordError('server', new Error('Fergus job description not updated on acceptance of quote ' + (aq.ref || jobId) + ': ' +
+          ((out.desc && out.desc.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.verified === false ? ' (not changed)' : '')).join(', ')),
+          { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
+      }
+    }
+    if (needSel){
+      fa.selTries = (+fa.selTries || 0) + 1;
+      let company = '';
+      try { const idn = await _mailIdentityOf(job.company_id || null, job.user_id); company = (idn && (idn.cname || idn.name)) || ''; } catch (e) {}
+      if (!company) { try { company = await _companyNameOf(job.company_id) || ''; } catch (e) {} }
+      const doc = _selectionsPdf(job, aq, acc, company);
+      const field = process.env.FERGUS_FILES_FIELD || 'file';
+      const et = process.env.FERGUS_ATTACH_ENTITY_TYPE || 'job';
+      const a = await _fergusAttachmentAttempt(et, plan.jobId, doc.buf, 'application/pdf', doc.filename, field, fergusKey);
+      out.sel = { ok: !!(a && a.ok), created: !!(a && a.looksCreated), status: a && a.status, name: doc.filename,
+                  error: (a && a.error) || (a && !a.ok ? String(typeof a.body === 'string' ? a.body : JSON.stringify(a.body || '')).slice(0, 200) : '') };
+      // Any 2xx counts: a second copy of the same page is worse than a body
+      // whose shape we did not recognise.
+      if (out.sel.ok){ sh.fergusAcceptSelAt = new Date().toISOString(); events.push('Customer\u2019s selections PDF added to the Fergus job\u2019s files'); }
     }
     if (needFile){
       let buf = null;
@@ -11556,10 +11693,15 @@ async function _fergusOnAccept(jobId, attachment){
     // Kept with the quote, never only in a log: "why is the description still
     // the old one" is then answered off the saved job, which is the discipline
     // the publish and mark-sent attempts already follow.
-    sh.fergusAccept = { at: new Date().toISOString(),
+    sh.fergusAccept = Object.assign(fa, { at: new Date().toISOString(),
       desc: out.desc ? { ok: !!out.desc.ok, path: out.desc.path || '', unchanged: !!out.desc.unchanged,
-                         attempts: (out.desc.attempts || []).slice(-4) } : undefined,
-      file: out.file };
+                         attempts: (out.desc.attempts || []).slice(-4) } : fa.desc,
+      file: out.file || fa.file, sel: out.sel || fa.sel });
+    if (events.length){
+      if (!Array.isArray(sh.events)) sh.events = [];
+      events.forEach(m => sh.events.push({ type: 'fergus-accept', at: new Date().toISOString(), message: m }));
+      if (sh.events.length > 80) sh.events = sh.events.slice(-80);
+    }
     quote.share = sh;
     if (_pgPool()) await _saveShareBack(job, sh); else await _saveQuoteBack(job, quote);
     return out;
@@ -12636,7 +12778,10 @@ function _pdfEscape(t){
     // so fold the few characters this report can contain and drop the rest.
     .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
     .replace(/[–—]/g, '-').replace(/…/g, '...')
-    .replace(/[^\x20-\x7e]/g, '?');
+    // Latin-1 itself is WinAnsi's own upper half (®, é, °, ×), so it is kept:
+    // "Permanent Green®" is a Colorsteel name, not a typo to fold away. The
+    // bullet is WinAnsi's 0x95.
+    .replace(/[^\x20-\x7e\xa0-\xff•]/g, '?').replace(/•/g, '\x95');
 }
 function _pdfWrap(lines){
   const out = [];
@@ -12689,6 +12834,62 @@ function _pdfFromLines(lines){
   for (let i = 1; i < count; i++){
     table += String(offsets[i] || 0).padStart(10, '0') + ' 00000 n \n';
   }
+  push(table);
+  push('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return Buffer.concat(chunks);
+}
+// A small A4 document in Helvetica: a heading and lines of their own size.
+// items: [{text, size?, bold?, gap?, colour?}] — `gap` is extra space above.
+// Wrapped on an approximate width (Helvetica averages ~0.5 em a character),
+// which is generous enough for a short page of choices.
+function _pdfDocument(items){
+  const W = 595, H = 842, M = 50, TOP = H - 56, BOTTOM = 56;
+  const pages = [[]]; let y = TOP;
+  for (const it of (items || [])){
+    const size = it.size || 11, lead = Math.round(size * 1.38);
+    const cols = Math.max(20, Math.floor((W - 2 * M - (it.indent || 0)) / (size * 0.52)));
+    const words = String(it.text == null ? '' : it.text).split(/\s+/);
+    const lines = []; let cur = '';
+    for (const w of words){ if (!cur) cur = w; else if ((cur + ' ' + w).length <= cols) cur += ' ' + w; else { lines.push(cur); cur = w; } }
+    lines.push(cur);
+    y -= (it.gap || 0);
+    lines.forEach((ln, k) => {
+      if (y - lead < BOTTOM){ pages.push([]); y = TOP; }
+      y -= lead;
+      pages[pages.length - 1].push({ x: M + (it.indent || 0) + (k && it.hang ? it.hang : 0), y, size, bold: !!it.bold, text: ln, colour: it.colour || null });
+    });
+  }
+  const objs = [];
+  const pageIds = pages.map((_, i) => 5 + i * 2);
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pages.length + ' >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+  pages.forEach((pl, i) => {
+    const id = pageIds[i];
+    objs[id] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] ' +
+               '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (id + 1) + ' 0 R >>';
+    const body = pl.map(l => (l.colour ? l.colour + ' rg ' : '0 0 0 rg ') + 'BT /' + (l.bold ? 'F2' : 'F1') + ' ' + l.size + ' Tf ' +
+      l.x + ' ' + l.y + ' Td (' + _pdfEscape(l.text) + ') Tj ET').join('\n');
+    objs[id + 1] = '<< /Length ' + Buffer.byteLength(body, 'latin1') + ' >>\nstream\n' + body + '\nendstream';
+  });
+  return _pdfSerialise(objs);
+}
+function _pdfSerialise(objs){
+  const chunks = [];
+  let len = 0;
+  const push = (str) => { const b = Buffer.from(str, 'latin1'); chunks.push(b); len += b.length; };
+  push('%PDF-1.4\n');
+  const offsets = [];
+  for (let i = 1; i < objs.length; i++){
+    if (!objs[i]) continue;
+    offsets[i] = len;
+    push(i + ' 0 obj\n' + objs[i] + '\nendobj\n');
+  }
+  const xref = len;
+  const count = objs.length;
+  let table = 'xref\n0 ' + count + '\n0000000000 65535 f \n';
+  for (let i = 1; i < count; i++) table += String(offsets[i] || 0).padStart(10, '0') + ' 00000 n \n';
   push(table);
   push('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
   return Buffer.concat(chunks);

@@ -5305,7 +5305,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T20:48:29Z';
+  window.APP_BUILT_AT = '2026-11-05T21:25:05Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33259,7 +33259,13 @@ function _qvFreshDraft(q){
   delete c.declined;
   // The link keeps its token — the same customer, the same URL — but it is no
   // longer an accepted or declined share.
-  if (c.share && (c.share.status === 'accepted' || c.share.status === 'declined')) c.share.status = 'sent';
+  if (c.share && (c.share.status === 'accepted' || c.share.status === 'declined')){
+    // The board keeps the job under Accepted while this draft is worked on —
+    // the acceptance stands until it is undone or a new quote is sent
+    // (_feedKeptAcceptance in server.js, 2026-11-06, job 3341).
+    if (c.share.status === 'accepted') c.share.draftAfterAccept = true;
+    c.share.status = 'sent';
+  }
   return c;
 }
 function _qvSnapshot(label){
@@ -33727,7 +33733,7 @@ async function unacceptQuote(){
   try { if (S._qvViewing) _qvBackToDraft({ stayLocked: true }); } catch(e){}
   S.quote.accepted = null;
   delete S.quote.accepted;
-  try { if (S.quote.share && S.quote.share.status === 'accepted') S.quote.share.status = 'opened'; } catch(e){}
+  try { if (S.quote.share){ if (S.quote.share.status === 'accepted') S.quote.share.status = 'opened'; S.quote.share.unacceptedAt = new Date().toISOString(); delete S.quote.share.draftAfterAccept; } } catch(e){}
   var saved = false;
   try { saved = (await saveCurrentJob({ force: true })) !== false; } catch(e){ saved = false; }
   try { S.jobLocked = false; _jobLockRender(); } catch(e){}
