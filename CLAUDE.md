@@ -508,6 +508,31 @@ THE LAY:
    with a 1 × 4 m bump anywhere: 48 sheets, 6 × 7.74 + 42 × 6.63, nothing
    extra (was 48–64 sheets with up to 16 × 7.73 and 36 offcuts wasted on a
    hip end). Report 78's roof as mono: 47 → 44 sheets, 202 → 186 m.
+7c. A HAND-DRAWN ROOF IS LAID AS THE SAME ROOF BUILT (2026-11-06, the owner:
+   "test a custom roof shape ... a plain full hip ... rectangle outline, and
+   then enter 4 hips at a 45, and then a center ridge line ... Make sure it all
+   works the same as it would if it was an auto shape"; then the rectangle with
+   an east-west gable, a north-south gable into its middle and two valleys off
+   that junction: "if a hip or valleys or anything doesn't meet up to another
+   line, well then I'm sure that this would throw out the sheet cut diagram").
+   Drawn exactly, both already laid right (the hand hip IS the built hip, 48 ×
+   6.63, 80 pieces; the cross gable 5 faces, 48 × 6.63). Drawn the way a hand
+   draws — lines stopping 120–360 mm short of what they meet — the cross gable
+   went 49 sheets in three lengths, then ONE face of 24 × 13.25 m, every line
+   ignored. `_pzWeldLines` (in `_pzRoofGeom`, before the faces are cut) now
+   joins what was plainly meant to meet, within `PZ_WELD_M` (0.4 m): an end of
+   a ridge / hip / valley / apron / change of pitch / barge that touches NOTHING
+   (a hip or valley end a whisker from an outline corner too) goes to the corner
+   first; ends close together become one point — a RIDGE among them keeps its
+   line (a level ridge stays level) and the point is where the others, carried
+   on at their own angles, cross it; a lone end is carried along its own
+   direction onto what it stops short of or runs past. A hip or valley crossing
+   another is not a junction. Only the lay reads the joined lines; the drawing
+   is never changed by it. Every fixture lays byte-identically with it on and
+   off (all 25, diffed), the 37-shape gate unchanged. SHIPPED OFF
+   (`PZ_WELD_ON = false`) pending his "go" on the pictures ("Sheet layout v10 -
+   lines joined", sent 2026-11-06); `window.__PZ_WELD = true` / `false` forces
+   it either way. `tests/customroof.mjs`.
 
 THE FILL:
 8. Feed each side of an end IN ORDER from its home offcuts (the same face, or
@@ -1059,7 +1084,7 @@ LESSONS — mistakes made more than once on these two diagrams:
 SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
 `PZ_SET_GUARD` and `PZ_APEX_SHIFT` (rule 9l, on), `window.__PZ_SET_CORNER`,
 `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
-on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, OFF until his go), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
 count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
 `_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
 it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
@@ -2060,11 +2085,17 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   allowed"). `_fergusJobDescOf` read `description` first and the update wrote
   the block into both, so 3341's Job Description never changed (and a write
   that landed would have replaced the title). It reads and writes
-  `longDescription` only now: PATCH sends it alone, a PUT sends the title back
-  exactly as read. WHICH UPDATE ROUTE FERGUS TAKES IS STILL UNKNOWN — the first
-  failure on an acceptance is reported once (`recordError`, route
-  `fergus-on-accept`, every attempt's status; `share.fergusAccept.descFailTold`)
-  — pin `FERGUS_JOB_UPDATE_PATH` from that email. THE PAGE: `_selectionsPdf`
+  `longDescription` only now. THE ROUTE IS PUT /jobs/{id} (answered by job
+  3349's acceptance, the owner's error email of 2026-11-06 11:49 am NZ: PATCH
+  404, POST 404, PUT 400 — the route exists and refused a two-field body), so
+  PUT goes first with the WHOLE job sent back (`_fergusJobUpdateBody`: every
+  scalar the read gave plus `customerId` / `siteId` / `mainContactId` from the
+  objects or the links), shape 'read' (description = the title as read,
+  longDescription = the block) then 'create' (title, description = the block);
+  a write that moved the title is put back at once. Every refusal keeps 200
+  characters of what Fergus said (`said`), and the once-only email is per
+  version (`fergusAccept.descFailToldV` 2), so if PUT still refuses, the next
+  email names the field it wants — pin the body from that. THE PAGE: `_selectionsPdf`
   (`_pdfDocument`, Helvetica, one A4: the company, "Customer selections", quote
   and customer, address, who accepted and when, the accepted total, then
   `_quoteChoiceLines` — the same list the acceptance email and the description
@@ -5228,6 +5259,22 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   and corner magnets, which pulled a 40 px slide to 25; and the selection
   follows the junction mid-drag, so the ring and the pad's ridge length no
   longer go blank. `tests/junction.mjs` (23).
+  A HAND-DRAWN HIP OR VALLEY IS AT ITS TRUE ANGLE, AND A LINE'S END CATCHES
+  THE LINE IT WAS DRAWN TO (2026-11-06, the owner: "just indicate to the user
+  where 45 degrees is, and snap it slightly to that 45 degree line ... show the
+  true angle ... only 45 when it's actually 45"; "if it's sort of close to a
+  line, then snap it ... keeping its whatever angle"). `snap()` FORCED every
+  hand-drawn hip and valley onto 45° off its wall and the label said "✓ 45°"
+  whatever the cursor did. Now `_hvGentle` pulls it onto 45° only within
+  `HV_SNAP_TOL_DEG` (3) — the junction drag's own window — a dashed 45° guide
+  shows where 45 is, and `_hvDrawGuide` labels the TRUE plan angle to the wall
+  ("Hip 38.0°" amber, "Hip ✓ 45°" green only at 45). The centre-meet magnet
+  fires only within 2 magnets of the cursor. `_lineEndOntoLine` (getXY, every
+  line tool, after the vertex magnet): an end point is carried ALONG the line's
+  own direction to a wall or line within 2 magnets (a 45° valley stays 45°), a
+  start point drops square onto a line within one; a blue ring marks the catch.
+  The addmeas end drag (`DRAG_EP`) gets the same 45° pull, catch and label.
+  Shift frees all of it. `tests/customroof.mjs` (22, UI list).
   FOUND BESIDE IT: `_cornerRepoNudge` ended with `autosaveJob && autosaveJob()`
   — the same ghost function the back-tray switch, the custom lines and the
   roof-map background toggle were each caught calling, and inside a try, so a

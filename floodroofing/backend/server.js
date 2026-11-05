@@ -11259,11 +11259,46 @@ function _fergusJobSummaryText(quote, extra){
 // shapes, and after any 2xx READ THE JOB BACK and only count it when the
 // description actually changed. Every attempt is returned so the first real
 // push tells us which one is right \u2014 pin it with FERGUS_JOB_UPDATE_PATH then.
+// ANSWERED by job 3349's acceptance (2026-11-06, the owner's error email):
+// PATCH /jobs/{job} 404, POST /jobs/{job} 404, PUT /jobs/{job} 400 — PUT is the
+// route, and a 400 is Fergus refusing the BODY (it wants the whole job, not two
+// fields). So PUT first, with the job sent back whole in two shapes (below);
+// the others stay as a fallback. Each refusal now keeps the first 200
+// characters of what Fergus said, so the next email names the missing field.
 const FERGUS_JOB_UPDATE_CANDIDATES = [
-  'PATCH /jobs/{job}',
   'PUT /jobs/{job}',
+  'PATCH /jobs/{job}',
   'POST /jobs/{job}',
 ];
+// The job as Fergus reads it, sent back as an update: every scalar the read
+// gave and the ids of the objects it names (customer, site, contact), with the
+// long description replaced. Shape 'read' keeps Fergus's read names
+// (description = the title, longDescription); shape 'create' is the partner
+// API's create shape (title, description = the long text).
+function _fergusIdOf(o, rel, links){
+  if (o && typeof o === 'object' && o.id != null) return o.id;
+  if (typeof o === 'number' || (typeof o === 'string' && /^\d+$/.test(o))) return +o;
+  const l = (links || []).find(x => x && x.rel === rel && /\/(\d+)$/.test(String(x.href || '')));
+  return l ? +String(l.href).match(/\/(\d+)$/)[1] : undefined;
+}
+function _fergusJobUpdateBody(before, want, shape){
+  const b = before || {}, out = {};
+  const skip = { id: 1, links: 1, createdAt: 1, lastModified: 1, jobNo: 1, jobNumber: 1, status: 1, activeQuote: 1, jobVariants: 1, assignedGroups: 1 };
+  Object.keys(b).forEach(k => {
+    if (skip[k]) return;
+    const v = b[k];
+    if (v == null || typeof v !== 'object') out[k] = v;
+  });
+  const cid = _fergusIdOf(b.customer, 'customers', b.links); if (cid != null) out.customerId = cid;
+  const sid = _fergusIdOf(b.siteAddress || b.site, 'sites', b.links); if (sid != null) out.siteId = sid;
+  const mid = _fergusIdOf(b.mainContact, 'contacts', b.links); if (mid != null) out.mainContactId = mid;
+  if (shape === 'create'){
+    out.title = b.description; out.description = want; delete out.longDescription;
+  } else {
+    out.longDescription = want;
+  }
+  return out;
+}
 // FERGUS'S "JOB DESCRIPTION" IS `longDescription` (read off job 3341 by
 // hub-jobupdate-probe.yml, 2026-11-06: longDescription "Quote to replace
 // guttering", the box the office reads; `description` is the job's TITLE,
@@ -11301,28 +11336,40 @@ async function _fergusUpdateJobDescription(fergusKey, jobId, summary){
   const list = process.env.FERGUS_JOB_UPDATE_PATH
     ? [process.env.FERGUS_JOB_UPDATE_PATH] : FERGUS_JOB_UPDATE_CANDIDATES;
   const attempts = [];
-  for (const entry of list) {
+  const title0 = before.description;
+  const tries = [];
+  list.forEach(entry => {
     const m = String(entry).match(/^\s*(GET|POST|PUT|PATCH)\s+(\S+)/i);
     const method = m ? m[1].toUpperCase() : 'PATCH';
     const tpl = m ? m[2] : String(entry).trim();
-    const path = FERGUS_PREFIX + tpl.replace('{job}', job);
-    // The long description alone; a PUT, which may want the whole job, gets
-    // the title back exactly as Fergus gave it.
-    const body = method === 'PATCH' ? { longDescription: want }
-      : Object.assign((before && before.description != null) ? { description: before.description } : {}, { longDescription: want });
+    if (method === 'PUT'){
+      tries.push({ method, tpl, shape: 'read', body: _fergusJobUpdateBody(before, want, 'read') });
+      tries.push({ method, tpl, shape: 'create', body: _fergusJobUpdateBody(before, want, 'create') });
+    } else tries.push({ method, tpl, shape: 'min', body: { longDescription: want } });
+  });
+  for (const t of tries) {
+    const path = FERGUS_PREFIX + t.tpl.replace('{job}', job);
     try {
-      const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
-      const a = { path: method + ' ' + tpl, status: r.status };
+      const r = await httpsRequest(FERGUS_HOST, path, t.method, H, t.body);
+      const a = { path: t.method + ' ' + t.tpl + (t.shape !== 'min' ? ' (' + t.shape + ')' : ''), status: r.status };
+      if (!(r.status >= 200 && r.status < 300)) a.said = String(r.body || '').replace(/\s+/g, ' ').slice(0, 200);
       attempts.push(a);
       if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
       if (!(r.status >= 200 && r.status < 300)) continue;
       const after = await _fergusReadJob(H, jobId);
       const now = _fergusJobDescOf(after);
       a.verified = (now != null) ? (now.indexOf(FERGUS_DESC_OPEN) >= 0) : null;
+      // A write that moved the TITLE is put right at once with the read shape
+      // (the title as it was, the long description as wanted).
+      if (after && title0 != null && after.description !== title0){
+        a.titleMoved = true;
+        try { await httpsRequest(FERGUS_HOST, path, 'PUT', H, _fergusJobUpdateBody(Object.assign({}, before), a.verified ? want : (before.longDescription || ''), 'read')); } catch (e) {}
+        if (!a.verified) continue;
+      }
       // Cannot tell (the job would not read back) counts as done, the same
       // forgiveness the promote check gives a backend it cannot reach.
       if (a.verified !== false) return { ok: true, path: a.path, status: r.status, verified: a.verified, attempts };
-    } catch (e) { attempts.push({ path: method + ' ' + tpl, error: String(e && e.message || e).slice(0, 120) }); }
+    } catch (e) { attempts.push({ path: t.method + ' ' + t.tpl, error: String(e && e.message || e).slice(0, 120) }); }
   }
   return { ok: false, attempts };
 }
@@ -11667,12 +11714,13 @@ async function _fergusOnAcceptNow(jobId, attachment){
       });
       out.desc = await _fergusUpdateJobDescription(fergusKey, plan.jobId, summary);
       if (out.desc && out.desc.ok){ sh.fergusAcceptDescAt = new Date().toISOString(); events.push('Fergus job description updated with the customer\u2019s selections'); }
-      else if (!fa.descFailTold){
-        // Said once, not every hour for a fortnight: the owner is emailed
-        // what Fergus answered, which is how the right route gets pinned.
-        fa.descFailTold = new Date().toISOString();
+      else if (fa.descFailToldV !== 2){
+        // Said once per version of the update, not every hour for a fortnight:
+        // the owner is emailed what Fergus answered, which is how the right
+        // route gets pinned (v2: the whole job on PUT, and Fergus's own words).
+        fa.descFailTold = new Date().toISOString(); fa.descFailToldV = 2;
         try { recordError('server', new Error('Fergus job description not updated on acceptance of quote ' + (aq.ref || jobId) + ': ' +
-          ((out.desc && out.desc.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.verified === false ? ' (not changed)' : '')).join(', ')),
+          ((out.desc && out.desc.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.verified === false ? ' (not changed)' : '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
           { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
       }
     }

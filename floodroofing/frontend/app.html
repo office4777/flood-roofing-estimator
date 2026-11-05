@@ -5310,7 +5310,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T22:32:11Z';
+  window.APP_BUILT_AT = '2026-11-05T22:59:59Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -54158,13 +54158,13 @@ var LINE_WIDTHS = {ridge:1.5,valley:1.5,gutter:2,hip:1.5,barge:1.5,apron:2,chang
 var STEP_INFO = {
   outline:      {icon:'🏠', title:'Step 1: Building outline', hint:'Click corners clockwise around your building footprint. Press Enter/Finish to complete the outline.', btn:'Finish outline ↵'},
   ridge:        {icon:'🔴', title:'Draw ridge line', hint:'Click start then end of ridge. Press Enter/Finish to save.', btn:'Done ↵'},
-  valley:       {icon:'🟠', title:'Draw valley line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
+  valley:       {icon:'🟠', title:'Draw valley line', hint:'Click start point then end point. It snaps to 45° when close (the dashed line) and to a line it nearly meets; hold Shift to draw free. Press Enter/Finish to save.', btn:'Done ↵'},
   barge:        {icon:'🔵', title:'Draw barge line', hint:'Click start then end of a barge (rake) edge. Splits into two lengths where a ridge connects to it.', btn:'Done ↵'},
   addmeas:      {icon:'📏', title:'Add measurements', hint:'Click any line to enter its length. Valley auto-fills connected valleys. Barge splits at ridge junctions.', btn:'Done ↵'},
   calibrate:    {icon:'📐', title:'Scale a Line', hint:'Click one wall of your building outline, then enter its real length to set the scale for the whole plan.', btn:'Set scale ↵'},
   customscale:  {icon:'📐', title:'Custom Scale', hint:'Click a start point then an end point — anywhere — and type the real distance between them. On a PDF plan, run it along the longest dimension line on the sheet.', btn:'Set scale ↵'},
   gutter:       {icon:'🟣', title:'Draw gutter line', hint:'Click start then end of gutter run. Press Enter/Finish to save.', btn:'Done ↵'},
-  hip:          {icon:'🟢', title:'Draw hip line', hint:'Pixel-precise — no snap. Click start point then end point. Hold Shift to lock to 45°. Press Enter/Finish to save.', btn:'Done ↵'},
+  hip:          {icon:'🟢', title:'Draw hip line', hint:'Click start point then end point. It snaps to 45° when close (the dashed line) and to a line it nearly meets; hold Shift to draw free. Press Enter/Finish to save.', btn:'Done ↵'},
   apron:        {icon:'🩷', title:'Draw apron flashing', hint:'Click start then end of apron flashing. Press Enter/Finish to save.', btn:'Done ↵'},
   changepitch:  {icon:'🔷', title:'Draw change of pitch', hint:'Click start then end of change-of-pitch line. Each change-of-pitch line starts a new set of sheets above it.', btn:'Done ↵'},
   section:      {icon:'📐', title:'Draw roof section/face', hint:'Click corners of this roof face. Press Enter/Finish to complete section.', btn:'Finish section ↵'},
@@ -59989,6 +59989,125 @@ function get45Angles(){var d=getOutlineDominantAngle();return[d+Math.PI/4,d-Math
 // Find the angle of the outline edge nearest to point pt
 function edgeAngAt(pt){var n=DRAW.outline.length,ba=getOutlineDominantAngle(),bd=Infinity;for(var i=0;i<n;i++){var a=DRAW.outline[i],b=DRAW.outline[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.sqrt(dx*dx+dy*dy);if(l<1)continue;var t=((pt[0]-a[0])*dx+(pt[1]-a[1])*dy)/(l*l),cx=a[0]+t*dx,cy=a[1]+t*dy,d=Math.sqrt((pt[0]-cx)*(pt[0]-cx)+(pt[1]-cy)*(pt[1]-cy));if(d<bd&&t>=-0.1&&t<=1.1){bd=d;ba=Math.atan2(dy,dx);}}return ba;}
 function snapTo45(sx,sy,x,y,baseAng){var dx=x-sx,dy=y-sy,mag=Math.sqrt(dx*dx+dy*dy);if(mag<1)return[x,y];var cur=Math.atan2(dy,dx),ref=(baseAng!==undefined)?baseAng:edgeAngAt([sx,sy]);var angs=[ref+Math.PI/4,ref-Math.PI/4,ref+3*Math.PI/4,ref-3*Math.PI/4],best=angs[0],bd=Infinity;angs.forEach(function(a){var d=cur-a;d=d-Math.round(d/(2*Math.PI))*2*Math.PI;if(Math.abs(d)<bd){bd=Math.abs(d);best=a;}});return[sx+mag*Math.cos(best),sy+mag*Math.sin(best)];}
+// ══ A HIP OR VALLEY IS DRAWN AT ITS TRUE ANGLE (2026-11-06) ══════════
+// The owner: "if they're drawing in a custom hip or valley, just indicate to
+// the user where 45 degrees is, and snap it slightly to that 45 degree line
+// ... show the true angle ... change live as the user's moving it ... only 45
+// when it's actually 45". A hand-drawn hip used to be FORCED to 45° off the
+// wall it started from, and the label beside it said "✓ 45°" whatever the
+// cursor did. Now the line goes where it is drawn, is pulled onto the 45°
+// line only within HV_SNAP_TOL_DEG of it (Shift: never), a dashed guide shows
+// where 45° is, and the label reads the true angle to the wall.
+var HV_SNAP_TOL_DEG = 3;
+// The 45-degree direction from sp nearest the cursor p, and how far off it p is (radians).
+function _hv45(sp, p, ref){
+  if (ref === undefined) ref = edgeAngAt(sp);
+  var cur = Math.atan2(p[1]-sp[1], p[0]-sp[0]), best = ref + Math.PI/4, bd = Infinity;
+  [ref+Math.PI/4, ref-Math.PI/4, ref+3*Math.PI/4, ref-3*Math.PI/4].forEach(function(a){
+    var d = cur - a; d = d - Math.round(d/(2*Math.PI))*2*Math.PI;
+    if (Math.abs(d) < Math.abs(bd)){ bd = d; best = a; }
+  });
+  return { ang: best, off: bd };
+}
+// The plan angle (0-90) a line from sp to p makes with the wall it starts from.
+function _hvAngleDeg(sp, p, ref){
+  if (ref === undefined) ref = edgeAngAt(sp);
+  var a = Math.atan2(p[1]-sp[1], p[0]-sp[0]) - ref;
+  a = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
+  if (a > Math.PI/2) a = Math.PI - a;
+  return a * 180 / Math.PI;
+}
+function _hvGentle(sp, p, free){
+  var dx = p[0]-sp[0], dy = p[1]-sp[1], mag = Math.sqrt(dx*dx + dy*dy);
+  if (free || mag < 1) return [p[0], p[1]];
+  var h = _hv45(sp, p);
+  if (Math.abs(h.off) > HV_SNAP_TOL_DEG * Math.PI / 180) return [p[0], p[1]];
+  return [sp[0] + mag*Math.cos(h.ang), sp[1] + mag*Math.sin(h.ang)];
+}
+// ══ A LINE'S END CATCHES THE LINE IT WAS DRAWN TO (2026-11-06) ═══════
+// The owner: "if the user is drawing any sort of custom line ... if it's sort
+// of close to a line, then snap it ... keeping its whatever angle it's the
+// user's made it at". A line that stops a whisker short of a ridge (or runs a
+// whisker past it) leaves a roof whose faces do not close, and the sheet
+// layout reads it wrong. An END point is carried along the line's own
+// direction to the wall or line it nearly meets (within 2 magnets of the
+// cursor), so a valley at 45° stays at 45°; a START point drops square onto
+// the nearest line within one magnet. Corners and line ends still win (the
+// vertex magnet runs first); Shift turns it off.
+var LINE_END_SNAP_TOOLS = { ridge: 1, valley: 1, hip: 1, gutter: 1, barge: 1, apron: 1, changepitch: 1 };
+function _lineEndSegs(skipIdx){
+  var out = [], ol = DRAW.outline || [], n = ol.length;
+  if (DRAW.outlineDone || n > 2) for (var i = 0; i < n; i++) out.push([ol[i], ol[(i+1)%n]]);
+  (DRAW.lines || []).forEach(function(l, j){
+    if (j === skipIdx || !l || !l.pts || l.pts.length < 2) return;
+    out.push([l.pts[0], l.pts[l.pts.length-1]]);
+  });
+  return out;
+}
+// p = the point so far; sp = the line's other end (null for a start point).
+function _lineEndOntoLine(p, sp, mag, skipIdx){
+  var segs = _lineEndSegs(skipIdx), best = null, bd = Infinity;
+  if (sp){
+    var dx = p[0]-sp[0], dy = p[1]-sp[1], len = Math.sqrt(dx*dx + dy*dy);
+    if (len < mag) return null;
+    segs.forEach(function(sg){
+      var ex = sg[1][0]-sg[0][0], ey = sg[1][1]-sg[0][1], den = dx*ey - dy*ex;
+      if (Math.abs(den) < 1e-9) return;
+      var u = ((sg[0][0]-sp[0])*ey - (sg[0][1]-sp[1])*ex) / den;   // along sp→p (1 = p)
+      var v = ((sg[0][0]-sp[0])*dy - (sg[0][1]-sp[1])*dx) / den;   // along the segment
+      if (v < -0.001 || v > 1.001 || u * len < mag) return;
+      var hx = sp[0] + dx*u, hy = sp[1] + dy*u, d = Math.hypot(hx-p[0], hy-p[1]);
+      if (d <= mag * 2 && d < bd){ bd = d; best = [hx, hy]; }
+    });
+    return best;
+  }
+  segs.forEach(function(sg){
+    var ex = sg[1][0]-sg[0][0], ey = sg[1][1]-sg[0][1], l2 = ex*ex + ey*ey; if (l2 < 1) return;
+    var t = Math.max(0, Math.min(1, ((p[0]-sg[0][0])*ex + (p[1]-sg[0][1])*ey) / l2));
+    var hx = sg[0][0] + ex*t, hy = sg[0][1] + ey*t, d = Math.hypot(hx-p[0], hy-p[1]);
+    if (d <= mag && d < bd){ bd = d; best = [hx, hy]; }
+  });
+  return best;
+}
+// The dashed 45° guide, the true-angle label and the line-snap marker, while
+// a hip or valley is drawn or one of its ends is dragged.
+function _hvDrawGuide(ctx, _t){
+  try {
+    var sp = null, ep = null, kind = null;
+    if ((DRAW.tool==='hip'||DRAW.tool==='valley') && DRAW.currentPts.length===1){
+      sp = DRAW.currentPts[0]; ep = [DRAW.mouseX, DRAW.mouseY]; kind = DRAW.tool;
+    } else if (typeof DRAG_EP !== 'undefined' && DRAG_EP && DRAW.lines[DRAG_EP.lineIdx]){
+      var l = DRAW.lines[DRAG_EP.lineIdx];
+      if (l.type === 'hip' || l.type === 'valley'){ sp = l.pts[1 - DRAG_EP.epIdx]; ep = l.pts[DRAG_EP.epIdx]; kind = l.type; }
+    }
+    var C = function(p){ return _t ? imgToCanvas(p, _t) : p; };
+    if (DRAW._lineSnapPt){
+      var q = C(DRAW._lineSnapPt);
+      ctx.save(); ctx.beginPath(); ctx.arc(q[0], q[1], 7, 0, Math.PI*2); ctx.strokeStyle = '#0284c7'; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+    }
+    if (!sp || !ep) return;
+    var dl = Math.hypot(ep[0]-sp[0], ep[1]-sp[1]); if (dl <= 8) return;
+    var ref = edgeAngAt(sp), h = _hv45(sp, ep, ref), deg = _hvAngleDeg(sp, ep, ref);
+    var at45 = Math.abs(deg - 45) < 0.05;
+    var spC = C(sp), epC = C(ep), lenC = Math.hypot(epC[0]-spC[0], epC[1]-spC[1]) * 1.25 + 30;
+    var gEnd = C([sp[0] + Math.cos(h.ang)*dl*1.25 + Math.cos(h.ang)*30/(_t ? _t.s : 1), sp[1] + Math.sin(h.ang)*dl*1.25 + Math.sin(h.ang)*30/(_t ? _t.s : 1)]);
+    ctx.save();
+    ctx.setLineDash([6, 5]); ctx.lineWidth = 1.5; ctx.strokeStyle = at45 ? 'rgba(5,150,105,.55)' : 'rgba(5,150,105,.85)';
+    ctx.beginPath(); ctx.moveTo(spC[0], spC[1]); ctx.lineTo(gEnd[0], gEnd[1]); ctx.stroke(); ctx.setLineDash([]);
+    if (!at45){
+      ctx.font = 'bold 10px sans-serif'; ctx.fillStyle = 'rgba(5,150,105,.95)'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('45°', gEnd[0] + 4, gEnd[1]);
+    }
+    var lb = (kind === 'hip' ? 'Hip ' : 'Valley ') + (at45 ? '✓ 45°' : deg.toFixed(1) + '°');
+    var mC = [(spC[0]+epC[0])/2, (spC[1]+epC[1])/2];
+    ctx.font = 'bold 11px sans-serif'; var lw = ctx.measureText(lb).width + 10;
+    ctx.fillStyle = at45 ? 'rgba(5,150,105,0.92)' : 'rgba(217,119,6,0.95)';
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(mC[0]-lw/2, mC[1]-20, lw, 18, 4); else ctx.rect(mC[0]-lw/2, mC[1]-20, lw, 18); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(lb, mC[0], mC[1]-11);
+    ctx.restore();
+    window.__hvLabel = lb;
+  } catch(e){}
+}
 function rayIntersect(ax,ay,adx,ady,bx,by,bdx,bdy){var cr=adx*bdy-ady*bdx;if(Math.abs(cr)<1e-10)return null;var dx=bx-ax,dy=by-ay,t=(dx*bdy-dy*bdx)/cr,s=(dx*ady-dy*adx)/cr;if(t<0||s<0)return null;return[ax+t*adx,ay+t*ady];}
 function snap(x,y){var t=DRAW.tool;if(t==='hip'||t==='valley'){var pts=DRAW.currentPts;if(pts.length>0){
     // Check if near an existing corner/endpoint — if so, snap directly to it (no 45° force)
@@ -59997,8 +60116,10 @@ function snap(x,y){var t=DRAW.tool;if(t==='hip'||t==='valley'){var pts=DRAW.curr
     DRAW.outline.forEach(function(p){var _d=Math.sqrt((p[0]-x)*(p[0]-x)+(p[1]-y)*(p[1]-y));if(_d<_snapD){_snapD=_d;_snapTarget=p;}});
     DRAW.lines.forEach(function(l){[l.pts[0],l.pts[1]].forEach(function(p){var _d=Math.sqrt((p[0]-x)*(p[0]-x)+(p[1]-y)*(p[1]-y));if(_d<_snapD){_snapD=_d;_snapTarget=p;}});});
     if(_snapTarget)return[_snapTarget[0],_snapTarget[1]];
-    // Otherwise force 45° from start point
-    var _sp=pts[pts.length-1];return snapTo45(_sp[0],_sp[1],x,y,edgeAngAt(_sp));
+    // Otherwise the angle is the roofer's: pulled onto 45° only when it is
+    // within HV_SNAP_TOL_DEG of it (2026-11-06, the owner: "indicate to the
+    // user where 45 degrees is, and snap it slightly to that 45 degree line").
+    var _sp=pts[pts.length-1];return _hvGentle(_sp,[x,y]);
   }return[x,y];}
   // ── Grid, then the axis lock ──────────────────────────────────
   var snapEl = document.getElementById('snapGrid');
@@ -60084,6 +60205,7 @@ function getXY(e){
   var cx=(e.clientX-rect.left)*(cv.width/rect.width)/dpr,cy=(e.clientY-rect.top)*(cv.height/rect.height)/dpr;
   var t=getImgTransform(),ix=t?(cx-t.ix)/t.s:cx,iy=t?(cy-t.iy)/t.s:cy;
   var _rawIx=ix,_rawIy=iy; // save raw position before 45° snap
+  DRAW._lineSnapPt=null;
   var sn=e.shiftKey?[ix,iy]:snap(ix,iy);ix=sn[0];iy=sn[1];
   if(e.shiftKey&&DRAW._hipIntersectSnap)DRAW._hipIntersectSnap={active:false};
   var MAGNET=t?18/t.s:18,outlinePts=DRAW.outline.slice(),linePts=[];
@@ -60212,9 +60334,9 @@ function getXY(e){
       if(_sR<-0.5||_sR>1.5)return;
       var _hx=sp[0]+_tR*_myDx,_hy=sp[1]+_tR*_myDy;
       if(!_pip(_hx,_hy))return;
-      // Snap hit to 45° from sp
-      var _spAng2=edgeAngAt(sp);
-      var _snapped=snapTo45(sp[0],sp[1],_hx,_hy,_spAng2);
+      // The hit along the line as drawn (its angle is the roofer's, pulled
+      // onto 45° by snap() only when it was nearly there).
+      var _snapped=[_hx,_hy];
       var _rdist=Math.sqrt((_snapped[0]-sp[0])*(_snapped[0]-sp[0])+(_snapped[1]-sp[1])*(_snapped[1]-sp[1]));
       if(_rdist>MAGNET)_cms.push({x:_snapped[0],y:_snapped[1],vrd:_rdist*0.5});
     });
@@ -60239,8 +60361,12 @@ function getXY(e){
           var _score=c.vrd<=_minVrd*1.3?_d:_d+99999;
           if(_score<_bestScore){_bestScore=_score;_best=c;}
         });
-        DRAW._hipIntersectSnap={pt:[_best.x,_best.y],active:true};
-        return[_best.x,_best.y];
+        // Only near the cursor: the angle is the roofer's now, so a centre
+        // meet across the roof must not pull the line onto itself.
+        if(Math.hypot(_best.x-_rawIx,_best.y-_rawIy)<=MAGNET*2){
+          DRAW._hipIntersectSnap={pt:[_best.x,_best.y],active:true};
+          return[_best.x,_best.y];
+        }
       }
     }
     DRAW._hipIntersectSnap={active:false};
@@ -60261,6 +60387,10 @@ function getXY(e){
     allPts.forEach(function(p){var d=Math.sqrt((p[0]-ix)*(p[0]-ix)+(p[1]-iy)*(p[1]-iy));if(d<bestD){bestD=d;best=p;}});
   }
   var result = best?[best[0],best[1]]:[ix,iy];
+  if (!best && !e.shiftKey && LINE_END_SNAP_TOOLS[DRAW.tool]){
+    var _cp = DRAW.currentPts, _ls = _lineEndOntoLine(result, _cp.length ? _cp[_cp.length-1] : null, MAGNET, -1);
+    if (_ls){ result = _ls; DRAW._lineSnapPt = _ls.slice(); }
+  }
   // Closing-corner snap — when the outline has 3+ corners, the one spot
   // where this wall squares to the previous wall AND the closing run
   // squares back to the first wall is offered, within a tight screen-px
@@ -60341,6 +60471,21 @@ function onCanvasMove(e) {
   }
   // Drag endpoint
   if(DRAG_EP) {
+    // A dragged hip or valley end: the same gentle 45° and the same catch onto
+    // the line it is dragged to as drawing one (Shift frees both).
+    var _epL = DRAW.lines[DRAG_EP.lineIdx];
+    DRAW._lineSnapPt = null;
+    if (_epL && _epL.pts && !e.shiftKey){
+      var _epO = _epL.pts[1 - DRAG_EP.epIdx], _epTr = getImgTransform(), _epMag = _epTr ? 18/_epTr.s : 18;
+      if (_epL.type === 'hip' || _epL.type === 'valley'){
+        var _epNear = false;
+        (DRAW.outline || []).concat([].concat.apply([], (DRAW.lines || []).filter(function(l, j){ return j !== DRAG_EP.lineIdx && l && l.pts; }).map(function(l){ return [l.pts[0], l.pts[l.pts.length-1]]; })))
+          .forEach(function(q){ if (Math.hypot(q[0]-xy[0], q[1]-xy[1]) < 0.5) _epNear = true; });
+        if (!_epNear) xy = _hvGentle(_epO, xy);
+      }
+      var _epHit = _lineEndOntoLine(xy, _epO, _epMag, DRAG_EP.lineIdx);
+      if (_epHit && !(Math.hypot(_epHit[0]-xy[0], _epHit[1]-xy[1]) < 0.01)){ xy = _epHit; DRAW._lineSnapPt = _epHit.slice(); }
+    }
     DRAW.lines[DRAG_EP.lineIdx].pts[DRAG_EP.epIdx] = [xy[0],xy[1]];
     DRAG_EP.moved = true;
     redrawAll(); return;
@@ -64829,7 +64974,7 @@ function redrawAll() {
 
   if(DRAW.currentPts.length>0||['outline','section','ridge','valley','gutter','hip','penetration','info'].indexOf(DRAW.tool)>=0){var MAGNET2=15,allPts2=[];DRAW.outline.forEach(function(p){allPts2.push(p);});DRAW.sections.forEach(function(s){s.poly.forEach(function(p){allPts2.push(p);});});DRAW.lines.forEach(function(l){allPts2.push(l.pts[0]);allPts2.push(l.pts[1]);});var nearSnap=null,_mxy=_t?canvasToImg([DRAW.mouseX,DRAW.mouseY],_t):[DRAW.mouseX,DRAW.mouseY];allPts2.forEach(function(p){var d=Math.sqrt((p[0]-_mxy[0])*(p[0]-_mxy[0])+(p[1]-_mxy[1])*(p[1]-_mxy[1]));if(d<MAGNET2)nearSnap=p;});if(nearSnap){var nsp=dp(nearSnap);ctx.beginPath();ctx.arc(nsp[0],nsp[1],8,0,Math.PI*2);ctx.strokeStyle='#ff6600';ctx.lineWidth=2;ctx.stroke();ctx.beginPath();ctx.arc(nsp[0],nsp[1],3,0,Math.PI*2);ctx.fillStyle='#ff6600';ctx.fill();}}
   if(DRAW._hipIntersectSnap&&DRAW._hipIntersectSnap.active&&DRAW._hipIntersectSnap.pt){var _ipt=_t?imgToCanvas(DRAW._hipIntersectSnap.pt,_t):DRAW._hipIntersectSnap.pt;ctx.save();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],13,0,Math.PI*2);ctx.strokeStyle='#059669';ctx.lineWidth=2.5;ctx.stroke();ctx.beginPath();ctx.arc(_ipt[0],_ipt[1],4,0,Math.PI*2);ctx.fillStyle='#059669';ctx.fill();ctx.strokeStyle='#059669';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(_ipt[0]-18,_ipt[1]);ctx.lineTo(_ipt[0]+18,_ipt[1]);ctx.stroke();ctx.beginPath();ctx.moveTo(_ipt[0],_ipt[1]-18);ctx.lineTo(_ipt[0],_ipt[1]+18);ctx.stroke();ctx.fillStyle='rgba(5,150,105,0.93)';ctx.font='bold 10px sans-serif';var _cwM=ctx.measureText('✓ CENTRE MEET').width+10;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17,3);else ctx.rect(_ipt[0]-_cwM/2,_ipt[1]+16,_cwM,17);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓ CENTRE MEET',_ipt[0],_ipt[1]+24);ctx.restore();}
-  if((DRAW.tool==='hip'||DRAW.tool==='valley')&&DRAW.currentPts.length===1){var _spM=DRAW.currentPts[0],_epM=[DRAW.mouseX,DRAW.mouseY],_dlM=Math.sqrt((_epM[0]-_spM[0])*(_epM[0]-_spM[0])+(_epM[1]-_spM[1])*(_epM[1]-_spM[1]));if(_dlM>8){var _spCM=_t?imgToCanvas(_spM,_t):_spM,_epCM=_t?imgToCanvas(_epM,_t):_epM,_mCM=[(_spCM[0]+_epCM[0])/2,(_spCM[1]+_epCM[1])/2],_lbM=(DRAW.tool==='hip'?'Hip':'Valley')+' ✓ 45°';ctx.save();ctx.font='bold 11px sans-serif';var _lwM=ctx.measureText(_lbM).width+10;ctx.fillStyle='rgba(5,150,105,0.92)';ctx.beginPath();if(ctx.roundRect)ctx.roundRect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18,4);else ctx.rect(_mCM[0]-_lwM/2,_mCM[1]-20,_lwM,18);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_lbM,_mCM[0],_mCM[1]-11);ctx.restore();}}
+  _hvDrawGuide(ctx,_t);
 
   // A JUNCTION YOU CAN SEE IS A JUNCTION YOU CAN CLICK (2026-10-14). The
   // drag existed nowhere, but even once it does, a point with nothing drawn

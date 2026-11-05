@@ -31,6 +31,7 @@ const jobDesc = {};              // Fergus jobs by id → their Job Description
 let titleWrites = 0;
 let jobUpdateStatus = 200;       // what a job update answers
 let jobUpdateTakes = true;       // …and whether it actually changes the job
+let jobUpdateReal = false, putRejectAll = false;       // Fergus as job 3349 found it: PATCH/POST 404, PUT wants the whole job
 let markSentStatus = 200;        // what the mark-sent endpoint answers
 let markSentTakes = true;        // …and whether it actually moved the quote to Sent
 globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
@@ -64,7 +65,15 @@ globalThis.__TEST_HTTPS = async (host, path, method, headers, body) => {
     ? j(404, { message: 'no such job' })
     // Fergus's own shape (read off job 3341, 2026-11-06): `description` is
     // the job's title, `longDescription` the Job Description box.
-    : j(200, { data: { id: jone[1], description: 'Title of ' + jone[1], longDescription: jobDesc[jone[1]] } });
+    : j(200, { data: { id: jone[1], description: 'Title of ' + jone[1], longDescription: jobDesc[jone[1]],
+        jobType: 'Quote', customerReference: 'ref', customer: { id: 77, name: 'Doug' }, siteAddress: { id: 88 },
+        links: [{ href: '/customers/77', rel: 'customers' }, { href: '/sites/88', rel: 'sites' }] } });
+  if (jobUpdateReal && jone && (method === 'PATCH' || method === 'POST')) return j(404, { message: 'Not Found' });
+  if (jobUpdateReal && jone && method === 'PUT'){
+    const b = (typeof body === 'string' ? JSON.parse(body || '{}') : body) || {};
+    if (putRejectAll || b.customerId !== 77 || b.siteId !== 88 || b.jobType !== 'Quote')
+      return j(400, { message: 'Validation failed', errors: { customerId: 'required', siteId: 'required', jobType: 'required' } });
+  }
   if ((method === 'PATCH' || method === 'PUT') && jone){
     const b = (typeof body === 'string' ? JSON.parse(body || '{}') : body) || {};
     if (b.description !== undefined && b.description !== 'Title of ' + jone[1]) titleWrites++;
@@ -296,7 +305,20 @@ jobDesc['FJ-94'] = 'x'; fergus.length = 0; process.env.FERGUS_JOB_UPDATE_PATH = 
 dd = await desc({ jobId: 'FJ-94', summary: 'Quote 3275' });
 delete process.env.FERGUS_JOB_UPDATE_PATH;
 check('FERGUS_JOB_UPDATE_PATH pins the shape once it is known',
-  dd.ok === true && dd.path === 'PUT /jobs/{job}' && fergus.filter(c => c.method === 'PUT').length === 1, JSON.stringify(dd));
+  dd.ok === true && /^PUT \/jobs\/\{job\}/.test(dd.path) && fergus.filter(c => c.method === 'PUT').length === 1, JSON.stringify(dd));
+// Fergus as job 3349's acceptance found it (2026-11-06): PATCH and POST 404,
+// PUT 400 on a body of two fields. The whole job goes back: the customer, site
+// and job type it was read with, the title untouched.
+jobUpdateReal = true; titleWrites = 0;
+jobDesc['FJ-95'] = 'Quote to replace guttering'; fergus.length = 0;
+dd = await desc({ jobId: 'FJ-95', summary: 'Quote 3349' });
+check('JOB 3349: PUT with the whole job lands the description (customer, site, job type sent back)',
+  dd.ok === true && dd.path === 'PUT /jobs/{job} (read)' && /Quote 3349/.test(jobDesc['FJ-95']) && /Quote to replace guttering/.test(jobDesc['FJ-95']), JSON.stringify(dd));
+check('…and the job\'s title is never written over', titleWrites === 0, String(titleWrites));
+putRejectAll = true; jobDesc['FJ-96'] = 'x'; fergus.length = 0;
+dd = await desc({ jobId: 'FJ-96', summary: 'Quote 3350' });
+putRejectAll = false; jobUpdateReal = false;
+check('a refusal keeps what Fergus said, for the email', dd.ok === false && dd.attempts.some(a => a.said && /Validation|required/i.test(a.said)), JSON.stringify(dd.attempts));
 
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');
