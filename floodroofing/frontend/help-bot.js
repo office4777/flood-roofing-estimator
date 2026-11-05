@@ -18,11 +18,11 @@
   var FRQA = [
     // ---- Getting started / general ----
     { c:'Start', q:['what is roofmap','what is this app','what does this program do','what is this tool','how does roofmap work','explain the app','what can i do here'],
-      a:"**RoofMap** is Flood Roofing's estimator. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the menu top to bottom:\n- **Home** — the job board: start a job, pick one up, see where every quote is\n- **Map Roof** — trace and measure every roof on the property\n- **Job Pack** — cut lists, flashings, consumables, the merchant order\n- **Quote** — price it, then send the customer their proposal\n- **Settings** — branding, price book, products, rates, team, billing\n- **Request a Fix** — a bug or an idea, straight to the people who build it" },
+      a:"**RoofMap** is a roofing estimator built for NZ roofers. It works on its own — no job-management software needed. It takes you from an aerial photo of a roof to a measured plan, a materials/Job Pack, a professional customer quote, and a supplier order — all in one place.\n\nThe workflow follows the menu top to bottom:\n- **Home** — the job board: start a job, pick one up, see where every quote is\n- **Map Roof** — trace and measure every roof on the property\n- **Job Pack** — cut lists, flashings, consumables, the merchant order\n- **Quote** — price it, then send the customer their proposal\n- **Settings** — branding, price book, products, rates, team, billing\n- **Request a Fix** — a bug or an idea, straight to the people who build it" },
     { c:'Start', q:['how do i start','where do i begin','how do i get started','first steps','how to begin a new estimate','getting started'],
       a:"Start on the **Home** tab:\n- Tap **New job**, enter the client name + address, and press Start.\n- You'll land on **Map Roof** — upload the aerial photo and trace the roof.\n- Move through **Job Pack** then **Quote** using the blue *Next* button at the bottom of each tab." },
     { c:'Start', q:['what order do i do things','workflow','what are the steps','process','steps to make a quote','full process'],
-      a:"The normal flow is:\n1. **Home** → New job (client + address)\n2. **Map Roof** → trace the outline, add ridge/hip/valley lines, set the pitch\n3. **Job Pack** → check profile, grade, colour, gutter, flashings and cut lists\n4. **Quote** → review pricing, then **Customer link** or **Email quote**\n5. When accepted → **Order Roof** to the supplier and **Push to Fergus**" },
+      a:"The normal flow is:\n1. **Home** → New job (client + address)\n2. **Map Roof** → trace the outline, add ridge/hip/valley lines, set the pitch\n3. **Job Pack** → check profile, grade, colour, gutter, flashings and cut lists\n4. **Quote** → review pricing, then **Customer link** or **Email quote**\n5. When accepted → **Order Roof** to the supplier (and, if you have linked Fergus, **Push to Fergus**)" },
     { c:'Start', q:['is my work saved','does it save automatically','autosave','will i lose my work','does it save'],
       a:"Yes — jobs **autosave** as you work, and you can press **Save** any time. Every job is on the **Home** board, and there is a second copy on the device: **Offline saves** in the menu holds the last saves made on this device, drawing and photos included. Lose signal on a roof and the app keeps saving locally, then sends everything up the moment you are back on the network." },
 
@@ -128,7 +128,7 @@
 
     // ---- Materials / Job Pack ----
     { c:'JobPack', q:['what is the job pack','job pack tab','materials tab','whats in the job pack','job pack designer'],
-      a:"The **Job Pack** is the build sheet: profile, steel grade, thickness, colour, gutter, ridging, flashings, cut lists and consumables — everything the crew and the supplier need. From here you can **Save as PDF**, **Print**, **Push to Fergus** or **Order Roof**." },
+      a:"The **Job Pack** is the build sheet: profile, steel grade, thickness, colour, gutter, ridging, flashings, cut lists and consumables — everything the crew and the supplier need. From here you can **Save as PDF**, **Print** or **Order Roof** (and **Push to Fergus** if you have linked it)." },
     { c:'JobPack', q:['what profiles are there','change profile','corrugate','5 rib','multidek','roofing profile','pick a profile'],
       a:"Profiles include **Corrugate**, **5-Rib** and **Multidek**. Change it in the Job Pack — the sheet plan re-tiles to that profile's cover width. Corrugate is the common residential default." },
     { c:'JobPack', q:['steel grade','what grade','colorsteel','maxam','colorzen','armorsteel','change grade','which steel'],
@@ -197,8 +197,8 @@
       a:"Acceptance is recorded immediately and the customer is thanked straight away; the confirmation PDF is built and emailed to the office in the background, so they don't have to wait." },
 
     // ---- Fergus ----
-    { c:'Fergus', q:['fergus','push to fergus','send to fergus','upload to fergus','sync fergus','what is fergus'],
-      a:"**Fergus** is your job-management system. From the Job Pack you can **Push to Fergus** (the Job Pack) and push the **Quote**. Each button shows an uploading state then a *sent* confirmation with the date/time." },
+    { c:'Fergus', q:['push to fergus','send to fergus','upload to fergus','sync fergus'],
+      a:"**Fergus** is a job-management system some roofers run — you do not need it, RoofMap works on its own. If you use it (Team plan), link it in **Settings → Job Management Software**; then the Job Pack and the Quote each get a **Push to Fergus** button. Each button shows an uploading state then a *sent* confirmation with the date/time." },
     { c:'Fergus', q:['open this job in roofmap','fergus deep link','open in roofmap','link from fergus','back to roofmap'],
       a:"The **Open this job in RoofMap** link in Fergus deep-links straight to that job's **Job Pack** tab with the roof map framed. If it ever opened the wrong view, that's fixed — hard-refresh if you still see it." },
     { c:'Fergus', q:['fergus not sending','push failed','fergus error','didnt upload to fergus'],
@@ -228,7 +228,7 @@
 
     // ---- Account / login ----
     { c:'Account', q:['how do i log in','login','sign in','cant log in','password','forgot password','log out'],
-      a:"Log in with your Flood Roofing email and password on the start screen. If you can't get in, check the email/password, then contact the office to reset it. Use **Log out** from the app to switch accounts." },
+      a:"Log in with your email and password on the start screen. If you can't get in, use **Forgot password** to get a reset link, or ask whoever runs your RoofMap account. Use **Log out** from the app to switch accounts." },
     { c:'Account', q:['who can see my jobs','is my data private','data security','shared jobs','account access'],
       a:"Jobs are tied to your login/device. The only thing customers see is the **Customer link** you send them — that shows just their proposal, not your other jobs or pricing setup." },
 
@@ -285,8 +285,8 @@
       a:"**Save as default template** (Quote toolbar) stores the current quote's layout, scope and defaults so every new quote starts from it. Handy once you've got a proposal you like." },
     { c:'Jobs', q:['multiple roofs one job','more than one roof','several buildings','shed and house','two roofs'],
       a:"You can map multiple roof planes/sections in one job, and the sheet plan handles them together. For genuinely separate buildings, it's usually cleaner to make a job each so the quotes stay distinct." },
-    { c:'Quote', q:['quote reference','fr number','change reference','ref number','quote id'],
-      a:"Each job gets a quote reference like **FR-####** automatically. It shows on the proposal header/footer and travels with the job so you can quote it in conversation." },
+    { c:'Quote', q:['quote reference','fr number','change reference','ref number','quote id','job number','job numbers','how do i number jobs','next job number','set my job numbers'],
+      a:"Each new job takes the next number from **Settings → Quote defaults → Next job number** (shared across your business), and that number is the quote reference. You can type your own on the job's details. It shows on the proposal and travels with the job." },
     { c:'Quote', q:['how long is the quote valid','validity','expiry','valid for 30 days','quote expiry'],
       a:"The proposal shows a **Valid** period (default 30 days) on the cover. Adjust it if you need a shorter/longer window; after that you'd re-issue with current pricing." },
     { c:'Quote', q:['scaffolding','scaffold price','edge protection','add scaffolding','staging'],
@@ -298,7 +298,7 @@
     { c:'Quote', q:['discount','give a discount','reduce the price','take money off','special price'],
       a:"To discount, adjust the relevant line item or total when building the quote. Keep the scope the same so it's clear what's included at the agreed price." },
     { c:'Quote', q:['deposit','payment terms','how do they pay','progress payment','invoice terms'],
-      a:"Payment/deposit terms belong in your quote's terms or the Notes block. Invoicing itself is handled in **Fergus** — push the job across once it's accepted." },
+      a:"Payment/deposit terms belong in your quote's terms or the Notes block. RoofMap can raise the deposit invoice itself — set it up in **Settings → Invoicing**." },
     { c:'Quote', q:['resend the quote','send again','re-send','update and resend','send a new version'],
       a:"Make your changes, then share the **Customer link** again (same link reflects the latest version) or **Email quote** again. The customer always sees the current proposal at the link." },
     { c:'Customer', q:['declined','customer declined','quote rejected','they said no','declined meaning'],
@@ -306,7 +306,7 @@
     { c:'Customer', q:['queried','customer has a question','queried meaning','they queried','question raised'],
       a:"**Queried** means the customer flagged a question rather than accepting/declining. Give them a call, sort it out, update the quote if needed and re-send." },
     { c:'Customer', q:['edit after accepted','change an accepted quote','accepted but need to change','revise accepted'],
-      a:"If something must change after acceptance, use **Undo acceptance**, edit the quote, and have the customer accept again — or handle the variation in Fergus so there's a clear record." },
+      a:"If something must change after acceptance, use **Undo acceptance**, edit the quote, and have the customer accept again — or quote the variation as its own job so there's a clear record." },
     { c:'Customer', q:['copy the link','copy customer link','copy paste link','link to copy'],
       a:"When you tap **Customer link**, the link is shown on-screen with a copy option so you can paste it into your own text or email as well as sending it directly." },
     { c:'JobPack', q:['job pack pdf vs quote pdf','difference pdf','which pdf','two pdfs'],
@@ -315,8 +315,8 @@
       a:"In the Job Pack cut lists you can **add a row** for an extra flashing/piece (girth, folds, length, qty). It's included in pricing and the order alongside the drawing-derived flashings." },
     { c:'JobPack', q:['girth','folds','flashing girth','how wide is the flashing','bends'],
       a:"A flashing's **girth** (total developed width) and **folds/bends** drive its price from the supplier table. Set them on the saved flashing so the cut list can price it per lineal metre." },
-    { c:'Photos', q:['add site photos','inspection photos','job photos','upload site pictures','photos of this roof'],
-      a:"Add site-specific photos under the **inspection** for the job — they appear on the Project details page of that proposal. Reusable brand/stock photos live in **Settings** and show across every proposal." },
+    { c:'Photos', q:['add site photos','inspection photos','upload site pictures','photos of this roof','add photos','upload photos','photos on the quote','add a photo to the quote'],
+      a:"On the **Quote** tab, the roof condition section has four photo slots — **Upload from PC** (or drag a photo in) and move/zoom it in its frame. Photos taken on site live in the **PHOTOS** tab on Map Roof and under **Files & Photos** on the job. Reusable brand/stock photos live in **Settings** and show across every proposal." },
     { c:'Photos', q:['change the crew photo','team photo','staff picture','crew image','change team photo'],
       a:"The crew/team photo is a brand image set in **Settings** (and used on the cover/acceptance pages). Upload a new one there and it updates across proposals." },
     { c:'Photos', q:['hero image','cover photo','change cover image','main photo','banner image'],
@@ -384,7 +384,7 @@
     { c:'Roofing', q:['skylight replacement','new skylight','velux','roof window'],
       a:"Mark skylights as penetrations on the map and include supply/install and flashing in the scope. Skylight units are usually supplied to match the new roof and flashed in." },
     { c:'Help', q:['is it free','cost of the app','subscription','how much does roofmap cost'],
-      a:"RoofMap is Flood Roofing's internal tool — there's no charge to you as a user. Questions about the business side go to the office." },
+      a:"RoofMap has three plans — Measure, Trade and Team — and a free trial of 3 real roofs or 30 days. **Settings → Billing** shows your plan and lets you change it; the full list is at roofmap.co.nz/pricing." },
     { c:'Help', q:['feedback','suggestion','feature request','i want a feature','improve the app'],
       a:"Great — pass feature ideas to the office and they can be built in. Be specific about what you'd tap and what should happen, and it's much easier to add." },
     { c:'Help', q:['print','how do i print','printer','print the quote','print out'],
@@ -430,7 +430,7 @@
     { c:'Help', q:['save to phone','download to device','save the pdf to my phone','keep a copy'],
       a:"Use **Save as PDF** and your device will save the file (Downloads/Files). From there you can share it, print it, or attach it to an email." },
     { c:'JobPack', q:['sticky action bar','buttons follow me','toolbar scrolls','action buttons at top'],
-      a:"The Job Pack and Quote action bars (Save, PDF, Push to Fergus, Order Roof) **stick to the top** as you scroll, so the main actions are always in reach on long pages." },
+      a:"The Job Pack and Quote action bars (Save, PDF, Order Roof) **stick to the top** as you scroll, so the main actions are always in reach on long pages." },
     { c:'Map', q:['aerial too tall','map fills the screen','background too big','collapse the aerial','map height'],
       a:"The aerial/background step is capped in height and can be collapsed once you've traced, so it doesn't dominate the screen while you work on the drawing and cut lists." },
     { c:'JobPack', q:['change of pitch flashing','pitch change cut list','where is change of pitch'],
@@ -521,7 +521,7 @@
       a:"The customer signs off on the last page of their own proposal — no printing, no scanning. You get the acceptance in **Quote activity** on Home, and the job moves along the board.\n\nIf you have the deposit set to auto-send in **Settings → Invoicing**, the deposit invoice is raised and sent on acceptance, from your business, with your bank account on it." },
 
     // ---- Invoicing ----
-    { c:'Invoice', q:['invoicing','send an invoice','deposit invoice','progress claim','final invoice','invoice numbers'],
+    { c:'Invoice', q:['invoicing','invoice','how do i invoice','send an invoice','deposit invoice','progress claim','final invoice','invoice numbers'],
       a:"RoofMap invoices the job it quoted. **Settings → Invoicing** sets the deposit percentage, whether it goes out by itself on acceptance, payment terms, your bank account and the footer.\n\nInvoices number themselves per business (INV-1001, INV-1002…), and the money on an invoice is **stored when it is created** — an invoice is a document, and a document that quietly changes after it went out is how an accountant loses a morning." },
 
     // ---- Settings / account ----
@@ -539,7 +539,7 @@
       a:"Team-plan subscribers get a **subdomain** — your own address for the customer quote links, so what you send reads as yours." },
     { c:'Settings', q:['tutorial','run the tutorial','show me around','walkthrough','guided tour','how do i learn the app'],
       a:"**Settings → General → Run the tutorial** walks you through the app: it points at each tab in turn and explains the parts of the screen as you land on them, with **Next** and **Cancel tutorial** on every step.\n\nIt runs once by itself after the first-run setup, and it is there any time you want it again. **Run the setup guide** beside it is the other one — that covers getting your prices, branding and products in." },
-    { c:'Settings', q:['job management software','fergus','tradify','servicem8','no jms','link my software'],
+    { c:'Settings', q:['job management software','fergus','what is fergus','do i need fergus','i dont use fergus','tradify','servicem8','no jms','link my software'],
       a:"If you run **Fergus**, link it in Settings and jobs, photos and job packs pass between the two.\n\nIf you run something else — or nothing — RoofMap works on its own: the Home board is the job list, **Job files** takes the documents, and nothing Fergus-shaped is in your way. Tell us which software you run in Settings → Job Management Software and it goes on the build list." },
 
     // ---- Feedback ----
@@ -884,6 +884,7 @@
     } catch (e) {}
   }
   window._helpSupport = { poll: supportPoll, state: SUP, start: supportStart };
+  window._helpSearch = search;   // the matcher, for tests/nofergus.mjs
 
   function init() {
     // Office app only — never on the shared customer proposal view.

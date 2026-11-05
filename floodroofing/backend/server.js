@@ -8021,6 +8021,24 @@ const ACCEPTANCE_TASKS_DEFAULT = [
   { title: 'Check / adjust the dates in the schedule, then send the tentative schedule email',
                                                                   who: 'Paula', urgency: 60, days: 4 },
 ];
+// Every business that does NOT run Fergus (2026-11-05 audit: none of the
+// trial or paying businesses had linked it). The list above is Flood
+// Roofing's own, with its own people's names and a hard 50% — a stranger's
+// first win must not tell them to "Accept in Fergus". Their own deposit
+// percentage, no names (nobody to match), nothing Fergus.
+function _acceptanceTasksGeneric(settingsRow){
+  const inv = _invoiceSettingsOf(settingsRow);
+  return [
+    { title: inv.auto_send_deposit ? ('Check the ' + inv.deposit_percent + '% deposit invoice went out')
+                                   : ('Send the ' + inv.deposit_percent + '% deposit invoice'), urgency: 90, days: 1 },
+    { title: 'Order the roof',                                               urgency: 80, days: 3 },
+    { title: 'Book the job in and confirm the dates with the customer',      urgency: 60, days: 4 },
+  ];
+}
+function _settingsRunsFergus(settingsRow){
+  const k = settingsRow && settingsRow.jms_keys;
+  return !!(k && String(k.fergus || '').trim());
+}
 // The team as a list, for matching a checklist's "Matt" to a real person.
 // Deliberately NOT called _companyMembers: that name is already taken by the
 // id → name map _nameOf reads, and a second declaration of it silently won —
@@ -8055,7 +8073,7 @@ async function _acceptanceTasks(job, quote){
       .eq('company_id', job.company_id).eq('job_id', job.id).eq('notes', marker).limit(1);
     if (dupe && dupe.length) return 0;
     const settingsRow = await _settingsRowForJob(job);
-    let list = ACCEPTANCE_TASKS_DEFAULT;
+    let list = _settingsRunsFergus(settingsRow) ? ACCEPTANCE_TASKS_DEFAULT : _acceptanceTasksGeneric(settingsRow);
     try {
       const custom = settingsRow && settingsRow.acceptance_tasks;
       if (Array.isArray(custom) && custom.length) list = custom.slice(0, 12);

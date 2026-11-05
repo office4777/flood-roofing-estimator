@@ -4681,7 +4681,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 .qd-hero .qb-hero-txt{ padding:28px 30px 26px; }
 .qd-hero .qb-hero-txt h1{ font-size:38px; }
 .qd-hero .qb-hero-txt p{ font-size:15px; }
-.qd-cover-body{ display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:28px; }
+.qd-cover-body{ display:flex; flex-wrap:wrap; gap:18px 28px; }
+.qd-cover-body > :first-child{ flex:1 1 260px; min-width:0; }
+.qd-cover-body > .qb-meta{ flex:0 1 300px; }
 .qd-cover-body .qb-meta{ margin:0; align-self:start; }
 .qd-cover-body .qb-stats{ margin-bottom:0; }
 /* photos: a grid, not a strip */
@@ -5280,7 +5282,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-04T23:36:49Z';
+  window.APP_BUILT_AT = '2026-11-05T19:36:10Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5844,7 +5846,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
          edit the job from any tab without hunting for the Home tile. -->
     <div id="navJobInfo" role="button" tabindex="0" onclick="_navJobTap()"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navJobTap();}"
-         title="Tap for this job's details — and to link it to a Fergus job"
+         title="Tap for this job's details"
          style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
          onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
       <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
@@ -6131,7 +6133,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <div class="hb-topbar">
     <button type="button" class="hb-newjob" data-tour="home-new" onclick="startNewJob()">＋ Create new job</button>
     <div class="hb-search-wrap">
-      <input id="homeJobSearch" class="hb-search" type="text" placeholder="Select job — search saved &amp; Fergus jobs by client, address or job number…"
+      <input id="homeJobSearch" class="hb-search" type="text" placeholder="Select job — search saved jobs by client, address or job number…"
              oninput="_homeJobSearchInput()" onfocus="_homeJobSearchInput()" autocomplete="off">
       <div id="homeJobSearchDrop" class="hb-drop"></div>
     </div>
@@ -7862,7 +7864,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px">
       <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center">
         <label style="color:var(--text2)">Client</label><input type="text" data-iedit="client_name" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
-        <label style="color:var(--text2)">Fergus job no.</label><input type="text" data-iedit="job_ref" placeholder="e.g. 8801 — shows in the Job column and links to Fergus" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Job no.</label><input type="text" data-iedit="job_ref" placeholder="e.g. 8801 — shows in the Job column" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Site address</label><input type="text" data-iedit="site_address" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Customer email</label><input type="email" data-iedit="email" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Quote accepted</label><span id="schedInfoAccepted" style="color:#0a1628"></span>
@@ -9081,10 +9083,11 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
        Once a system is connected this hides and the linking UI moves into the
        "Job Management" settings sub-tab below (see _refreshJmsLinkUI). -->
   <div class="card" id="jmsBigLinkCard" style="display:none;text-align:center">
-    <div style="padding:12px 0 6px">
-      <div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px">Link your job management software</div>
-      <p style="font-size:12.5px;color:var(--text2);max-width:560px;margin:0 auto 16px">Connect Fergus so you can push quotes, pricing and files straight onto your jobs. Once it's linked, this tucks away into a tab in your settings.</p>
-      <button type="button" onclick="_openJmsLink()" style="display:inline-flex;align-items:center;gap:10px;padding:15px 30px;background:var(--fr-dark);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(10,22,40,.28)">🔗 Link job management software</button>
+    <div style="padding:4px 0 2px">
+      <div style="font-size:14px;font-weight:800;color:var(--text);margin-bottom:4px">Run Fergus? Link it here — optional</div>
+      <p style="font-size:12.5px;color:var(--text2);max-width:600px;margin:0 auto 12px">RoofMap works fully on its own. If your business runs Fergus, linking it sends quotes, pricing and files straight onto your Fergus jobs.</p>
+      <button type="button" onclick="_openJmsLink()" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:var(--fr-dark);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer">🔗 Link Fergus</button>
+      <div style="margin-top:10px"><button type="button" id="jmsBigLinkHide" onclick="_jmsBigCardHide()" style="background:none;border:none;color:var(--text2);font-size:11.5px;text-decoration:underline;cursor:pointer;font-family:inherit">I don't use job management software — hide this</button></div>
     </div>
   </div>
 
@@ -9159,7 +9162,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
            Guides tab is opened, so the frame costs nothing until then. -->
       <div style="background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
         <div style="font-size:12.5px;font-weight:700;color:var(--text)">Six-minute run-through</div>
-        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">One real job from the aerial to the customer's quote — Fergus, the job pack, the order email and the customer's side of the quote.</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">One real job from the aerial to the customer's quote — the job pack, the order email, the customer's side of the quote and the Fergus link.</div>
         <div id="guideVideo" data-src="https://www.loom.com/embed/57f969a8894c4e438dc30f7482058b7e" style="position:relative;padding-bottom:56.25%;height:0;border-radius:8px;overflow:hidden;background:#0a1628 url(brand/try-bg.jpg) center/cover">
           <button type="button" id="guideVideoPlay" onclick="_guideVideoPlay()" style="position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(10,22,40,.45);color:#fff;font-family:inherit;font-size:16px;font-weight:800;cursor:pointer">▶ Play the six-minute run-through</button>
         </div>
@@ -9167,7 +9170,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
         <div style="flex:1;min-width:200px">
           <div style="font-size:12.5px;font-weight:700;color:var(--text)">Setup guide</div>
-          <div style="font-size:11.5px;color:var(--text2)">Walks through the price book, your branding, your products, your rates and Fergus.</div>
+          <div style="font-size:11.5px;color:var(--text2)">Walks through the price book, your branding, your products and your rates (and Fergus, if you use it).</div>
         </div>
         <button type="button" onclick="openSetupGuide(true)" class="tool-btn" style="font-size:11.5px">Run the setup guide</button>
       </div>
@@ -10571,7 +10574,15 @@ function closeJMSSetup(){
 function _jmsProvider(){
   var p = ''; try { p = localStorage.getItem('fr_jms') || ''; } catch(e){}
   if (p) return p;
-  try { return localStorage.getItem('fr_jms_linked') === '1' ? 'fergus' : 'none'; } catch(e){ return 'none'; }
+  try { if (localStorage.getItem('fr_jms_linked') === '1') return 'fergus'; } catch(e){}
+  // The device's own choice is wiped at every sign-in (_frWipeBusinessLocal),
+  // but the KEY is the company's and comes down with /settings. A business
+  // that has one runs Fergus, so its Fergus buttons must come back on the
+  // next device / sign-in without somebody re-picking Fergus in Settings.
+  return _jmsCompanyKey() ? 'fergus' : 'none';
+}
+function _jmsCompanyKey(){
+  try { var k = window.S && S.settings && S.settings.jms_keys; return !!(k && String(k.fergus || '').trim()); } catch(e){ return false; }
 }
 function _jmsLinked(){
   if (_jmsProvider() === 'none') return false;
@@ -10588,9 +10599,22 @@ function _refreshJmsLinkUI(){
   var linked = _jmsLinked();
   try { document.documentElement.classList.toggle('no-jms', !linked); } catch(e){}
   var big = document.getElementById('jmsBigLinkCard');
-  if (big) big.style.display = linked ? 'none' : '';
+  // Never pushed at a business that cannot have it (Measure / Trade) or that
+  // has said it runs no job management software; the sub-tab stays in the nav.
+  var planOff = false; try { var _lim = _planLimits(); planOff = !!_lim && _lim.jms === false; } catch(e){}
+  var hidden = false; try { hidden = localStorage.getItem('fr_jms_card_hide') === '1'; } catch(e){}
+  if (big) big.style.display = (linked || planOff || hidden) ? 'none' : '';
   var tabBtn = document.getElementById('jmsSubTabBtn');
   if (tabBtn) tabBtn.style.display = '';
+  // The Home search only promises Fergus jobs where there are some to find.
+  var hs = document.getElementById('homeJobSearch');
+  if (hs) hs.placeholder = linked ? 'Select job — search saved & Fergus jobs by client, address or job number…'
+                                  : 'Select job — search saved jobs by client, address or job number…';
+  try { _jobDetailsFergusRender(); } catch(e){}
+}
+function _jmsBigCardHide(){
+  try { localStorage.setItem('fr_jms_card_hide', '1'); } catch(e){}
+  try { _refreshJmsLinkUI(); } catch(e){}
 }
 // Big-button entry point: reveal the JMS settings panel + open the setup modal
 // so the user can pick a system and connect it.
@@ -10761,7 +10785,7 @@ function _schedFoldToggle(id){
 // which street, and the four milestones.
 var _SCHED_COLS = [
   { key:'open', w:26, hd:'', tip:'Open this job — drag to reorder' },
-  { key:'jobno', w:70, hd:'Job', tip:'The Fergus job number — opens it in Fergus' },
+  { key:'jobno', w:70, hd:'Job', tip:'The job number' },
   { key:'site', w:104, hd:'Site', tip:'The street this job is on' },
   // "Dep", "Ord" and "Del" in a 26px column came out as one letter and a
   // guess. An icon carries further at that size, and the tooltip says what
@@ -10789,6 +10813,10 @@ function _schedStreet(addr){
 // Where a Fergus job lives on the web. The id in the address bar is the job
 // NUMBER, which is what the board shows and what a roofer recognises.
 function _schedFergusUrl(r){
+  // Only a business that runs Fergus gets a link: anywhere else a typed job
+  // number would open somebody else's Fergus login page.
+  var _l = false; try { _l = _jmsLinked(); } catch(e){}
+  if (!_l) return '';
   var no = (r && (r.job_ref || r.fergus_no || r.fergus_id)) || '';
   return no ? ('https://app.fergus.com/jobs/view/' + encodeURIComponent(no)) : '';
 }
@@ -10967,7 +10995,7 @@ function _schedRender(){
             ' style="color:#0099cc;font-weight:700;text-decoration:underline">' + esc(_lbl) + '</a>'
           // No Fergus job linked: show whatever names this row and still open
           // the popup, rather than a blank cell that looks broken.
-          : '<span data-rowmenu="' + r.id + '" title="' + esc(r.client_name) + ' — not linked to a Fergus job"' +
+          : '<span data-rowmenu="' + r.id + '" title="' + esc(r.client_name) + '"' +
             ' style="cursor:pointer;font-weight:700">' + esc(_lbl || r.client_name) + '</span>';
       }
       if (c.key === 'info') inner = '<span class="sched-i" data-info="' + r.id + '" title="Job details">i</span>';
@@ -12270,6 +12298,7 @@ function _jmsPlanSync(){
   var live = document.getElementById('jmsLivePane');
   if (lock) lock.style.display = off ? '' : 'none';
   if (live) live.style.display = off ? 'none' : '';
+  try { _refreshJmsLinkUI(); } catch(e){}
 }
 // The nav is built by the page, so the first sync has to wait for it; every
 // later one hangs off whatever refreshed the company (sign-in, the Team
@@ -14583,7 +14612,8 @@ async function loadSettings(){
     // Only prompt when the server genuinely answered with this account's
     // settings. A failed or odd response means we don't know whether they're
     // set up, and guessing wrong means nagging someone who already is.
-    if (s && typeof s === 'object' && !Array.isArray(s)) { window.__settingsLive = true; try { _cpbReconcileOnLoad(_cpbPrevLocal); } catch(e2){} try { maybeOpenSetup(); } catch(e2){} }
+    if (s && typeof s === 'object' && !Array.isArray(s)) { window.__settingsLive = true; try { _cpbReconcileOnLoad(_cpbPrevLocal); } catch(e2){} try { maybeOpenSetup(); } catch(e2){}
+      try { _refreshJmsLinkUI(); if (_jmsCompanyKey() && !S.fergConnected && !window.__fergNoKey && _jmsProvider() === 'fergus') autoConnect(); } catch(e2){} }
     // Where the business stands — drives the trial countdown on Home. Not
     // awaited: nothing on screen should wait on it.
     try { loadSubscription(); } catch(e2){}
@@ -22135,7 +22165,7 @@ function _versionMenuToggle(ev){
     rows +
     '<button type="button" class="lock-ok" onclick="_versionCreate()" style="display:block;width:100%;text-align:left;border:none;background:#fff;padding:10px 12px;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:700;color:#0a1628">' +
       '＋ Create new version' +
-      '<div style="font-size:10.5px;font-weight:500;color:#64748b;margin-top:1px">A blank one for this job — the client, the number and the Fergus link come across, nothing else</div>' +
+      '<div style="font-size:10.5px;font-weight:500;color:#64748b;margin-top:1px">A blank one for this job — the client and the number (and any Fergus link) come across, nothing else</div>' +
     '</button>' +
     ((window.S && S.currentJobId) ? '<button type="button" class="lock-ok" onclick="_versionRename()" style="display:block;width:100%;text-align:left;border:none;border-top:1px solid #f1f5f9;background:#fff;padding:9px 12px;cursor:pointer;font-family:inherit;font-size:12px;color:#475569">✎ Rename this version</button>' : '');
   m.style.display = 'block';
@@ -23334,6 +23364,7 @@ function _jobDetailsFergusRender(){
   var btn = 'padding:7px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;';
   if (window.S && (S.linkedJobId || S.linkedJobNo)){
     var no = S.linkedJobNo || S.linkedJobId;
+    box.style.display = 'flex';
     box.innerHTML = '<span style="flex:1;min-width:180px">🔗 <strong>Fergus job #' + esc(no) + '</strong>' +
       (S.linkedJobName ? ' <span style="color:var(--text2)">· ' + esc(S.linkedJobName) + '</span>' : '') + '</span>' +
       '<a href="https://app.fergus.com/jobs/view/' + encodeURIComponent(no) + '" target="_blank" rel="noopener" style="' + btn + 'background:#0099cc;color:#fff;text-decoration:none">Open in Fergus</a>' +
@@ -23341,10 +23372,12 @@ function _jobDetailsFergusRender(){
     return;
   }
   var can = false; try { can = _jmsLinked(); } catch(e){}
+  // A business that runs no Fergus has nothing to link: no box at all, rather
+  // than a line on every job about software it does not use.
+  box.style.display = can ? 'flex' : 'none';
+  if (!can){ box.innerHTML = ''; return; }
   box.innerHTML = '<span style="flex:1;min-width:180px;color:var(--text2)">Not linked to a Fergus job.</span>' +
-    (can
-      ? '<button type="button" id="jobDetailsFergusLink" onclick="_fergusLinkStart()" style="' + btn + 'background:#0099cc;color:#fff">🔗 Link to a Fergus job</button>'
-      : '<span style="font-size:11px;color:var(--text2)">Connect Fergus under Settings → Job management software to link jobs.</span>');
+    '<button type="button" id="jobDetailsFergusLink" onclick="_fergusLinkStart()" style="' + btn + 'background:#0099cc;color:#fff">🔗 Link to a Fergus job</button>';
 }
 // Link THIS job to a Fergus job: the picker opens in link mode, and the
 // job picked there is applied to the open job rather than opened instead
@@ -28373,6 +28406,7 @@ function _renderJobPhotosGrid(){
       '<img src="' + p.src + '" loading="lazy" onclick="_jobPhotoView(' + i + ')" style="width:100%;height:auto;display:block;cursor:zoom-in">' +
       (cap ? '<div style="position:absolute;bottom:0;left:0;right:0;padding:5px 9px;background:rgba(0,0,0,.6);color:#fff;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none">' + cap + '</div>' : '') +
       '<button onclick="_jobPhotoRemove(' + i + ')" title="Remove" style="position:absolute;top:5px;right:5px;width:24px;height:24px;border:none;border-radius:7px;background:rgba(10,22,40,.62);color:#fff;font-size:12px;line-height:1;cursor:pointer">✕</button>' +
+      '<button onclick="_jobPhotoUseInQuote(' + i + ')" title="Put this photo on the quote (roof condition)" style="position:absolute;top:34px;left:5px;height:24px;padding:0 10px;border:none;border-radius:7px;background:#0a1628;color:#fff;font-size:11px;line-height:1;cursor:pointer;font-family:inherit">Use in quote</button>' +
       '<button onclick="_jobPhotoUseAsBg(' + i + ')" title="Use as the roof drawing background" style="position:absolute;top:5px;left:5px;height:24px;padding:0 10px;border:none;border-radius:7px;background:#0099cc;color:#fff;font-size:11px;line-height:1;cursor:pointer;font-family:inherit">Add to canvas</button>' +
     '</div>';
   }).join('') : '<div style="grid-column:1/-1;font-size:11px;color:var(--text2);text-align:center;padding:4px 0 2px">No photos yet — take one on site, it saves with the job.</div>';
@@ -29123,8 +29157,10 @@ function _qpCondPhotoSlotHtml(idx, cp){
       '<svg viewBox="0 0 36 36" style="width:24px;height:24px;opacity:.32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="9" width="26" height="20" rx="2"/><circle cx="13" cy="16" r="2"/><path d="M5 24 L13 18 L20 24 L26 19 L31 23"/></svg>'+
       '<div class="ed-serif" style="font-style:italic;font-size:12px;color:var(--ed-text2);opacity:.7">Add site photo</div>'+
       '<div class="no-print" style="display:flex;flex-direction:column;gap:6px;width:100%;max-width:190px">'+
-        '<button type="button" onclick="_qpCondPhotoFromFergus('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#0099cc;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📷 Upload from Fergus</button>'+
         '<button type="button" onclick="_qpCondPhotoPick('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#0a1628;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">⬆ Upload from PC</button>'+
+        (((window.S && S.photos) || []).some(function(p){ return p && p.src; })
+          ? '<button type="button" data-cp-jobphotos="1" onclick="_qpCondPhotoFromJob('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#fff;color:#0a1628;border:1px solid #0a1628;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">🖼 From this job\'s photos</button>' : '')+
+        '<button type="button" class="jms-only" onclick="_qpCondPhotoFromFergus('+idx+')" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 10px;background:#0099cc;color:#fff;border:none;border-radius:5px;font-size:11px;font-weight:600;cursor:pointer">📷 Upload from Fergus</button>'+
       '</div>'+
     '</div>';
   }
@@ -29285,7 +29321,58 @@ function _qpCondPhotoPick(idx){
 }
 // Open the Fergus job-photo picker targeting this existing-roof slot.
 function _qpCondPhotoFromFergus(idx){
+  // A business with no Fergus link gets its own photos, never a dead end
+  // telling it to link a Fergus job (the shed's "Change image" / "Shed
+  // render" buttons come through here too).
+  var linked = false; try { linked = _jmsLinked(); } catch(e){}
+  if (!linked){
+    if (((window.S && S.photos) || []).some(function(p){ return p && p.src; })) return _qpCondPhotoFromJob(idx);
+    return _qpCondPhotoPick(idx);
+  }
   if (typeof openFergusPhotoPicker === 'function') openFergusPhotoPicker('cond:' + idx);
+}
+// The photos this job already holds (PHOTOS panel: rapid photos, gallery),
+// offered for a quote photo slot — taken on site in RoofMap, they should not
+// have to be uploaded a second time from the PC.
+function _qpCondPhotoFromJob(idx){
+  var ph = ((window.S && S.photos) || []).map(function(p, i){ return { p: p, i: i }; }).filter(function(x){ return x.p && x.p.src; });
+  var old = document.getElementById('cpJobPhotoModal'); if (old) old.remove();
+  var ov = document.createElement('div');
+  ov.id = 'cpJobPhotoModal';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(10,22,40,.55);z-index:10060;display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  ov.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:760px;width:100%;max-height:84vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35)">' +
+    '<div style="display:flex;align-items:center;padding:12px 16px;background:#0a1628;color:#fff"><strong style="flex:1;font-size:14px">This job\'s photos — tap one to use it</strong>' +
+    '<button type="button" onclick="document.getElementById(\'cpJobPhotoModal\').remove()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer">✕</button></div>' +
+    '<div style="padding:14px 16px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">' +
+    (ph.length ? ph.map(function(x){
+      return '<button type="button" data-cp-job-i="' + x.i + '" onclick="_qpCondPhotoUseJob(' + idx + ',' + x.i + ')" style="padding:0;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden;background:#f8fafc;cursor:pointer">' +
+        '<img src="' + esc(x.p.src) + '" alt="" style="width:100%;height:110px;object-fit:cover;display:block">' +
+        (x.p.caption ? '<div style="font-size:11px;padding:4px 6px;color:#475569;text-align:left">' + esc(x.p.caption) + '</div>' : '') + '</button>';
+    }).join('') : '<div style="color:#64748b;font-size:12.5px">No photos on this job yet — take them in the PHOTOS tab on Map Roof, or use Upload from PC.</div>') +
+    '</div>' +
+    '<div style="padding:10px 16px;border-top:1px solid #e2e8f0;text-align:right"><button type="button" onclick="document.getElementById(\'cpJobPhotoModal\').remove();_qpCondPhotoPick(' + idx + ')" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-weight:600;cursor:pointer">⬆ Upload from PC instead</button></div>' +
+    '</div>';
+  document.body.appendChild(ov);
+}
+function _qpCondPhotoUseJob(idx, i){
+  var p = ((window.S && S.photos) || [])[i];
+  var m = document.getElementById('cpJobPhotoModal'); if (m) m.remove();
+  if (!p || !p.src) return;
+  var put = function(src){ _qpCondPhotoSet(idx, { src: src, offX:0, offY:0, zoom:1 }); _qpRerenderCondPhotos(); try { _scheduleAutosave(); } catch(e){} };
+  try { _downscalePhoto(p.src, put, _qpCondSlotIsCover(idx)); } catch(e){ put(p.src); }
+}
+// "Use in quote" on a job photo: the first empty condition slot takes it.
+function _jobPhotoUseInQuote(i){
+  var p = ((window.S && S.photos) || [])[i];
+  if (!p || !p.src || !window.S || !S.quote) return;
+  var cps = Array.isArray(S.quote.condPhotos) ? S.quote.condPhotos : [];
+  var slot = -1;
+  for (var k = 0; k < 4; k++){ if (!cps[k] || !cps[k].src){ slot = k; break; } }
+  if (slot < 0){ alert('The quote\'s four photo slots are full — remove one on the Quote tab first.'); return; }
+  _qpCondPhotoUseJob(slot, i);
+  try { _siteToast ? _siteToast('Added to the quote\'s roof condition photos') : null; } catch(e){}
 }
 
 // ── WebShed plans/elevations PDF import ─────────────────────────────
@@ -29560,7 +29647,7 @@ function _rotateSlotImage(idx){
 function _psDesignSlot(idx, label){
   var cp = (typeof _qpCondPhoto === 'function') ? _qpCondPhoto(idx) : null;
   var btns = function(sz){
-    return '<button type="button" class="no-print" onclick="_qpCondPhotoFromFergus('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">📷 Fergus</button>'+
+    return '<button type="button" class="no-print jms-only" onclick="_qpCondPhotoFromFergus('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">📷 Fergus</button>'+
       '<button type="button" class="no-print" onclick="_qpCondPhotoPick('+idx+')" style="padding:'+(sz==='sm'?'4px 8px':'7px 13px')+';background:#0a1628;color:#fff;border:none;border-radius:6px;font-size:'+(sz==='sm'?'10px':'12px')+';font-weight:600;cursor:pointer">⬆ PC</button>';
   };
   if (cp && cp.src){
@@ -43789,7 +43876,7 @@ function _buildPoleShedPages(rpPage, headerHtml, trustLogosHtml, wantParts){
         (_stockPhoto('logo_wide_white.png') ? '<img src="'+esc2(_stockPhoto('logo_wide_white.png'))+'" onerror="this.style.display=\'none\'" alt="" style="height:52px;width:auto;opacity:.92">' : '')+
         '<div class="no-print" style="font-family:var(--ed-serif);font-style:italic;color:rgba(255,255,255,.82);font-size:15px">Add your shed design render for the cover</div>'+
         '<div class="no-print" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">'+
-          '<button type="button" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="padding:8px 15px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📷 Import from Fergus</button>'+
+          '<button type="button" class="jms-only" onclick="_qpCondPhotoFromFergus('+HERO_IDX+')" style="padding:8px 15px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">📷 Import from Fergus</button>'+
           '<button type="button" onclick="_qpCondPhotoPick('+HERO_IDX+')" style="padding:8px 15px;background:#fff;color:#0a1628;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">⬆ Upload from PC</button>'+
         '</div>'+
       '</div>';
@@ -44487,7 +44574,7 @@ function _psmDrawSlot(idx, label){
   return '<div class="ps-draw-hole no-print">'+
       '<span class="ps-draw-cap">'+esc2(label)+'</span>'+
       '<p class="qb-para" style="margin:0 0 10px">Import the WebShed PDF above, or add this drawing.</p>'+
-      '<button type="button" class="ps-ao-tool" style="width:auto;padding:0 12px;height:30px" onclick="_qpCondPhotoFromFergus('+idx+')">\uD83D\uDCF7 Fergus</button> '+
+      '<button type="button" class="ps-ao-tool jms-only" style="width:auto;padding:0 12px;height:30px" onclick="_qpCondPhotoFromFergus('+idx+')">\uD83D\uDCF7 Fergus</button> '+
       '<button type="button" class="ps-ao-tool" style="width:auto;padding:0 12px;height:30px" onclick="_qpCondPhotoPick('+idx+')">\u2b06 Upload</button>'+
     '</div>';
 }
@@ -48672,8 +48759,10 @@ async function _sendFeedback(btn){
   // An integration fault gets probed as well as sent. Fired first and not
   // waited on: the endpoint answers before it starts probing, and a roofer
   // should never wait on somebody else's API to file a report.
+  var _fbJmsProbe = false;
   if (_FB_KIND === 'jms'){
-    try { api('POST', '/jms/diagnose', { problem: title + '\n\n' + details }); } catch(e){}
+    try { _fbJmsProbe = _jmsLinked() || _jmsCompanyKey(); } catch(e){}
+    if (_fbJmsProbe){ try { api('POST', '/jms/diagnose', { problem: title + '\n\n' + details }); } catch(e){} }
   }
   var who = '';
   try { who = (JSON.parse(localStorage.getItem('fr_user') || '{}').email) || ''; } catch(e){}
@@ -48737,7 +48826,7 @@ async function _sendFeedback(btn){
       attachment: attachment || undefined
     });
     show('✓ Thanks — sent to support.' +
-      (_FB_KIND === 'jms' ? ' We are testing your job management connection now and the results follow separately.' : '') +
+      (_FB_KIND === 'jms' && _fbJmsProbe ? ' We are testing your job management connection now and the results follow separately.' : '') +
       ' We\'ll reply to ' + (who || 'your account email') + ' when it\'s sorted.', true);
     // Reset the form for the next one.
     try { _fbSetKind('general'); } catch(e){}
@@ -53294,6 +53383,7 @@ async function fergusCall(method,path,body,signal){var tok=localStorage.getItem(
 var _FPUSH = null;
 function _fergusPushCancel(){ if (_FPUSH){ _FPUSH.cancelled = true; try { _FPUSH.ctrl.abort(); } catch(e){} } }
 async function testFergus(){
+  window.__fergNoKey = 0;   // an explicit test (a key saved, Settings opened) asks afresh
   document.getElementById('fergErr').style.display='none';
   document.getElementById('fergOk').style.display='none';
   try { var _sb0 = document.getElementById('fergSupportBtn'); if (_sb0) _sb0.style.display = 'none'; } catch(e){}
@@ -53320,7 +53410,9 @@ async function testFergus(){
     // itself "not connected" on the strength of that one call. Fall back
     // through progressively plainer requests before believing it.
     var resp = await fergusCall('GET', '/jobs?pageSize=100&sortField=createdAt&sortOrder=desc');
-    if (!resp.ok && resp.status !== 401 && resp.status !== 403){
+    var _noKey = false;
+    if (resp.status === 400){ try { var _pk = await resp.clone().json(); _noKey = !!(_pk && _pk.error === 'not_connected'); } catch(_e){} }
+    if (!resp.ok && resp.status !== 401 && resp.status !== 403 && !_noKey){
       var _fallbacks = ['/jobs?pageSize=100', '/jobs?page=1', '/jobs'];
       for (var _fi = 0; _fi < _fallbacks.length && !resp.ok; _fi++){
         try { resp = await fergusCall('GET', _fallbacks[_fi]); } catch(_e){}
@@ -53341,6 +53433,7 @@ async function testFergus(){
           // linked flag (e.g. from before keys were per-company) must not
           // keep the Fergus UI up on a business that was never connected.
           try { localStorage.removeItem('fr_jms_linked'); } catch(_x){}
+          window.__fergNoKey = Date.now();
           try { _refreshJmsLinkUI(); } catch(_x){}
         }
       } catch(e){}
@@ -86106,7 +86199,10 @@ document.getElementById('rpGenDate').textContent='Generated '+today;
 if (_jmsProvider() === 'fergus') checkProxy().then(function(ok){if(ok)setTimeout(function(){testFergus();},600);});
 // Retry Fergus every 30s if picked but not connected (handles server restart)
 setInterval(function(){
-  if(!S.fergConnected && _jmsProvider() === 'fergus') autoConnect();
+  // Not while the server has said this business has no key: that answer does
+  // not change on its own, and asking again every 30 s was 8 failing
+  // requests a minute until sign-out. Saving a key clears the flag.
+  if(!S.fergConnected && !window.__fergNoKey && _jmsProvider() === 'fergus') autoConnect();
 }, 30000);
 
 // ── Aerial Imagery ──────────────────────────────────────────────
@@ -86955,7 +87051,7 @@ document.addEventListener('mousedown',function(e){
     <div style="display:flex;border-bottom:1px solid var(--border);padding:0 18px;gap:18px">
       <button class="slot-tab" data-tab="stock"  onclick="slotPickerTab('stock')"  style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Stock photos</button>
       <button class="slot-tab" data-tab="job"    onclick="slotPickerTab('job')"    style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Job photos</button>
-      <button class="slot-tab" data-tab="fergus" onclick="slotPickerTab('fergus')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">From Fergus</button>
+      <button class="slot-tab jms-only" data-tab="fergus" onclick="slotPickerTab('fergus')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">From Fergus</button>
       <button class="slot-tab" data-tab="upload" onclick="slotPickerTab('upload')" style="padding:10px 0;background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer;font-size:13px;color:var(--text2)">Upload from file</button>
     </div>
     <div id="slotPickerBody" style="flex:1;padding:14px 18px;overflow:auto"></div>

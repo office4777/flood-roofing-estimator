@@ -55,7 +55,7 @@ for (const [name, html] of [['homepage', landing], ['pricing page', pricing]]){
 check('nothing on the homepage says "unlimited users" or "unlimited logins"', !/unlimited (users|logins)/i.test(landing));
 
 // ── the Fergus page ──────────────────────────────────────────────
-check('the Fergus page puts the integration on Team', /Team plan and up/.test(fergus) && !/integration is on the Business plan/.test(fergus));
+check('the Fergus page puts the integration on Team', /Team plan, and in the free trial/.test(fergus) && !/integration is on the Business plan/.test(fergus));
 check('…and no longer says RoofMap has no scheduling', /Forward schedule board/.test(fergus) && !/Fergus handles scheduling/.test(fergus));
 
 // ── trial and setup call, one story ──────────────────────────────

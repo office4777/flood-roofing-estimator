@@ -1916,6 +1916,55 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   scaffold row and "Show scaffolding price" under the folded base row, in the
   Review section and the computer rail, office only, never on paper.
   `tests/scaffoldopts.mjs` (41); `typesnap.json` regenerated (deskText only).
+- A ROOFER WHO NEVER LINKS FERGUS (2026-11-05, the owner: "I don't think any
+  of the trial users or any of the paying users have connected to Fergus ...
+  make sure the app's optimized from their point of view ... run a big audit
+  and do a lot of tests"). Audited three ways — a live drive of the whole
+  journey as a trial business with no key, the app's ~1,250 Fergus mentions
+  read in the code, and the site, help bot and emails. The send, the
+  customer's page, the acceptance and its emails were already clean (every
+  push is behind `S.linkedJobId`, every Fergus button `.jms-only`). Fixed:
+  THE QUOTE'S PHOTO SLOTS led with a blue "📷 Upload from Fergus" that alerted
+  "Link a Fergus job first" — now Upload from PC first, then "🖼 From this
+  job's photos" (`_qpCondPhotoFromJob`, a picker over `S.photos`, only when
+  the job has some), and the Fergus button `.jms-only`; `_qpCondPhotoFromFergus`
+  falls back to the job's photos / the PC for an unlinked business (the shed's
+  Change image / Shed render buttons), and the job-photo grid carries "Use in
+  quote" (`_jobPhotoUseInQuote`, the first empty of the four slots) — photos
+  taken on site in RoofMap could not reach the quote without a re-upload. The
+  slot picker's "From Fergus" tab is `.jms-only`. THE JOB DETAILS WINDOW's
+  "Not linked to a Fergus job / Connect Fergus" box is hidden unless Fergus is
+  linked; the chip tooltip and the Home search placeholder say nothing of
+  Fergus (`_refreshJmsLinkUI` adds "& Fergus" when linked). SETTINGS' big card
+  reads "Run Fergus? Link it here — optional … RoofMap works fully on its own",
+  is smaller, hides for a plan without `jms` (Measure / Trade) and on "I don't
+  use job management software — hide this" (`fr_jms_card_hide`, per device).
+  THE ACCEPTANCE TASKS: `ACCEPTANCE_TASKS_DEFAULT` is Flood Roofing's own
+  (Paula / Matt / Ethan, "Accept in Fergus", a hard 50%) and every business got
+  it; a business with no Fergus key now gets `_acceptanceTasksGeneric` (its
+  own deposit %, no names, nothing Fergus) — `_settingsRunsFergus` decides.
+  THE SCHEDULE BOARD's "Fergus job no." is "Job no." and a typed number links
+  to app.fergus.com only when Fergus is linked (`_schedFergusUrl`). REQUEST A
+  FIX's job-management kind probes `/jms/diagnose` only when there is a key.
+  POLLING: a Fergus pick with no key polled 8 failing requests a minute — the
+  server's 400 `not_connected` now skips the fallbacks and sets
+  `window.__fergNoKey`, which the 30 s retry respects (`testFergus` clears it).
+  AND THE OTHER WAY ROUND, found by the audit: a business that DOES run Fergus
+  lost its Fergus buttons at every sign-in (`_frWipeBusinessLocal` clears
+  `fr_jms`, nothing restored it) — `_jmsProvider` now reads the company's key
+  from /settings (`_jmsCompanyKey`) and `loadSettings` re-connects. THE QUOTE'S
+  COVER: `.qd-cover-body` was a 1fr + 300px grid, so in the office's narrow
+  preview the opening note ran one word a line; it wraps now. THE HELP BOT
+  answered "do I need Fergus?" with "Fergus is your job-management system",
+  said invoicing happens in Fergus and called RoofMap "Flood Roofing's
+  internal tool — no charge"; all reworded (`window._helpSearch` exposes the
+  matcher). THE SITE: signup's trial line, the landing's trial, walkthrough
+  and integration tile, pricing's trial lines and the Fergus page ("Team plan,
+  and in the free trial. You do not need it") lead with RoofMap standalone;
+  `build-au-site.mjs`'s walkthrough rule and `sitecopy.mjs`'s Fergus-page pin
+  moved with them. `tests/nofergus.mjs` (36, UI list) walks the whole journey
+  on the real server; against the old code it fails where each fault was.
+  `acceptflow.mjs`'s fixture now carries a Fergus key (Flood Roofing's list).
 - A QUOTE SECTION MOVES UP OR DOWN ONE PLACE, AND THE LINE EDITOR SITS LEFT
   (2026-11-05, the owner: "move the attached 'edit: [line name]' window to the
   left side, because it's always behind a picture. then have a up/down arrow in

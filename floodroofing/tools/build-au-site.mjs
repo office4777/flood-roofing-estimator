@@ -104,7 +104,7 @@ export const PAGE_RULES = {
     r('Built by a working NZ roofing company.', 'Built by a working roofing company.'),
     r('alt="A re-roof in progress on a New Zealand home"', 'alt="A metal re-roof in progress"'),
     r(L('Or read <a href="/case-studies/re-roof-quoted-in-ten-minutes" style="font-weight:700">what it changed on one of our own jobs</a>.'), ''),
-    r(/(Watch the full six-minute walkthrough<\/a> — Fergus, the job pack, the order email and the customer's side of the quote\.)\s+(<\/p>)/g, '$1$2'),
+    r(/(Watch the full six-minute walkthrough<\/a> — the job pack, the order email, the customer's side of the quote and the Fergus link\.)\s+(<\/p>)/g, '$1$2'),
     r('New Zealand roofing businesses quoting long-run steel', 'Australian roofing businesses quoting metal roofing'),
     r(L('RoofMap came out of <strong>a working roofing company</strong> in Northland.'),
       'RoofMap came out of <strong>a working roofing company</strong> in Northland, New Zealand.'),
