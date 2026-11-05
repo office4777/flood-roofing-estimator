@@ -225,6 +225,35 @@ check('a saved gutters job reopens as one, its gutter lines with it', v.kind ===
 v = await pg.evaluate(() => { _resetQuoteForFreshJob({}); return { kind: S.quote.quoteKind, body: document.body.classList.contains('gutter-job') }; });
 check('…and the next new job is a roofing job again', v.kind === 'roofing' && !v.body, JSON.stringify(v));
 
+// ── Fergus: a gutters job pushes no roof (2026-11-06, job 3341: an accepted
+// gutter quote went to Fergus with Roof Labour 13 + 13 hrs and a Roof Material
+// "Adjustment to quoted total" cancelling it, so the crew saw roof hours) ──
+v = await pg.evaluate(async () => {
+  const W = ms => new Promise(r => setTimeout(r, ms));
+  _resetQuoteForFreshJob({ client:'Gutter Fergus', addr:'1 Test Road' });
+  _setJobType('gutters');
+  gotoTab('roof'); await W(200);
+  DRAW.scaleMetresPerPx = 0.02; DRAW.lines = [];
+  setTool('gutter');
+  DRAW.currentPts = [[100,100],[1500,100]]; finishCurrent();
+  DRAW.currentPts = [[100,400],[1500,400]]; finishCurrent();
+  // the leftover roof labour table the job never prices
+  S.quote.labour = Object.assign(S.quote.labour || {}, { leadHrs: 13, appHrs: 13, leadPrice: 142.51, appPrice: 52.51, leadCost: 45, appCost: 25 });
+  gotoTab('quote'); await W(400);
+  try { calcLabour(); renderProfitability(); _syncQuoteBaseLineItems(); recalcQuoteTotals(); } catch(e){}
+  const sum = secs => secs.reduce((t, s) => t + s.lineItems.reduce((a, li) => a + (li.itemQuantity || 0) * (li.itemPrice || 0), 0), 0);
+  const full = _buildFergusItemisedSections(), base = _buildFergusItemisedSections({ base: true });
+  const fs = full.sections || full, bs = base.sections || base;
+  const names = secs => secs.map(s => s.name + ':' + s.lineItems.map(li => li.itemName + (li.isLabour ? '[' + li.itemQuantity + 'h]' : '')).join('|'));
+  return { full: names(fs), base: names(bs), fullSum: Math.round(sum(fs) * 100) / 100, baseSum: Math.round(sum(bs) * 100) / 100,
+           quote: Math.round(_quoteMoney().sub * 100) / 100, subLines: Math.round(quoteSubtotal() * 100) / 100 };
+});
+const _fg = JSON.stringify(v);
+check('a gutters job pushed to Fergus has no roof labour and no roof material — only the gutter and the scaffold',
+  !v.full.some(x => /^(Roof |Labour:|Materials:)/.test(x)) && v.full.some(x => /^Gutter Labour:/.test(x)) && v.full.some(x => /^Gutter Material:/.test(x)), _fg);
+check('…no "Adjustment to quoted total" line, and its lines add up to the quote', !/Adjustment to quoted total/.test(_fg) && Math.abs(v.fullSum - v.quote) < 0.02, _fg);
+check('…and the plan kept for the versions made on acceptance is the gutter too, adding up to the quote', !v.base.some(x => /^(Roof |Labour:|Materials:)/.test(x)) && v.base.some(x => /^Gutter Labour:/.test(x)) && Math.abs(v.baseSum - v.quote) < 0.02, _fg);
+
 // ── the server's half ──
 const SRV = readFileSync(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 check('the server keeps the customer\'s gutter colour', /po\.gutterColour != null[\s\S]{0,200}quote\.proposalOptions\.gutterColour = gc/.test(SRV));

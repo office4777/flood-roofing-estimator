@@ -133,13 +133,6 @@ check('"Duplicate this quote" gives a draft at EXACTLY the sent total, after the
 check('…each roof keeps the mode it was sent with (Lower Main Roof part of main, Storage Shed separate)', v.lowerMode === 'folded' && v.storeMode === 'separate', JSON.stringify(v));
 check('…and the material table\'s typed price is the one it was sent with, not today\'s', v.typed === 99.5, JSON.stringify(v));
 
-// ── the job tile's buttons ──
-v = await pg.evaluate(() => {
-  const ids = ['navJobSaveBtn', 'navJobChangeBtn', 'navJobHistBtn', 'navJobFilesBtn', 'navJobLockSide'];
-  return ids.map(id => { const e = document.getElementById(id); return e ? getComputedStyle(e).backgroundColor + '/' + getComputedStyle(e).color : 'none'; });
-});
-check('every button in the left job tile is Review-quote blue with white words', v.every(x => x === 'rgb(0, 153, 224)/rgb(255, 255, 255)'), JSON.stringify(v));
-
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const failed = results.filter(x => !x).length;

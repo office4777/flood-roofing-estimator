@@ -729,8 +729,11 @@ check('…and the thumbnail is the same picture at 1×', !!(pics.thumb && pics.t
 // ── The layout is offered, and the old block-cut plan is gone ─────
 const ui = await pg.evaluate(() => {
   const content = document.createElement('div'); document.body.appendChild(content);
-  _jpRenderSheetPlan(content, { type:'sheetplan' }, 0);
-  const img = content.querySelector('img');
+  // The page carries its diagram as a picture since 2026-11-06 (jppics.mjs).
+  const _pg = { type:'sheetplan' };
+  _jpRenderSheetPlan(content, _pg, 0);
+  const _src = (_pg.images || [])[0] && _jpCaptureMap(_pg.images[0].mapKey, { rotWide: true });
+  const img = _src ? { src: _src } : null;
   const live = document.querySelector('#roofSheetPlanOut canvas');
   return { hidden: SHEET_LAYOUT_HIDDEN, pageType: _jpPageTypes().some(p => p.value === 'sheetplan'),
            kind: JP_MAP_KINDS.some(k => k.kind === 'sheetplan'), img: !!(img && /^data:image\/png/.test(img.src)),

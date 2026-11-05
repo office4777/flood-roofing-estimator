@@ -1213,22 +1213,37 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 .nav-btn:hover svg{stroke:#fff}
 .nav-btn:active,.nav-btn.active,.nav-btn.active:hover{background:var(--ink);color:#fff;font-weight:600}
 .nav-btn.active{background:var(--ink);color:#fff;font-weight:600}
-/* THE JOB'S BUTTONS IN THE LEFT MENU (the same message: "move the wording on
-   each button to the left side, then highlight the button in the 50/50
-   transparent blue colour then go solid blue when it's clicked"). Grey at
-   rest, the words on the left, half blue under the pointer, solid blue
-   pressed. A Save that has just answered keeps its green or red. */
-.nav-job-btn{transition:background .15s,color .15s,border-color .15s}
-/* THE JOB TILE'S BUTTONS ARE REVIEW-QUOTE BLUE (2026-11-06, the owner: "make
-   all the buttons in the left job menu (inside the light blue tile) ... the
-   blue colour from the 'review quote' button"): .qd-rail-btn's #0099e0 with
-   white words; its own hover; the save's green / red feedback keeps its own. */
-.nav-job-btn:not(.sv-ok):not(.sv-bad){background:#0099e0!important;border-color:#0099e0!important;color:#fff!important}
-.nav-job-btn:not(.sv-ok):not(.sv-bad):hover{background:#0088c8!important;border-color:#0088c8!important;color:#fff!important}
-.nav-job-btn:not(.sv-ok):not(.sv-bad):active{background:#0077b0!important;border-color:#0077b0!important;color:#fff!important}
-#navJobHistCount,#navJobFilesCount{background:#fff!important;color:#0099e0!important}
-#navJobBox .nrs-btn{background:#0099e0!important;border-color:#0099e0!important;color:#fff!important}
-#navJobBox .nrs-btn:hover{background:#0088c8!important}
+/* THE JOB TILE (2026-11-06, the owner: "i really don't like the look of this
+   left job menu ... make it obvious that it's not part of the main app's tab
+   buttons but ... tie into the look of the rest of the app and look more
+   subtle and professional"). A quiet white card under the tabs: the job's
+   name at the top, Save (the one filled button) and Change job side by side,
+   then History, Files and the lock as one bordered list with line icons —
+   the shape of a panel, never of a tab. A Save that has just
+   answered keeps its green or red. */
+#navJobBox.njb{margin:12px 6px 0;padding:10px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 2px rgba(10,22,40,.05)}
+.njb-info{padding:2px 2px 9px;border-bottom:1px solid #eef2f6;cursor:pointer}
+.njb-info:focus-visible{outline:2px solid #0099cc;outline-offset:2px}
+.njb-eyebrow{font-size:9px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;color:#94a3b8;margin-bottom:3px}
+.njb-acts{display:flex;gap:6px;margin-top:9px}
+.nav-job-btn{font-family:inherit;cursor:pointer;transition:background .15s,color .15s,border-color .15s;box-sizing:border-box}
+.nav-job-btn svg{width:14px;height:14px;flex:none}
+.njb-btn{flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 6px;border-radius:8px;
+  border:1px solid #d6dee8;background:#fff;color:#0a1628;font-size:11.5px;font-weight:600;white-space:nowrap;text-align:left}
+.njb-btn:hover{border-color:#0099cc;color:#0077a8;background:#f4fafd}
+.njb-btn.njb-primary{background:#0099e0;border-color:#0099e0;color:#fff}
+.njb-btn.njb-primary:hover{background:#0088c8;border-color:#0088c8;color:#fff}
+.njb-list{margin-top:8px;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden}
+.njb-row{width:100%;display:flex;align-items:center;gap:7px;padding:7px 8px;border:0;border-top:1px solid #eef2f6;background:#fff;
+  color:#334155;font-size:11px;font-weight:600;letter-spacing:-.005em;text-align:left}
+.njb-list > .njb-row:first-child,.njb-list > .njb-row[style*="none"] + .njb-row{border-top:0}
+.njb-row svg{color:#64748b}
+.njb-row:hover{background:#f6f9fc;color:#0a1628}
+.njb-row:hover svg{color:#0099cc}
+.njb-row .njb-lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.njb-count{display:none;min-width:18px;padding:0 6px;border-radius:9px;background:#e0f2fe;color:#0369a1;font-size:10.5px;font-weight:700;text-align:center;line-height:17px}
+#navJobLockSide{background:#f8fafc}
+#navJobLockSide .njb-tick{color:#15803d;font-weight:800}
 .nav-btn.active svg{stroke:var(--accent)}
 .nav-btn svg{
   width:16px;height:16px;flex-shrink:0;
@@ -5290,7 +5305,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T20:22:13Z';
+  window.APP_BUILT_AT = '2026-11-05T20:48:29Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5848,16 +5863,14 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <!-- ONE LIGHT-BLUE TILE (2026-11-03, the owner): the job, its buttons, the
        lock and the roof's figures sit together in a light-blue tile, the grey
        buttons kept grey inside it. -->
-  <div id="navJobBox" style="margin:10px 6px 0;padding:8px;background:#e0f2fe;border:1px solid #9bd5f0;border-radius:12px">
+  <div id="navJobBox" class="njb">
     <!-- Clickable: tapping the selected-job chip opens the same New Job /
          Select Job chooser as the button below, so the user can swap or
          edit the job from any tab without hunting for the Home tile. -->
     <div id="navJobInfo" role="button" tabindex="0" onclick="_navJobTap()"
          onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();_navJobTap();}"
-         title="Tap for this job's details"
-         style="padding:9px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);cursor:pointer"
-         onmouseenter="this.style.borderColor='#0099cc'" onmouseleave="this.style.borderColor='var(--border)'">
-      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--text2);margin-bottom:3px">Selected job</div>
+         title="Tap for this job's details" class="njb-info">
+      <div class="njb-eyebrow">Selected job</div>
       <!-- Job number, then who it is for, then where it is. Three lines
            because that is how a roofer says it out loud. -->
       <div id="navJobNo" style="font-size:12.5px;font-weight:800;color:#0a1628;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
@@ -5880,14 +5893,15 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
          never been saved, which is the job that needs it most; saveCurrentJob
          carries its own guards (a frozen version on screen, a locked job) and
          _saveClick says what happened either way. -->
-    <button class="nav-job-btn" type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
-            title="Save this job now"
-            style="width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">💾 Save job</button>
+    <div class="njb-acts">
+    <button class="nav-job-btn njb-btn njb-primary" type="button" id="navJobSaveBtn" onclick="_saveClick(this,'job')"
+            title="Save this job now"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h8l2.5 2.5v8.5h-10.5z"/><path d="M5.5 2.5v3h4.5v-3"/><path d="M5 13.5v-4h6v4"/></svg>Save job</button>
     <!-- CHANGE JOB IS BACK IN THE LEFT MENU (2026-09-30, the owner's): it went
          into the job details window on 2026-09-29 and swapping jobs is a thing
          you do from anywhere, not something to open a window to reach. -->
-    <button class="nav-job-btn" type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">Change job</button>
+    <button class="nav-job-btn njb-btn" type="button" id="navJobChangeBtn" onclick="openSelectJobModal('fergus')" title="Open or start another job"
+            style="display:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5h9.5l-2.5-2.5"/><path d="M13 10.5H3.5L6 13"/></svg>Change job</button>
+    </div>
     <!-- THE LOCK IS BACK IN THE LEFT MENU (2026-09-30, the owner's). It moved
          into the job details window on 2026-09-29 and the one thing a roofer
          wants to see at a glance went with it: whether this job is shut. It is
@@ -5899,8 +5913,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
          sent' button, then move the 'change job' button up to just underneath
          the 'save job'"). The job's timeline and every email with the customer
          about it, one tap from any tab. Shown with the job's other buttons. -->
-    <button type="button" id="navJobHistBtn" class="nav-job-btn lock-ok" onclick="_jobHistoryOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">🗂 History &amp; Communications<span id="navJobHistCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
+    <div class="njb-list" id="navJobList" style="display:none">
+    <button type="button" id="navJobHistBtn" class="nav-job-btn njb-row lock-ok" onclick="_jobHistoryOpen()"
+            style="display:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11v7.5h-6l-3 2.5V11h-2z"/><path d="M5.5 6.5h5M5.5 8.5h3"/></svg><span class="njb-lbl">History &amp; Communications</span><span id="navJobHistCount" class="njb-count"></span></button>
     <!-- FILES & PHOTOS (2026-10-27, the owner: "add a 'Files & Photos' button
          below the history and communications button ... change the colour of
          this new button and the history button to be the same blue as 'change
@@ -5909,12 +5924,13 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
          as 'locked/unlocked' and center the words" — both are the lock strip's
          grey now, words centred, the count a small blue chip). Everything exported or sent from the job, the office's own
          uploads, and the Fergus job's files — _jobFilesOpen. -->
-    <button type="button" id="navJobFilesBtn" class="nav-job-btn lock-ok" onclick="_jobFilesOpen()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left">📁 Files &amp; Photos<span id="navJobFilesCount" style="display:none;margin-left:6px;background:#0099cc;color:#fff;border-radius:9px;padding:0 7px;font-size:10.5px"></span></button>
-    <button class="nav-job-btn" type="button" id="navJobLockSide" onclick="_jobLockToggle()"
-            style="display:none;width:100%;box-sizing:border-box;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--surface-2,#f5f8fb);color:#0a1628;font-size:11.5px;font-weight:700;font-family:inherit;cursor:pointer;text-align:left"></button>
+    <button type="button" id="navJobFilesBtn" class="nav-job-btn njb-row lock-ok" onclick="_jobFilesOpen()"
+            style="display:none"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h4.2l1.5 1.5H14v7H2z"/></svg><span class="njb-lbl">Files &amp; Photos</span><span id="navJobFilesCount" class="njb-count"></span></button>
+    <button class="nav-job-btn njb-row" type="button" id="navJobLockSide" onclick="_jobLockToggle()"
+            style="display:none"></button>
+    </div>
 
-    <button id="navJobSelectBtn" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;box-sizing:border-box;border:none;cursor:pointer;border-radius:9px;padding:11px 10px;background:linear-gradient(135deg,#0099cc,#00b4d8);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;box-shadow:0 4px 12px rgba(0,153,204,.3)">📂 New Job / Select Job</button>
+    <button id="navJobSelectBtn" class="nav-job-btn njb-btn njb-primary" onclick="openSelectJobModal('fergus')" style="display:none;width:100%;margin-top:8px;padding:9px 10px;text-align:center">New Job / Select Job</button>
     <!-- THE ROOF'S FIGURES (2026-09-29): area, flashings and gutter for the
          roof on screen, in the job's own box rather than under the canvas.
          Rendered by _roofStatsRender. -->
@@ -20450,22 +20466,25 @@ function _jobLockRender(){
   // it is the one where a change would be a change to a quote the customer is
   // already looking at.
   var cb = document.getElementById('navJobChangeBtn');
-  if (cb) cb.style.display = show ? 'block' : 'none';
+  if (cb) cb.style.display = show ? '' : 'none';
   var hb = document.getElementById('navJobHistBtn');
-  if (hb) hb.style.display = show ? 'block' : 'none';
+  if (hb) hb.style.display = show ? '' : 'none';
   var fb = document.getElementById('navJobFilesBtn');
-  if (fb) fb.style.display = show ? 'block' : 'none';
+  if (fb) fb.style.display = show ? '' : 'none';
+  var jl = document.getElementById('navJobList');
+  if (jl) jl.style.display = show ? '' : 'none';
   try {
     if (show && _JF.jobId !== S.currentJobId && _JF.askedFor !== S.currentJobId){ _JF.askedFor = S.currentJobId; _jfLoad(true); }
     _jfCountSet();
   } catch(e){}
   var sb = document.getElementById('navJobLockSide');
   if (sb){
-    sb.style.display = show ? 'block' : 'none';
+    sb.style.display = show ? '' : 'none';
     if (show){
-      if (S.jobLocked && sent) sb.innerHTML = '🔒 Locked — Quote sent <span style="color:#15803d;font-weight:800">✓</span>';
-      else if (S.jobLocked)    sb.innerHTML = '🔒 Locked — tap to unlock';
-      else                     sb.innerHTML = '🔓 Unlocked — changes save automatically';
+      var _lk = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>', _ul = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5a2.5 2.5 0 0 1 4.9-.7"/></svg>';
+      if (S.jobLocked && sent) sb.innerHTML = _lk + '<span class="njb-lbl">Locked — Quote sent <span class="njb-tick" style="color:#15803d">✓</span></span>';
+      else if (S.jobLocked)    sb.innerHTML = _lk + '<span class="njb-lbl">Locked — tap to unlock</span>';
+      else                     sb.innerHTML = _ul + '<span class="njb-lbl">Unlocked — autosaving</span>';
       sb.title = S.jobLocked ? 'This job is locked. Tap to unlock it.'
                              : 'This job is unlocked — every change saves itself. Tap to lock it.';
     }
@@ -26673,7 +26692,7 @@ function _jpCaptureCalcCheck(opts, roofIdx){
     var nm = _nthName(roofIdx + 1);
     secs = secs.filter(function(s){ return s.roof === nm; });
   }
-  try { return _renderCalcCheckCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
+  try { return _jpCvOut(_renderCalcCheckCanvas(secs, opts)); } catch(e){ return null; }
 }
 
 // ── SHEET LAYOUT ─────────────────────────────────────────────────
@@ -69596,7 +69615,7 @@ var SHEET_LAYOUT_HIDDEN = false;
 // any calc-check page or picture already in a pack. Nothing was deleted:
 // `false` here puts every one of them back, stored pages included.
 var CALC_CHECK_HIDDEN = true;
-function _jpMapKindHidden(kind){ return (SHEET_LAYOUT_HIDDEN && kind === 'sheetplan') || (CALC_CHECK_HIDDEN && kind === 'calccheck'); }
+function _jpMapKindHidden(kind){ return (SHEET_LAYOUT_HIDDEN && (kind === 'sheetplan' || kind === 'precut')) || (CALC_CHECK_HIDDEN && kind === 'calccheck'); }
 // The order the owner asked for (2026-10-27): "have them all default clicked
 // as showing in the list but reorder them as detailed map at the top, then
 // sheet layout below, then flashing ref below, then basic map below that".
@@ -69788,15 +69807,41 @@ function _jpMapPanelItems(){
 // + cheaper (used for the side-panel previews).
 function _jpCaptureMap(mapKey, opts){
   opts = opts || {};
+  var _prevRot = _JP_CAP_ROT;
+  _JP_CAP_ROT = ((+opts.rot || 0) % 360 + 360) % 360;
+  try { return _jpCaptureMapRaw(mapKey, opts); }
+  finally { _JP_CAP_ROT = _prevRot; }
+}
+// THE SHEET LAYOUT AND THE PRE-CUT LAYOUT AS PICTURES (2026-11-06, the owner:
+// "the next two diagrams (sheet layout and sheet pre-cut) can you put them in
+// picture form too so i can move and edit them, exactly as i can with the
+// detailed map ... and make them default fit to page just like they do now").
+// 'sheetplan:pack' / 'precut:pack' are exactly what those two pages drew:
+// the roofs the pack covers, the sheet layout turned when wide, the pre-cut
+// drawn to the shape of the page.
+function _jpCapturePackSheet(kind, opts){
+  try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
+  var vis = _jpMapRoofFilter();
+  if (kind === 'sheetplan'){
+    return (vis && vis.length) ? _jpCaptureSheetPlanCombined(vis, opts) : _jpCaptureCombined('sheetplan', opts);
+  }
+  if (kind === 'precut' && typeof _renderSheetPrecutCanvas === 'function'){
+    var cv = _renderSheetPrecutCanvas({ roofIdxs: (vis && vis.length) ? vis.slice() : [-1], W: 960, H: Math.round(960 * 262 / 182) });
+    return (cv && cv.width) ? _jpCvOut(cv) : null;
+  }
+  return null;
+}
+function _jpCaptureMapRaw(mapKey, opts){
   var parts = mapKey.split(':');
   var kind = parts[0];
+  if (parts[1] === 'pack') { try { return SHEET_LAYOUT_HIDDEN ? null : _jpCapturePackSheet(kind, opts); } catch(e){ return null; } }
   if (parts[1] === 'all') { try { return _jpCaptureCombined(kind, opts); } catch(e){ return null; } }
   var roofIdx = parts.length > 1 ? parseInt(parts[1], 10) : -1;
   // The whole-job pictures (the header page's maps) show the roofs the pack
   // covers, not every roof drawn.
   if (roofIdx === -1 && (kind === 'detailed' || kind === 'basic' || kind === 'flashref')){
     var _f = _jpMapRoofFilter();
-    if (_f){ try { return _jpWithRoofsNarrowed(_f, function(){ return _jpCaptureMap(mapKey, opts); }); } catch(e){ return null; } }
+    if (_f){ try { return _jpWithRoofsNarrowed(_f, function(){ return _jpCaptureMapRaw(mapKey, opts); }); } catch(e){ return null; } }
   }
   try {
     if (kind === 'detailed') return _jpCaptureDetailed(roofIdx, opts);
@@ -69886,7 +69931,7 @@ function _jpCaptureCalcCheckCombined(vis, opts){
   var secs = (window._lastSheetSections || []).filter(function(s){
     return !s.roof || names.indexOf(s.roof) >= 0;
   });
-  try { return _renderCalcCheckCanvas(secs, opts).toDataURL('image/png'); } catch(e){ return null; }
+  try { return _jpCvOut(_renderCalcCheckCanvas(secs, opts)); } catch(e){ return null; }
 }
 // Sheet layout across roofs: the ticked roofs in ONE frame — they share
 // the drawing's coordinates, so the puzzle shows them where they stand.
@@ -69897,7 +69942,7 @@ function _jpCaptureSheetPlanCombined(vis, opts){
   var cv = null;
   try { cv = _renderSheetPuzzleCanvas(o); } catch(e){ cv = null; }
   if (!cv || !cv.width) return null;
-  return (o.rotWide ? _jpRotWidePuzzle(cv) : cv).toDataURL('image/png');
+  return _jpCvOut(o.rotWide ? _jpRotWidePuzzle(cv) : cv);
 }
 // Parse the SHEETS TO ORDER legend inside a sheet-plan scope into a
 // [{color, count, orderedMm}] array. Reads the input elements that
@@ -69926,7 +69971,7 @@ function _jpExtractLegendFrom(scope){
 // margins.  Samples every 2nd pixel — a ~1MP canvas scans in a few ms.
 function _cropCanvasToContent(srcCanvas, padPx){
   var c = _cropCanvasToContentCv(srcCanvas, padPx);
-  return c ? c.toDataURL('image/png') : null;
+  return c ? _jpCvOut(c) : null;
 }
 function _cropCanvasToContentCv(srcCanvas, padPx){
   try {
@@ -69970,7 +70015,45 @@ function _cvRotCCW(cv){
   return r;
 }
 function _cvRotIfWide(cv){
-  return (cv && cv.width > cv.height * JP_ROT_WIDE) ? _cvRotCCW(cv) : cv;
+  if (cv && cv.width > cv.height * JP_ROT_WIDE){ _JP_CAP_TURNED = true; return _cvRotCCW(cv); }
+  return cv;
+}
+// A PICTURE TURNS A QUARTER AT A TIME (2026-11-06, the owner: "add a rotate
+// 90deg button on this picture in the job pack"). `im.rot` (0 / 90 / 180 /
+// 270, clockwise) is applied where the picture is MADE — every capture's last
+// canvas goes through _jpCvOut — so the picture on screen, its fitted shape
+// and the PDF are all the turned picture, with nothing done in CSS.
+// _JP_CAP_ROT is set by _jpCaptureMap for the length of one capture;
+// _JP_CAP_TURNED says whether the app's own wide-roof turn was taken.
+var _JP_CAP_ROT = 0, _JP_CAP_TURNED = false;
+function _cvRotQ(cv, rot){
+  rot = ((+rot || 0) % 360 + 360) % 360;
+  if (!cv || !rot || rot % 90) return cv;
+  var r = document.createElement('canvas');
+  var q = rot === 180;
+  r.width = q ? cv.width : cv.height; r.height = q ? cv.height : cv.width;
+  var x = r.getContext('2d');
+  x.translate(r.width / 2, r.height / 2); x.rotate(rot * Math.PI / 180);
+  x.drawImage(cv, -cv.width / 2, -cv.height / 2);
+  return r;
+}
+function _jpCvOut(cv){ return _cvRotQ(cv, _JP_CAP_ROT).toDataURL('image/png'); }
+// The Basic map is an SVG: it is turned by wrapping it in a rotated group.
+function _jpSvgRot(svg, rot){
+  rot = ((+rot || 0) % 360 + 360) % 360;
+  if (!svg || !rot || rot % 90) return null;
+  try {
+    var vb = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    var w = vb.length === 4 && vb[2] ? vb[2] : (parseFloat(svg.getAttribute('width')) || svg.getBoundingClientRect().width || 600);
+    var h = vb.length === 4 && vb[3] ? vb[3] : (parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height || 400);
+    var ox = vb.length === 4 ? vb[0] : 0, oy = vb.length === 4 ? vb[1] : 0;
+    var q = rot === 180, W = q ? w : h, H = q ? h : w;
+    var inner = new XMLSerializer().serializeToString(svg);
+    var x = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">' +
+      '<g transform="translate(' + (W / 2) + ' ' + (H / 2) + ') rotate(' + rot + ') translate(' + (-w / 2 - ox) + ' ' + (-h / 2 - oy) + ')">' +
+      inner.replace(/^<svg\b/, '<svg x="' + ox + '" y="' + oy + '" width="' + w + '" height="' + h + '"') + '</g></svg>';
+    return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(x)));
+  } catch(e){ return null; }
 }
 // The sheet layout keeps its title and colour key upright: only the roof
 // under the key is turned, and the key sits over it as before.
@@ -69992,6 +70075,7 @@ function _jpRotWidePuzzle(cv){
     o.imageSmoothingQuality = 'high';
     o.drawImage(rot, Math.round((Wout - rw) / 2), hh, rw, rh);
     out._pzRotated = true;
+    _JP_CAP_TURNED = true;
     return out;
   } catch(e){ return cv; }
 }
@@ -70058,7 +70142,7 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
     redrawAll();
     var _cc = _cropCanvasToContentCv(src, 30);
     if (_cc && opts && opts.rotWide) _cc = _cvRotIfWide(_cc);
-    return _cc ? _cc.toDataURL('image/png') : src.toDataURL('image/png');
+    return _jpCvOut(_cc || src);
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -70104,6 +70188,7 @@ function _jpCaptureBasic(roofIdx, opts){
     }
     var svg = tmp.querySelector('svg');
     if (!svg) return null;
+    if (_JP_CAP_ROT){ var _rs = _jpSvgRot(svg, _JP_CAP_ROT); if (_rs) return _rs; }
     // Serialise → encode → data URL
     var xml = new XMLSerializer().serializeToString(svg);
     return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
@@ -70118,7 +70203,7 @@ function _jpCaptureSheetPlan(opts, roofIdx){
   try { if (DRAW.roofs && DRAW.roofs.length) _syncCurrentToRoof(); } catch(e){}
   if (typeof roofIdx === 'number' && roofIdx >= 0) o.roofIdxs = [roofIdx];
   else if (!(DRAW.roofs && DRAW.roofs.length)) o.roofIdxs = [-1];
-  try { var _cv = _renderSheetPuzzleCanvas(o); return (o.rotWide ? _jpRotWidePuzzle(_cv) : _cv).toDataURL('image/png'); } catch(e){ return null; }
+  try { var _cv = _renderSheetPuzzleCanvas(o); return _jpCvOut(o.rotWide ? _jpRotWidePuzzle(_cv) : _cv); } catch(e){ return null; }
 }
 // Flashing reference map — same clean-canvas capture as the Detailed
 // map but with the A/B/C letter overlays force-drawn on top regardless
@@ -70164,7 +70249,7 @@ function _jpCaptureFlashRef(roofIdx, opts){
       _drawFlashLetterOverlaysOn(octx, src.width / dpr, src.height / dpr);
       octx.restore();
     } catch(e){ console.warn('flashref overlay:', e); }
-    return off.toDataURL('image/png');
+    return _jpCvOut(off);
   } finally {
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
@@ -70241,12 +70326,29 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
   var defs = [];
   page.images.forEach(function(im, ii){
     if (_jpMapKindHidden(String(im.mapKey || '').split(':')[0])) return;
-    var src = _jpCaptureMap(im.mapKey, (/^(def|mig)_/.test(im.id || '') && !im.userSized) ? { rotWide: true } : {});
-    if (!src) return;
+    // The app's own wide-roof turn stays on a picture the office has moved
+    // when it had been taken (`turnKept`), so moving a picture never flips it.
+    var _isDef = /^(def|mig)_/.test(im.id || '');
+    _JP_CAP_TURNED = false;
+    var src = _jpCaptureMap(im.mapKey, { rotWide: _isDef && (!im.userSized || im.turnKept), rot: im.rot || 0 });
+    var _turned = _JP_CAP_TURNED;
+    if (!src){
+      // A sheet layout / pre-cut page with nothing to lay out says so.
+      if (/:pack$/.test(im.mapKey || '') && !pageEl.querySelector('.jp-pack-empty')){
+        var _ne = document.createElement('div');
+        _ne.className = 'jp-pack-empty';
+        _ne.style.cssText = 'position:absolute;left:24px;top:24px;right:24px;font-size:12px;color:var(--text2);font-style:italic';
+        _ne.textContent = 'Nothing to lay out yet — draw the roof on Map Roof and the sheets appear here.';
+        pageEl.appendChild(_ne);
+      }
+      return;
+    }
     var wrap = document.createElement('div');
     wrap.className = 'jp-page-imgwrap';
     wrap.setAttribute('data-img-id', im.id);
     wrap.setAttribute('data-page', pageIdx);
+    if (_turned) wrap.setAttribute('data-turned', '1');
+    var _imgCls = im.mapKey === 'sheetplan:pack' ? ' class="jp-sl-img"' : (im.mapKey === 'precut:pack' ? ' class="jp-precut-img"' : '');
     wrap.style.left = im.x + 'px';
     wrap.style.top  = im.y + 'px';
     wrap.style.width  = im.w + 'px';
@@ -70255,11 +70357,12 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
     var crop = im.crop || { top:0, right:0, bottom:0, left:0 };
     var imgStyle = 'clip-path:inset('+(crop.top||0)+'% '+(crop.right||0)+'% '+(crop.bottom||0)+'% '+(crop.left||0)+'%)';
     wrap.innerHTML =
-      '<img src="'+esc(src)+'" draggable="false" style="'+imgStyle+'">' +
+      '<img'+_imgCls+' src="'+esc(src)+'" draggable="false" style="'+imgStyle+'">' +
       _jpCropEdgesHtml(im) +
       '<div class="jp-img-tools no-print">'+
         '<button onclick="_jpToggleCrop('+pageIdx+',\''+im.id+'\')" title="Crop edges in">✂ Crop</button>'+
         '<button onclick="_jpEditImage('+pageIdx+',\''+im.id+'\')" title="Edit the underlying map on the Map Roof tab">✎ Edit</button>'+
+        '<button class="jp-rot-btn" onclick="_jpRotateImage('+pageIdx+',\''+im.id+'\')" title="Rotate 90°">⟳ 90°</button>'+
         '<button onclick="_jpDuplicateImage('+pageIdx+',\''+im.id+'\')" title="Duplicate">⧉</button>'+
         '<button class="jp-danger" onclick="_jpDeleteImage('+pageIdx+',\''+im.id+'\')" title="Delete">🗑</button>'+
       '</div>' +
@@ -70267,7 +70370,7 @@ function _jpMountImagesOnPage(pageEl, page, pageIdx){
     if (im._cropping) wrap.classList.add('is-cropping');
     wrap.addEventListener('mousedown', function(ev){ _jpImgMouseDown(ev, pageIdx, im.id); });
     pageEl.appendChild(wrap);
-    if (/^(def|mig)_/.test(im.id || '') && !im.userSized) defs.push({ im: im, wrap: wrap, src: src });
+    if (_isDef && !im.userSized) defs.push({ im: im, wrap: wrap, src: src });
   });
   _jpFitDefaults(pageEl, defs);
 }
@@ -70372,7 +70475,10 @@ function _jpImgMouseUp(){
       try {
         var _pg = _jpState().pages[_JP_IMG_DRAG.pageIdx];
         var _im = _pg && _pg.images && _pg.images.find(function(x){ return x.id === _JP_IMG_DRAG.imgId; });
-        if (_im) _im.userSized = true;
+        if (_im){
+          if (!_im.userSized && /^(def|mig)_/.test(_im.id || '')) _im.turnKept = _JP_IMG_DRAG.wrap.getAttribute('data-turned') === '1';
+          _im.userSized = true;
+        }
       } catch(e){}
     }
     try { _scheduleAutosave(); } catch(e){}
@@ -70380,6 +70486,30 @@ function _jpImgMouseUp(){
   }
   document.removeEventListener('mousemove', _jpImgMouseMove);
   document.removeEventListener('mouseup',   _jpImgMouseUp);
+}
+// ⟳ 90°: a quarter turn clockwise each press. A fitted picture is fitted
+// again at its new shape; one the office has sized keeps its centre and
+// swaps its width and height.
+function _jpRotateImage(pageIdx, imgId){
+  var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
+  var im = page.images.find(function(x){ return x.id === imgId; });
+  if (!im) return;
+  im.rot = (((+im.rot || 0) + 90) % 360);
+  if (!im.rot) delete im.rot;
+  if (im.userSized){
+    // Turned about its centre; a shape that no longer fits the page is
+    // brought down to fit, then kept on the page.
+    var pgEl = document.querySelector('#jpPages .jp-page[data-jp-idx="' + pageIdx + '"]');
+    var pw = (pgEl && pgEl.clientWidth) || 794, ph = (pgEl && pgEl.clientHeight) || 1123;
+    var cx = im.x + im.w / 2, cy = im.y + im.h / 2, w = im.w;
+    im.w = im.h; im.h = w;
+    var k = Math.min(1, (pw - 16) / im.w, (ph - 16) / im.h);
+    im.w = Math.round(im.w * k); im.h = Math.round(im.h * k);
+    im.x = Math.min(Math.max(0, cx - im.w / 2), Math.max(0, pw - im.w));
+    im.y = Math.min(Math.max(0, cy - im.h / 2), Math.max(0, ph - im.h));
+  }
+  try { _scheduleAutosave(); } catch(e){}
+  renderJobPack();
 }
 function _jpDeleteImage(pageIdx, imgId){
   var page = _jpState().pages[pageIdx]; if (!page || !page.images) return;
@@ -71365,7 +71495,23 @@ function _jpRenderCalcCheck(content, page, idx){
   }
   out.innerHTML = '<img src="' + src + '" alt="Sheet calc check" style="max-width:100%;height:auto;display:block">';
 }
+// A sheet layout / pre-cut page carries its diagram as a PICTURE (2026-11-06)
+// — moved, sized, cropped, turned and duplicated like the detailed map, and
+// fitted to the page until the office touches it. A page is given its picture
+// once (`page.pic`): deleting the picture leaves the page empty, as asked.
+function _jpPackPicPage(page, kind){
+  if (!page) return false;
+  if (!Array.isArray(page.images)) page.images = [];
+  if (!page.pic){
+    page.pic = true;
+    if (!page.images.some(function(im){ return im && im.mapKey === kind + ':pack'; }))
+      page.images.push({ id: 'def_' + (kind === 'precut' ? 'pc' : 'sp') + '_' + Date.now() + '_' + Math.floor(Math.random() * 1e4),
+                         mapKey: kind + ':pack', x: 10, y: 14, w: 670, h: 990 });
+  }
+  return true;
+}
 function _jpRenderSheetPlan(content, page, idx){
+  if (_jpPackPicPage(page, 'sheetplan')){ content.innerHTML = ''; return; }
   // The same picture the Maps panel places, as a page of its own: the
   // roofs the pack covers, in one frame, each face divided at sheet cover.
   // THE SHEET LAYOUT IS PAGE 2, FITTED TO THE PAGE (2026-10-31): the picture
@@ -71395,6 +71541,7 @@ function _jpRenderSheetPlan(content, page, idx){
 // in sheet-plan.js. Drawn to the shape of the page's own content area, so the
 // whole set always lands on one A4 sheet.
 function _jpRenderPrecut(content, page, idx){
+  if (_jpPackPicPage(page, 'precut')){ content.innerHTML = ''; return; }
   content.innerHTML = '<div class="jp-pc-out" style="flex:1;display:flex;align-items:flex-start;justify-content:center;overflow:hidden;min-height:0"></div>';
   var out = content.querySelector('.jp-pc-out');
   var src = null;
@@ -77198,13 +77345,22 @@ function _buildFergusItemisedSections(opts){
   }
   var st = _pricingState(); var L = st.L;
   var p = (S.quote && S.quote.proposalOptions) || {};
-  var gutterOn = !_base && !!(p.gutterType && p.gutterType !== 'none');
+  // A GUTTERS ONLY JOB HAS NO ROOF (2026-11-06, the owner on job 3341: the
+  // accepted gutter quote reached Fergus with a Roof Labour section of 13 + 13
+  // hours and a Roof Material "Adjustment to quoted total" cancelling it — the
+  // money came out right but the crew read the roof hours as time allowed).
+  // The roof labour table on such a job is leftover state nobody prices, so
+  // nothing of the roof is pushed; the gutter IS the quote's base, so it goes
+  // in the base plan as well.
+  var _gjFg = (typeof _isGutterJob === 'function') && _isGutterJob();
+  var gutterOn = (_gjFg || !_base) && !!(p.gutterType && p.gutterType !== 'none');
 
   // ── Roof labour ──
   var roofLabour = [];
-  if ((+L.leadHrs) > 0) roofLabour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0, +L.leadCost || 0));
-  if ((+L.appHrs)  > 0) roofLabour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
-  (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) roofLabour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
+  if (_gjFg){ /* no roof on a gutters job */ }
+  else if ((+L.leadHrs) > 0) roofLabour.push(labLine('Lead Roofer', L.leadHrs, +L.leadPrice || 0, +L.leadCost || 0));
+  if (!_gjFg && (+L.appHrs)  > 0) roofLabour.push(labLine('Apprentice',  L.appHrs,  +L.appPrice  || 0, +L.appCost || 0));
+  if (!_gjFg) (L.extras || []).forEach(function(x){ if ((+x.hrs) > 0) roofLabour.push(labLine((x.name || 'Labourer'), x.hrs, +x.price || 0, +x.cost || 0)); });
 
   // ── Roof material ── (itemised per-unit lines, then the safety-buffer / markup
   //    line so the section total matches the quote's Materials line, which is
@@ -77212,7 +77368,7 @@ function _buildFergusItemisedSections(opts){
   //    lines are the raw grade-neutral prices; the steel-grade change rides in
   //    below as its own routed Selections delta.)
   var roofMat = [];
-  _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
+  if (!_gjFg) _readFergusMaterialItems().forEach(function(m){ roofMat.push(matLine(m.name, m.qty, m.price)); });
   if (roofMat.length){
     // What goes to Fergus is the base quote, so these are roof 0's numbers —
     // not whichever pricing tab the office happens to have open.
@@ -77245,7 +77401,7 @@ function _buildFergusItemisedSections(opts){
         if (_mkAmt2 > 0) roofMat.push(matLine('Mark-up (' + _rmk + '%)', 1, _mkAmt2));
       }
     }
-  } else if ((+S.materials) > 0){
+  } else if (!_gjFg && (+S.materials) > 0){
     roofMat.push(matLine('Materials', 1, +S.materials));   // fallback — S.materials already includes the markup
   }
   // Back-trays used to be appended here, after the markup, at a flat $/each.
@@ -77331,8 +77487,10 @@ function _buildFergusItemisedSections(opts){
   try {
     // The BASE's lines only — the main roof's and anything folded into it. An
     // optional roof's ride inside its own price, which is pushed as that roof.
+    if (!_gjFg){
     _qCustomBaseLines('labour').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofLabour.push(labLine((r.desc||'Custom labour'), 1, a, 0)); });
     _qCustomBaseLines('material').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) roofMat.push(matLine((r.desc||'Custom material'), 1, a)); });
+    }
     _qCustomBaseLines('scaffold').forEach(function(r){ var a=parseFloat(r&&r.amount)||0; if (a) scaff.push(matLine((r.desc||'Custom scaffold'), 1, a)); });
     // gutter custom lines: pushed with the gutter's own material above (only when a gutter is on the quote)
   } catch(e){}
@@ -77360,7 +77518,7 @@ function _buildFergusItemisedSections(opts){
                      _sumAll(gutterLabour) + _sumAll(gutterMat) + _sumAll(downpipes);
       var _diff = +(_quoteSub - _lineSum).toFixed(2);
       if (Math.abs(_diff) >= 0.01){
-        roofMat.push(matLine('Adjustment to quoted total', 1, _diff));
+        (_gjFg ? gutterMat : roofMat).push(matLine('Adjustment to quoted total', 1, _diff));
         _fgReconcile = _diff;
       }
     }
@@ -77580,6 +77738,10 @@ async function pushQuotePricingToFergus(btn, opts){
         title: 'Quote ' + (S.quote.ref || '') + ' — ' + (S.quote.client || 'Client'),
         dueDays: dueDays, notes: _onlineLine + (S.quote.scope || '') + (S.quote.notes ? '\n\nNotes: ' + S.quote.notes : ''),
         baseSections: _basePlan.sections, template: _basePlan.template,
+        // A gutters-only job's base sections carry its gutter itemised
+        // (labour hours and all); the server leaves that gutter's price out
+        // of the picks it adds, so it is not counted twice.
+        gutterBase: (typeof _isGutterJob === 'function' && _isGutterJob()) ? (((S.quote.proposalOptions || {}).gutterType) || null) : null,
         selKey: _fergusSelKeyOf(S.quote.proposalOptions), publish: !!(opts && opts.publish),
         stampedAt: new Date().toISOString(), published: _published,
         publishResult: (_pr && typeof _pr === 'object') ? { ok: !!_pr.ok, path: _pr.path || null, verified: _pr.verified, fergusStatus: _pr.fergusStatus || null, stillDraft: !!_pr.stillDraft, attempts: _pr.attempts || [] } : null,

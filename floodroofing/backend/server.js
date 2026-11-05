@@ -11399,6 +11399,14 @@ function _fergusComposeSections(plan, P, quote){
     const low = String(c.label || '').toLowerCase();
     // An included extra is the office's own line, whatever its words say.
     if (c.inclx){ section('Extras').lineItems.push(mk('mat', c.label.replace(/^Extras — /, ''), 1, c.delta)); return; }
+    // A gutters-only job (2026-11-06, job 3341): the plan's base already
+    // carries its gutter itemised — labour hours the crew reads — so the same
+    // gutter is not added again; a different gutter picked by the customer
+    // replaces the itemised sections with its own price.
+    if (c.gutter && plan.gutterBase){
+      if (plan.gutterBase === (quote.proposalOptions || {}).gutterType) return;
+      for (let i = sections.length - 1; i >= 0; i--) if (sections[i] && /^Gutter (Labour|Material)$/.test(sections[i].name)) sections.splice(i, 1);
+    }
     if (c.gutter){ section('Guttering').lineItems.push(mk('mat', 'Guttering — ' + c.label, 1, c.delta)); return; }
     if (low.indexOf('downpipe') >= 0){ section('Downpipes').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (low.indexOf('bracket') >= 0){ section('Guttering').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
