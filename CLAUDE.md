@@ -2079,6 +2079,18 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   one job queue (`_fgAcceptQ`) so the accept-email call, the 90 s catch-up and
   the sweep never upload twice. Each success is a `fergus-accept` share event.
   `tests/custevents.mjs` (60), `acceptstale.mjs`.
+- LOOKING AT THE ACCEPTED VERSION IS NOT A NEW ACCEPTANCE (2026-11-06, the
+  owner: "when i switch between a draft and then click on the accepted
+  version, it pushed a new quote to fergus everytime"). `_fergusAutoPushOnAccept`
+  runs from `refreshQuoteProposal`, and the Viewing menu puts a frozen COPY on
+  screen (`_qvView`) that does not carry `fergusAutoPushedFor` — and an accepted
+  job is locked, so the stamp was never saved either. Every look pushed a new
+  Fergus version. It now never runs from a frozen version (`S._qvViewing`),
+  stands down when the server already made this acceptance's version
+  (`share.fergus.auto.acceptedAt` + `quoteId`, `_fergusAutoVersionNow`), and is
+  remembered on the device per Fergus job + acceptance time
+  (`fr_fg_autopushed`, `_fgAutoPushSeen`). An undo and a fresh acceptance (a
+  new time) still pushes. `tests/autopush.mjs` (13).
 - THE JOB TILE IS A QUIET CARD (2026-11-06, the owner: "i really don't like
   the look of this left job menu ... make it obvious that it's not part of the
   main app's tab buttons but ... tie into the look of the rest of the app and
