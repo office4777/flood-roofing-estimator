@@ -506,7 +506,12 @@ html.site-mode{background:#0a1628}
 html.site-mode body[data-tab="roof"]{background:#0a1628!important}
 /* Move-corner pad: compact, and parked low-left so it never sits over the
    header or the step bar. It is still draggable anywhere from its title. */
-#cornerBumpRow,#cornerEndRow{padding:0 9px 8px}
+#cornerBumpRow,#cornerEndRow,#junctEndRow{padding:0 9px 8px}
+#junctEndRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
+#junctEndRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
+#junctEndRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
+#junctEndRow .crn-bump:hover:not(.on){background:rgba(255,255,255,.08)}
+#junctRepoPopup.je-only .crn-grid,#junctRepoPopup.je-only #junctRepoLen,#junctRepoPopup.je-only .crn-hint,#junctRepoPopup.je-only .crn-step{display:none!important}
 #cornerEndRow .crn-bump-hd{font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7fd4ff;margin:2px 0 5px;text-align:center}
 #cornerEndRow .crn-bump{display:block;width:100%;margin:0 0 4px;padding:6px 4px;border-radius:6px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#e2e8f0;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit}
 #cornerEndRow .crn-bump.on{background:#0099cc;border-color:#0099cc;color:#fff}
@@ -5305,7 +5310,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T21:43:42Z';
+  window.APP_BUILT_AT = '2026-11-05T22:32:11Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6697,6 +6702,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           <button onclick="_junctRepoNudge(1)" class="crn-btn" title="Lengthen the ridge by 0.01m">Longer ▶</button>
         </div>
         <div id="junctRepoLen" style="font-size:11px;font-weight:700;color:#7fd4ff;padding:0 9px 4px;text-align:center">—</div>
+        <div id="junctEndRow" style="display:none"></div>
         <div class="crn-hint" style="font-size:9.5px;color:rgba(255,255,255,.6);padding:0 9px 9px;text-align:center;line-height:1.4">It stays in line with the ridge. You can still drag it.</div>
       </div>
       <!-- "RoofMap has been updated" — a tab left open for a day is running
@@ -54674,7 +54680,11 @@ function _junctRepoOpen(j){
   window._junctRepo.key = j ? j.key : '';
   var pop = document.getElementById('junctRepoPopup'); if (!pop) return;
   if (!j){ pop.style.display = 'none'; return; }
+  window._junctRepo.apexKey = '';
+  _junctPadMode(false);
+  window._JE = { corners: _endCornersFrom(j.pt), cands: [] };
   pop.style.display = 'block';
+  try { _junctEndRowRender(); } catch(e){}
   if (!window._junctRepo.moved){
     try {
       var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
@@ -54685,7 +54695,135 @@ function _junctRepoOpen(j){
   }
   _junctRepoSync();
 }
+// ══ WHERE AN END MEETS ITS RIDGE, ITS LIST (2026-11-06) ══════════════
+// The owner: "it should let me click on the junction of the hip and hip where
+// the two hips meet the ridge ... it should show the list of what I can change
+// it to ... if it's a gable roof, there should be a little circle button where
+// the two barges meet the ridge ... like the corner of the outline". The list
+// is the corner pad's own (_cornerEndCands) for the corners that end runs down
+// to, so the two can never offer different things for one end.
+// The outline corners an end point reaches down its hips and barges (a dutch
+// gablet's barges reach its hips first, then the corners).
+function _endCornersFrom(pt){
+  var near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 2.5; };
+  var out = [], seen = {}, visited = [pt], frontier = [pt];
+  for (var depth = 0; depth < 3 && frontier.length; depth++){
+    var next = [];
+    frontier.forEach(function(P){
+      (DRAW.lines || []).forEach(function(l){
+        if (!l || !l.pts || l.pts.length !== 2 || (l.type !== 'hip' && l.type !== 'barge')) return;
+        var e = near(l.pts[0], P) ? 0 : (near(l.pts[1], P) ? 1 : -1); if (e < 0) return;
+        var Q = l.pts[1 - e];
+        if (visited.some(function(v){ return near(v, Q); })) return;
+        visited.push(Q);
+        var ci = _endCornerIdx(DRAW.outline || [], Q, 4);
+        if (ci >= 0){ if (!seen[ci]){ seen[ci] = 1; out.push(ci); } }
+        else next.push(Q);
+      });
+    });
+    frontier = next;
+  }
+  return out;
+}
+// The one end those corners share (both corners of an end name its wall).
+function _endCandsForCorners(cs){
+  if (!cs || !cs.length) return [];
+  var a = _cornerEndCands(cs[0]) || [];
+  if (cs.length < 2) return a.length ? [a[0]] : [];
+  var b = _cornerEndCands(cs[1]) || [];
+  var m = a.filter(function(x){ return b.some(function(y){ return y.face === x.face; }); });
+  if (m.length) return [m[0]];
+  return a.length ? [a[0]] : (b.length ? [b[0]] : []);
+}
+// Where a ridge ends among barges and nothing else: a gable's apex, or the top
+// of a dutch gablet. A circle the office can press, as an outline corner has.
+function _roofApexes(){
+  var near = function(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < 2.5; };
+  var out = [], keys = {};
+  (DRAW.lines || []).forEach(function(r){
+    if (!r || r.type !== 'ridge' || !r.pts || r.pts.length !== 2) return;
+    [0, 1].forEach(function(e){
+      var P = r.pts[e], nb = 0, bad = false;
+      DRAW.lines.forEach(function(l){
+        if (l === r || !l || !l.pts || l.pts.length !== 2) return;
+        if (!(near(l.pts[0], P) || near(l.pts[1], P))) return;
+        if (l.type === 'barge') nb++;
+        else if (l.type === 'hip' || l.type === 'valley' || l.type === 'ridge') bad = true;
+      });
+      var k = 'a' + _junctKey(P);
+      if (nb >= 1 && !bad && !keys[k] && _endCornersFrom(P).length){ keys[k] = 1; out.push({ key: k, pt: P.slice() }); }
+    });
+  });
+  return out;
+}
+function _apexAt(xy, tr){
+  var grab = tr ? (JUNCT_GRAB / tr.s) : JUNCT_GRAB, best = null, bd = grab;
+  _roofApexes().forEach(function(a){
+    var d = Math.hypot(a.pt[0] - xy[0], a.pt[1] - xy[1]);
+    if (d < bd){ bd = d; best = a; }
+  });
+  return best;
+}
+// The junction pad, with or without its arrows: an apex has nothing to slide.
+function _junctPadMode(endOnly){
+  var pop = document.getElementById('junctRepoPopup'); if (!pop) return;
+  pop.classList.toggle('je-only', !!endOnly);
+  var t = pop.querySelector('.crn-title'); if (t) t.textContent = endOnly ? 'Roof end' : 'Move junction';
+}
+function _endPtOpen(a){
+  var pop = document.getElementById('junctRepoPopup'); if (!pop || !a) return;
+  try { _endPreviewEnd(); } catch(e){}
+  window._junctRepo.key = '';
+  window._junctRepo.apexKey = a.key;
+  window._JE = { corners: _endCornersFrom(a.pt), cands: [] };
+  _junctPadMode(true);
+  pop.style.display = 'block';
+  if (!window._junctRepo.moved){
+    try {
+      var cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect();
+      pop.style.left = Math.max(6, r.left + 12) + 'px';
+      pop.style.top  = Math.min(Math.max(70, r.top + 120), Math.max(70, window.innerHeight - pop.offsetHeight - 12)) + 'px';
+    } catch(e){}
+  }
+  _junctEndRowRender();
+}
+function _junctEndRowRender(){
+  var row = document.getElementById('junctEndRow'); if (!row) return;
+  var JE = window._JE || (window._JE = { corners: [], cands: [] });
+  var cands = [];
+  try { cands = _endCandsForCorners(JE.corners); } catch(e){}
+  JE.cands = cands;
+  if (!cands.length){
+    if (!(JE.corners || []).length){ row.style.display = 'none'; row.innerHTML = ''; return; }
+    var cur = DRAW.roofType || _detectAutoRoofType();
+    row.style.display = 'block';
+    row.innerHTML = '<div class="crn-bump-hd">Roof</div>' + CORNER_ROOF_KINDS.map(function(k){
+      var on = cur === k[0];
+      return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-rooftype="' + k[0] + '" onclick="_cornerRoofType(\'' + k[0] + '\')">' + (on ? '✓ ' : '') + k[1] + '</button>';
+    }).join('');
+    return;
+  }
+  var c = cands[0];
+  row.style.display = 'block';
+  row.innerHTML = '<div class="crn-bump-hd">' + (c.face ? c.face + ' end' : 'This end') + '</div>' + c.kinds.map(function(k){
+    var on = c.cur === k[0];
+    return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-endkind="' + k[0] + '"' +
+      (on ? '' : ' onmouseenter="_endPreview(window._JE.cands[0],\'' + k[0] + '\')" onmouseleave="_endPreviewEnd()"') +
+      ' onclick="_junctEndCommit(\'' + k[0] + '\')">' + (on ? '✓ ' : '') + k[1] + '</button>';
+  }).join('');
+}
+function _junctEndCommit(k){
+  var c = window._JE && window._JE.cands && window._JE.cands[0]; if (!c) return;
+  _endCommit(c, k);
+  // A hip end made a gable has no junction any more: the pad stays, on the
+  // end it was opened for, without the arrows.
+  if (!_junctSelected()){ window._junctRepo.key = ''; _junctPadMode(true); }
+  try { _junctEndRowRender(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+}
 function _closeJunctRepo(){
+  try { _endPreviewEnd(); } catch(e){}
+  window._junctRepo.apexKey = '';
   window._junctRepo.key = '';
   var pop = document.getElementById('junctRepoPopup'); if (pop) pop.style.display = 'none';
   try { redrawAll(); } catch(e){}
@@ -55267,9 +55405,12 @@ function _bumpShownMode(b){
   });
   return hv ? 'hv' : 'mono';
 }
-function _bumpLockModes(){
+function _bumpLockModes(force){
   try {
-    if (_detectAutoRoofType() !== 'hip') return;
+    var _lt = _detectAutoRoofType();
+    // A dutch roof is locked only when the office picks a bump's kind: its own
+    // builder takes small tabs off by itself until then.
+    if (!(_lt === 'hip' || (force && _lt === 'dutch'))) return;
     var bs = _outlineBumps(DRAW.outline); if (!bs.length) return;
     var m = DRAW.bumpModes || {};
     bs.forEach(function(b){ if (m[b.key] !== 'hv' && m[b.key] !== 'mono') m[b.key] = _bumpShownMode(b); });
@@ -55312,32 +55453,35 @@ function _hipLinesWithBumps(outline){
 function _cornerBumpRowRender(){
   var row = document.getElementById('cornerBumpRow'); if (!row) return;
   var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
-  var b = (idx >= 0 && _detectAutoRoofType() === 'hip') ? _bumpForCorner(idx) : null;
+  var _bt = _detectAutoRoofType();
+  var b = (idx >= 0 && (_bt === 'hip' || _bt === 'dutch')) ? _bumpForCorner(idx) : null;
   if (!b){ row.style.display = 'none'; row.innerHTML = ''; return; }
   var cur = (DRAW.bumpModes && DRAW.bumpModes[b.key]) || _bumpShownMode(b);
-  var btn = function(mode, label, tip){
+  var btn = function(mode, label){
     var on = cur === mode;
-    return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-bump="' + mode + '" title="' + tip + '" onclick="_bumpSetMode(\'' + mode + '\')">' + (on ? '✓ ' : '') + label + '</button>';
+    return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-bump="' + mode + '" onclick="_bumpSetMode(\'' + mode + '\')">' + (on ? '✓ ' : '') + label + '</button>';
   };
   row.style.display = 'block';
-  row.innerHTML = '<div class="crn-bump-hd">This bump’s roof</div>' +
-    btn('hv', 'Hip &amp; valley', 'Its own small hip end: two hips, two valleys and a ridge') +
-    btn('mono', 'Mono extension', 'The main roof carried out over it: gutter on the end, barges on the sides');
+  row.innerHTML = '<div class="crn-bump-hd">Bump</div>' +
+    btn('hv', 'Hip &amp; valley') + btn('mono', 'Mono extension');
 }
 function _bumpSetMode(mode){
   if (mode !== 'hv' && mode !== 'mono') return;
   var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
   var b = idx >= 0 ? _bumpForCorner(idx) : null; if (!b) return;
   saveSnapshot();
-  _bumpLockModes();
+  var _rt = _detectAutoRoofType() === 'dutch' ? 'dutch' : 'hip';
+  _bumpLockModes(true);
+  if (!DRAW.bumpModes) DRAW.bumpModes = {};
   DRAW.bumpModes[b.key] = mode;
-  try { regenerateAutoRoofLines('hip'); } catch(e){}
+  try { regenerateAutoRoofLines(_rt); } catch(e){}
   try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
   try { syncToRoofData(); } catch(e){}
   redrawAll();
   try { updateMeasTotals(); } catch(e){}
   try { _scheduleAutosave(); } catch(e){}
   _cornerBumpRowRender();
+  try { _cornerEndRowRender(); } catch(e){}
 }
 
 function regenerateAutoRoofLines(roofType){
@@ -56168,6 +56312,16 @@ function onCanvasMouseDown(e) {
         return;
       }
     }
+    // A gable's apex (or a dutch gablet's top): its list, nothing to drag.
+    var _ah = null;
+    try { _ah = _apexAt(_jxy, _jtr); } catch(err){}
+    if (_ah){
+      try { _endPtOpen(_ah); } catch(err){}
+      SUPPRESS_NEXT_CLICK = true;
+      try { redrawAll(); } catch(err){}
+      e.preventDefault();
+      return;
+    }
   }
   // Corner-drag for the building outline (Move tool only). The
   // existing pan logic runs in the same tool, so we have to claim the
@@ -56410,8 +56564,11 @@ function onCanvasMouseUp(e) {
     return;
   }
   if (DRAG_JUNCT){
+    // The press was the junction's whether it moved or not: a plain press
+    // opens its pad, and must not fall through to the line under it and
+    // open that line's measurement popup on top (2026-11-06).
+    SUPPRESS_NEXT_CLICK = true;
     if (DRAG_JUNCT.moved){
-      SUPPRESS_NEXT_CLICK = true;
       _pushSnap(DRAG_JUNCT.preSnap);
       // The junction has moved, so the key the pad holds has. Re-point it at
       // where it landed, or the nudge buttons would push the old place.
@@ -64693,6 +64850,21 @@ function redrawAll() {
           ctx.beginPath(); ctx.moveTo(c[0], c[1]); ctx.lineTo(f[0], f[1]); ctx.stroke();
           ctx.setLineDash([]); ctx.restore();
         }
+        ctx.save();
+        ctx.beginPath(); ctx.arc(c[0], c[1], on ? 10 : 7, 0, Math.PI*2);
+        ctx.fillStyle = on ? 'rgba(250,204,21,.30)' : 'rgba(255,255,255,.72)';
+        ctx.fill();
+        ctx.lineWidth = on ? 3 : 2;
+        ctx.strokeStyle = on ? '#eab308' : '#0a1628';
+        ctx.stroke();
+        ctx.beginPath(); ctx.arc(c[0], c[1], 2, 0, Math.PI*2);
+        ctx.fillStyle = on ? '#eab308' : '#0a1628'; ctx.fill();
+        ctx.restore();
+      });
+      // The apex circles: where a gable's barges (or a gablet's) meet the ridge.
+      var _asel = (window._junctRepo && window._junctRepo.apexKey) || '';
+      _roofApexes().forEach(function(a){
+        var c = dp(a.pt), on = (a.key === _asel);
         ctx.save();
         ctx.beginPath(); ctx.arc(c[0], c[1], on ? 10 : 7, 0, Math.PI*2);
         ctx.fillStyle = on ? 'rgba(250,204,21,.30)' : 'rgba(255,255,255,.72)';
@@ -83555,12 +83727,33 @@ function _hipLinesWithEnds(outline){
 }
 // The dutch builder unchanged unless an end was changed; then the same
 // skeleton, every end a gablet but the ones the office named.
+// The skeleton a dutch roof's ends are cut from. Once the office has chosen a
+// bump's kind (2026-11-06, "any corner should list the possibilities ... like
+// changing to a mono extension") the bumps follow that choice, as on a hip
+// roof; until then the dutch builder's own small-tab rule stands.
+function _dutchBumpsChosen(outline){
+  var m = (window.DRAW && DRAW.bumpModes) || null;
+  if (!m || !outline || !DRAW.outline || outline.length !== DRAW.outline.length) return null;
+  if (outline.some(function(p, k){ return p[0] !== DRAW.outline[k][0] || p[1] !== DRAW.outline[k][1]; })) return null;
+  var bs = _outlineBumps(outline).filter(function(b){ return m[b.key] === 'hv' || m[b.key] === 'mono'; });
+  return bs.length ? bs : null;
+}
+function _dutchSkel(outline){
+  var bs = _dutchBumpsChosen(outline), ol, lines;
+  if (bs){ ol = outline; lines = _hipLinesWithBumps(outline) || []; }
+  else { ol = _roofRemoveSmallTabs(outline); lines = buildHipValleyLines(ol) || []; }
+  lines = lines.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
+  var hvEnds = {};
+  (bs || []).forEach(function(b){ if (DRAW.bumpModes[b.key] === 'hv') hvEnds[Math.min(b.b, b.c) + '-' + Math.max(b.b, b.c)] = 1; });
+  return { ol: ol, lines: lines, hvEnds: hvEnds };
+}
 function _dutchLinesWithEnds(outline){
   var ek = _endKindsOf('e:');
-  if (!ek) return buildDutchGableRoofLines(outline);
-  var ol = _roofRemoveSmallTabs(outline);
-  var lines = (buildHipValleyLines(ol) || []).map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
-  _skelHipEnds(lines, ol).forEach(function(e){ _endTransform(lines, e, ek[e.key] || 'dutch'); });
+  if (!ek && !_dutchBumpsChosen(outline)) return buildDutchGableRoofLines(outline);
+  var sk = _dutchSkel(outline), lines = sk.lines;
+  ek = ek || {};
+  // a bump made hip & valley keeps its own small hip end
+  _skelHipEnds(lines, sk.ol).forEach(function(e){ _endTransform(lines, e, ek[e.key] || (sk.hvEnds[e.key.slice(2)] ? 'hip' : 'dutch')); });
   return lines;
 }
 // ── A mono's hip end ──
@@ -83674,7 +83867,9 @@ function _endWallAt(idx, sub, base){
   if (on(pe)) return [DRAW.outline[pe], P];
   return null;
 }
-var END_KINDS_3 = [['gable', 'Gable end'], ['hip', 'Hip end'], ['dutch', 'Dutch gable end']];
+// Short names only (2026-11-06, the owner: "just write the name of the change,
+// like hip and valley or gable or Dutch gable ... don't write a description").
+var END_KINDS_3 = [['gable', 'Gable'], ['hip', 'Hip'], ['dutch', 'Dutch gable']];
 // Set one end of a gable; a rectangle whose ends end up alike becomes that
 // roof type outright (two hip ends ARE a hip roof).
 function _endSetGable(sub, kind){
@@ -83732,9 +83927,10 @@ function _cornerEndCands(idx){
       return out;
     }
     if (type === 'hip' || type === 'dutch'){
-      var ol = type === 'dutch' ? _roofRemoveSmallTabs(DRAW.outline) : DRAW.outline;
-      var sk = (type === 'dutch' ? buildHipValleyLines(ol) : _hipLinesWithBumps(DRAW.outline)) || [];
-      sk = sk.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
+      var _dsk = type === 'dutch' ? _dutchSkel(DRAW.outline) : null;
+      var ol = _dsk ? _dsk.ol : DRAW.outline;
+      var sk = _dsk ? _dsk.lines : (_hipLinesWithBumps(DRAW.outline) || []);
+      if (!_dsk) sk = sk.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
       var P = DRAW.outline[idx];
       _skelHipEnds(sk, ol).forEach(function(e){
         // the wall in the outline's own order, so the face it is named for is
@@ -83747,7 +83943,7 @@ function _cornerEndCands(idx){
         if (!onIt) return;
         var key = e.key;
         out.push({ face: _endFaceName(cs[0], cs[1], ol), kinds: END_KINDS_3,
-          cur: (DRAW.endKinds && DRAW.endKinds[key]) || type,
+          cur: (DRAW.endKinds && DRAW.endKinds[key]) || ((_dsk && _dsk.hvEnds[key.slice(2)]) ? 'hip' : type),
           apply: function(k){
             var ek = Object.assign({}, DRAW.endKinds || {});
             if (k === type) delete ek[key]; else ek[key] = k;
@@ -83762,7 +83958,7 @@ function _cornerEndCands(idx){
       var G = _monoHipGeom(ml, DRAW.outline, idx); if (!G) return out;
       var mkey = 'm:' + idx;
       out.push({ face: _endFaceName(G.fwd ? G.L : G.H, G.fwd ? G.H : G.L, DRAW.outline),
-        kinds: [['gable', 'Barge end'], ['hip', 'Hip end']],
+        kinds: [['gable', 'Barge'], ['hip', 'Hip']],
         cur: (DRAW.endKinds && DRAW.endKinds[mkey] === 'hip') ? 'hip' : 'gable',
         apply: function(k){
           var ek = Object.assign({}, DRAW.endKinds || {});
@@ -83829,7 +84025,21 @@ function _cornerEndRowRender(){
   var idx = window._cornerRepo ? window._cornerRepo.idx : -1;
   var cands = idx >= 0 ? _cornerEndCands(idx) : [];
   window._CE = { idx: idx, cands: cands };
-  if (!cands.length){ row.style.display = 'none'; row.innerHTML = ''; return; }
+  if (!cands.length){
+    // NOTHING AT THIS CORNER CHANGES BY ITSELF, SO THE ROOF DOES (2026-11-06,
+    // the owner: "any corner ... should always have a little list of whatever
+    // is possible underneath the minor adjustments"). The shapes the roof
+    // window offers, by short name; a bump's own list above stands alone.
+    var _br = document.getElementById('cornerBumpRow');
+    if (idx < 0 || (_br && _br.style.display !== 'none')){ row.style.display = 'none'; row.innerHTML = ''; return; }
+    var _cur = DRAW.roofType || _detectAutoRoofType();
+    row.style.display = 'block';
+    row.innerHTML = '<div class="crn-bump-hd">Roof</div>' + CORNER_ROOF_KINDS.map(function(k){
+      var on = _cur === k[0];
+      return '<button type="button" class="crn-bump' + (on ? ' on' : '') + '" data-rooftype="' + k[0] + '" onclick="_cornerRoofType(\'' + k[0] + '\')">' + (on ? '✓ ' : '') + k[1] + '</button>';
+    }).join('');
+    return;
+  }
   var html, btn;
   if (cands.length === 1){
     var c = cands[0];
@@ -83850,6 +84060,19 @@ function _cornerEndRowRender(){
   }
   row.style.display = 'block';
   row.innerHTML = html;
+}
+var CORNER_ROOF_KINDS = [['hip', 'Hip &amp; valley'], ['gable', 'Gable'], ['dutch', 'Dutch gable'],
+  ['gable-hv', 'Gable + hip &amp; valley'], ['stepgable', 'Step-down gable'], ['mono', 'Mono pitch']];
+function _cornerRoofType(t){
+  var cur = DRAW.roofType || _detectAutoRoofType();
+  if (!t || t === cur) return;
+  try { autoGenerateRoof(t); } catch(e){ console.warn('corner roof type:', e); }
+  try { autoCalcLineMeasurements(); } catch(e){}
+  try { _syncCurrentToRoof(); syncToRoofData(); } catch(e){}
+  try { redrawAll(); updateMeasTotals(); renderRoofSwitcher(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  try { _cornerBumpRowRender(); _cornerEndRowRender(); } catch(e){}
+  try { var _jp = document.getElementById('junctRepoPopup'); if (_jp && _jp.style.display !== 'none') _junctEndRowRender(); } catch(e){}
 }
 // Two buttons named for the walls; hovering one draws the roof that way.
 // It sits off the canvas where there is room (over the menu to its left, or

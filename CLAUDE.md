@@ -5495,6 +5495,36 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   compass, screen up = north) off the canvas, never modal. `endKinds` is a
   ROOF_FIELD, saved, in the snapshot, cleared by a new shape / outline. No
   entry = every builder byte-identical. `tests/report80.mjs`.
+- EVERY CORNER, JUNCTION AND APEX CARRIES A LIST (2026-11-06, the owner: "any
+  corner should list the possibilities ... the same for where two hips meet a
+  ridge ... if it's a gable roof, there should be a little circle button where
+  the two barges meet the ridge ... just type hip and valley, Dutch gable, etc.
+  ... don't write a description"). SHORT NAMES: `END_KINDS_3` is Gable / Hip /
+  Dutch gable, a mono's Barge / Hip, the bump row's header "Bump" with Hip &
+  valley / Mono extension, no tooltips. A CORNER WITH NO END OF ITS OWN (an
+  inside corner, a mono's high side) lists the roof's shapes under "Roof"
+  (`CORNER_ROOF_KINDS`, `_cornerRoofType` → `autoGenerateRoof`); a bump's own
+  row stands alone. THE JUNCTION PAD (`#junctRepoPopup`) carries
+  `#junctEndRow` under its arrows: `_endCornersFrom(pt)` walks the hips and
+  barges from the point to the outline corners (a gablet's barges reach its
+  hips first), `_endCandsForCorners` takes the end both corners share from the
+  corner pad's own `_cornerEndCands`, so the two pads can never offer different
+  things; `_junctEndCommit` → `_endCommit`, and a hip end made a gable keeps the
+  pad open without its arrows. THE APEX (`_roofApexes`, `_apexAt`): a ridge end
+  among barges and nothing else — a gable's apex or a gablet's top — gets the
+  junction's circle, and a press opens the same pad in "Roof end" mode
+  (`_endPtOpen`, `_junctPadMode`, class `je-only` hides the arrows); its press
+  sets `SUPPRESS_NEXT_CLICK`, and so does a junction press now (a plain press on
+  a junction used to fall through and open the line popup on top). BUMPS ON A
+  DUTCH ROOF: the corner pad offers Hip & valley / Mono extension on a dutch
+  too; once one is chosen `_dutchLinesWithEnds` builds from `_dutchSkel`
+  (`_hipLinesWithBumps`, an hv bump's own end kept a hip) — with none chosen the
+  dutch builder is untouched. NOT BUILT, and asked: a Z's STEP (one hip to a
+  corner and a valley where the two wings meet) is not an end, so its junction
+  lists the roof's shapes; a "dutch sort of end" there needs his sketch or a
+  Request a Fix on that roof. `tests/endpads.mjs` (19, UI list; the old build
+  cannot run it), `report80` / `report78` / `report82` re-pinned to the short
+  names.
 - A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH
   (feedback reports 78 and 79, 2026-10-28, the owner on job 3302: "inside the
   fine adjustments window ... show a button to convert this section/corner

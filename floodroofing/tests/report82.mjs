@@ -73,7 +73,7 @@ check('report 82 as he drew it: the top-left step is its own hip & valley', v.hv
 await pg.evaluate(() => _cornerRepoOpen(7));
 v = await state(TL);
 check('its corner\'s pad shows "This bump\'s roof": Hip & valley | Mono extension, Hip & valley ticked and remembered',
-  /This bump.s roof/i.test(v.row) && /Mono extension/.test(v.row) && v.on === 'hv' && JSON.parse(v.modes)['7'] === 'hv', v.row + ' ' + v.on + ' ' + v.modes);
+  /^Bump/i.test(v.row) && /Mono extension/.test(v.row) && v.on === 'hv' && JSON.parse(v.modes)['7'] === 'hv', v.row + ' ' + v.on + ' ' + v.modes);
 
 // ── Mono extension: the main roof carried out over it ──
 await pg.evaluate(() => _bumpSetMode('mono'));

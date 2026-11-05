@@ -83,7 +83,7 @@ await pg.mouse.up();
 await pg.waitForTimeout(250);
 v = await state();
 check('grabbing the bump\'s corner opens the pad with "This bump\'s roof": Hip & valley | Mono extension',
-  /This bump.s roof/i.test(v.row) && /Hip & valley/.test(v.row) && /Mono extension/.test(v.row), v.row);
+  /^Bump/i.test(v.row) && /Hip & valley/.test(v.row) && /Mono extension/.test(v.row), v.row);
 check('…the kind on screen is the one ticked, and it is remembered', v.on === 'mono' && JSON.parse(v.modes)['5'] === 'mono', v.on + ' ' + v.modes);
 check('REPORT 79: dragged deeper it STAYS a mono extension — no hip or valley sprouts', v.depth > 25 && v.hvAtBump === 0, JSON.stringify(v));
 check('…its sides are barges and its end is gutter', v.sideL.join() === 'barge' && v.sideR.join() === 'barge' && v.outer.includes('gutter'), JSON.stringify([v.sideL, v.sideR, v.outer]));
