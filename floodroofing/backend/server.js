@@ -8949,7 +8949,7 @@ async function _officeOwedSweep(){
     const _fa = sh.fergusAccept || {};
     const _fgOwed = !!(sh.fergus && sh.fergus.jobId) &&
       ((!sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip) || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3) ||
-       (!!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+_fa.noteTries || 0) < 2));
+       (!!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(_fa) < 2));
     // A draft made off an accepted quote (job 3341) reads 'sent' with the
     // acceptance in its frozen version: only the Fergus half is owed there.
     const _kept = st !== 'accepted' && _fgOwed && _feedKeptAcceptance({ share: sh, accepted: null, vAccepted: r.q_vacc, vAcceptedAt: r.q_vacc_at });
@@ -11689,12 +11689,20 @@ function _selLinesNoPrice(lines){
 // plausible shapes are tried (the attachments route's own entityType /
 // entityId shape first); a 2xx is the note; every refusal is kept with
 // Fergus's words for the one email that names the route.
+// ANSWERED (job 3334, 3:38 pm NZ 2026-11-06): POST /notes is the route —
+// /jobs/{id}/notes is a 404 — and it refused {entityType, entityId, text} with
+// "must have required property 'entityName'". So the entity is NAMED, and the
+// attachments route's own lowercase 'job' is tried first. The tries are counted
+// per version of this list (FERGUS_NOTE_V), so a job that spent its two tries
+// on the old shapes gets two more on these.
+const FERGUS_NOTE_V = 2;
 const FERGUS_NOTE_CANDIDATES = [
-  ['POST /notes', function(job, t){ return { entityType: 'JOB', entityId: job, text: t }; }],
-  ['POST /jobs/{job}/notes', function(job, t){ return { text: t }; }],
-  ['POST /notes', function(job, t){ return { entityType: 'job', entityId: job, text: t }; }],
-  ['POST /jobs/{job}/notes', function(job, t){ return { note: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'job', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'job', entityType: 'job', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'JOB', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'Job', entityId: job, text: t }; }],
 ];
+function _noteTriesOf(fa){ return (fa && fa.noteV === FERGUS_NOTE_V) ? (+fa.noteTries || 0) : 0; }
 async function _fergusAddJobNote(fergusKey, jobId, text){
   const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
   const attempts = [];
@@ -11786,7 +11794,7 @@ async function _fergusOnAcceptNow(jobId, attachment){
     // have landed, so the selections PDF is tried at most three times - a
     // job's files must never fill up with copies from the hourly retry.
     const needSel = !sh.fergusAcceptSelAt && (+fa.selTries || 0) < 3;
-    const _noteOwed = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+fa.noteTries || 0) < 2;
+    const _noteOwed = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(fa) < 2;
     if (!needDesc && !needFile && !needSel && !_noteOwed) return null;
     const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
     if (!fergusKey) return null;
@@ -11821,13 +11829,13 @@ async function _fergusOnAcceptNow(jobId, attachment){
     }
     // The description could not be written (a job past draft): the picks go
     // on as a note — twice at most, never a second note once one landed.
-    const needNote = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+fa.noteTries || 0) < 2;
+    const needNote = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(fa) < 2;
     if (needNote){
-      fa.noteTries = (+fa.noteTries || 0) + 1;
+      fa.noteTries = _noteTriesOf(fa) + 1; fa.noteV = FERGUS_NOTE_V;
       out.note = await _fergusAddJobNote(fergusKey, plan.jobId, _selectionsNoteText(aq, acc, job.client_name || aq.client || ''));
       if (out.note && out.note.ok){ sh.fergusAcceptNoteAt = new Date().toISOString(); events.push('Customer\u2019s selections added to the Fergus job as a note'); }
-      else if (!fa.noteFailTold && !(out.note && out.note.auth)){
-        fa.noteFailTold = new Date().toISOString();
+      else if (fa.noteFailToldV !== FERGUS_NOTE_V && !(out.note && out.note.auth)){
+        fa.noteFailTold = new Date().toISOString(); fa.noteFailToldV = FERGUS_NOTE_V;
         try { recordError('server', new Error('Fergus note not added on acceptance of quote ' + (aq.ref || jobId) + ': ' +
           ((out.note && out.note.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
           { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}

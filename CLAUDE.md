@@ -2116,7 +2116,7 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   {entityType, entityId, text} first — the attachments route's own shape —
   then /jobs/{id}/notes); a 2xx claims `share.fergusAcceptNoteAt`, at most two
   tries (`fergusAccept.noteTries`), and the first all-refused try is emailed
-  ONCE with Fergus's words (`noteFailTold`) — pin the route from that. The
+  ONCE with Fergus's words (`noteFailTold`) — pin the route from that. PINNED THE SAME AFTERNOON (job 3334, 3:38 pm NZ): `/jobs/{id}/notes` is a 404 and POST /notes refused `{entityType, entityId, text}` with "must have required property 'entityName'" — so the candidates are POST /notes with `entityName` 'job' (then with `entityType` too, then 'JOB', 'Job'), and the tries and the one email are per version of the list (`FERGUS_NOTE_V` 2, `_noteTriesOf`), so 3334 / 3349 / 3341, which spent their tries on the old shapes, get two more. The
   selections PDF has no accepted total and `_selLinesNoPrice` takes the money
   off every choice line (PDF and note); the description, where it can still be
   written, keeps its prices. `custevents.mjs` (64). THE PAGE: `_selectionsPdf`

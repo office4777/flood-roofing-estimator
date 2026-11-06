@@ -167,7 +167,17 @@ globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
     fergus.jobs[m[1]].longDescription = String((body || {}).longDescription || '');
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
   }
-  if (method === 'POST' && /^\/notes$|^\/jobs\/[^/]+\/notes$/.test(String(path))){
+  // Fergus's own answers (job 3334, 2026-11-06): /jobs/{id}/notes is a 404,
+  // and POST /notes without entityName is a 400 naming it.
+  if (method === 'POST' && /^\/jobs\/[^/]+\/notes$/.test(String(path))){
+    (fergus.noteRefused = fergus.noteRefused || []).push(String(path));
+    return Promise.resolve({ status: 404, body: JSON.stringify({ message: 'Route POST:' + path + ' not found', statusCode: 404 }) });
+  }
+  if (method === 'POST' && /^\/notes$/.test(String(path)) && !(body || {}).entityName){
+    (fergus.noteRefused = fergus.noteRefused || []).push(String(path));
+    return Promise.resolve({ status: 400, body: JSON.stringify({ error: 'Bad Request', message: "Validation Failed: [<body>: must have required property 'entityName'].", statusCode: 400 }) });
+  }
+  if (method === 'POST' && /^\/notes$/.test(String(path))){
     (fergus.notes = fergus.notes || []).push({ path: String(path), body: body || {} });
     return Promise.resolve({ status: 201, body: JSON.stringify({ data: { id: 'N' + fergus.notes.length } }) });
   }
@@ -570,6 +580,24 @@ check('…and never again once Fergus carries the accepted price', fergus.versio
   check('…and the selections go on the Fergus job as ONE note instead (no price), never again on the next sweeps',
     notes49.length === 1 && /customer selections, quote 3349/.test(nt) && !/\$/.test(nt) && !!shareOf('j-49').fergusAcceptNoteAt,
     JSON.stringify({ n: notes49.length, nt: nt.slice(0, 200) }));
+  check('…by POST /notes NAMING the job (Fergus: "must have required property \'entityName\'")',
+    notes49.length === 1 && notes49[0].path === '/notes' && notes49[0].body.entityName === 'job',
+    JSON.stringify(notes49[0] && notes49[0].body && { entityName: notes49[0].body.entityName, path: notes49[0].path }));
+  // JOB 3334's shape: its two tries went on the old shapes (no version mark),
+  // Fergus refused both. The new shapes get two tries of their own.
+  const q34 = quote({ ref: '3334', client: 'Aidan Test', addr: '1 Kerikeri Road',
+    accepted: { name: 'Aidan Test', total: 34231.35, at: ago(0.2) },
+    share: { token: 'tok-34n', status: 'accepted', sentAt: ago(1), acceptedAt: ago(0.2), sentTo: 'aidan@example.com', events: [],
+             acceptOfficeAt: ago(0.15), fergusAcceptDescSkip: 'not-draft', fergusAcceptSelAt: ago(0.1),
+             fergusAccept: { noteTries: 2, noteFailTold: ago(0.1) },
+             fergus: { jobId: 'FJ-34', rev: 2, title: 'Quote 3334' } } });
+  db.jobs.push(job('j-34n', q34));
+  for (let i = 0; i < 2; i++){ await post('/admin/office-owed/run?token=ce-test-token', {}); await settle(1500); }
+  const notes34 = (fergus.notes || []).filter(n => (n.body || {}).entityId === 'FJ-34');
+  const sh34 = shareOf('j-34n');
+  check('JOB 3334: tries spent on the old note shapes do not stop the new one — ONE note, claimed',
+    notes34.length === 1 && !!sh34.fergusAcceptNoteAt && (sh34.fergusAccept || {}).noteV === 2,
+    JSON.stringify({ n: notes34.length, at: sh34.fergusAcceptNoteAt, fa: sh34.fergusAccept }));
 }
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
