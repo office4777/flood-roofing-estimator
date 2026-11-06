@@ -144,8 +144,20 @@ const fergus = { desc: [], files: [], versions: [], titleTouched: 0,
   jobs: { 'FJ-77': { id: 'FJ-77', description: 'Fergus Linked - 9 Test Road - Re-roof', longDescription: 'Customer rang about a leak.' },
           'FJ-41': { id: 'FJ-41', description: 'Doug Rodgers - 704A State Highway 10, Oromahoe - Gutter Replacement', longDescription: 'Quote to replace guttering' } } };
 fergus.job = fergus.jobs['FJ-77'];
+// FJ-90 is Fergus as job 3334's acceptance found it (2026-11-06): no PATCH or
+// POST on a job, and PUT refuses any job that is past draft — slowly, so the
+// office email's stamp lands while the Fergus half is still waiting.
+fergus.jobs['FJ-90'] = { id: 'FJ-90', description: 'Alfred Crawford - 512 Lodore Road - Re-roof', longDescription: 'Re-roof', jobType: 'Quote', customer: { id: 5 }, siteAddress: { id: 6 } };
+fergus.puts90 = 0;
 globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
   if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
+  if (/^\/jobs\/FJ-90$/.test(String(path)) && method !== 'GET'){
+    if (method === 'PUT'){ fergus.puts90++;
+      return new Promise(r2 => setTimeout(() => r2({ status: 400, body: '{"error":"Bad Request","message":"Job is not in draft","statusCode":400}' }), 400)); }
+    return Promise.resolve({ status: 404, body: '{"message":"Route ' + method + ':/api/partner/jobs/FJ-90 not found","statusCode":404}' });
+  }
+  if (method === 'GET' && /^\/jobs\/FJ-90$/.test(String(path)))
+    return new Promise(r2 => setTimeout(() => r2({ status: 200, body: JSON.stringify({ data: fergus.jobs['FJ-90'] }) }), 150));
   const m = String(path).match(/^\/jobs\/(FJ-77|FJ-41)$/);
   if (method === 'GET' && m)
     return Promise.resolve({ status: 200, body: JSON.stringify({ data: fergus.jobs[m[1]] }) });
@@ -525,6 +537,29 @@ check('…and never again once Fergus carries the accepted price', fergus.versio
   // the office's still-sent link is not touched: the draft is the office's
   check('…without marking the draft accepted or emailing anyone',
     shareOf('j-41').status === 'sent' && !sent.some(m => /3341/.test(m.subject || '')), JSON.stringify({ st: shareOf('j-41').status }));
+}
+// ── THE OFFICE IS TOLD ONCE, AND FERGUS'S "NOT IN DRAFT" IS FINAL (job 3349,
+// 2026-11-06: "i keep getting this email of the job getting accepted") ─────
+// The Fergus half read the share before the office email's stamp landed and
+// wrote its copy back without it, so every hourly sweep emailed the office
+// again. And Fergus refuses to change a job past draft, which is not a fault.
+{
+  const q49 = quote({ ref: '3349', client: 'Alfred Crawford', addr: '512 Lodore Road, Okaihau',
+    accepted: { name: 'Alfred Crawford', total: 33177.5, at: ago(0.1) },
+    share: { token: 'tok-49', status: 'accepted', sentAt: ago(1), acceptedAt: ago(0.1), sentTo: 'alfred@example.com', events: [],
+             fergus: { jobId: 'FJ-90', rev: 3, title: 'Quote 3349' } } });
+  db.jobs.push(job('j-49', q49));
+  const before = sent.filter(m => /Quote accepted — 3349/.test(m.subject || '')).length;
+  for (let i = 0; i < 3; i++){ await post('/admin/office-owed/run?token=ce-test-token', {}); await settle(1500); }
+  const n49 = sent.filter(m => /Quote accepted — 3349/.test(m.subject || '')).length - before;
+  const sh49 = shareOf('j-49');
+  check('JOB 3349: three hourly sweeps tell the office ONCE (the Fergus write no longer wipes the stamp)',
+    n49 === 1 && !!sh49.acceptOfficeAt, JSON.stringify({ n49, at: sh49.acceptOfficeAt }));
+  check('…Fergus\'s "Job is not in draft" is taken as final: no more PUTs, nothing reported',
+    sh49.fergusAcceptDescSkip === 'not-draft' && fergus.puts90 === 1 && !((sh49.fergusAccept || {}).descFailToldV),
+    JSON.stringify({ skip: sh49.fergusAcceptDescSkip, puts: fergus.puts90, fa: sh49.fergusAccept }));
+  check('…and the selections PDF still goes into the job\'s files',
+    fergus.files.some(f => /Quote 3349/.test(f.name) && f.entityId === 'FJ-90'), JSON.stringify(fergus.files.map(f => f.name)));
 }
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;

@@ -5914,13 +5914,41 @@ async function _saveShareBack(job, share){
     "UPDATE public.jobs SET draw_state = jsonb_set(draw_state, '{state,quote,share}', $1::jsonb, true), " +
     "updated_at = now() WHERE id = $2 AND draw_state->'state'->'quote' IS NOT NULL", [JSON.stringify(share), job.id]);
 }
+// WRITE ONLY THE KEYS YOU CHANGED, ONTO THE SHARE AS IT IS NOW (2026-11-06,
+// job 3349: "i keep getting this email of the job getting accepted"). The
+// office email stamps `acceptOfficeAt`; the Fergus half, started a moment
+// before, had read the share WITHOUT it and wrote its whole copy back a few
+// seconds later — the stamp was gone, and every hourly sweep emailed the
+// office again (10:24, 11:49, 1:15 pm). Every server write to the share now
+// re-reads it and sets its own keys on the fresh copy; `events` are unioned.
+async function _shareWriteKeys(job, quote, sh, keys){
+  let fresh = null;
+  try {
+    const r = await supabase.from('jobs').select('q_share:draw_state->state->quote->share').eq('id', job.id).single();
+    if (!r.error && r.data && r.data.q_share && typeof r.data.q_share === 'object') fresh = r.data.q_share;
+  } catch (e) {}
+  const out = fresh || sh || {};
+  (keys || []).forEach(function(k){
+    if (k === 'events'){
+      const seen = {}, all = [];
+      [].concat(Array.isArray(out.events) ? out.events : [], Array.isArray(sh.events) ? sh.events : []).forEach(function(ev){
+        const id = ev ? (ev.type + '|' + ev.at + '|' + (ev.message || '')) : '';
+        if (!ev || seen[id]) return; seen[id] = 1; all.push(ev);
+      });
+      out.events = all.slice(-80);
+    } else if (sh[k] !== undefined) out[k] = sh[k];
+  });
+  quote.share = out;
+  if (_pgPool()) await _saveShareBack(job, out);
+  else await _saveQuoteBack(job, quote);
+  return out;
+}
 async function _shareStamp(job, quote, key){
   try {
     const sh = quote.share || {};
     sh[key] = new Date().toISOString();
     quote.share = sh;
-    if (_pgPool()) await _saveShareBack(job, sh);
-    else await _saveQuoteBack(job, quote);        // no direct pool: the whole quote, once
+    await _shareWriteKeys(job, quote, sh, [key]);
   } catch (e) {
     try { recordError('server', new Error('share stamp ' + key + ' failed: ' + (e && e.message || e)),
       { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e2) {}
@@ -6643,8 +6671,17 @@ async function _acceptOfficeNotify(job, quote, attachment, opts){
                         attachments: await _termsFilesFor(_st, 'accept_office', job.company_id),
                         fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
                         replyTo: _cust || undefined });
+  _acceptOfficeTold(job.id, (quote.share || {}).acceptedAt, true);
   await _shareStamp(job, quote, 'acceptOfficeAt');
   return { ok: true };
+}
+// Belt and braces beside the stamp: this process never tells the office about
+// the same acceptance twice, whatever a stale write does to the share.
+const _ACCEPT_OFFICE_TOLD = new Map();
+function _acceptOfficeTold(jobId, acceptedAt, mark){
+  const k = String(jobId) + '|' + String(acceptedAt || '');
+  if (mark){ _ACCEPT_OFFICE_TOLD.set(k, Date.now()); if (_ACCEPT_OFFICE_TOLD.size > 2000) _ACCEPT_OFFICE_TOLD.delete(_ACCEPT_OFFICE_TOLD.keys().next().value); return true; }
+  return _ACCEPT_OFFICE_TOLD.has(k);
 }
 // The net under it. 90 seconds is long enough for the browser's PDF to land
 // (it is built and uploaded in a few seconds when it works at all) and short
@@ -6672,11 +6709,14 @@ async function _acceptOfficeCatchUp(jobId){
       _fergusOnAccept(jobId, null).catch(function(){});
       return false;
     }
-    // The description is written whether or not the email is still owed: the
-    // browser may have sent the email and nothing else.
-    _fergusOnAccept(jobId, null).catch(function(){});
-    if (sh.acceptOfficeAt) return false;              // already told
+    // The email FIRST and its stamp written, then the Fergus half — never side
+    // by side, or Fergus's write can carry a share read before the stamp.
+    if (sh.acceptOfficeAt || _acceptOfficeTold(jobId, sh.acceptedAt)){
+      _fergusOnAccept(jobId, null).catch(function(){});
+      return false;                                    // already told
+    }
     const nr = await _acceptOfficeNotify(job, quote, null);
+    _fergusOnAccept(jobId, null).catch(function(){});
     return !!(nr && nr.ok && !nr.off);                   // switched off or nowhere to send is not "sent"
   } catch (e) {
     try { recordError('server', new Error('accept-office catch-up failed: ' + (e && e.message || e)), { route: '/q/:token/event' }); } catch (e2) {}
@@ -8908,7 +8948,7 @@ async function _officeOwedSweep(){
     // linked, or every acceptance would cost a read an hour for a fortnight.
     const _fa = sh.fergusAccept || {};
     const _fgOwed = !!(sh.fergus && sh.fergus.jobId) &&
-      (!sh.fergusAcceptDescAt || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3));
+      ((!sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip) || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3));
     // A draft made off an accepted quote (job 3341) reads 'sent' with the
     // acceptance in its frozen version: only the Fergus half is owed there.
     const _kept = st !== 'accepted' && _fgOwed && _feedKeptAcceptance({ share: sh, accepted: null, vAccepted: r.q_vacc, vAcceptedAt: r.q_vacc_at });
@@ -11355,6 +11395,7 @@ async function _fergusUpdateJobDescription(fergusKey, jobId, summary){
       if (!(r.status >= 200 && r.status < 300)) a.said = String(r.body || '').replace(/\s+/g, ' ').slice(0, 200);
       attempts.push(a);
       if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
+      if (r.status === 400 && /not in draft/i.test(a.said || '')) return { ok: false, notDraft: true, path: a.path, status: r.status, attempts };
       if (!(r.status >= 200 && r.status < 300)) continue;
       const after = await _fergusReadJob(H, jobId);
       const now = _fergusJobDescOf(after);
@@ -11694,7 +11735,7 @@ async function _fergusOnAcceptNow(jobId, attachment){
     }
     const acc = aq.accepted || {};
     const fa = sh.fergusAccept || {};
-    const needDesc = !sh.fergusAcceptDescAt;
+    const needDesc = !sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip;
     const needFile = !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
     // A Fergus upload that answered 2xx without a body we recognise may still
     // have landed, so the selections PDF is tried at most three times - a
@@ -11714,6 +11755,14 @@ async function _fergusOnAcceptNow(jobId, attachment){
       });
       out.desc = await _fergusUpdateJobDescription(fergusKey, plan.jobId, summary);
       if (out.desc && out.desc.ok){ sh.fergusAcceptDescAt = new Date().toISOString(); events.push('Fergus job description updated with the customer\u2019s selections'); }
+      else if (out.desc && out.desc.notDraft){
+        // FERGUS ONLY LETS A JOB BE CHANGED WHILE IT IS A DRAFT (2026-11-06, job
+        // 3334's acceptance: PUT 400 "Job is not in draft"). An accepted job is
+        // past that, so this is a final answer, not a failure to retry or report:
+        // the selections still reach the job as the PDF in its files.
+        sh.fergusAcceptDescSkip = 'not-draft';
+        events.push('Fergus job description left as it is: Fergus only lets a draft job be changed (the selections are in the job\u2019s files)');
+      }
       else if (fa.descFailToldV !== 2){
         // Said once per version of the update, not every hour for a fortnight:
         // the owner is emailed what Fergus answered, which is how the right
@@ -11766,7 +11815,7 @@ async function _fergusOnAcceptNow(jobId, attachment){
       if (sh.events.length > 80) sh.events = sh.events.slice(-80);
     }
     quote.share = sh;
-    if (_pgPool()) await _saveShareBack(job, sh); else await _saveQuoteBack(job, quote);
+    await _shareWriteKeys(job, quote, sh, ['fergusAccept', 'fergusAcceptDescAt', 'fergusAcceptDescSkip', 'fergusAcceptSelAt', 'fergusAcceptFileAt', 'events']);
     return out;
   } catch (e) {
     try { recordError('server', new Error('fergus on-accept failed: ' + (e && e.message || e)),

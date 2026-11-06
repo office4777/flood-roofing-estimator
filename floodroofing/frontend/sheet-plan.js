@@ -6788,8 +6788,8 @@ function _pzPtSeg(p, a, b){
 // laid exactly as it was. A ridge started deliberately well off another stays
 // where it was put. The drawing itself is never changed here; the drawing
 // snaps as it is drawn (getXY).
-// OFF until the owner's "go" on the pictures (CLAUDE.md, the sheet-layout process).
-var PZ_WELD_ON = false;
+// ON since the owner's "go" (2026-11-06, "Go on all") on the v10 pictures.
+var PZ_WELD_ON = true;
 var PZ_WELD_M = 0.4, PZ_WELD_PX = 14;
 var PZ_WELD_TYPES = { ridge: 1, hip: 1, valley: 1, apron: 1, changepitch: 1, barge: 1 };
 function _pzWeldLines(ol, lines, tol){

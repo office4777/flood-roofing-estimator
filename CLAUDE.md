@@ -529,9 +529,9 @@ THE LAY:
    direction onto what it stops short of or runs past. A hip or valley crossing
    another is not a junction. Only the lay reads the joined lines; the drawing
    is never changed by it. Every fixture lays byte-identically with it on and
-   off (all 25, diffed), the 37-shape gate unchanged. SHIPPED OFF
-   (`PZ_WELD_ON = false`) pending his "go" on the pictures ("Sheet layout v10 -
-   lines joined", sent 2026-11-06); `window.__PZ_WELD = true` / `false` forces
+   off (all 25, diffed), the 37-shape gate unchanged. LIVE since his "go"
+   (2026-11-06, "Go on all", on the pictures "Sheet layout v10 - lines
+   joined"): `PZ_WELD_ON = true`; `window.__PZ_WELD = true` / `false` forces
    it either way. `tests/customroof.mjs`.
 
 THE FILL:
@@ -1084,7 +1084,7 @@ LESSONS — mistakes made more than once on these two diagrams:
 SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
 `PZ_SET_GUARD` and `PZ_APEX_SHIFT` (rule 9l, on), `window.__PZ_SET_CORNER`,
 `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
-on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, OFF until his go), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
 count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
 `_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
 it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
@@ -2095,7 +2095,19 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   a write that moved the title is put back at once. Every refusal keeps 200
   characters of what Fergus said (`said`), and the once-only email is per
   version (`fergusAccept.descFailToldV` 2), so if PUT still refuses, the next
-  email names the field it wants — pin the body from that. THE PAGE: `_selectionsPdf`
+  email names the field it wants — pin the body from that. ANSWERED THE SAME
+  DAY (job 3334, 1:15 pm NZ): PUT 400 "Job is not in draft" — FERGUS'S
+  PARTNER API ONLY CHANGES A DRAFT JOB, so an accepted job's description
+  CANNOT be written. That refusal is final: `share.fergusAcceptDescSkip =
+  'not-draft'`, no retry, no error email, a share event says so; the
+  selections reach the job as the PDF in its files. AND THE OFFICE WAS
+  EMAILED HOURLY (3349 at 10:24, 11:49, 1:15 pm): the Fergus half read the
+  share BEFORE the office email stamped `acceptOfficeAt` and wrote its stale
+  copy back, wiping the stamp, so every `_officeOwedSweep` sent again. Every
+  server write to the share now goes through `_shareWriteKeys` (re-read, set
+  only its own keys, union `events`), `_acceptOfficeCatchUp` sends the email
+  BEFORE starting Fergus, and `_acceptOfficeTold` remembers each acceptance
+  told in this process. `custevents.mjs` (63; the old code sends 3). THE PAGE: `_selectionsPdf`
   (`_pdfDocument`, Helvetica, one A4: the company, "Customer selections", quote
   and customer, address, who accepted and when, the accepted total, then
   `_quoteChoiceLines` — the same list the acceptance email and the description

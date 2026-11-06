@@ -205,7 +205,7 @@ check('dragging a hip\'s end off 45° reads its true angle, not 45°',
   dragRes.during.drag && (/^Hip \d+\.\d°$/.test(dragRes.during.label) && !/45/.test(dragRes.during.label)), JSON.stringify(dragRes));
 
 const shipped = await pg.evaluate(() => PZ_WELD_ON);
-check('rule 7c ships switched OFF until the owner says go (PZ_WELD_ON false)', shipped === false, String(shipped));
+check('rule 7c is ON since the owner\'s go (PZ_WELD_ON true)', shipped === true, String(shipped));
 check('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
 await b.close();
 const pass = results.filter(Boolean).length;
