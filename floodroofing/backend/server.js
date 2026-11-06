@@ -8948,7 +8948,8 @@ async function _officeOwedSweep(){
     // linked, or every acceptance would cost a read an hour for a fortnight.
     const _fa = sh.fergusAccept || {};
     const _fgOwed = !!(sh.fergus && sh.fergus.jobId) &&
-      ((!sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip) || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3));
+      ((!sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip) || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3) ||
+       (!!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+_fa.noteTries || 0) < 2));
     // A draft made off an accepted quote (job 3341) reads 'sent' with the
     // acceptance in its frozen version: only the Fergus half is owed there.
     const _kept = st !== 'accepted' && _fgOwed && _feedKeptAcceptance({ share: sh, accepted: null, vAccepted: r.q_vacc, vAcceptedAt: r.q_vacc_at });
@@ -11675,11 +11676,56 @@ async function _fergusAutoVersionNow(jobId){
 // owner: "can the customer selections be uploaded to the job files in a small
 // PDF showing the customer's selections?"). The same list the acceptance email
 // and the Fergus description carry (_quoteChoiceLines), so the three agree.
+// A choice line without its money: "Garage — $4,838.69" → "Garage".
+function _selLinesNoPrice(lines){
+  return (lines || []).map(function(x){
+    return String(x || '').replace(/\s*[\u2014\-–(]*\s*[+\-−]?\s*(?:NZ|A)?\$\s?[\d,]+(?:\.\d+)?\)?(\s*(incl\.?|excl\.?|\+)\s*GST)?/gi, '').replace(/[\s:—–-]+$/, '').trim();
+  }).filter(Boolean);
+}
+// THE SELECTIONS AS A NOTE ON THE FERGUS JOB (2026-11-06). Fergus refuses to
+// change the Job Description of a job past draft ("Job is not in draft"), so
+// the customer's picks go on as a note instead — the yellow box the crew reads
+// on the job summary. Fergus publishes no notes route we can reach, so the
+// plausible shapes are tried (the attachments route's own entityType /
+// entityId shape first); a 2xx is the note; every refusal is kept with
+// Fergus's words for the one email that names the route.
+const FERGUS_NOTE_CANDIDATES = [
+  ['POST /notes', function(job, t){ return { entityType: 'JOB', entityId: job, text: t }; }],
+  ['POST /jobs/{job}/notes', function(job, t){ return { text: t }; }],
+  ['POST /notes', function(job, t){ return { entityType: 'job', entityId: job, text: t }; }],
+  ['POST /jobs/{job}/notes', function(job, t){ return { note: t }; }],
+];
+async function _fergusAddJobNote(fergusKey, jobId, text){
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const attempts = [];
+  for (const c of FERGUS_NOTE_CANDIDATES){
+    const m = c[0].match(/^(\S+)\s+(\S+)$/);
+    const path = FERGUS_PREFIX + m[2].replace('{job}', encodeURIComponent(String(jobId)));
+    const idv = /^\d+$/.test(String(jobId)) ? +jobId : jobId;
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, m[1], H, c[1](idv, text));
+      const a = { path: c[0] + ' ' + Object.keys(c[1](idv, 'x')).join(','), status: r.status };
+      if (!(r.status >= 200 && r.status < 300)) a.said = String(r.body || '').replace(/\s+/g, ' ').slice(0, 160);
+      attempts.push(a);
+      if (r.status === 401 || r.status === 403) return { ok: false, auth: true, attempts };
+      if (r.status >= 200 && r.status < 300) return { ok: true, path: a.path, attempts };
+    } catch (e) { attempts.push({ path: c[0], error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts };
+}
+function _selectionsNoteText(quote, acc, client){
+  const lines = _selLinesNoPrice(_quoteChoiceLines(quote));
+  return ['RoofMap \u2014 customer selections, quote ' + (quote.ref || '') +
+          (acc && (acc.name || acc.at) ? ' (accepted' + (acc.name ? ' by ' + acc.name : '') + (acc.at ? ' on ' + _nzWhen(acc.at) : '') + ')' : ''), '']
+    .concat((lines.length ? lines : ['As quoted']).map(function(x){ return '\u2022 ' + x; })).join('\n');
+}
 function _selectionsPdf(job, quote, acc, company){
   quote = quote || {}; acc = acc || {};
   const client = (job && job.client_name) || quote.client || acc.name || 'Customer';
   const site = (job && job.site_address) || quote.addr || '';
-  const lines = _quoteChoiceLines(quote);
+  // NO PRICES (2026-11-06, the owner on 3341's page in the Fergus files: "i
+  // don't want it to show the price") — the crew reads this, not the customer.
+  const lines = _selLinesNoPrice(_quoteChoiceLines(quote));
   const NAVY = '0.05 0.16 0.33', GREY = '0.35 0.38 0.42';
   const items = [
     { text: String(company || '').trim() || 'RoofMap', size: 10, bold: true, colour: GREY },
@@ -11688,7 +11734,6 @@ function _selectionsPdf(job, quote, acc, company){
   ];
   if (site) items.push({ text: site, size: 11 });
   if (acc.name || acc.at) items.push({ text: 'Accepted by ' + (acc.name || client) + (acc.at ? ' on ' + _nzWhen(acc.at) : ''), size: 11, gap: 4 });
-  if (acc.total != null) items.push({ text: 'Accepted total: ' + _money(acc.total) + ' incl. GST', size: 11, bold: true });
   items.push({ text: 'What the customer chose', size: 13, bold: true, colour: NAVY, gap: 16 });
   (lines.length ? lines : ['As quoted']).forEach(x => {
     items.push({ text: '\u2022  ' + x, size: 11, gap: 3, indent: 6, hang: 12 });
@@ -11741,7 +11786,8 @@ async function _fergusOnAcceptNow(jobId, attachment){
     // have landed, so the selections PDF is tried at most three times - a
     // job's files must never fill up with copies from the hourly retry.
     const needSel = !sh.fergusAcceptSelAt && (+fa.selTries || 0) < 3;
-    if (!needDesc && !needFile && !needSel) return null;
+    const _noteOwed = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+fa.noteTries || 0) < 2;
+    if (!needDesc && !needFile && !needSel && !_noteOwed) return null;
     const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
     if (!fergusKey) return null;
     const out = {};
@@ -11770,6 +11816,20 @@ async function _fergusOnAcceptNow(jobId, attachment){
         fa.descFailTold = new Date().toISOString(); fa.descFailToldV = 2;
         try { recordError('server', new Error('Fergus job description not updated on acceptance of quote ' + (aq.ref || jobId) + ': ' +
           ((out.desc && out.desc.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.verified === false ? ' (not changed)' : '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
+          { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
+      }
+    }
+    // The description could not be written (a job past draft): the picks go
+    // on as a note — twice at most, never a second note once one landed.
+    const needNote = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && (+fa.noteTries || 0) < 2;
+    if (needNote){
+      fa.noteTries = (+fa.noteTries || 0) + 1;
+      out.note = await _fergusAddJobNote(fergusKey, plan.jobId, _selectionsNoteText(aq, acc, job.client_name || aq.client || ''));
+      if (out.note && out.note.ok){ sh.fergusAcceptNoteAt = new Date().toISOString(); events.push('Customer\u2019s selections added to the Fergus job as a note'); }
+      else if (!fa.noteFailTold && !(out.note && out.note.auth)){
+        fa.noteFailTold = new Date().toISOString();
+        try { recordError('server', new Error('Fergus note not added on acceptance of quote ' + (aq.ref || jobId) + ': ' +
+          ((out.note && out.note.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
           { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
       }
     }
@@ -11808,14 +11868,15 @@ async function _fergusOnAcceptNow(jobId, attachment){
     sh.fergusAccept = Object.assign(fa, { at: new Date().toISOString(),
       desc: out.desc ? { ok: !!out.desc.ok, path: out.desc.path || '', unchanged: !!out.desc.unchanged,
                          attempts: (out.desc.attempts || []).slice(-4) } : fa.desc,
-      file: out.file || fa.file, sel: out.sel || fa.sel });
+      file: out.file || fa.file, sel: out.sel || fa.sel,
+      note: out.note ? { ok: !!out.note.ok, path: out.note.path || '', attempts: (out.note.attempts || []).slice(-4) } : fa.note });
     if (events.length){
       if (!Array.isArray(sh.events)) sh.events = [];
       events.forEach(m => sh.events.push({ type: 'fergus-accept', at: new Date().toISOString(), message: m }));
       if (sh.events.length > 80) sh.events = sh.events.slice(-80);
     }
     quote.share = sh;
-    await _shareWriteKeys(job, quote, sh, ['fergusAccept', 'fergusAcceptDescAt', 'fergusAcceptDescSkip', 'fergusAcceptSelAt', 'fergusAcceptFileAt', 'events']);
+    await _shareWriteKeys(job, quote, sh, ['fergusAccept', 'fergusAcceptDescAt', 'fergusAcceptDescSkip', 'fergusAcceptNoteAt', 'fergusAcceptSelAt', 'fergusAcceptFileAt', 'events']);
     return out;
   } catch (e) {
     try { recordError('server', new Error('fergus on-accept failed: ' + (e && e.message || e)),

@@ -2107,7 +2107,19 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   server write to the share now goes through `_shareWriteKeys` (re-read, set
   only its own keys, union `events`), `_acceptOfficeCatchUp` sends the email
   BEFORE starting Fergus, and `_acceptOfficeTold` remembers each acceptance
-  told in this process. `custevents.mjs` (63; the old code sends 3). THE PAGE: `_selectionsPdf`
+  told in this process. `custevents.mjs` (63; the old code sends 3).
+  THE SELECTIONS GO ON AS A NOTE INSTEAD, AND NOTHING THE CREW READS CARRIES
+  A PRICE (the same afternoon, the owner with 3341's page: "i don't want it to
+  show the price. Also job description still not showing"): where the
+  description is refused as not-draft, `_fergusAddJobNote` adds the picks as a
+  note (`_selectionsNoteText`), trying `FERGUS_NOTE_CANDIDATES` (POST /notes
+  {entityType, entityId, text} first — the attachments route's own shape —
+  then /jobs/{id}/notes); a 2xx claims `share.fergusAcceptNoteAt`, at most two
+  tries (`fergusAccept.noteTries`), and the first all-refused try is emailed
+  ONCE with Fergus's words (`noteFailTold`) — pin the route from that. The
+  selections PDF has no accepted total and `_selLinesNoPrice` takes the money
+  off every choice line (PDF and note); the description, where it can still be
+  written, keeps its prices. `custevents.mjs` (64). THE PAGE: `_selectionsPdf`
   (`_pdfDocument`, Helvetica, one A4: the company, "Customer selections", quote
   and customer, address, who accepted and when, the accepted total, then
   `_quoteChoiceLines` — the same list the acceptance email and the description

@@ -167,6 +167,10 @@ globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
     fergus.jobs[m[1]].longDescription = String((body || {}).longDescription || '');
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
   }
+  if (method === 'POST' && /^\/notes$|^\/jobs\/[^/]+\/notes$/.test(String(path))){
+    (fergus.notes = fergus.notes || []).push({ path: String(path), body: body || {} });
+    return Promise.resolve({ status: 201, body: JSON.stringify({ data: { id: 'N' + fergus.notes.length } }) });
+  }
   // the auto-version's quote create / list, which rides along on an accept
   if (method === 'POST' && /\/jobs\/[^/]+\/quotes$/.test(path)) fergus.versions.push(body || {});
   return Promise.resolve({ status: 200, body: JSON.stringify({ data: [] }) });
@@ -404,10 +408,10 @@ check('…and beside it a one-page PDF of the customer\u2019s selections, named 
   _selFile.name === 'Customer selections - Quote 3310 - Fergus Linked.pdf' && _selFile.entityId === 'FJ-77' &&
   /^%PDF-1\.4/.test(_sb) && /%%EOF\s*$/.test(_sb) && /\/Count 1 /.test(_sb),
   JSON.stringify({ name: _selFile.name, head: _sb.slice(0, 12) }));
-check('…listing what they chose, the total and who accepted it — ® and all',
+check('…listing what they chose and who accepted it, NO PRICE anywhere (the owner, 2026-11-06) — ® and all',
   /\(Customer selections\)/.test(_sb) && /Quote 3310/.test(_sb) && /Steel grade: Colorsteel\xae? ?MAXAM/.test(_sb) &&
-  /Guttering: 125mm Colorsteel box gutter/.test(_sb) && /Extra \\\(included\\\): Coloured downpipes \$320\.00/.test(_sb) &&
-  /\$40,000\.00 incl\. GST/.test(_sb) && /Accepted by Fergus Linked/.test(_sb) && !/\?MAXAM|Colorsteel\?/.test(_sb),
+  /Guttering: 125mm Colorsteel box gutter/.test(_sb) && /Extra \\\(included\\\): Coloured downpipes\)/.test(_sb) &&
+  !/\$|incl\. GST|Accepted total/.test(_sb) && /Accepted by Fergus Linked/.test(_sb) && !/\?MAXAM|Colorsteel\?/.test(_sb),
   (_sb.match(/\(([^)]*)\) Tj/g) || []).join(' ').slice(0, 900));
 check('…and the share records both, so neither is uploaded twice',
   !!shareOf('j-fg').fergusAcceptSelAt && (shareOf('j-fg').fergusAccept || {}).sel && shareOf('j-fg').fergusAccept.sel.ok === true,
@@ -558,8 +562,14 @@ check('…and never again once Fergus carries the accepted price', fergus.versio
   check('…Fergus\'s "Job is not in draft" is taken as final: no more PUTs, nothing reported',
     sh49.fergusAcceptDescSkip === 'not-draft' && fergus.puts90 === 1 && !((sh49.fergusAccept || {}).descFailToldV),
     JSON.stringify({ skip: sh49.fergusAcceptDescSkip, puts: fergus.puts90, fa: sh49.fergusAccept }));
-  check('…and the selections PDF still goes into the job\'s files',
-    fergus.files.some(f => /Quote 3349/.test(f.name) && f.entityId === 'FJ-90'), JSON.stringify(fergus.files.map(f => f.name)));
+  const pdf49 = fergus.files.find(f => /Quote 3349/.test(f.name) && f.entityId === 'FJ-90') || {};
+  check('…and the selections PDF still goes into the job\'s files — WITHOUT a price ("i don\'t want it to show the price")',
+    !!pdf49.name && !/\$\s?[\d,]+|Accepted total/.test(pdf49.bytes || ''), JSON.stringify(fergus.files.map(f => f.name)));
+  const notes49 = (fergus.notes || []).filter(n => /FJ-90/.test(n.path) || (n.body || {}).entityId === 'FJ-90');
+  const nt = notes49.length ? (notes49[0].body.text || notes49[0].body.note || '') : '';
+  check('…and the selections go on the Fergus job as ONE note instead (no price), never again on the next sweeps',
+    notes49.length === 1 && /customer selections, quote 3349/.test(nt) && !/\$/.test(nt) && !!shareOf('j-49').fergusAcceptNoteAt,
+    JSON.stringify({ n: notes49.length, nt: nt.slice(0, 200) }));
 }
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
