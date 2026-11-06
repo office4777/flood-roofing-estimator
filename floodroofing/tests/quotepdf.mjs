@@ -138,6 +138,11 @@ const slice = await pg.evaluate(() => {
   const tail = mkCanvas(6400, [[0, 6000], [6180, 6184]]);
   out.tail = run(tail, { footMm: 9 });
   out.tailKept = run(mkCanvas(6400, [[0, 6000], [6180, 6390]]), { footMm: 9 });
+  // THE LAST SHEET CARRIES SOMETHING (2026-11-06, quote 3347 ended on a sheet
+  // of logos alone): a cut that would leave a sliver of real content over is
+  // moved up to the boundary before, so the last sheet opens on a card.
+  const sliv = mkCanvas(3317, [[0, 2500], [2520, 3000], [3010, 3300]]);
+  out.sliverOff = run(sliv, { footMm: 9, breaks: { sec: [], row: [2510, 3005], keep: [] } });
   return out;
 });
 const MM = 2200 / 210;          // px per mm
@@ -167,6 +172,39 @@ check('a final sheet with nothing on it but a stray rule is dropped',
   slice.tail.pages === 2, JSON.stringify(slice.tail));
 check('…but a final sheet with real content on it is kept',
   slice.tailKept.pages === 3, JSON.stringify(slice.tailKept));
+
+check('THE LAST SHEET IS NOT A SLIVER: the cut moves up to the boundary before, so the last sheet opens on a card',
+  slice.sliverOff.pages === 2 && Math.abs(slice.sliverOff.mm[0] * MM - 2510) < 3,
+  JSON.stringify({ pages: slice.sliverOff.pages, cutPx: +(slice.sliverOff.mm[0] * MM).toFixed(0) }));
+
+// ── (3) THE BREAK POINTS, READ OFF A PAGE ────────────────────────────
+const br = await pg.evaluate(() => {
+  const box = document.createElement('div');
+  box.style.cssText = 'position:absolute;left:0;top:0;width:800px;background:#fff';
+  box.innerHTML = '<div class="qb-opt" style="height:120px">a</div>' +
+    '<h3 style="height:30px;margin:0">What you chose</h3>' +
+    '<div class="qb-picks" style="height:200px"><div class="qb-opt" style="height:60px">x</div></div>' +
+    '<div class="qb-swatches" style="height:150px"><button class="qb-sw" style="height:60px">c</button></div>';
+  document.body.appendChild(box);
+  const r = _pdfBreakRows(box, 1);
+  box.remove();
+  let none = '', print = '';
+  window.S = window.S || {}; S.quote = S.quote || {};
+  const wasAcc = S.quote.accepted; delete S.quote.accepted;
+  none = _qbNoColourYet(true);
+  window.__PRINTING_MODERN = true; print = _qbNoColourYet(true); window.__PRINTING_MODERN = false;
+  S.quote.accepted = { name: 'x' }; const acc = _qbNoColourYet(true);
+  if (wasAcc) S.quote.accepted = wasAcc; else delete S.quote.accepted;
+  return { r, none, print, acc };
+});
+check('never a cut between "What you chose" and its list',
+  !br.r.row.some(y => y > 120 && y <= 150), JSON.stringify(br.r.row));
+check('…the list is kept whole WITH its heading, and a colour chart is kept whole',
+  br.r.keep.some(([t, bb]) => t <= 120 && bb >= 350) && br.r.keep.some(([t, bb]) => t <= 350 && bb >= 500),
+  JSON.stringify(br.r.keep));
+check('the page you can press on still says tap one below; paper and an accepted quote say to be confirmed',
+  /tap one below/.test(br.none) && /to be confirmed/.test(br.print) && !/tap/.test(br.print) && /to be confirmed/.test(br.acc),
+  JSON.stringify([br.none, br.print]));
 
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();

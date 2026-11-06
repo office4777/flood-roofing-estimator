@@ -4861,9 +4861,20 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   html:is(.print-modern,.pdf-modern) .qb-para-empty,
   html:is(.print-modern,.pdf-modern) .qb-onote-add,
   html:is(.print-modern,.pdf-modern) .qb-rec-ed,
+  /* "Choose as you go — the total on the right updates with you" is an
+     instruction for a page you can press on; on paper, and on an accepted
+     copy above all, it reads as a promise the sheet cannot keep (2026-11-06,
+     quote 3347: "the accepted pdf doesn't look great"). */
+  html:is(.print-modern,.pdf-modern) .qb-cta-note,
   html:is(.print-modern,.pdf-modern) .qp-placeholder{display:none!important}
   html:is(.print-modern,.pdf-modern), html:is(.print-modern,.pdf-modern) body{height:auto!important; min-height:0!important; overflow:visible!important}
   html:is(.print-modern,.pdf-modern) .qd-main{display:block!important}
+  /* THE ROOF PLAN PRINTS WHOLE (2026-11-06, quote 3347). A frame's pan is in
+     SCREEN pixels — the office moved it on a frame of one width, and the
+     capture lays the same frame out at another — so the roof came out pushed
+     off the right of its box with half of it gone. On paper the map takes
+     the canvas's own framing, which always shows every roof. */
+  html:is(.print-modern,.pdf-modern) .qp-map-inner{transform:none!important}
   /* BUNCHED UP (2026-10-13, the owner: "you can bunch it up a bit more too").
      The on-screen rhythm \u2014 22px between sections, 26/28px inside every card,
      a 21:8 hero \u2014 is sized for a page you scroll. On A4 it bought one sheet
@@ -4890,7 +4901,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
      squeezed into it. And `!important` beat the inline height
      `_psPdfFitCover` sets, so the cover could never grow to fill its sheet
      and sheet 1 came out 80% full with the render in a strip at the top. */
-  html:is(.print-modern,.pdf-modern) .qd-hero:not(.ps-hero){aspect-ratio:auto!important; width:100%!important; height:46mm!important; min-height:0!important; max-height:none!important}
+  html:is(.print-modern,.pdf-modern) .qd-hero:not(.ps-hero){aspect-ratio:auto!important; width:100%!important; height:260px!important; min-height:0!important; max-height:none!important}
   /* The shed's own band, in CAPTURE pixels so it means what it says on the
      sheet: 16:9, the shape a shed render is drawn at, and tall enough to be
      looked at. _psPdfFitCover then grows it to fill sheet one. */
@@ -5310,7 +5321,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-05T22:59:59Z';
+  window.APP_BUILT_AT = '2026-11-06T03:57:22Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -37131,7 +37142,7 @@ function _qbColour(){
       '<div class="qb-chosen">'+(undecided
         ? 'Chosen: <b>Undecided</b> — we will confirm it with you'
         : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
-              : '<em>No colour chosen yet — tap one below, or Undecided above.</em>')+'</div>'+
+              : _qbNoColourYet(true))+'</div>'+
       _qbColourNote('colour', cur)+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
       // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
@@ -37140,6 +37151,16 @@ function _qbColour(){
       // (_qbPicksAuto already leaves a parked colour out).
       ((!window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE) ? '<button type="button" class="qb-cond-link qb-cond-del qb-sec-del no-print" onclick="_qbSectionRemove(\'colour\')" title="Take this section out of this quote. An Insert button stands where it was.">Delete this page from this quote</button>' : '')+
     '</div>';
+}
+// A COLOUR NOBODY HAS PICKED, SAID FOR THE PAGE IT IS ON (2026-11-06, quote
+// 3347's accepted PDF printed "tap one below, or Undecided above" over a grid
+// nobody could tap). The page you press on keeps its instruction; paper and an
+// accepted quote say what it means for the job.
+function _qbNoColourYet(undecidedAbove){
+  var accepted = !!(window.S && S.quote && S.quote.accepted);
+  if (window.__PRINTING_MODERN || window.__PRINTING_QUOTE || accepted)
+    return 'Colour: <b>to be confirmed</b> \u2014 we will confirm it with you before anything is ordered.';
+  return '<em>No colour chosen yet \u2014 tap one below' + (undecidedAbove ? ', or Undecided above.' : '.') + '</em>';
 }
 function _qbGutter(){
   var p = (S.quote && S.quote.proposalOptions) || {};
@@ -37242,7 +37263,7 @@ function _qbGutterColour(){
       '<span class="qb-opt-txt">'+_qbOptPills('gcolour', { id:QB_COLOUR_UNDECIDED })+'<b>Undecided \u2014 I\u2019ll choose later</b><span class="qb-opt-desc">We will confirm the colour with you before anything is ordered.</span>'+_qbOptNoteLink('gcolour', { id:QB_COLOUR_UNDECIDED })+'</span>'+
     '</button>'+
     '<div class="qb-chosen">'+(undecided ? 'Chosen: <b>Undecided</b> \u2014 we will confirm it with you'
-       : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : '<em>No colour chosen yet \u2014 tap one below, or Undecided above.</em>')+'</div>'+
+       : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : _qbNoColourYet(true))+'</div>'+
     _qbColourNote('gcolour', cur)+
     '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
     del + '</div>';
@@ -44966,7 +44987,7 @@ function _psmColour(){
     _qSecPara('pscolour', 'Every colour here is a standard stocked Colorsteel colour, so none of them changes your price. The final shade is confirmed off the colour chip card before anything is ordered.')+
     '<div class="qb-chosen">'+(cur
       ? 'Chosen: <b>'+esc2(cur)+'</b>'
-      : '<em>No colour chosen yet \u2014 tap one below.</em>')+'</div>'+
+      : _qbNoColourYet(false))+'</div>'+
     _qbColourNote('psSelColour', cur)+
     '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your builder will confirm the colour range with you.</p>')+'</div>'
   );
@@ -76970,14 +76991,32 @@ function _pdfBreakRows(target, scale){
     // boundary was tried first and cost a whole extra sheet, because every
     // drawing then took a 58%-full page of its own. The slicer only reaches
     // for this when a cut would land INSIDE one.
-    Array.prototype.forEach.call(target.querySelectorAll('.ps-draw-wrap'), function(el){
+    // AND NEITHER IS A COLOUR CHART (2026-11-06, quote 3347: the roof colours
+    // ran four swatches on one sheet and four on the next).
+    // And a short list goes with the heading over it: quote 3347's "What you
+    // chose" stood alone at the foot of a sheet with its list on the next.
+    Array.prototype.forEach.call(target.querySelectorAll('.ps-draw-wrap, .qb-swatches, .qb-picks'), function(el){
       var r = el.getBoundingClientRect();
+      var hd = el.previousElementSibling;
+      if (hd && /^H[23]$/.test(hd.tagName)){
+        var hr = hd.getBoundingClientRect();
+        if (hr.height > 2 && hr.top < r.top) r = { top: hr.top, bottom: r.bottom, height: r.bottom - hr.top };
+      }
       if (r.height > 2) out.keep.push([Math.round((r.top - tr.top - 6) * k),
                                        Math.round((r.bottom - tr.top) * k)]);
     });
     Array.prototype.forEach.call(
       target.querySelectorAll('.qb-opt, .qb-sub, .qb-incl-row, .qb-sw, .qb-fig, .qb-picks, .qb-total, .qb-note-row, .ed-heading-band, .ps-spec-row, .ps-draw-wrap, figure, h2, h3'),
       function(el){ push(out.row, el, 6); });
+    // NEVER BETWEEN A HEADING AND WHAT IT HEADS: a row boundary that lands
+    // between an h2/h3 and the element after it is not a boundary at all.
+    Array.prototype.forEach.call(target.querySelectorAll('h2, h3'), function(h){
+      var nx = h.nextElementSibling; if (!nx) return;
+      var hr = h.getBoundingClientRect(), nr = nx.getBoundingClientRect();
+      if (!(hr.height > 2) || !(nr.height > 2)) return;
+      var lo = Math.round((hr.top - tr.top) * k), hi = Math.round((nr.top - tr.top) * k);
+      out.row = out.row.filter(function(y){ return !(y > lo && y <= hi); });
+    });
     var tidy = function(a){ a.sort(function(x, y){ return x - y; }); return a; };
     tidy(out.sec); tidy(out.row);
   } catch(e){}
@@ -77069,6 +77108,25 @@ function _pdfAddSlicedCanvas(pdf, canvas, pageW, pageH, opts){
           var secUp = pick(breaks.sec, Math.max(sliceTop, kt - hardStep * 0.25), kt);
           if (secUp !== null) cutY = secUp;
           break;
+        }
+      }
+      // THE LAST SHEET CARRIES SOMETHING (2026-11-06, quote 3347's accepted PDF
+      // ended on a sixth sheet holding the accreditation logos and the
+      // validity line alone). When what this cut leaves over would be a sliver
+      // of a sheet, move the cut up to a real boundary so the last sheet opens
+      // on a card of its own — the review's roof plan, the picks — rather than
+      // on the footer. Only reached on the second-last sheet, and only when the
+      // tail is real content (a near-blank tail is dropped below anyway).
+      var tailH = canvas.height - cutY;
+      if (tailH > 2 && tailH < hardStep * 0.18 && !nearlyBlank(cutY, canvas.height)){
+        var hiT = canvas.height - Math.floor(hardStep * 0.22), loT = sliceTop + hardStep * 0.5;
+        var upT = pick(breaks.sec, loT, Math.min(hiT, cutY));
+        if (upT === null) upT = pick(breaks.row, loT, Math.min(hiT, cutY));
+        if (upT !== null){
+          var inKeep = false;
+          for (var kj = 0; kj < keep.length; kj++)
+            if (keep[kj][0] < upT && keep[kj][1] > upT){ inKeep = true; break; }
+          if (!inKeep) cutY = upT;
         }
       }
     }
