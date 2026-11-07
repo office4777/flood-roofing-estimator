@@ -22,7 +22,7 @@ on:
 
 jobs:
   sheets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned 2026-11-07: ubuntu-latest became 26.04, where this Playwright cannot install Chromium
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4

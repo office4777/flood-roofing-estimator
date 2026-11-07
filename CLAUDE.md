@@ -305,6 +305,14 @@ Discipline (non-negotiable):
    <sha>", then either "Live after Ns" (verified), or one of its two forgiving
    warnings, or the hard error. That line is the only statement of which
    commit a promote actually put live.
+   THE RUNNER IS PINNED TO UBUNTU 24.04 (2026-11-07). GitHub moved
+   `ubuntu-latest` to 26.04 that morning and every browser shard and the
+   sheet gate died at "Playwright does not support chromium on
+   ubuntu26.04-x64" before a test ran, so nothing could ship. `tests.yml`,
+   `sheet-tests.yml` and `hub-nightly-sync.yml` say `ubuntu-24.04`; move them
+   on only together with a Playwright that supports the newer image. A red
+   run that fails in "Install Playwright Chromium" is the runner, not the
+   code — read the step name before the suite.
    Neither `production` containing the commit nor a 201 from the Vercel deploy
    hook is proof. Both were true on three ships that never went live.
    If that step goes red, the FIRST thing to check is the Vercel project's

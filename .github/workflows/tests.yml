@@ -30,7 +30,7 @@ jobs:
   # the fast half reports back in about two minutes.
   api:
     name: Backend
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned 2026-11-07: ubuntu-latest became 26.04, where this Playwright cannot install Chromium
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +48,7 @@ jobs:
   # it; the Tests run is only green when all four are.
   ui:
     name: Browser (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned 2026-11-07: ubuntu-latest became 26.04, where this Playwright cannot install Chromium
     timeout-minutes: 25
     strategy:
       fail-fast: false
