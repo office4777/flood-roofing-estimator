@@ -1858,6 +1858,40 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   MCP is refused, 403) and its DNS at Network Solutions pointed at Vercel.
   `tests/australia.mjs` (UI), `aucountry.mjs` (API), `ausite.mjs` (UI),
   `signup.mjs`.
+- AN AUSTRALIAN BUSINESS SAYS ITS STATE, AND NSW GETS ITS GOVERNMENT'S OWN
+  AERIAL PHOTOS (2026-11-07, the owner: "add the free NSW government imagery
+  for the Australian site, make to user enter their state so they are using
+  the right states government imagery in the app"). `companies.state` (boot
+  DDL; one of `AU_STATES`, '' / null = not said) is asked on BOTH sign-up
+  forms when Australia is picked (`#su-state`, signup.html's `#suState`,
+  required there; the server takes none from an older page) and is the
+  OWNER's to change on Settings → Branding (`#brState` beside the country →
+  `_stateSet` → `PUT /company/country {country:'AU', state}`; a save that
+  omits `state` leaves it; moving to NZ clears it). The sign-in brief,
+  `/team` and `/subscription` carry it (`_companyState`); `_auState()` reads
+  `fr_company.state`. THE IMAGERY: `AU_STATE_IMAGERY` — NSW only — NSW
+  Spatial Services' public tile cache
+  (`maps.six.nsw.gov.au/.../NSW_Imagery/MapServer/tile/{z}/{y}/{x}`, ROW
+  BEFORE COLUMN, Web Mercator 256px, CORS `*`, Creative Commons Attribution,
+  ~10 cm over towns, 50 cm elsewhere). Measured 2026-11-07: Sydney to level
+  21, Dubbo 20, open country ~18, and the cache is SPARSE (a missing tile is a
+  200 with an HTML body, not a 404) — so `_stateStitch` tries the deepest
+  level the picture wants, then a level back at a time (four at most), and
+  the capture falls back to Mapbox. A NSW business's finder opens on it
+  (`#imgSrcState`, value `state`; `DRAW.bgFrom = 'nsw'`); LINZ is no longer
+  offered to any Australian business (`#imgSrcLinz` hidden). THE OTHER
+  STATES ARE LEFT OUT ON PURPOSE (each checked that day): Victoria's Vicmap
+  Basemap charges business apps a licence fee; Tasmania's theLIST is CC
+  BY-NC-ND (non-commercial); Queensland's public basemap is share-alike and
+  only imagery 3+ years old; SA publishes none; WA's Landgate is a paid
+  subscription; the ACT's and NT's licences are not stated. Add one only with
+  a licence that allows business use, and its credit. Settings says which
+  the finder uses (`_stateImageryNote`). PRIVACY v1.4 (in force 7 Nov) names
+  NSW Spatial Services and Mapbox (which served the default satellite view
+  and was never named) — `legal.mjs` now checks both. The cloud
+  environment's allowed hosts carry `maps.six.nsw.gov.au` /
+  `maps1.six.nsw.gov.au` so a session can reach it. `tests/austate.mjs` (28,
+  UI), `aucountry.mjs` (21), `signup.mjs`.
 - THE SCAFFOLD: ON THE QUOTE OR NOT, OURS OR OUTSOURCED (2026-11-04, the owner:
   "have a button to click to exclude scaffold from this quote ... in the gutter
   job type, always default the scaffold to not included and collapse the

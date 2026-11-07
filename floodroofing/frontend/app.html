@@ -5164,6 +5164,16 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       return _hostCountry();
     }
     function _isAU(){ return _country() === 'AU'; }
+    // An Australian business's state (2026-11-07), from the sign-in brief:
+    // one of the eight, or '' when it has not said (then Mapbox, as before).
+    function _auState(){
+      if (!_isAU()) return '';
+      try {
+        var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+        var st = String((c && c.state) || '').toUpperCase();
+        return ['NSW','VIC','QLD','SA','WA','TAS','ACT','NT'].indexOf(st) >= 0 ? st : '';
+      } catch(e){ return ''; }
+    }
     function _defaultGstRate(){ return _isAU() ? 10 : 15; }
     // A plan price in the business's own currency: A$79 in Australia.
     function _curP(p){ return _isAU() ? ('A' + p) : p; }
@@ -5292,6 +5302,10 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="radio" name="su-country" value="NZ" style="width:16px;height:16px;margin:0" onchange="_suCountryHints()"> New Zealand</label>
         <label style="display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer"><input type="radio" name="su-country" value="AU" style="width:16px;height:16px;margin:0" onchange="_suCountryHints()"> Australia</label>
       </div>
+      <div id="su-state-wrap" style="display:none">
+        <label class="li-label" for="su-state">State <span style="font-weight:400;color:#888">— picks your state government&rsquo;s aerial photos where they are free</span></label>
+        <select id="su-state" class="li-input"><option value="">Pick your state…</option><option value="NSW">New South Wales</option><option value="VIC">Victoria</option><option value="QLD">Queensland</option><option value="SA">South Australia</option><option value="WA">Western Australia</option><option value="TAS">Tasmania</option><option value="ACT">Australian Capital Territory</option><option value="NT">Northern Territory</option></select>
+      </div>
       <label class="li-label">Email</label>
       <input id="su-email" type="email" placeholder="you@yourcompany.co.nz" class="li-input">
       <label class="li-label">Phone</label>
@@ -5321,7 +5335,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-06T03:57:22Z';
+  window.APP_BUILT_AT = '2026-11-07T03:01:18Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5589,6 +5603,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     var em=document.getElementById('su-email'), ph=document.getElementById('su-phone');
     if(em) em.placeholder=au?'you@yourcompany.com.au':'you@yourcompany.co.nz';
     if(ph) ph.placeholder=au?'0400 000 000':'021 000 0000';
+    var sw=document.getElementById('su-state-wrap'); if(sw) sw.style.display=au?'':'none';
   };
   (function(){
     try{
@@ -5613,12 +5628,14 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     var interests=Array.prototype.map.call(document.querySelectorAll('input[name=su-interest]:checked'),function(i){return i.value;});
     if(!interests.length){ err.textContent='Pick the one thing that drew you here.'; err.style.display='block'; return; }
     var country=((document.querySelector('input[name=su-country]:checked')||{}).value==='AU')?'AU':'NZ';
+    var state=country==='AU'?((document.getElementById('su-state')||{}).value||''):'';
+    if(country==='AU' && !state){ err.textContent='Pick the state your business is in.'; err.style.display='block'; return; }
     if(pass.length<8){ err.textContent='Password must be at least 8 characters.'; err.style.display='block'; return; }
     if(pass!==pass2){ err.textContent='The two passwords don\'t match.'; err.style.display='block'; return; }
     var btn=document.getElementById('setup-btn'), spin=document.getElementById('setup-spinner');
     btn.style.display='none'; spin.style.display='block';
     try{
-      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite,interests:interests,country:country})});
+      var r=await fetch(BACKEND+'/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,password:pass,name:name,company:companyName,phone:phone,invite:invite,interests:interests,country:country,state:state})});
       var d=await r.json();
       if(!r.ok) throw new Error(d.error||'Could not set up your login');
       if(d.verify){
@@ -6307,7 +6324,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           <span style="font-size:12px;color:#666;white-space:nowrap">Select satellite map:</span>
           <select id="imagerySource" onchange="switchImagerySource(this.value)" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:12px;font-family:inherit">
             <option value="nearmap" id="imgSrcNearmap" hidden disabled>Nearmap (your subscription)</option>
-            <option value="linz">LINZ NZ Aerial (sharpest for NZ)</option>
+            <option value="state" id="imgSrcState" hidden disabled>State government aerial</option>
+            <option value="linz" id="imgSrcLinz">LINZ NZ Aerial (sharpest for NZ)</option>
             <option value="mapbox" selected>Mapbox Satellite</option>
             <option value="esri">Esri World Imagery</option>
           </select>
@@ -9431,7 +9449,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
             <option value="NZ">New Zealand</option>
             <option value="AU">Australia</option>
           </select></div>
-        <div></div>
+        <div id="brStateWrap" style="display:none"><label>State <span style="font-weight:400;color:var(--text2)">— picks the aerial photos the map finder uses</span></label>
+          <select id="brState" data-noautosave onchange="_stateSet(this.value)" style="width:100%"><option value="">Pick your state…</option><option value="NSW">New South Wales</option><option value="VIC">Victoria</option><option value="QLD">Queensland</option><option value="SA">South Australia</option><option value="WA">Western Australia</option><option value="TAS">Tasmania</option><option value="ACT">Australian Capital Territory</option><option value="NT">Northern Territory</option></select>
+          <div id="brStateNote" style="font-size:11.5px;color:var(--text2);margin-top:4px;line-height:1.4"></div></div>
       </div>
       <div class="f2">
         <div><label>Prepared by <span style="font-weight:400;color:var(--text2)">— the name on the customer's quote</span></label><input type="text" id="brPreparedBy" placeholder="Aron Flood"></div>
@@ -10224,6 +10244,11 @@ var PROXY='https://flood-roofing-estimator-production.up.railway.app';
 // ── AUSTRALIA: THE COUNTRY SETTING AND THE WORDS (2026-11-04) ──
 function _countrySyncUI(){
   var el = document.getElementById('brCountry'); if (el) el.value = _country();
+  try {
+    var sw = document.getElementById('brStateWrap'); if (sw) sw.style.display = _isAU() ? '' : 'none';
+    var ss = document.getElementById('brState'); if (ss) ss.value = _auState();
+    var sn = document.getElementById('brStateNote'); if (sn) sn.textContent = _stateImageryNote();
+  } catch(e){}
   var g = document.getElementById('brGstNumber'); if (g) g.placeholder = _isAU() ? '12 345 678 901' : '123 456 789';
 }
 // Changing the business's country (owner only, server PUT /company/country).
@@ -10251,6 +10276,21 @@ async function _countrySet(v){
     }
   } catch(e){}
   location.reload();
+}
+// THE STATE (2026-11-07, the owner: "add the free NSW government imagery for
+// the Australian site, make the user enter their state so they are using the
+// right states government imagery in the app"). The OWNER's to change, like
+// the country, through the same route. Picking one reloads nothing: the map
+// finder reads the state each time it opens.
+async function _stateSet(v){
+  v = String(v || '').toUpperCase();
+  if (!_companyIsOwner()){ alert('Only the account owner can change the business\u2019s state.'); _countrySyncUI(); return; }
+  try { var d = await api('PUT', '/company/country', { country: 'AU', state: v }); v = (d && d.state != null) ? d.state : v; }
+  catch(e){ alert('Could not change the state: ' + (e && e.message || e)); _countrySyncUI(); return; }
+  _setCompanyBrief(Object.assign({}, _companyBrief(), { state: v }));
+  try { localStorage.removeItem('fr_imagery_src'); } catch(e){}
+  _countrySyncUI();
+  try { _imageryDefaultApply(); } catch(e){}
 }
 // THE WORDS AN AUSTRALIAN ROOFER USES. A reviewed list, nothing clever: only
 // text nodes, never what somebody typed into a box, and only on an Australian
@@ -87187,6 +87227,7 @@ function captureFromMapbox(lat, lon, zoom) {
   // NEARMAP (2026-09-24): a company's own Nearmap subscription comes first —
   // but only where Nearmap has flown (its coverage check says so, and when).
   // Anywhere else, or if its tiles fail, LINZ; then Mapbox.
+  var _stP = (src === 'state') ? _stateImagery() : null;
   var _nmK = (src === 'nearmap') ? _nearmapKeyNow() : '';
   var _linzK = (src === 'linz' || src === 'nearmap') ? _linzKeyNow() : '';
   var tryLinz = function(){
@@ -87201,7 +87242,20 @@ function captureFromMapbox(lat, lon, zoom) {
       doFetch(1);
     });
   };
-  if (_nmK){
+  if (_stP){
+    // THE STATE GOVERNMENT'S AERIAL (2026-11-07): NSW's own photos where it
+    // has them, Mapbox where it does not (rural gaps, a job over the border).
+    if (hint) hint.innerHTML = '⏳ Loading the ' + _stP.name + '...';
+    _stateStitch(_stP, mc.lat, mc.lng, z, bearing, boxW * 2, boxH * 2).then(function(blob){
+      _placedFrom = _stP.key;
+      window._lastAerialSource = { source: _stP.key };
+      placeBlob(blob);
+    }).catch(function(e){
+      console.warn(_stP.key + ' capture fell back to Mapbox:', e && e.message);
+      if (hint) hint.innerHTML = '⏳ ' + _stP.short + ' photos not available here \u2014 using Mapbox\u2026';
+      doFetch(1);
+    });
+  } else if (_nmK){
     if (hint) hint.innerHTML = '⏳ Checking Nearmap for this address...';
     _nearmapCoverage(_nmK, mc.lat, mc.lng).then(function(cov){
       if (!cov) throw new Error('Nearmap has not flown here');
@@ -87351,6 +87405,59 @@ function applyNearmapTiles(key){
 }
 var LINZ_TILE_URL = 'https://basemaps.linz.govt.nz/v1/tiles/aerial/WebMercatorQuad/{z}/{x}/{y}.webp?api=';
 var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributors';
+// ── AUSTRALIA: THE STATE GOVERNMENT'S OWN AERIAL PHOTOS (2026-11-07) ─────
+// The owner: "add the free NSW government imagery for the Australian site,
+// make the user enter their state so they are using the right states
+// government imagery in the app". NSW Spatial Services gives its imagery away
+// under Creative Commons Attribution — about 10 cm a pixel over every town of
+// 500 people, 50 cm elsewhere — as a public Web Mercator tile cache (256px,
+// levels 0–23, CORS open). Measured 2026-11-07: Sydney has tiles down to 21,
+// Dubbo to 20, open country stops near 18, and the cache is SPARSE (a
+// Newcastle suburb had 20 and 21 but not 19), so the capture tries the
+// deepest level the picture wants and steps back a level at a time.
+// THE OTHER STATES ARE NOT HERE ON PURPOSE, and each for a reason found that
+// day: Victoria's Vicmap Basemap is a licensed product with a fee for business
+// apps; Tasmania's theLIST orthophoto is CC BY-NC-ND (non-commercial);
+// Queensland's public basemap is share-alike and only imagery three years old
+// or more; South Australia publishes none; WA's Landgate imagery is a paid
+// subscription; the ACT's and the NT's licences are not stated. A state with
+// no entry is on Mapbox, exactly as before. Add a state here only with a
+// licence that allows a business to use it, and its credit.
+var AU_STATE_IMAGERY = {
+  NSW: { key: 'nsw', name: 'NSW Government aerial', short: 'NSW Government',
+         url: 'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Imagery/MapServer/tile/{z}/{y}/{x}',
+         credit: '\u00a9 State of New South Wales (Spatial Services)', maxZ: 21 }
+};
+var AU_STATE_NAMES = { NSW: 'New South Wales', VIC: 'Victoria', QLD: 'Queensland', SA: 'South Australia',
+  WA: 'Western Australia', TAS: 'Tasmania', ACT: 'the ACT', NT: 'the Northern Territory' };
+function _stateImagery(){
+  try { var st = _auState(); return (st && AU_STATE_IMAGERY[st]) || null; } catch(e){ return null; }
+}
+// What Settings → Branding says under the State box.
+function _stateImageryNote(){
+  if (!_isAU()) return '';
+  var st = _auState();
+  if (!st) return 'Pick your state. NSW businesses get the NSW Government\u2019s free aerial photos (about 10 cm in towns) in the map finder.';
+  var p = AU_STATE_IMAGERY[st];
+  if (p) return 'Map finder: ' + p.name + ' \u2014 free, about 10 cm in towns \u2014 with Mapbox satellite where it has no photo.';
+  return 'Map finder: Mapbox satellite. ' + (AU_STATE_NAMES[st] || st) + ' has no free government aerial photos RoofMap can use yet.';
+}
+// The state's tiles into the Mapbox picture's exact geometry, as LINZ is.
+// The deepest level the picture wants first, then one level back at a time
+// (k takes up the difference: the same ground at the same scale, softer),
+// four levels at most; rejects when none has the address, so the caller
+// falls back to Mapbox.
+function _stateStitch(p, lat, lng, z, bearing, W, H){
+  var top = Math.min(p.maxZ || 21, Math.round(_stitchTileZoom(z)));
+  var levels = [top, top - 1, top - 2, top - 3].filter(function(l){ return l >= 12; });
+  var i = 0;
+  var next = function(){
+    if (i >= levels.length) return Promise.reject(new Error('no ' + p.key + ' cover here'));
+    var mz = levels[i++];
+    return _tileStitch(p.url, p.credit, lat, lng, z, bearing, W, H, mz).catch(function(){ return next(); });
+  };
+  return next();
+}
 // Build a W×H picture of the ground a Mapbox static image at (lat, lng, z,
 // bearing, @2x) would show — z on Mapbox's 512px scale, so its metres per
 // picture pixel are 78271.51696·cos(lat)/2^z/2 — from LINZ's 256px tiles at
@@ -87559,6 +87666,11 @@ function switchImagerySource(val, auto) {
     linzWrap.style.display = window._linzPlatformKey ? 'none' : 'flex';
     if(key) { applyLinzTiles(key); }
     else { alert('LINZ imagery needs an API key.\n\nGet a free key at basemaps.linz.govt.nz'); }
+  } else if(val === 'state') {
+    linzWrap.style.display = 'none';
+    var sp = _stateImagery();
+    if (sp){ _aerialOverlayTiles([{ url: sp.url, attribution: sp.credit, maxzoom: sp.maxZ }]); window._linzKey = null; }
+    else applyMapboxTiles();
   } else if(val === 'esri') {
     linzWrap.style.display = 'none';
     applyEsriTiles();
@@ -87634,9 +87746,18 @@ function _imageryDefaultApply(){
   var nm = !!_nearmapKeyNow();
   var opt = document.getElementById('imgSrcNearmap');
   if (opt){ opt.hidden = !nm; opt.disabled = !nm; }
+  // The state government's aerial (2026-11-07): offered, and the default,
+  // to an Australian business whose state gives its photos away (NSW).
+  var sp = _stateImagery();
+  var so = document.getElementById('imgSrcState');
+  if (so){ so.hidden = !sp; so.disabled = !sp; if (sp) so.textContent = sp.name + ' (sharpest for ' + _auState() + ')'; }
+  // LINZ flies New Zealand only — not offered to an Australian business.
+  var lo = document.getElementById('imgSrcLinz');
+  try { var au = _isAU(); if (lo){ lo.hidden = au; lo.disabled = au; } } catch(e){}
   var pick = ''; try { pick = localStorage.getItem('fr_imagery_src') || ''; } catch(e){}
-  var want = pick || (nm ? 'nearmap' : (_linzKeyNow() ? 'linz' : 'mapbox'));
-  if (want === 'nearmap' && !nm) want = _linzKeyNow() ? 'linz' : 'mapbox';
+  var want = pick || (nm ? 'nearmap' : (sp ? 'state' : (_linzKeyNow() ? 'linz' : 'mapbox')));
+  if (want === 'state' && !sp) want = _linzKeyNow() ? 'linz' : 'mapbox';
+  if (want === 'nearmap' && !nm) want = sp ? 'state' : (_linzKeyNow() ? 'linz' : 'mapbox');
   if (want === 'linz' && !_linzKeyNow()) want = 'mapbox';
   sel.value = want;
   if (window._aerialMap) switchImagerySource(want, true);

@@ -107,6 +107,23 @@ const nzProf = db.profiles.find(p => p.email === 'new.nz@example.co.nz');
 const nzCo = nzProf && db.companies.find(c => c.id === nzProf.company_id);
 check('…and one that says nothing is a New Zealand business, as every sign-up was', r.status < 300 && nzCo && nzCo.country === 'NZ', JSON.stringify(nzCo));
 
+// ── the state (2026-11-07): it picks the state government's aerial imagery ──
+r = await call('POST', '/auth/register', { email: 'nsw@example.com.au', password: 'password123', phone: '0412 000 111', name: 'Shane', company: 'Shane Roofing', interests: ['quotes'], country: 'AU', state: 'nsw' }, null, '198.51.100.9');
+const nswCo = (() => { const p = db.profiles.find(x => x.email === 'nsw@example.com.au'); return p && db.companies.find(c => c.id === p.company_id); })();
+check('an Australian sign-up keeps its state on the business', r.status < 300 && nswCo && nswCo.country === 'AU' && nswCo.state === 'NSW', JSON.stringify(nswCo));
+check('…and the sign-in brief carries it, so the app picks the NSW imagery', r.body && r.body.company && r.body.company.state === 'NSW', JSON.stringify(r.body && r.body.company));
+r = await call('POST', '/auth/register', { email: 'kiwi2@example.co.nz', password: 'password123', phone: '021 000 222', name: 'Hemi', company: 'Hemi Roofing', interests: ['quotes'], country: 'NZ', state: 'NSW' }, null, '198.51.100.10');
+const kiwi2 = (() => { const p = db.profiles.find(x => x.email === 'kiwi2@example.co.nz'); return p && db.companies.find(c => c.id === p.company_id); })();
+check('…a New Zealand business never takes a state, whatever is sent', kiwi2 && kiwi2.country === 'NZ' && !kiwi2.state, JSON.stringify(kiwi2));
+r = await call('PUT', '/company/country', { country: 'AU', state: 'Narnia' }, tok(U_AU, AU, 'aussie@example.com.au'));
+check('the owner can only pick one of the eight states', r.status === 400, String(r.status));
+r = await call('PUT', '/company/country', { country: 'AU', state: 'qld' }, tok(U_AU, AU, 'aussie@example.com.au'));
+check('…and setting one is written to the business and answered', r.status === 200 && r.body.state === 'QLD' && db.companies.find(c => c.id === AU).state === 'QLD', JSON.stringify(r.body));
+r = await call('PUT', '/company/country', { country: 'AU' }, tok(U_AU, AU, 'aussie@example.com.au'));
+check('…a save that does not mention the state leaves it alone', r.status === 200 && db.companies.find(c => c.id === AU).state === 'QLD', JSON.stringify(r.body));
+r = await call('GET', '/subscription', undefined, tok(U_AU, AU));
+check('/subscription answers the state', r.status === 200 && r.body.state === 'QLD', JSON.stringify(r.body && r.body.state));
+
 // ── /subscription ──
 r = await call('GET', '/subscription', undefined, tok(U_AU, AU));
 check('/subscription tells an Australian business it is AU and pays in AUD', r.status === 200 && r.body.country === 'AU' && r.body.currency === 'aud', JSON.stringify({ c: r.body && r.body.country, cur: r.body && r.body.currency }));
@@ -133,6 +150,7 @@ r = await call('PUT', '/company/country', { country: 'Mars' }, tok(U_AU, AU, 'au
 check('…the owner can only pick NZ or AU', r.status === 400, String(r.status));
 r = await call('PUT', '/company/country', { country: 'NZ' }, tok(U_AU, AU, 'aussie@example.com.au'));
 check('…and the owner moving it is written to the business', r.status === 200 && r.body.country === 'NZ' && db.companies.find(c => c.id === AU).country === 'NZ', JSON.stringify(r.body));
+check('…and a business moved to New Zealand loses its state', !db.companies.find(c => c.id === AU).state, JSON.stringify(db.companies.find(c => c.id === AU)));
 await call('PUT', '/company/country', { country: 'AU' }, tok(U_AU, AU, 'aussie@example.com.au'));
 
 // ── AUD price options ──

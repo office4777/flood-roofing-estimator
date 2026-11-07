@@ -179,6 +179,20 @@
             </select>
           </div>
         </div>
+        <div class="field" id="suStateWrap" hidden>
+          <label for="suState">State <span style="font-weight:400;color:var(--muted)">&mdash; picks your state government&rsquo;s aerial photos where they are free</span></label>
+          <select id="suState" name="state" autocomplete="address-level1">
+            <option value="">Pick your state&hellip;</option>
+            <option value="NSW">New South Wales</option>
+            <option value="VIC">Victoria</option>
+            <option value="QLD">Queensland</option>
+            <option value="SA">South Australia</option>
+            <option value="WA">Western Australia</option>
+            <option value="TAS">Tasmania</option>
+            <option value="ACT">Australian Capital Territory</option>
+            <option value="NT">Northern Territory</option>
+          </select>
+        </div>
         <div class="two">
           <div class="field">
             <label for="suName">Your name</label>
@@ -300,6 +314,7 @@
       if (em) em.placeholder = au ? 'sam@acmeroofing.com.au' : 'sam@acmeroofing.co.nz';
       if (ph) ph.placeholder = au ? '0400 000 000' : '021 000 0000';
       if (co) co.placeholder = au ? 'Acme Roofing Pty Ltd' : 'Acme Roofing Ltd';
+      var sw = document.getElementById('suStateWrap'); if (sw) sw.hidden = !au;
     }
     if (sel) sel.addEventListener('change', hints);
     hints();
@@ -315,17 +330,19 @@
     var invite  = (document.getElementById('suInvite') || {}).value || '';
     var interests = Array.prototype.map.call(document.querySelectorAll('input[name=interest]:checked'), function(i){ return i.value; });
     var country = ((document.getElementById('suCountry') || {}).value === 'AU') ? 'AU' : 'NZ';
+    var state = country === 'AU' ? ((document.getElementById('suState') || {}).value || '') : '';
     if (!company || !name){ say('Please fill in your business and your name.', 'bad'); return; }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ say('That doesn\'t look like an email address.', 'bad'); return; }
     if (pass.length < 8){ say('Your password needs to be at least 8 characters.', 'bad'); return; }
     if (phone.replace(/\D/g, '').length < 7){ say('Please add a phone number we can reach you on.', 'bad'); return; }
     if (!interests.length){ say('Pick the one thing that drew you here.', 'bad'); return; }
+    if (country === 'AU' && !state){ say('Pick the state your business is in.', 'bad'); return; }
     btn.disabled = true; btn.textContent = 'Setting up your account…';
     say('');
     try {
       var r = await fetch(API + '/auth/register', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website, interests:interests, country:country })
+        body: JSON.stringify({ email:email, password:pass, name:name, company:company, phone:phone, invite:invite, website:website, interests:interests, country:country, state:state })
       });
       var d = await r.json().catch(function(){ return {}; });
       if (!r.ok){

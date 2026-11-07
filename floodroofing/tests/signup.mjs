@@ -200,8 +200,11 @@ v = await pg.evaluate(() => document.getElementById('suEmail').placeholder);
 check('…Australia shows Australian examples', /\.com\.au$/.test(v), v);
 await pg.fill('#suCompany','Acme Roofing Pty Ltd'); await pg.fill('#suName','Sam');
 await pg.fill('#suEmail','sam@acmeroofing.com.au'); await pg.fill('#suPhone','0400 555 010'); await pg.fill('#suPass','longenough'); await pg.check('input[name=interest][value=satellite]');
+// An Australian business says its state too (2026-11-07): it picks the state
+// government's aerial photos. austate.mjs pins the refusal without one.
+await pg.selectOption('#suState', 'QLD');
 await pg.click('#suBtn'); await pg.waitForTimeout(900);
-check('…and an Australian sign-up posts country AU', posts.length === 1 && posts[0].country === 'AU', posts[0] && posts[0].country);
+check('…and an Australian sign-up posts country AU, with its state', posts.length === 1 && posts[0].country === 'AU' && posts[0].state === 'QLD', posts[0] && (posts[0].country + ' ' + posts[0].state));
 await ctx.close();
 {
   const appHtml = await readFile(_j(DIR, 'app.html'), 'utf8');

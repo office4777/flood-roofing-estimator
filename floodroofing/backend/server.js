@@ -1391,7 +1391,14 @@ async function _companyOf(userId, opts){
       // reads as NZ — the same as every business before it.
       const ins = { name: cname || 'My Company' };
       if (opts && opts.country) ins.country = _normCountry(opts.country);
+      if (opts && opts.state && ins.country === 'AU') ins.state = _normState(opts.state);
+      if (!ins.state) delete ins.state;
       let { data: co, error } = await supabase.from('companies').insert(ins).select('id').single();
+      if (error && ins.state && _missingColumn(error, 'state')){
+        recordError('company-state', new Error('companies.state is not migrated yet — an Australian business was created without its state'), { route: 'POST /auth/register' });
+        delete ins.state;
+        ({ data: co, error } = await supabase.from('companies').insert(ins).select('id').single());
+      }
       if (error && ins.country && _missingColumn(error, 'country')){
         if (ins.country === 'AU') recordError('company-country', new Error('companies.country is not migrated yet — an Australian business was created without its country, so it reads as NZ'), { route: 'POST /auth/register' });
         delete ins.country;
@@ -1597,6 +1604,22 @@ function _normCountry(v){ return String(v == null ? '' : v).trim().toUpperCase()
 function _publicUrlFor(country){ return _normCountry(country) === 'AU' ? PUBLIC_APP_URL_AU : PUBLIC_APP_URL; }
 function _currencyFor(country){ return _normCountry(country) === 'AU' ? 'aud' : 'nzd'; }
 function _countryWords(country){ return _normCountry(country) === 'AU' ? 'Australia' : 'New Zealand'; }
+// THE STATE OF AN AUSTRALIAN BUSINESS (2026-11-07, the owner: "add the free
+// NSW government imagery for the Australian site, make the user enter their
+// state so they are using the right states government imagery in the app").
+// One of the eight, or '' — never guessed. A New Zealand business has none.
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT'];
+function _normState(v){ const s = String(v == null ? '' : v).trim().toUpperCase(); return AU_STATES.indexOf(s) >= 0 ? s : ''; }
+// Never throws, never stands in for a failed read with a guess: '' is "not
+// said", which the app reads as Mapbox — the same as before states existed.
+async function _companyState(cid){
+  if (!cid) return '';
+  try {
+    const r = await supabase.from('companies').select('state').eq('id', cid).maybeSingle();
+    if (r && r.error) return '';
+    return _normState(r && r.data && r.data.state);
+  } catch (e) { return ''; }
+}
 function _missingColumn(err, col){
   const m = String((err && (err.message || err.details || err.hint)) || err || '');
   return m.indexOf(col) >= 0 && /does not exist|could not find|schema cache/i.test(m);
@@ -1914,6 +1937,7 @@ app.get('/subscription', requireAuth, async (req, res) => {
     // Where the business is and what it pays in (AUSTRALIA, 2026-11-04).
     country: _subCountry,
     currency: _currencyFor(_subCountry),
+    state: _subCountry === 'AU' ? await _companyState(req.companyId) : '',
     // The terms it is on and, on a capped plan, this month's roofs (the app
     // shows "12 of 30 roofs this month" and opens the plans at the cap).
     terms: await (async () => { try { return (await _planInfo(req.companyId)).legacy ? 'legacy' : 'current'; } catch (e) { return 'current'; } })(),
@@ -2146,6 +2170,7 @@ async function _companyBrief(cid, userId){
     // NZ or AU — what the app sells in and which site it points at. Read on
     // its own so an old database without the column still answers the rest.
     brief.country = await _companyCountry(cid);
+    if (brief.country === 'AU') brief.state = await _companyState(cid);
     // The business's own verified domain, if it has one — quote links prefer it
     // over the roofmap.co.nz address.
     try {
@@ -2193,6 +2218,7 @@ app.get('/team', requireAuth, async (req, res) => {
     const seats = { used: members.length + invites.length, allowed: lim.seats === Infinity ? null : lim.seats };
     const _co = co || { id: req.companyId };
     _co.country = await _companyCountry(req.companyId);
+    if (_co.country === 'AU') _co.state = await _companyState(req.companyId);
     res.json({
       company: _co,
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
@@ -2785,6 +2811,10 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
   // NZ or AU (2026-11-04). Anything else, or nothing, is NZ — the sign-up
   // pages that predate Australia send no country at all.
   const country = _normCountry((req.body || {}).country);
+  // Australia's state (2026-11-07): picks the state's own aerial imagery.
+  // A page from before sends none, and a business without one is simply on
+  // Mapbox until the owner says, in Settings → Branding.
+  const state = country === 'AU' ? _normState((req.body || {}).state) : '';
   if (String((req.body || {}).website || '').trim()) {
     // The honeypot. A person cannot see the field; whoever filled it is a script.
     console.warn('[auth] signup honeypot tripped from ' + req.ip);
@@ -2850,7 +2880,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     // INVITE_COMPANY_ID could only ever name ONE company, so every person who
     // signed up with the shared code landed in that same business — fine while
     // there was one, wrong the moment RoofMap has subscribers.
-    const cid = await _companyOf(userId, { country: country });
+    const cid = await _companyOf(userId, { country: country, state: state });
     // A registration with no company is not a registration: every table is
     // scoped by company_id, so the account would come up empty and stay empty,
     // and the only visible symptom is a missing row in `companies`. Undo the
@@ -2885,7 +2915,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
     // Tell the owner. A trial starting is the one event worth a ring, and
     // until now nobody was told — signups were a number in the metrics.
-    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst, country }).catch(function(){});
+    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst, country, state }).catch(function(){});
     if (verifyFirst) {
       // No session until the address is confirmed. The account exists, so a
       // second signup with this email says "already registered" — the resend
@@ -2949,7 +2979,7 @@ async function _signupAlert(o){
       ? 'They have confirmed their email — the ' + _TRIAL_WORDS() + ' trial of Team is under way.\n\n'
       : 'A new business has signed up for the ' + _TRIAL_WORDS() + ' trial of Team.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
-      'Country: ' + _countryWords(o.country) + '\n' +
+      'Country: ' + _countryWords(o.country) + (au && _normState(o.state) ? ' (' + _normState(o.state) + ')' : '') + '\n' +
       nice('Drawn here by', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
       '\nReply to this email and it goes straight to them.',
@@ -7114,7 +7144,23 @@ app.put('/company/country', requireAuth, async (req, res) => {
     if (!(await _requireBillingOwner(req, res))) return;
     const want = String((req.body || {}).country || '').trim().toUpperCase();
     if (want !== 'NZ' && want !== 'AU') return res.status(400).json({ error: 'Pick a country: NZ or AU.' });
-    const { error } = await supabase.from('companies').update({ country: want }).eq('id', req.companyId);
+    // The state rides with it (2026-11-07): sent by Settings → Branding's
+    // State box. Absent leaves the stored one alone; a New Zealand business
+    // has none; an unknown name is refused rather than stored.
+    const body = req.body || {};
+    const upd = { country: want };
+    let stateSent = Object.prototype.hasOwnProperty.call(body, 'state');
+    if (want === 'NZ') { upd.state = null; stateSent = true; }
+    else if (stateSent){
+      const st = _normState(body.state);
+      if (body.state && !st) return res.status(400).json({ error: 'Pick a state: ' + AU_STATES.join(', ') + '.' });
+      upd.state = st || null;
+    }
+    let { error } = await supabase.from('companies').update(upd).eq('id', req.companyId);
+    if (error && stateSent && _missingColumn(error, 'state')){
+      delete upd.state;
+      ({ error } = await supabase.from('companies').update(upd).eq('id', req.companyId));
+    }
     if (error){
       if (_missingColumn(error, 'country'))
         return res.status(503).json({ error: 'The server is still being updated — try again in a minute.', code: 'NOT_MIGRATED' });
@@ -7125,7 +7171,8 @@ app.put('/company/country', requireAuth, async (req, res) => {
     // read whole.
     _planCache.delete(req.companyId);
     _companyCache.delete(req.user.id);
-    res.json({ country: await _companyCountry(req.companyId, true) });
+    const _c2 = await _companyCountry(req.companyId, true);
+    res.json({ country: _c2, state: _c2 === 'AU' ? await _companyState(req.companyId) : '' });
   } catch (e) {
     if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     res.status(e.status || 500).json({ error: e.message });
@@ -14449,6 +14496,9 @@ const _MIGRATION_SQL = [
   // Where the business is: 'NZ' or 'AU' (2026-11-04). Null is NZ — every
   // business before Australia was sold — so there is no default to backfill.
   "alter table public.companies add column if not exists country text",
+  // An Australian business's state (2026-11-07): picks the state government's
+  // own aerial imagery where that state gives one away (NSW). Null = not said.
+  "alter table public.companies add column if not exists state text",
   "create unique index if not exists idx_companies_slug on public.companies (lower(slug)) where slug is not null",
   // Per-company invitations. Replaces INVITE_COMPANY_ID, which could only ever
   // point at ONE company — so every invited person landed in that same
