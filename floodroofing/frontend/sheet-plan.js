@@ -6769,6 +6769,195 @@ function _pzPtSeg(p, a, b){
   var uc = Math.max(0, Math.min(1, u));
   return { d: Math.hypot(p[0]-(a[0]+dx*uc), p[1]-(a[1]+dy*uc)), u: u };
 }
+// ══ A HAND-DRAWN LINE THAT ALMOST MEETS ANOTHER DOES MEET IT (2026-11-06) ══
+// The owner, drawing a roof the roof types could not make (a rectangle with an
+// east-west gable, a north-south gable running into its middle and two valleys
+// off that junction): "if a hip or valleys or anything doesn't meet up to
+// another line, well then I'm sure that this would throw out the sheet cut
+// diagram and the sheet layout diagram". Measured: on that roof with its lines
+// 4 px short of meeting the order went 48 → 49 sheets in three lengths, and
+// 8 px short (a quarter of a metre) the faces no longer closed — the whole roof
+// read as ONE face of 24 sheets 13.25 m long, every line ignored.
+// So before the roof is cut into faces, an end of a ridge / hip / valley /
+// apron / change of pitch / barge that touches NOTHING is joined to what it
+// was plainly meant to meet, within PZ_WELD_M: ends that close together become
+// one point (an outline corner, or a point on a line through them, wins), and
+// a lone end is carried along its own direction onto the line or wall it
+// stops short of (or runs past), else onto the nearest one. Only ends touching
+// nothing move, so a roof the builders drew — every end on something — is
+// laid exactly as it was. A ridge started deliberately well off another stays
+// where it was put. The drawing itself is never changed here; the drawing
+// snaps as it is drawn (getXY).
+// ON since the owner's "go" (2026-11-06, "Go on all") on the v10 pictures.
+var PZ_WELD_ON = true;
+var PZ_WELD_M = 0.4, PZ_WELD_PX = 14;
+var PZ_WELD_TYPES = { ridge: 1, hip: 1, valley: 1, apron: 1, changepitch: 1, barge: 1 };
+function _pzWeldLines(ol, lines, tol){
+  if (!lines || !lines.length || !(tol > 0)) return lines;
+  var L = lines.map(function(l){
+    if (!l || !l.pts || l.pts.length < 2) return l;
+    var c = Object.assign({}, l); c.pts = l.pts.map(function(p){ return p.slice(); }); return c;
+  });
+  var n = ol.length, walls = [];
+  for (var i = 0; i < n; i++) walls.push([ol[i], ol[(i + 1) % n]]);
+  var TOUCH = 0.05;
+  var touching = function(p, self){
+    for (var k = 0; k < n; k++) if (Math.hypot(ol[k][0]-p[0], ol[k][1]-p[1]) <= TOUCH) return true;
+    for (var w = 0; w < n; w++) if (_pzPtSeg(p, walls[w][0], walls[w][1]).d <= TOUCH) return true;
+    for (var j = 0; j < L.length; j++){
+      var m = L[j]; if (j === self || !m || !m.pts || m.pts.length < 2) continue;
+      var A = m.pts[0], B = m.pts[m.pts.length - 1];
+      if (Math.hypot(A[0]-p[0], A[1]-p[1]) <= TOUCH || Math.hypot(B[0]-p[0], B[1]-p[1]) <= TOUCH) return true;
+      // partway along: a ridge, a wall line or a change of pitch carries a
+      // junction there; a hip or valley crossing another is not one
+      if (m.type !== 'hip' && m.type !== 'valley' && _pzPtSeg(p, A, B).d <= TOUCH) return true;
+    }
+    return false;
+  };
+  // the free ends
+  var free = [];
+  L.forEach(function(l, li){
+    if (!l || !l.pts || l.pts.length !== 2 || !PZ_WELD_TYPES[l.type]) return;
+    if (Math.hypot(l.pts[1][0]-l.pts[0][0], l.pts[1][1]-l.pts[0][1]) < tol * 1.5) return;   // too short to judge
+    [0, 1].forEach(function(e){
+      var P = l.pts[e], nearC = false;
+      // a hip or valley runs corner to junction: an end on a wall a whisker
+      // from a corner is meant to be at the corner
+      if (l.type === 'hip' || l.type === 'valley') for (var k = 0; k < n; k++){
+        var dc = Math.hypot(ol[k][0]-P[0], ol[k][1]-P[1]); if (dc > TOUCH && dc <= tol) nearC = true;
+      }
+      if (nearC || !touching(P, li)) free.push({ li: li, e: e });
+    });
+  });
+  if (!free.length) return L;
+  var segs = function(skip){
+    var out = walls.map(function(w){ return { a: w[0], b: w[1], li: -1 }; });
+    L.forEach(function(m, j){ if (j !== skip && m && m.pts && m.pts.length >= 2) out.push({ a: m.pts[0], b: m.pts[m.pts.length - 1], li: j }); });
+    return out;
+  };
+  var done = {};
+  // 0. An end a whisker from an outline corner is AT the corner (first, so the
+  //    lines carried on below run from where they really start).
+  free.forEach(function(f){
+    var P = L[f.li].pts[f.e], c = null, cd = tol;
+    ol.forEach(function(q){ var d = Math.hypot(q[0]-P[0], q[1]-P[1]); if (d <= cd){ cd = d; c = q; } });
+    if (c){ L[f.li].pts[f.e] = c.slice(); done[f.li + ':' + f.e] = 1; }
+  });
+  // 1. Ends close together become one point.
+  free.forEach(function(f){
+    var key = f.li + ':' + f.e; if (done[key]) return;
+    var P = L[f.li].pts[f.e];
+    var group = [f];
+    free.forEach(function(g){
+      if (g === f || g.li === f.li || done[g.li + ':' + g.e]) return;
+      var Q = L[g.li].pts[g.e];
+      if (Math.hypot(Q[0]-P[0], Q[1]-P[1]) <= tol) group.push(g);
+    });
+    // anchors: an outline corner, or a fixed end of another line, within reach
+    var anchor = null, ad = tol;
+    ol.forEach(function(c){ var d = Math.hypot(c[0]-P[0], c[1]-P[1]); if (d <= ad){ ad = d; anchor = c.slice(); } });
+    if (!anchor) L.forEach(function(m, j){
+      if (j === f.li || !m || !m.pts || m.pts.length < 2) return;
+      [0, m.pts.length - 1].forEach(function(e){
+        if (free.some(function(g){ return g.li === j && g.e === (e ? 1 : 0); })) return;
+        var c = m.pts[e], d = Math.hypot(c[0]-P[0], c[1]-P[1]);
+        if (d <= ad){ ad = d; anchor = c.slice(); }
+      });
+    });
+    // A ridge in the group wins over a line end: the ridge's line decides.
+    if (anchor && group.length > 1 && !ol.some(function(c){ return c[0] === anchor[0] && c[1] === anchor[1]; }) &&
+        group.some(function(g){ return L[g.li].type === 'ridge'; })) anchor = null;
+    var target = anchor;
+    // A RIDGE among them is the spine: it keeps its line (a level ridge stays
+    // level), and the junction is where the others, carried on at their own
+    // angles, cross it.
+    var spine = null;
+    if (!target && group.length > 1) group.forEach(function(g){ if (!spine && L[g.li].type === 'ridge') spine = g; });
+    if (spine){
+      var sl = L[spine.li], SA = sl.pts[1 - spine.e], SB = sl.pts[spine.e];
+      var sdx = SB[0]-SA[0], sdy = SB[1]-SA[1], sL = Math.hypot(sdx, sdy) || 1;
+      var far = [SA[0] + sdx/sL*(sL + tol*3), SA[1] + sdy/sL*(sL + tol*3)];
+      var hx = 0, hy = 0, hn = 0;
+      group.forEach(function(g){
+        if (g === spine) return;
+        var m = L[g.li], P2 = m.pts[g.e], O2 = m.pts[1 - g.e];
+        var h = _pzLineHit(O2, P2, SA, far);
+        if (h && Math.hypot(h[0]-P2[0], h[1]-P2[1]) <= tol * 1.5){ hx += h[0]; hy += h[1]; hn++; }
+      });
+      if (hn){
+        // the average of the hits, put back on the spine's own line
+        var ax = hx/hn - SA[0], ay = hy/hn - SA[1], tt = (ax*sdx + ay*sdy) / (sL*sL);
+        target = [SA[0] + sdx*tt, SA[1] + sdy*tt];
+      }
+    }
+    if (!target && group.length > 1){
+      var sx = 0, sy = 0; group.forEach(function(g){ var q = L[g.li].pts[g.e]; sx += q[0]; sy += q[1]; });
+      target = [sx / group.length, sy / group.length];
+      // onto a line or wall through them, if one passes close (the junction on a ridge)
+      var own = {}; group.forEach(function(g){ own[g.li] = 1; });
+      var best = null, bd = tol, bsg = null;
+      segs(-2).forEach(function(sg){
+        if (own[sg.li]) return;
+        var r = _pzPtSeg(target, sg.a, sg.b); if (r.u < -0.02 || r.u > 1.02 || r.d > bd) return;
+        var uc = Math.max(0, Math.min(1, r.u));
+        bd = r.d; bsg = sg; best = [sg.a[0] + (sg.b[0]-sg.a[0])*uc, sg.a[1] + (sg.b[1]-sg.a[1])*uc];
+      });
+      if (best){
+        // where each of the group's lines, carried on at its own angle, meets
+        // that line — the point they were all drawn towards (a valley is 45°
+        // and stays 45°), averaged; the plain projection where none does.
+        var hx = 0, hy = 0, hn = 0;
+        group.forEach(function(g){
+          var m = L[g.li], P2 = m.pts[g.e], O2 = m.pts[1 - g.e];
+          var h = _pzLineHit(O2, P2, bsg.a, bsg.b);
+          if (h && Math.hypot(h[0]-P2[0], h[1]-P2[1]) <= tol * 1.5){ hx += h[0]; hy += h[1]; hn++; }
+        });
+        target = hn ? [hx / hn, hy / hn] : best;
+      }
+    }
+    if (target && (anchor || group.length > 1)){
+      group.forEach(function(g){ L[g.li].pts[g.e] = target.slice(); done[g.li + ':' + g.e] = 1; });
+    }
+  });
+  // 2. A lone end: along its own direction onto what it stops short of or runs past.
+  free.forEach(function(f){
+    var key = f.li + ':' + f.e; if (done[key]) return;
+    var l = L[f.li], P = l.pts[f.e], O = l.pts[1 - f.e];
+    if (touching(P, f.li)) { done[key] = 1; return; }
+    var dx = P[0]-O[0], dy = P[1]-O[1], len = Math.hypot(dx, dy); if (len < 1e-6) return;
+    // along its own line it may be a little further than tol (a 45° valley
+    // stopping 0.3 m above a wall is 0.42 m short of it)
+    var ux = dx / len, uy = dy / len, best = null, bd = tol * 1.5;
+    segs(f.li).forEach(function(sg){
+      var ex = sg.b[0]-sg.a[0], ey = sg.b[1]-sg.a[1], den = ux*ey - uy*ex;
+      if (Math.abs(den) < 1e-9) return;
+      var t = ((sg.a[0]-O[0])*ey - (sg.a[1]-O[1])*ex) / den;   // along the line from O
+      var s2 = ((sg.a[0]-O[0])*uy - (sg.a[1]-O[1])*ux) / den;  // along the segment
+      if (s2 < -0.02 || s2 > 1.02 || t < len * 0.5) return;
+      var dd = Math.abs(t - len); if (dd > bd) return;
+      bd = dd; best = [O[0] + ux*t, O[1] + uy*t];
+    });
+    if (!best){
+      bd = tol;
+      segs(f.li).forEach(function(sg){
+        var r = _pzPtSeg(P, sg.a, sg.b); if (r.d > bd) return;
+        var uc = Math.max(0, Math.min(1, r.u));
+        bd = r.d; best = [sg.a[0] + (sg.b[0]-sg.a[0])*uc, sg.a[1] + (sg.b[1]-sg.a[1])*uc];
+      });
+    }
+    if (best){ l.pts[f.e] = best; done[key] = 1; }
+  });
+  return L;
+}
+// Where the line through O→P meets segment a–b (within its ends), or null.
+function _pzLineHit(O, P, a, b){
+  var dx = P[0]-O[0], dy = P[1]-O[1], ex = b[0]-a[0], ey = b[1]-a[1], den = dx*ey - dy*ex;
+  if (Math.abs(den) < 1e-9) return null;
+  var s2 = ((a[0]-O[0])*dy - (a[1]-O[1])*dx) / den;
+  if (s2 < -0.02 || s2 > 1.02) return null;
+  var t = ((a[0]-O[0])*ey - (a[1]-O[1])*ex) / den;
+  return [O[0] + dx*t, O[1] + dy*t];
+}
 // Signed area of a polygon (y-down: clockwise on screen is positive).
 function _pzSignedArea(p){
   var a = 0;
@@ -6794,6 +6983,9 @@ function _pzRoofGeom(idx, opts){
   if (outline.length < 3) return null;
   var R = { idx: idx, name: name, outline: outline, lines: (lines || []).filter(function(l){ return l && l.pts && l.pts.length >= 2; }),
            pitch: +pitch || 0, lowPitch: +low || 0 };
+  // A HAND-DRAWN LINE THAT ALMOST MEETS ANOTHER DOES MEET IT (2026-11-06).
+  var _sc = DRAW.scaleMetresPerPx > 0 ? DRAW.scaleMetresPerPx : 0;
+  if (typeof window !== 'undefined' && (window.__PZ_WELD === true || (PZ_WELD_ON && window.__PZ_WELD !== false))) R.lines = _pzWeldLines(outline, R.lines, _sc > 0 ? PZ_WELD_M / _sc : PZ_WELD_PX);
   _pzMonoBase(R);
   return R;
 }
@@ -7453,7 +7645,7 @@ function _pzBuildKey(opts){
     // thumbnail, a size — lay the same roof.)
     ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
-      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON,
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON,
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
     return JSON.stringify([idxs, sigs, o, flags]);
   } catch(e){ return null; }

@@ -35,6 +35,9 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
 await pg.addInitScript(() => {
   localStorage.setItem('fr_token', 't');
   localStorage.setItem('fr_setup_done', '1');
+  // a business that runs Fergus — the probe is for a connection that exists
+  // (one without a key is never probed: tests/nofergus.mjs)
+  localStorage.setItem('fr_jms', 'fergus'); localStorage.setItem('fr_jms_linked', '1');
   localStorage.setItem('fr_user', JSON.stringify({ email: 'bob@kauri.co.nz' }));
   localStorage.setItem('fr_company', JSON.stringify({ id: 'c1', name: 'Kauri Roofing Ltd',
     plan: 'team', limits: { seats: 5, jms: true, schedule: true, inbox: false } }));

@@ -231,7 +231,7 @@ const sent = await pg.evaluate(() => {
            more: document.getElementById('navJobMore').textContent };
 });
 check('once the quote has been sent it reads "Locked \u2014 Quote sent" with a green tick',
-  /^\uD83D\uDD12 Locked \u2014 Quote sent \u2713$/.test(sent.txt) && /color:#15803d/.test(sent.html), JSON.stringify(sent));
+  /^Locked \u2014 Quote sent \u2713$/.test(sent.txt) && /color:#15803d/.test(sent.html), JSON.stringify(sent));
 check('\u2026and the chip offers a new version instead of "more info"',
   sent.more === 'Click for new version or info', sent.more);
 

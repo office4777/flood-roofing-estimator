@@ -515,6 +515,27 @@ check('/tender/enabled says the size limit the tab shows', r.body.maxMb === 100,
   check('revision P10 is later than P09 and P9', sh.compareRevision('P10', 'P09') > 0 && sh.compareRevision('P10', 'P9') > 0, '');
 }
 
+// ── the reader on more than one core (2026-11-06) ────────────────────
+{
+  const pdfm = require('./tender/pdf');
+  const pool = require('./tender/pdfpool');
+  const bytes = mkPdf([1, 2, 3, 4, 5].map(i => sheet({ title: 'SHEET ' + i, sheetId: 'A10' + i, rev: 'B' })));
+  const buf = Buffer.from(bytes);
+  const doc = await pdfm.open(buf);
+  check('opening a PDF leaves the caller its bytes (the threads read them after)', buf.length === bytes.length, String(buf.length));
+  const o = { pageDpi: 150, pageMaxPx: 2000, thumbPx: 360, tbDpi: 300, tbMaxPx: 1600 };
+  const read = async () => { const got = {}; await pool.readPages(buf, doc, [1, 2, 3, 4, 5], o, async (p, a) => { got[p] = a; }); return got; };
+  const old = process.env.TENDER_PDF_THREADS;
+  process.env.TENDER_PDF_THREADS = '3'; const thr = await read();
+  process.env.TENDER_PDF_THREADS = '0'; const one = await read();
+  if (old === undefined) delete process.env.TENDER_PDF_THREADS; else process.env.TENDER_PDF_THREADS = old;
+  const same = [1, 2, 3, 4, 5].every(p => thr[p] && one[p] && thr[p].ex.fullText === one[p].ex.fullText && thr[p].img.buf.equals(one[p].img.buf) && thr[p].tile.buf.equals(one[p].tile.buf) && thr[p].thumb.width === 360);
+  check('pages read on threads are the pages read in the server, every one', same, Object.keys(thr).join(','));
+  const pa = thr[3];
+  check('one page object gives the words, the picture, a 360 px thumbnail and the title-block tile', /SHEET 3/.test(pa.ex.fullText) && pa.img.width === 2000 && Math.max(pa.thumb.width, pa.thumb.height) === 360 && pa.tile.buf.length > 0 && !pa.renderError, JSON.stringify({ w: pa.img.width, t: pa.thumb.width }));
+  try { await doc.destroy(); } catch (e) {}
+}
+
 STORE.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

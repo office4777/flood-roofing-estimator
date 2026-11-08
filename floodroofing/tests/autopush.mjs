@@ -96,6 +96,57 @@ await accepted({ acceptedAt: null, linked: true });
 await pg.waitForTimeout(1200);
 check('an unaccepted quote is left alone', pushes.length === 2, pushes.length + ' pushes');
 
+// ── LOOKING AT THE ACCEPTED VERSION IS NOT A NEW ACCEPTANCE (2026-11-06) ──
+// "when i switch between a draft and then click on the accepted version, it
+// pushed a new quote to fergus everytime which it shouldn't do"
+const ACC3 = '2026-11-05T20:09:22.012Z';
+const n0 = pushes.length;
+await pg.evaluate((at) => {
+  S.linkedJobId = 'fergus-job-41'; S.currentJobId = 'job-3341';
+  var acc = { name: 'Doug Rodgers', at: at, total: 8964.62 };
+  var frozen = { ref: '3341', client: 'Doug Rodgers', gstRate: 15, lineItems: [{ desc: 'Gutters', qty: 1, price: 7795.32 }], accepted: acc,
+                 proposalOptions: { gutterType: 'box125' } };
+  // the working draft made off the acceptance carries no acceptance of its own
+  S.quote = { ref: '3341', client: 'Doug Rodgers', gstRate: 15, lineItems: [{ desc: 'Gutters', qty: 1, price: 7795.32 }],
+              share: { token: 't41', status: 'sent' }, proposalOptions: { gutterType: 'box125' },
+              versions: { accepted: { id: 'vA', at: at, label: 'Accepted quote', total: 8964.62, quote: frozen } } };
+  window._fergusAutoPushBusy = false;
+  for (var i = 0; i < 3; i++){ _qvView('accepted'); _qvBackToDraft({ relock: true }); }
+  _qvView('accepted');
+}, ACC3);
+await pg.waitForTimeout(1500);
+check('switching between the draft and the Accepted version (four looks) pushes nothing to Fergus',
+  pushes.length === n0, (pushes.length - n0) + ' pushes');
+await pg.evaluate(() => { try { _qvBackToDraft({ relock: true }); } catch(e){} });
+
+// the server has already made this acceptance's version in Fergus
+await pg.evaluate((at) => {
+  S.linkedJobId = 'fergus-job-42'; S.currentJobId = 'job-3342'; S._qvViewing = null;
+  S.quote = { ref: '3342', gstRate: 15, lineItems: [{ desc: 'Roof', qty: 1, price: 1000 }],
+              accepted: { name: 'X', at: at, total: 1150 },
+              share: { token: 't42', status: 'accepted', fergus: { jobId: 'fergus-job-42', auto: { acceptedAt: at, quoteId: 'FQ-9', total: 1150 } } } };
+  window._fergusAutoPushBusy = false; _fergusAutoPushOnAccept();
+}, ACC3);
+await pg.waitForTimeout(1200);
+check('an acceptance the server already put in Fergus is not pushed a second time from the office',
+  pushes.length === n0, (pushes.length - n0) + ' pushes');
+
+// pushed once, then the job reopened (the locked job never saved the stamp)
+await pg.evaluate((at) => {
+  S.linkedJobId = 'fergus-job-43'; S.currentJobId = 'job-3343'; S._qvViewing = null;
+  S.quote = { ref: '3343', gstRate: 15, lineItems: [{ desc: 'Roof', qty: 1, price: 1000 }], accepted: { name: 'Y', at: at, total: 1150 }, share: { token: 't43', status: 'accepted' } };
+  window._fergusAutoPushBusy = false; _fergusAutoPushOnAccept();
+}, ACC3);
+await pg.waitForTimeout(1800);
+const n1 = pushes.length;
+await pg.evaluate((at) => {
+  S.quote = { ref: '3343', gstRate: 15, lineItems: [{ desc: 'Roof', qty: 1, price: 1000 }], accepted: { name: 'Y', at: at, total: 1150 }, share: { token: 't43', status: 'accepted' } };
+  window._fergusAutoPushBusy = false; _fergusAutoPushOnAccept();
+}, ACC3);
+await pg.waitForTimeout(1500);
+check('an acceptance pushed once is not pushed again when the job is opened again',
+  n1 === n0 + 1 && pushes.length === n1, (n1 - n0) + ' then ' + (pushes.length - n1));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

@@ -66,8 +66,9 @@ const row = () => pg.evaluate(() => { const r = document.getElementById('cornerE
 const before = await S();
 await press([1452, 827]);
 let v = await row();
-check('clicking roof 2\'s south-east corner lists "East end": Barge end | Hip end, under the arrows',
-  v && /East end/i.test(v.text) && /Barge end/.test(v.text) && /Hip end/.test(v.text) && v.on === 'gable', JSON.stringify(v));
+// Short names since 2026-11-06 ("just write the name of the change").
+check('clicking roof 2\'s south-east corner lists "East end": Barge | Hip, under the arrows',
+  v && /East end/i.test(v.text) && /\bBarge\b/.test(v.text) && /\bHip\b/.test(v.text) && !/Barge end|Hip end/.test(v.text) && v.on === 'gable', JSON.stringify(v));
 v = await pg.evaluate(() => { const p = document.getElementById('cornerRepoPopup'), r = document.getElementById('cornerEndRow');
   return p.style.display !== 'none' && p.contains(r) && r.getBoundingClientRect().top > p.querySelector('.crn-grid').getBoundingClientRect().bottom; });
 check('…the list sits inside the fine-adjustment pad, below the arrows', v);
@@ -113,15 +114,19 @@ v = await pg.evaluate(() => {
 });
 check('it is saved with the job', v === '{"m:1":"hip"} 1', v);
 
-v = await pg.evaluate(() => { _closeCornerRepo(); _cornerRepoOpen(0); const r = document.getElementById('cornerEndRow'); return r.style.display; });
-check('a corner on the mono\'s high side offers nothing', v === 'none', v);
+// Every corner lists something since 2026-11-06 ("it should always have a
+// little list of whatever is possible"): a corner with no end of its own
+// lists the roof's shapes.
+v = await pg.evaluate(() => { _closeCornerRepo(); _cornerRepoOpen(0); const r = document.getElementById('cornerEndRow');
+  return r.style.display + ' ' + [...r.querySelectorAll('.crn-bump')].map(x => x.dataset.rooftype || x.dataset.endkind).join(','); });
+check('a corner on the mono\'s high side has no end, so it lists the roof\'s shapes', /^block .*mono/.test(v) && !/endkind/.test(v), v);
 
 // ── the main roof: its east hip end ──
 await pg.evaluate(() => { _closeCornerRepo(); switchToRoof(0); setTool('select'); resetZoom(); redrawAll(); const t = document.getElementById('shiftTip'); if (t) t.remove(); });
 await press([1452, 595]);
 v = await row();
 check('the main roof\'s north-east corner lists "East end": Gable | Hip (ticked) | Dutch gable',
-  v && /East end/i.test(v.text) && /Gable end/.test(v.text) && /Dutch gable end/.test(v.text) && v.on === 'hip', JSON.stringify(v));
+  v && /East end/i.test(v.text) && /\bGable\b/.test(v.text) && /Dutch gable/.test(v.text) && !/gable end/i.test(v.text) && v.on === 'hip', JSON.stringify(v));
 const mainBefore = await S();
 await pg.hover('#cornerEndRow [data-endkind="dutch"]'); await pg.waitForTimeout(150);
 await shot('04-main-hover-dutch');
@@ -165,7 +170,7 @@ await pg.evaluate(() => { _closeCornerRepo(); clearAll(true); DRAW.scaleMetresPe
   DRAW.outline = [[400,150],[800,150],[800,550],[400,550]]; DRAW.outlineDone = true; autoGenerateRoof('hip'); setTool('select'); resetZoom(); redrawAll(); const t = document.getElementById('shiftTip'); if (t) t.remove(); });
 await press([800, 150]);
 v = await row();
-check('a square hip roof\'s corner asks what to change it to first', v && /Change an end to/i.test(v.text) && /Gable end/.test(v.text), JSON.stringify(v));
+check('a square hip roof\'s corner asks what to change it to first', v && /Change an end to/i.test(v.text) && /Gable…/.test(v.text), JSON.stringify(v));
 const sqBefore = await S();
 await pg.click('#cornerEndRow [data-endkind="gable"]'); await pg.waitForTimeout(200);
 v = await pg.evaluate(() => { const c = document.getElementById('endFaceChooser'); if (!c) return null;
@@ -211,6 +216,25 @@ v = await pg.evaluate(() => {
          JSON.stringify(_monoLinesWithEnds(ol.map(p => p.slice()), 0)) === JSON.stringify(buildMonoPitchRoofLines(ol.map(p => p.slice()), 0));
 });
 check('with no end changed, hip, dutch and mono roofs are built exactly as before', v);
+
+// ── a hip end whose wall carries extra points along it (2026-11-04, the
+// owner: "where [are] the buttons under the move corner popup to convert this
+// corner?") — a T's wing with two points on its straight end wall ──
+v = await pg.evaluate(() => {
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[675,290],[780,290],[780,230],[843,230],[910,230],[945,230],[945,290],[1090,290],[1090,487],[675,487]];
+  finishCurrent(); DRAW.scaleMetresPerPx = 0.03; autoGenerateRoof('hip');
+  try { const m = document.getElementById('_rsModal'); if (m) m.remove(); } catch(e){}
+  const f = i => _cornerEndCands(i).map(c => c.face).join('|');
+  const out = { c2: f(2), c3: f(3), c5: f(5), w: f(0), e: f(7) };
+  const c = _cornerEndCands(5)[0]; _endCommit(c, 'gable');
+  out.barges = DRAW.lines.filter(l => l.type === 'barge').length;
+  out.wingHips = DRAW.lines.filter(l => l.type === 'hip' && l.pts.some(p => p[1] < 240)).length;
+  return out;
+});
+check('a hip end with extra points on its wall still offers Gable / Dutch gable, named for the way it faces',
+  v.c2 === 'North' && v.c3 === 'North' && v.c5 === 'North' && v.w === 'West' && v.e === 'East', JSON.stringify(v));
+check('…and making it a gable end draws the two barges, its hips gone', v.barges === 2 && v.wingHips === 0, JSON.stringify(v));
 
 check('no page errors', errs.length === 0, errs.join(' | ') || 'clean');
 await b.close();

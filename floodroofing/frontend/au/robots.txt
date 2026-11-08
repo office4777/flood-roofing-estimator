@@ -1,0 +1,190 @@
+# RoofMap (Australia) — https://roofmap.com
+# GENERATED from ../robots.txt by floodroofing/tools/build-au-site.mjs — do not edit.
+#
+# Everything under / is a hand-written marketing page and is meant to be read,
+# by people and by machines alike. What is blocked below is blocked because it
+# is useless to a crawler, not because it is secret.
+
+User-agent: *
+Allow: /
+
+# The app itself. 2.9 MB of JavaScript behind a login — nothing to index, and
+# crawling it burns crawl budget that belongs to the pages that do sell.
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+
+# Signing up is a form, not a page anyone should arrive on from a search.
+Disallow: /signup
+Disallow: /signup.html
+
+# ── Answer engines ──────────────────────────────────────────────────
+# Named so the decision is on the record: RoofMap wants to be read and quoted
+# by the assistants roofers actually ask. A named group does NOT inherit the
+# wildcard group's rules — a crawler that matches its own name reads only
+# that group — so each carries the same exclusions in full. A future blanket
+# block would have to delete these lines to take effect, which makes it a
+# deliberate act rather than an accident.
+
+User-agent: GPTBot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Claude-User
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+User-agent: Bingbot
+Allow: /
+Disallow: /app
+Disallow: /app.html
+Disallow: /index.html
+Disallow: /sheet-plan.js
+Disallow: /help-bot.js
+Disallow: /sw.js
+Disallow: /demo-job.json
+Disallow: /manifest.webmanifest
+Disallow: /signup
+Disallow: /signup.html
+
+Sitemap: https://roofmap.com/sitemap-au.xml

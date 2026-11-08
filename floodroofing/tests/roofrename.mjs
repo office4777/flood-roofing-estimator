@@ -180,8 +180,10 @@ await cpg.waitForTimeout(3200);
 const cv = await cpg.evaluate(() => ({
   renames: document.querySelectorAll('button[onclick*="_renameRoof"]').length,
   txt: /Rename/.test(document.getElementById('qpRoot').textContent||''),
-  buttons: document.querySelectorAll('#qpRoot .qp-incl-btns > div').length,
-  labels: Array.from(document.querySelectorAll('#qpRoot .qp-incl-btns button')).map(x=>x.textContent),
+  // The first set (the proposal's); the review repeats them since 2026-11-04.
+  buttons: document.querySelectorAll('#qpRoot .qp-incl-btns')[0].querySelectorAll(':scope > div').length,
+  labels: Array.from(document.querySelectorAll('#qpRoot .qp-incl-btns')[0].querySelectorAll('button')).map(x=>x.textContent),
+  sets: document.querySelectorAll('#qpRoot .qp-incl-btns').length,
 }));
 check('the customer is never offered a Rename', cv.renames === 0 && !cv.txt, JSON.stringify(cv));
 check('…and their Include buttons are untouched',

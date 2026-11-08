@@ -86,6 +86,9 @@ async function boot(opts){
   await pg.addInitScript((o) => {
     localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1');
     localStorage.setItem('fr_settings', 'null');
+    // the office runs Fergus: the Job column links into it (a business without
+    // Fergus gets plain text — tests/nofergus.mjs)
+    localStorage.setItem('fr_jms', 'fergus'); localStorage.setItem('fr_jms_linked', '1');
     if (o.lockedPlan) localStorage.setItem('fr_company',
       JSON.stringify({ id: 'co', role: 'owner', plan: 'team', limits: { schedule: false } }));
     else localStorage.removeItem('fr_company');

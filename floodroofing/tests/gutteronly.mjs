@@ -56,6 +56,33 @@ check('the canvas offers Move, Gutter line, the tape and Custom Scale — no out
 check('…and a roof tool asked for anyway becomes the gutter line', v.t1 === 'gutter' && v.t2 === 'gutter', JSON.stringify([v.t1, v.t2]));
 check('gutter lines drawn with no outline are the gutter run', Math.abs(v.lm - 20) < 0.01 && v.runs === 2, JSON.stringify(v));
 
+// ── a gutter line turns corners; Enter ends a dead end, the first point closes a boundary (2026-11-04) ──
+{
+  const toClient = (pts) => pg.evaluate((pts) => { const cv = document.getElementById('roofCanvas'), r = cv.getBoundingClientRect(), dpr = devicePixelRatio, t = getImgTransform();
+    const k = r.width / (cv.width / dpr); return pts.map(([x, y]) => [r.left + (x * t.s + t.ix) * k, r.top + (y * t.s + t.iy) * k]); }, pts);
+  const state = () => pg.evaluate(() => ({ cur: DRAW.currentPts.length, lines: DRAW.lines.filter(l => l.type === 'gutter').length,
+    corners: _gutterCornersInSegments(DRAW.lines.filter(l => l.type === 'gutter').map(l => l.pts)),
+    tip: (document.getElementById('enterTip') || {}).textContent || '' }));
+  await pg.evaluate(() => { window.__keepGut = JSON.parse(JSON.stringify(DRAW.lines)); DRAW.lines = DRAW.lines.filter(l => l.type !== 'gutter'); DRAW.currentPts = []; localStorage.removeItem('fr_enter_tip_off');
+    document.getElementById('snapGrid') && (document.getElementById('snapGrid').checked = false); setTool('gutter'); redrawAll(); });
+  await pg.evaluate(() => { const c = document.getElementById('roofCanvas'); c.scrollIntoView({ block: 'center' }); });
+  const L = await toClient([[150, 150], [450, 150], [450, 350]]);
+  for (const [x, y] of L){ await pg.mouse.click(x, y); await pg.waitForTimeout(120); }
+  let s1 = await state();
+  check('on a gutters job three clicks are one gutter line still going — no line stops at a corner',
+    s1.cur === 3 && s1.lines === 0, JSON.stringify(s1));
+  check('…and it says to press Enter to finish the gutter line', /Press\s*Enter when you.ve finished your gutter line/.test(s1.tip), s1.tip);
+  await pg.keyboard.press('Enter'); await pg.waitForTimeout(200);
+  let s2 = await state();
+  check('Enter ends a dead-end L: two straights meeting at one corner', s2.cur === 0 && s2.lines === 2 && s2.corners === 1, JSON.stringify(s2));
+  const B = await toClient([[150, 450], [450, 450], [450, 650], [150, 650], [150, 450]]);
+  for (const [x, y] of B){ await pg.mouse.click(x, y); await pg.waitForTimeout(120); }
+  let s3 = await state();
+  check('a click back on the first point closes a whole boundary gutter: four straights, four corners',
+    s3.cur === 0 && s3.lines === 6 && s3.corners === 5, JSON.stringify(s3));
+  await pg.evaluate(() => { DRAW.lines = window.__keepGut; DRAW.currentPts = []; setTool('select'); try { syncToRoofData(); } catch(e){} redrawAll(); });
+}
+
 // ── the quote suits a gutter ──
 v = await pg.evaluate(async () => {
   S.quote.scaffold = Object.assign({}, S.quote.scaffold || {}, { type:'edge', price:2000 });
@@ -76,7 +103,7 @@ check('…and the phone book the same, ending on the total', v.book.join() === '
 check('no steel grade, profile, thickness, roof colour or old roofing anywhere', !/grade|profile|thickness|^colour|disposal/.test(v.desk.concat(v.book).join(',')), v.desk.join());
 check('it is always the modern layout', v.style === 'modern', v.style);
 check('the proposal is a Guttering Proposal and says what is done to the gutters',
-  v.title === 'Guttering Proposal' && v.incl.some(l => /spouting and downpipes/i.test(l)) && v.incl.some(l => /Supply & install new 125mm/i.test(l)) && !v.incl.some(l => /roofing sheets|underlay|flashings/i.test(l)),
+  v.title === 'Guttering Proposal' && v.incl.some(l => /^Remove existing spouting/i.test(l)) && v.incl.some(l => /Supply & install new 125mm/i.test(l)) && !v.incl.some(l => /roofing sheets|underlay|flashings/i.test(l)),
   JSON.stringify(v.incl));
 check('the summary\'s first line is the Gutters, with the scaffold beside it',
   v.rows[0][0] === 'base' && /^Gutters — /.test(v.rows[0][1]) && v.rows.some(r => r[0] === 'scaffold') && !v.rows.some(r => /Re-roof/.test(r[1])), JSON.stringify(v.rows));
@@ -86,6 +113,61 @@ check('…and its lines add up to the total', Math.abs(sum - money(v.rows[v.rows
 check('no roof labour or roof materials are priced, only the scaffold',
   v.lines.every(l => l[0] === 'scaffold' || +l[1] === 0) && v.lines.some(l => l[0] === 'scaffold' && +l[1] > 0), JSON.stringify(v.lines));
 check('What you chose lists the gutter, brackets and downpipes only', v.picks[0] === 'Guttering: 125mm Colorsteel Box Gutter' && !v.picks.some(p => /Steel grade|profile|thickness|old roofing/i.test(p)), JSON.stringify(v.picks));
+
+// ── the job profitability is the gutter quote, and GP/hr moves it (2026-11-04) ──
+v = await pg.evaluate(() => {
+  const pf = _profitFigures('total'), sub = _quoteMoney().sub;
+  const gphr = () => { const g = _profitFigures('total'); return (g.revenue - g.cost) / g.hrsAll; };
+  const g0 = gphr();
+  _profitNudge('gphr', 1); const up = { sub: _quoteMoney().sub, rev: _profitFigures('total').revenue, g: gphr() };
+  _profitNudge('gphr', -1); const back = { sub: _quoteMoney().sub, g: gphr() };
+  return { rev: pf.revenue, sub, keys: pf.items.map(i => i.key + ':' + i.label), g0, up, back };
+});
+check('a gutters job\'s profitability is the quote: no roof labour, revenue = the quote\'s total ex GST',
+  Math.abs(v.rev - v.sub) < 0.02 && !v.keys.some(k => /^roofing/.test(k)), JSON.stringify(v));
+check('…and GP/hr + moves the gutter labour, so the quote moves with it',
+  v.up.sub > v.sub + 0.5 && Math.abs(v.up.rev - v.up.sub) < 0.02 && Math.round(v.up.g) === Math.round(v.g0) + 1, JSON.stringify(v.up));
+check('…and − takes it back down', v.back.sub < v.up.sub - 0.5, JSON.stringify(v.back));
+
+// ── the gutter cards read against the recommended gutter (2026-11-04, quote 3346) ──
+v = await pg.evaluate(() => {
+  const cards = () => { const d = document.createElement('div'); d.innerHTML = _qbGutter();
+    return [...d.querySelectorAll('.qb-opt')].map(o => ({ txt: o.textContent.replace(/\s+/g, ' '),
+      tag: (o.querySelector('.qb-inc,.qb-up,.qb-down') || {}).textContent || '' })); };
+  const CD = _qpCardDeltas(), full = {};
+  _selGutters().forEach(g => { full[g.id] = _qbIncl(CD.gutter[g.id] || 0); });
+  const ids = _selGutters().map(g => g.id);
+  const rows = _custBarRows().map(r => [r.kind, r.value]);
+  const out = { ids, full, a: cards(), rows };
+  // a different gutter recommended: the cards move with it
+  const keep = S.quote.proposalOptions.gutterType;
+  _setProposalOption_gutter(ids[1]);
+  out.b = cards(); out.recB = ids[1];
+  _setProposalOption_gutter(keep);
+  // a roofing quote's gutter cards keep their whole "+"
+  S.quote.quoteKind = 'roofing';
+  const d = document.createElement('div'); d.innerHTML = _qbGutter();
+  out.roof = [...d.querySelectorAll('.qb-opt')].map(o => (o.querySelector('.qb-inc,.qb-up,.qb-down') || {}).textContent || '');
+  S.quote.quoteKind = 'gutters';
+  return out;
+});
+{
+  const m = s => parseFloat(String(s).replace(/[^0-9.]/g, '')) * (/−/.test(s) ? -1 : 1);
+  const rec = v.ids[0], diff = id => v.full[id] - v.full[rec];
+  check('on a gutters job the recommended gutter reads Included', v.a[0] && v.a[0].tag === 'Included', JSON.stringify(v.a.map(c => c.tag)));
+  check('…and every other gutter its difference from it, not its whole price',
+    v.a.slice(1).every((c, i) => Math.abs(m(c.tag) - diff(v.ids[i + 1])) < 0.02 && m(c.tag) < v.full[v.ids[i + 1]] - 1),
+    JSON.stringify(v.a.map(c => c.tag)) + ' full ' + JSON.stringify(v.full));
+  const recB = v.recB, iB = v.ids.indexOf(recB);
+  check('…a different gutter recommended reads Included and the rest move with it, cheaper ones as a −',
+    v.b[iB].tag === 'Included' && v.b.every((c, i) => i === iB || Math.abs(m(c.tag) - (v.full[v.ids[i]] - v.full[recB])) < 0.02)
+      && v.b.some(c => /−/.test(c.tag)) === v.ids.some(id => v.full[id] < v.full[recB] - 0.01),
+    JSON.stringify(v.b.map(c => c.tag)));
+  check('…the price box still carries the gutter at its whole price',
+    v.rows.some(r => r[0] === 'base' && Math.abs(money(r[1]) - v.full[rec]) < 0.02), JSON.stringify(v.rows));
+  check('a roofing quote\'s gutter cards still read their whole "+"',
+    v.roof[0] === 'Included' && v.roof.slice(1).every(t => /^\+/.test(t)), JSON.stringify(v.roof));
+}
 
 // ── the map: the aerial and the gutter lines ──
 v = await pg.evaluate(() => {
@@ -142,6 +224,35 @@ v = await pg.evaluate(() => {
 check('a saved gutters job reopens as one, its gutter lines with it', v.kind === 'gutters' && v.body && v.lines === 2, JSON.stringify(v));
 v = await pg.evaluate(() => { _resetQuoteForFreshJob({}); return { kind: S.quote.quoteKind, body: document.body.classList.contains('gutter-job') }; });
 check('…and the next new job is a roofing job again', v.kind === 'roofing' && !v.body, JSON.stringify(v));
+
+// ── Fergus: a gutters job pushes no roof (2026-11-06, job 3341: an accepted
+// gutter quote went to Fergus with Roof Labour 13 + 13 hrs and a Roof Material
+// "Adjustment to quoted total" cancelling it, so the crew saw roof hours) ──
+v = await pg.evaluate(async () => {
+  const W = ms => new Promise(r => setTimeout(r, ms));
+  _resetQuoteForFreshJob({ client:'Gutter Fergus', addr:'1 Test Road' });
+  _setJobType('gutters');
+  gotoTab('roof'); await W(200);
+  DRAW.scaleMetresPerPx = 0.02; DRAW.lines = [];
+  setTool('gutter');
+  DRAW.currentPts = [[100,100],[1500,100]]; finishCurrent();
+  DRAW.currentPts = [[100,400],[1500,400]]; finishCurrent();
+  // the leftover roof labour table the job never prices
+  S.quote.labour = Object.assign(S.quote.labour || {}, { leadHrs: 13, appHrs: 13, leadPrice: 142.51, appPrice: 52.51, leadCost: 45, appCost: 25 });
+  gotoTab('quote'); await W(400);
+  try { calcLabour(); renderProfitability(); _syncQuoteBaseLineItems(); recalcQuoteTotals(); } catch(e){}
+  const sum = secs => secs.reduce((t, s) => t + s.lineItems.reduce((a, li) => a + (li.itemQuantity || 0) * (li.itemPrice || 0), 0), 0);
+  const full = _buildFergusItemisedSections(), base = _buildFergusItemisedSections({ base: true });
+  const fs = full.sections || full, bs = base.sections || base;
+  const names = secs => secs.map(s => s.name + ':' + s.lineItems.map(li => li.itemName + (li.isLabour ? '[' + li.itemQuantity + 'h]' : '')).join('|'));
+  return { full: names(fs), base: names(bs), fullSum: Math.round(sum(fs) * 100) / 100, baseSum: Math.round(sum(bs) * 100) / 100,
+           quote: Math.round(_quoteMoney().sub * 100) / 100, subLines: Math.round(quoteSubtotal() * 100) / 100 };
+});
+const _fg = JSON.stringify(v);
+check('a gutters job pushed to Fergus has no roof labour and no roof material — only the gutter and the scaffold',
+  !v.full.some(x => /^(Roof |Labour:|Materials:)/.test(x)) && v.full.some(x => /^Gutter Labour:/.test(x)) && v.full.some(x => /^Gutter Material:/.test(x)), _fg);
+check('…no "Adjustment to quoted total" line, and its lines add up to the quote', !/Adjustment to quoted total/.test(_fg) && Math.abs(v.fullSum - v.quote) < 0.02, _fg);
+check('…and the plan kept for the versions made on acceptance is the gutter too, adding up to the quote', !v.base.some(x => /^(Roof |Labour:|Materials:)/.test(x)) && v.base.some(x => /^Gutter Labour:/.test(x)) && Math.abs(v.baseSum - v.quote) < 0.02, _fg);
 
 // ── the server's half ──
 const SRV = readFileSync(_j(_ROOT, 'backend', 'server.js'), 'utf8');

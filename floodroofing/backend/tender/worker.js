@@ -16,6 +16,7 @@
 'use strict';
 const crypto = require('crypto');
 const pdf = require('./pdf');
+const pdfpool = require('./pdfpool');
 const sheets = require('./sheets');
 
 const POLL_MS = +process.env.TENDER_POLL_MS || 4000;
@@ -143,41 +144,37 @@ function createWorker(deps){
       const n = doc.numPages;
       const info = await pdf.meta(doc);
       await supabase.from('tender_files').update({ pages: n, meta: { title: info.Title || '', producer: info.Producer || '', creator: info.Creator || '' } }).eq('id', f.id);
-      for (let pageNo = 1; pageNo <= n; pageNo++) {
-        if (done.has(f.id + ':' + pageNo)) continue;
-        await progress(task, { stage: 'ingest', file: f.name, pageNo, pagesDone: done.size, pagesTotal: Math.max(totalKnown, done.size + (n - pageNo + 1)) });
-        const row = await ingestPage(tender, f, doc, pageNo);
+      const want = [];
+      for (let pageNo = 1; pageNo <= n; pageNo++) if (!done.has(f.id + ':' + pageNo)) want.push(pageNo);
+      const opts = { pageDpi: PAGE_DPI, pageMaxPx: PAGE_MAX_PX, thumbPx: THUMB_PX, tbDpi: TB_DPI, tbMaxPx: TB_MAX_PX };
+      await pdfpool.readPages(buf, doc, want, opts, async (pageNo, assets) => {
+        const row = await ingestPage(tender, f, assets, pageNo);
         const { error } = await supabase.from('tender_pages').insert(row);
         if (error) throw new Error('could not record page ' + pageNo + ' of ' + f.name + ': ' + error.message);
         done.add(f.id + ':' + pageNo);
-      }
+        await progress(task, { stage: 'ingest', file: f.name, pageNo, pagesDone: done.size, pagesTotal: Math.max(totalKnown, done.size + want.filter(x => !done.has(f.id + ':' + x)).length) });
+      });
       try { await doc.destroy(); } catch (e) {}
       await supabase.from('tender_files').update({ status: 'ingested', error: '' }).eq('id', f.id);
     }
   }
 
-  async function ingestPage(tender, f, doc, pageNo){
+  async function ingestPage(tender, f, assets, pageNo){
     const base = tender.company_id + '/' + tender.id + '/' + f.id + '/p' + pageNo;
-    const ex = await pdf.extract(doc, pageNo);
+    const ex = assets.ex;
     const tb = pdf.titleBlockRegion(ex.width, ex.height);
     const tbText = ex.lines.filter(l => l.x >= tb.x - 1 && l.y >= tb.y - 1).map(l => l.s).join('\n');
     const parsed = sheets.parseTitleBlock(ex);
     const heur = sheets.classifyHeuristic(parsed.title, ex.fullText);
     const paths = {};
-    try {
-      const img = await pdf.render(doc, pageNo, { dpi: PAGE_DPI, maxPx: PAGE_MAX_PX });
-      const th = await pdf.thumbnail(doc, pageNo, THUMB_PX);
-      const tile = await pdf.render(doc, pageNo, { dpi: TB_DPI, maxPx: TB_MAX_PX, region: tb });
-      await Promise.all([
-        storage.upload(base + '.jpg', img.buf, 'image/jpeg').then(() => { paths.image = base + '.jpg'; }),
-        storage.upload(base + '.thumb.jpg', th.buf, 'image/jpeg').then(() => { paths.thumb = base + '.thumb.jpg'; }),
-        storage.upload(base + '.tb.jpg', tile.buf, 'image/jpeg').then(() => { paths.tb = base + '.tb.jpg'; }),
-      ]);
-    } catch (e) {
-      log('render failed on ' + f.name + ' p' + pageNo + ': ' + e.message);
-    }
-    try { await storage.upload(base + '.words.json', Buffer.from(JSON.stringify({ width: ex.width, height: ex.height, words: ex.words, lines: ex.lines })), 'application/json'); paths.words = base + '.words.json'; }
-    catch (e) { log('words upload failed on ' + f.name + ' p' + pageNo + ': ' + e.message); }
+    if (assets.renderError) log('render failed on ' + f.name + ' p' + pageNo + ': ' + assets.renderError);
+    const ups = [];
+    if (assets.img) ups.push(storage.upload(base + '.jpg', assets.img.buf, 'image/jpeg').then(() => { paths.image = base + '.jpg'; }));
+    if (assets.thumb) ups.push(storage.upload(base + '.thumb.jpg', assets.thumb.buf, 'image/jpeg').then(() => { paths.thumb = base + '.thumb.jpg'; }));
+    if (assets.tile) ups.push(storage.upload(base + '.tb.jpg', assets.tile.buf, 'image/jpeg').then(() => { paths.tb = base + '.tb.jpg'; }));
+    ups.push(storage.upload(base + '.words.json', Buffer.from(JSON.stringify({ width: ex.width, height: ex.height, words: ex.words, lines: ex.lines })), 'application/json').then(() => { paths.words = base + '.words.json'; }));
+    const res = await Promise.allSettled(ups);
+    res.forEach(r => { if (r.status === 'rejected') log('upload failed on ' + f.name + ' p' + pageNo + ': ' + (r.reason && r.reason.message || r.reason)); });
     return {
       id: crypto.randomUUID(), tender_id: tender.id, file_id: f.id, company_id: tender.company_id || null, user_id: tender.user_id || null,
       page_no: pageNo, width: ex.width, height: ex.height, rotation: ex.rotation,

@@ -326,6 +326,14 @@ Discipline (non-negotiable):
    <sha>", then either "Live after Ns" (verified), or one of its two forgiving
    warnings, or the hard error. That line is the only statement of which
    commit a promote actually put live.
+   THE RUNNER IS PINNED TO UBUNTU 24.04 (2026-11-07). GitHub moved
+   `ubuntu-latest` to 26.04 that morning and every browser shard and the
+   sheet gate died at "Playwright does not support chromium on
+   ubuntu26.04-x64" before a test ran, so nothing could ship. `tests.yml`,
+   `sheet-tests.yml` and `hub-nightly-sync.yml` say `ubuntu-24.04`; move them
+   on only together with a Playwright that supports the newer image. A red
+   run that fails in "Install Playwright Chromium" is the runner, not the
+   code — read the step name before the suite.
    Neither `production` containing the commit nor a 201 from the Vercel deploy
    hook is proof. Both were true on three ships that never went live.
    If that step goes red, the FIRST thing to check is the Vercel project's
@@ -339,13 +347,96 @@ Discipline (non-negotiable):
    **Promote to Production**. Never report a change as live on the strength
    of the branch or the hook alone.
 
-## THE SHEET LAYOUT DIAGRAM — THE OWNER'S RULES (read before touching it)
+## THE SHEET LAYOUT AND SHEET PRE-CUT DIAGRAMS — THE OWNER'S RULES (read before touching either)
 
 The owner has had to teach this logic to new sessions over and over (his
 words, 2026-10-27: "i keep having to teach a new session the logic and it
-keeps getting lost"). These are HIS rules, in the order they apply. The long
-history of how each came about is the "THE SHEET LAYOUT IS THE PUZZLE" bullet
-under Conventions, and `docs/SHEET_LAYOUT.md`; this list is what to obey.
+keeps getting lost ... write your learnings into the claude.md file for the
+sheet layout diagram and plain hip logic, cookie cutter ect"). These are HIS
+rules. This section is the authority: where the long history bullet "THE
+SHEET LAYOUT IS THE PUZZLE" under Conventions, or `docs/SHEET_LAYOUT.md`,
+says something different, this section wins. Rule NUMBERS are stable — other
+bullets cite them ("rule 4b", "rule 8's `cutShortPx`") — so a new rule gets a
+new number or letter, never a renumbering.
+
+TWO DIAGRAMS, ONE LAY. Both come from `_sheetPuzzleBuild` at the foot of
+`floodroofing/frontend/sheet-plan.js`:
+- THE SHEET LAYOUT (the roof with every sheet drawn on it, coloured by block,
+  numbered A1, B7 …; a hatched ↺C9 is a piece cut from C9's offcut; a dashed
+  ✂C5 is a foot carried under C5): `_renderSheetPuzzleCanvas`. Job Pack page 2.
+- THE SHEET PRE-CUT LAYOUT (the "sheet cut diagram": every ordered sheet laid
+  flat, full length, side by side, with its cut lines and the label of every
+  piece that comes out of it): `_renderSheetPrecutCanvas` / `_sheetPrecutPlan`.
+  Job Pack page 3.
+- The LAYOUT'S TALLY IS THE ORDER (rule 12): the cut list, the Job Pack's
+  sheet quantities and the quote's sheets line all read it. The old counting
+  ENGINE (`_ridgeClaimSections`, the 37-shape gate) still runs underneath as
+  the guard and for the suites that pin it, and never feeds the puzzle.
+
+THE WORDS (used throughout; the owner uses most of them himself):
+- FACE: one plane of roof between roof lines. STRIP: a face cut into widths
+  of one sheet cover, square to the gutter. PIECE: the part of a strip one
+  sheet or offcut covers.
+- BLOCK: a set of sheets ordered at ONE length, one colour and one letter in
+  the picture and the key (A = 7 @ 5.01 m). A sheet's NUMBER is its place in
+  its block, counted face by face along the gutter.
+- DONOR: a full sheet whose hip- or valley-cut leaves an OFFCUT. An offcut is
+  SPUN (end for end), never FLIPPED, so its HAND (long side left or right,
+  looking from the square end to the cut) decides which pieces it can feed.
+- SET / RUN: offcuts feeding neighbouring strips in order (↺C1 … ↺C9) off
+  neighbouring donors. PATCHY (his word): colours or sheet-vs-offcut changing
+  back and forth along a face; a STRAY is a piece whose colour no strip beside
+  it shares and is not its face's own.
+- EXTRA: a sheet ordered for one piece no offcut could feed. PUSHED-IN: one
+  full sheet added at the head of a run so every offcut moves one strip out
+  (rule 8). CLOSER: a run's last sheet, lapped flush at the far corner.
+- TEMPLATE / COOKIE CUTTER: a wing's face cut out of the main's plain-hip
+  sheets where they lie (rule 4). SCRAP / TRIM: a sliver trimmed off an offcut.
+
+THE PRIORITY ORDER — what wins when two rules pull different ways. The
+owner, in his own words: "The rule should not be fewer sheets first. It should
+be less steel first and utilizing most of the offcut" (2026-10-31); "I don't
+like seeing mismatched colors where I think the offcut would actually work
+there, and I'm seeing too much wastage. Prioritize those two rules"; "main
+rule is keep the offcut sets used in the same area so the colours and order is
+matched in their set" (2026-11-01); "always try to prioritize just using the
+offcut set with no middle extra apex sheet" (2026-11-02); "Always try to keep
+the same size ... We don't want too many different size sheets in an order
+because it confuses the roofer". In order, highest first:
+P1. GEOMETRY, never traded for anything (rules 1, 2): perpendicular to the
+    gutter, never parallel to a gutter or ridge, 45° to a hip or valley only,
+    never across a roof line, square ordered ends, spun never flipped.
+P2. A REAL ORDER: every sheet in the picture must actually cut as drawn — the
+    pre-cut must be able to pack it (`_pzCuttable`); the order never carries
+    less steel than the roof's own area (`_pzTallyCovers`, the engine stands
+    in); an extra is a FULL sheet and never two extras from one sheet (rule
+    9); ONE LENGTH, NOT A STAIRCASE — a sheet that would be ordered at a length
+    of its own is ordered at its block's full length (rule 9b). Fewer
+    different lengths beats a little steel.
+P3. LESS STEEL, between whole lays (rule 10): every legitimate lay is tried
+    and `better` keeps the one with less steel; under `_PZ_STEEL_TIE_MM`
+    (1 m) either way is a TIE, and then FEWER SHEETS win, then the first lay.
+P4. USE THE OFFCUTS before ordering anything: an offcut that fits feeds the
+    piece — pushed-in sheets, the closer carrying the longest row, a nick not
+    a cut, valley donors, extras moved onto offcuts (rules 8–8c, 9c, 9d;
+    optimiser moves 1, 3, 5, 7).
+P5. CLEAN SETS — one colour a run, in order, the smallest offcut starting
+    the set, the set next to its donors and unbroken on the ground, no stray,
+    no full sheet in the middle of an apex unless it is needed (rules 8d,
+    9e–9l). A clean set MAY cost a little, and only inside these budgets:
+    never a new length; never more sheets, except 9e's one sheet per two
+    pieces put right (the owner OK'd report 17 33 → 34 for one-colour
+    valleys: "absolutely perfect"); at most 1 m more steel (move 8, 9i), one
+    sheet's length (9l), or one donor sheet (9d). Outside its budget a clean
+    set loses to P3/P4 and the less-steel lay stands.
+P6. FEWER SHEETS — the tie-break after steel (P3), never a reason on its own
+    to cut a set or order a new length.
+P7. THE PICTURE (rules 11–11c) — labels, key, turning, pages. It never
+    changes what is ordered.
+So steel decides between whole LAYS (P3), while inside a lay the optimiser
+tidies sets within the P5 budgets; a tidy that would break P1/P2 or blow a
+budget is not kept. Every optimiser move is kept only when the order is no
+bigger and the roof no patchier (`straysNow`, `_pzBreaks`).
 
 THE PROCESS, every time:
 - NEVER put a sheet-layout change live without sending him before/after
@@ -362,6 +453,19 @@ THE PROCESS, every time:
 - `tests/sheetlayout.mjs` pins each rule on the shapes he counted. The
   37-shape gate (`docs/ci_sheet_tests.js`) is the ENGINE's count and must stay
   byte-identical; the puzzle never feeds it.
+- Name the pictures by version, "Sheet layout vN - <what changed>", so he can
+  say which one he means; send the PRE-CUT page too when a change moves which
+  offcut feeds what (that is where a bad pairing shows).
+- BEFORE JUDGING A LAYOUT, CHECK THE ROOF IS SCALED AND TRUE (2026-11-02:
+  "The roof map isn't scaled, it's showing way too many sheets, and the job
+  pack hasn't got the labels on the sheets"): an unscaled roof
+  (`DRAW.scaleMetresPerPx` unset) gives nonsense counts and no labels; a hip
+  drawn even 1 px off 45° costs ~30 mm over 7 m and can make an offcut miss
+  its strip ("The connecting hips and the sheet lengths are different sizes
+  ... did the default drawing not snap them to true 45deg?" — the junction
+  now snaps 42–48° to 45°, see THE RIDGE / VALLEY JUNCTION IS DRAGGABLE).
+- A new rule ships behind a switch where it could move other roofs
+  (`PZ_SET_GUARD`, `PZ_APEX_SHIFT`, `window.__PZ_*`), OFF until his "go".
 
 THE GEOMETRY, never broken:
 1. Sheets run perpendicular to the gutter (to the ridge only where a face has
@@ -433,6 +537,31 @@ THE LAY:
    with a 1 × 4 m bump anywhere: 48 sheets, 6 × 7.74 + 42 × 6.63, nothing
    extra (was 48–64 sheets with up to 16 × 7.73 and 36 offcuts wasted on a
    hip end). Report 78's roof as mono: 47 → 44 sheets, 202 → 186 m.
+7c. A HAND-DRAWN ROOF IS LAID AS THE SAME ROOF BUILT (2026-11-06, the owner:
+   "test a custom roof shape ... a plain full hip ... rectangle outline, and
+   then enter 4 hips at a 45, and then a center ridge line ... Make sure it all
+   works the same as it would if it was an auto shape"; then the rectangle with
+   an east-west gable, a north-south gable into its middle and two valleys off
+   that junction: "if a hip or valleys or anything doesn't meet up to another
+   line, well then I'm sure that this would throw out the sheet cut diagram").
+   Drawn exactly, both already laid right (the hand hip IS the built hip, 48 ×
+   6.63, 80 pieces; the cross gable 5 faces, 48 × 6.63). Drawn the way a hand
+   draws — lines stopping 120–360 mm short of what they meet — the cross gable
+   went 49 sheets in three lengths, then ONE face of 24 × 13.25 m, every line
+   ignored. `_pzWeldLines` (in `_pzRoofGeom`, before the faces are cut) now
+   joins what was plainly meant to meet, within `PZ_WELD_M` (0.4 m): an end of
+   a ridge / hip / valley / apron / change of pitch / barge that touches NOTHING
+   (a hip or valley end a whisker from an outline corner too) goes to the corner
+   first; ends close together become one point — a RIDGE among them keeps its
+   line (a level ridge stays level) and the point is where the others, carried
+   on at their own angles, cross it; a lone end is carried along its own
+   direction onto what it stops short of or runs past. A hip or valley crossing
+   another is not a junction. Only the lay reads the joined lines; the drawing
+   is never changed by it. Every fixture lays byte-identically with it on and
+   off (all 25, diffed), the 37-shape gate unchanged. LIVE since his "go"
+   (2026-11-06, "Go on all", on the pictures "Sheet layout v10 - lines
+   joined"): `PZ_WELD_ON = true`; `window.__PZ_WELD = true` / `false` forces
+   it either way. `tests/customroof.mjs`.
 
 THE FILL:
 8. Feed each side of an end IN ORDER from its home offcuts (the same face, or
@@ -470,7 +599,12 @@ THE FILL:
    rule 10's less steel — a lay that is nearer but orders more steel loses —
    and decides between lays and fits that tie on steel. On the double
    cascade mock it is already as close as the steel allows: the corner by
-   C5 and the triangle by C7 can only come off C6 or C16. NOT YET BUILT.
+   C5 and the triangle by C7 can only come off C6 or C16. BUILT IN PARTS
+   (rule 9k): the end's set on its exact fits (move 8), the run in order
+   (move 9a), a trim off the nearest offcut (move 9), the set carrying on
+   (move 10), numbers face by face. A general "nearest donor" score for
+   every fit is NOT built — the fill's `matchPool` still ranks home, then
+   surplus, then distance.
 9. An extra is a FULL sheet — never two extras cut from one sheet ("e1
    should just be a full sheet with a small amount of wasteage").
 9b. ONE LENGTH, NOT A STAIRCASE (2026-10-31, the owner on report 17's pink
@@ -727,10 +861,17 @@ THE FILL:
     set packed in every order — a first-fit pass reports "no fit" where an
     arrangement exists, so the engine's version must search the same way.
     THE PRE-CUT PACKS AGAINST THE FIRST CUT (asked the same day: "bring that
-    small double cut C16 right to the edge of the main C16"): the mock places
-    each offcut piece as LOW as it fits, flush with the sheet's own cut, so
-    the leftover is one clean piece at the far end; `_sheetPrecutPlan` still
-    places it as high as it fits.
+    small double cut C16 right to the edge of the main C16"): every piece a
+    sheet's offcut feeds is packed together as LOW as it fits, flush with the
+    sheet's own cut, tried in every order, so the leftover is one clean piece
+    at the far end (`_sheetPrecutPlan`, "THE OFFCUT PIECES GO FLUSH AGAINST
+    THE FIRST CUT"; the optimiser's packer `_pzPlaceOne` packs the same way).
+    Only a sheet the packer cannot place whole falls back to the old drawing,
+    one piece at a time from the far end down. AND A PIECE USES ITS WHOLE
+    OFFCUT (the same morning: "All offcut triangle sheets, if applicable,
+    should utilize the full offcut, starting right from the edge of the
+    smallest or longest offcut, whichever is applicable. Usually the smallest
+    offcut first") — rule 9j is that rule for a set.
 
 THE PICTURE:
 11. EVERY LABEL STARTS AT THE GUTTER (2026-10-27: "start all the sheet
@@ -759,6 +900,20 @@ THE PICTURE:
     hatch, the ✂ chip the 22% tint with a dashed edge — the first block's
     colour on the two examples. `_renderSheetPuzzleCanvas`, `pc._lbl`; pinned in
     `sheetlayout.mjs`.
+THE SHEET PRE-CUT LAYOUT (the sheet cut diagram) AND THE JOB PACK PAGES —
+in short, then in full below:
+- Every ORDERED sheet, full length, square end at the bottom, block by block
+  in the layout's colours, labels exactly as on the layout.
+- Sheets cut by ONE roof line lie side by side so the cut is ONE straight
+  chalk line across them (a RUN, rising or falling); runs first, one row each
+  where they fit; uncut sheets last.
+- The FIRST CUT (the sheet's own piece) is RED and in line; anything cut
+  again out of an offcut is BLUE (the second cut). Waste is grey.
+- Offcut pieces pack FLUSH against the first cut, so what is left is one
+  clean piece (rule 10's note). Spun, never flipped.
+- One A4 page, one scale, the largest that fits; never turned (only the map
+  and the layout turn, rule 11c). Page order: 1 Detailed map, 2 Sheet layout,
+  3 Sheet pre-cut layout, then the cut lists.
 11b. THE SHEET PRE-CUT LAYOUT IS THE JOB PACK'S PAGE 2 (2026-10-31: "show
     the 7 orange sheets of full 5.01m length layed out in a rectangle format
     side by side ... as they would be before they are cut, and show the
@@ -912,6 +1067,81 @@ grid shifted −0.5…+0.5 of a cover (never under 177), and the shared slope
 laid from both ends and lapped where the wing's hip starts (179). Laid from
 the wing's corner with the closer ordered, F1 IS fed at 177 sheets — a swap,
 not a saving, and 49 purple to 48 orange.
+
+LESSONS — mistakes made more than once on these two diagrams:
+- DO NOT DRAW FROM THE COUNTING ENGINE. The first rebuild drew the picture
+  from `_lastSheetSections` and the owner threw it out ("Boy oh boy it's very
+  wrong! Don't try to use my sheet calculation method ... start fresh ...
+  make the puzzle then fill it afterwards"). Faces → strips → fill, always.
+- READ HIS SKETCH LITERALLY. "Cookie cutter" means the wing is cut OUT of
+  the plain hip's sheets where they lie; the first attempt laid the wing
+  afresh beside a template and was "quite different". When he names sheets
+  ("B7 blue offcut should actually be the offcut to A8"), reproduce that
+  exact pairing first, then say what it cost.
+- HIS EXAMPLE IS AN EXAMPLE: "They don't have to go specifically where i
+  said ... it should go which ever way is most efficient" — lay it both ways
+  and keep the better, never hard-code the one shape he drew.
+- A FIRST-FIT PASS SAYS "NO FIT" WHERE AN ARRANGEMENT EXISTS. Search every
+  assignment of loose pieces to offcuts with room, each sheet's set packed in
+  every order (the double-cascade mock found 67 sheets nothing else could).
+- THE HAND DECIDES. A47/A48 on report 76 stay orange because a purple offcut
+  there would have to be FLIPPED. Check the hand before promising a swap.
+- A RULE MOVES OTHER ROOFS. Every new rule changed a shape he had already
+  called perfect at least once (the gable-roof `swapPass` on the 24 × 12 L
+  and the cross; move 6's green sheet on the double cascade, "fix that double
+  cascade back to how it was before"). Diff EVERY fixture before showing,
+  scope the rule (gable roofs only, a switch), and put any moved roof in the
+  pictures.
+- WITHDRAWN, DO NOT BRING BACK: two extras cut from one sheet ("e1 should
+  just be a full sheet with a small amount of wasteage"); a staircase of
+  shorter and shorter extras (rule 9b); face badges F1… on the picture ("it's
+  pushing the sheet label out of line"); lengths printed on each sheet; any
+  explanation text under or over the picture.
+- PATCHY IS MEASURABLE. He judges by eye; the code counts it — `straysNow`
+  (strays) and `_pzBreaks` (colour or sheet/offcut changes walking a face).
+  A change that saves steel but adds breaks is the one he sends back.
+- THE PRE-CUT EXPOSES BAD PAIRINGS. A staggered run or a double-cut piece
+  on the pre-cut page ("there are two C16 offcuts being cut from the purple
+  C16 sheet") is a fill problem, not a drawing problem — fix the pairing.
+- SPEED IS PART OF IT. Every picture used to lay the roof again (the Job Pack
+  laid job 3314 ten times, 52 s): `_sheetPuzzleBuild` caches its answer
+  (`_PZ_BUILD_CACHE`, `_pzBuildKey`) and the packer memoises
+  (`_PZ_PLACE_MEMO`) — see ONE LAY PER ROOF SHAPE under Conventions. Any new
+  option the builder reads MUST go into `_pzBuildKey`, or a stale lay is
+  served. `window.__PZ_NO_CACHE = true` bypasses it while debugging.
+
+SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
+`PZ_SET_GUARD` and `PZ_APEX_SHIFT` (rule 9l, on), `window.__PZ_SET_CORNER`,
+`__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
+on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
+`_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
+it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
+10 mm), `_PZ_STEEL_TIE_MM` 1000 (rule 10's tie), a nick 76 mm at the gutter /
+50 mm under the ridge cap (rule 8b), a part-width corner strip under 0.6 of a
+cover (9k a), a scrap under a third of a cover wide.
+
+WHERE IT LIVES: `_sheetPuzzleBuild` (lays both ways, `better`, the 9l tries)
+→ `_sheetPuzzleBuildRaw` → `_pzRoofGeom` (faces, `_pzMonoBase`) → strips
+(`_pzStripsOf`, `_pzVirtualSpan`, templates / `adoptOn`) → `_sheetPuzzleFill`
+(blocks, `seriesFeed`, `matchPool`, `pushPass`, `swapPass`) → `fin`
+(`_pzMonoExtend`, then `_pzOptimise` moves 1–10 in this order: 1 extras onto
+offcuts, 2 shorter-block swaps, 3 valley sheet in full, 4 one length, 5 valley
+donors, 6 one-colour runs, 7 the set in order, 8 an end as one set, 9a the run
+in order, 10 the set carries on, 9 trims off the nearest offcut) →
+`_pzApplyClears` (rule 12b). Pictures: `_renderSheetPuzzleCanvas`,
+`_renderSheetPrecutCanvas`, `_jpRotWidePuzzle`; the pre-cut's runs
+`_pzChalkRuns` / `_pzCutLine`. Counts: `_pzTallyOfRoof`,
+`_sheetPuzzleTallyFor`, `_pzTallyCovers`. Look at it:
+`node floodroofing/tools/sheet-shots.mjs <fixture> <outdir>`.
+
+STILL OPEN (put to the owner, not answered — pick up if he answers, do not
+re-ask): the double-L's square-pyramid middle block (34 one-off extras; its
+strips could pair across each hip off one sheet each); report 76's wing end
+(above); the Big-L's junction strip now a 7.73 pushed in at the apex where a
+3.52 extra stood (same 64 sheets, ~4 m more steel); the double-L's orange
+↺A12 landing in a purple corner (rule 9j); the plain gable on a T outline
+drawing oddly (the gable BUILDER's lines, not the puzzle).
 
 ## Conventions
 
@@ -1587,6 +1817,457 @@ not a saving, and 49 purple to 48 orange.
   Delete this page (`_qcoDelete`: removes a quote option, hides a Settings
   one via `selHide.extras`). `customExtras` is in Q_CONTENT_KEYS,
   Q_FRESH_DROP and a template's `wording`. `tests/sendexact.mjs` sends one.
+- OPTION NOTES AND THE RECOMMENDED PILL (2026-11-04, the owner: a note "on
+  every different option in every section", the Recommended wording his to
+  change, then "allow me to delete the recommended ... also the colour
+  options"). `S.quote.optNotes['<group>:<id>'] = {text, colour}` (green /
+  yellow / red), `S.quote.recLabel`, `recColour`, `recOff` ({group: true},
+  '*' = every section) ride with the quote; `_qbOptMarks(group, it)` is the one
+  place a row's pills and the office's links are made (`_qbOptPills` above the
+  name, `_qbOptNoteLink` under it). On every `_qbOptionPage` row, the gutter
+  kit, custom options, Extras, shed add-ons, the also-available roofs, the
+  locked-gauge cards and each colour section's Undecided row; a COLOUR's note
+  sits under its "Chosen" line (`_qbColourNote`) and its swatch wears a dot
+  (`_qbSwNote`). The Recommended window (`_recLabelEdit(group)`): wording,
+  colour, "use on my new quotes" (`quote_defaults.rec_label` / `rec_colour`,
+  stamped onto the quote by `_qStampCustomerCopy` after its accepted guard),
+  Remove from this section / every section; a removed pill leaves the office a
+  "+ Recommended" link (`_recOn`). Classic A4 shows none of it.
+  A CUSTOM OPTION READS FROM THE PICK, like the steel sections (the same day,
+  on Leaf Diverters): the picked row is Included, the other its difference
+  (−$690 / +$690) — display only, `_rel` in `_qbOptionPage` for `extra:`
+  groups; the total and `_selExtraDelta` unchanged. A HIP END WHOSE WALL HAS
+  EXTRA POINTS ALONG IT is still an end (`_skelHipEnds` walks the straight
+  wall, `e.wall`), so its corners offer Gable / Dutch gable, and the face is
+  named in the outline's own order (it could read the opposite wall). The
+  Background slider starts at full strength (`#bgOpacity` value 1).
+  `tests/optnotes.mjs`, `tests/report80.mjs`.
+- AUSTRALIA (2026-11-04, the owner: "set up the AUD prices and invoice
+  wording, also setup my domain roofmap.com ... I'll only advertise roofmap.com
+  in Australia and roofmap.co.nz in nz, and make the user enter their country
+  (New Zealand or Australia) on sign up. Also all the terminology and products
+  need tweaking to suit Australian roofers"; his answers: the same numbers in
+  AUD, the Lysaght / COLORBOND set, the core pages only — the guides stay NZ).
+  THE COUNTRY IS THE BUSINESS'S: `companies.country` ('NZ' | 'AU', boot DDL;
+  no value = NZ, so every business before this is New Zealand). Asked at
+  sign-up on BOTH forms (signup.html's `#suCountry` select, defaulting from
+  `data-default-country` and the host; the app's `#su-country` radios) and sent
+  as `country`; changed by the OWNER only on Settings → Branding (`#brCountry`
+  → `PUT /company/country`, `_countrySet` reloads). THE APP: `_country()`
+  (customer mode → `S.quote.country`, else the signed-in company, else the
+  host — roofmap.com is AU), `_isAU()`, `_defaultGstRate()` (10 / 15),
+  `_curP()` ('A$79'). On AU: GST 10 % as the default, quote links on
+  roofmap.com (`CUSTOMER_QUOTE_BASE` is a getter; no company subdomains), the
+  address search in Australia, LINZ off, the products `_defaultSelectablesAU()`
+  (COLORBOND® steel / Ultra / Zincalume — the grade percentages are starting
+  guesses for the owner to set; Custom Orb, Trimdek, Klip-Lok 700, Spandek;
+  Quad / Hi-Quad / half-round gutters) and `COLORBOND_COLOURS` (22), and the
+  WORDS: `AU_TERMS` rewrites text nodes, placeholders and titles (never an
+  input, a textarea or a box being typed in) through a MutationObserver —
+  Colorsteel → COLORBOND, spouting → guttering, building consent → building
+  approval, 0.40/0.55 → 0.42/0.48 BMT, GST number → ABN, "/month + GST" →
+  "/month AUD". A quote stamps `country:'AU'` so the customer's copy reads
+  Australian too. THE SERVER: `_publicUrlFor(country)` (PUBLIC_APP_URL_AU,
+  default https://roofmap.com) for every link it sends — verify, invite, trial
+  ended, win-back (sent in two batches, NZ and AU); `/subscription` answers
+  `country` and `currency`; an AU checkout asks Stripe for `currency=aud` on
+  the SAME price (its AUD currency option, A$ at the NZD numbers, added by
+  `_ensureAudCurrencyOptions` a minute after boot and `POST
+  /admin/aud-prices/run`; an `STRIPE_PRICE_<PLAN>[_ANNUAL]_AUD` price wins
+  where set) and lands back on roofmap.com; a currency refusal sells in NZD and
+  pages (`aud-checkout`). RoofMap is not GST-registered in Australia, so an AUD
+  invoice reads "RoofMap — invoice", "No GST charged", no GST number
+  (`_subInvoiceNumbers.noGst`). THE SITE: roofmap.com is the SAME Vercel
+  project; `vercel.json` sends that host's core pages to `frontend/au/*.html`
+  (quote, reset and invite links first), built by `tools/build-au-site.mjs`
+  from the NZ pages — NEVER hand-edit `frontend/au/`; change the NZ page or a
+  rule there (a rule that no longer matches THROWS) and rerun it
+  (`sitemap-dates.mjs` calls it). hreflang en-NZ / en-AU pairs, an AU sitemap
+  and robots. NEEDS THE OWNER: roofmap.com added to the Vercel project (the
+  MCP is refused, 403) and its DNS at Network Solutions pointed at Vercel.
+  `tests/australia.mjs` (UI), `aucountry.mjs` (API), `ausite.mjs` (UI),
+  `signup.mjs`.
+- AN AUSTRALIAN BUSINESS SAYS ITS STATE, AND NSW GETS ITS GOVERNMENT'S OWN
+  AERIAL PHOTOS (2026-11-07, the owner: "add the free NSW government imagery
+  for the Australian site, make to user enter their state so they are using
+  the right states government imagery in the app"). `companies.state` (boot
+  DDL; one of `AU_STATES`, '' / null = not said) is asked on BOTH sign-up
+  forms when Australia is picked (`#su-state`, signup.html's `#suState`,
+  required there; the server takes none from an older page) and is the
+  OWNER's to change on Settings → Branding (`#brState` beside the country →
+  `_stateSet` → `PUT /company/country {country:'AU', state}`; a save that
+  omits `state` leaves it; moving to NZ clears it). The sign-in brief,
+  `/team` and `/subscription` carry it (`_companyState`); `_auState()` reads
+  `fr_company.state`. THE IMAGERY: `AU_STATE_IMAGERY` — NSW only — NSW
+  Spatial Services' public tile cache
+  (`maps.six.nsw.gov.au/.../NSW_Imagery/MapServer/tile/{z}/{y}/{x}`, ROW
+  BEFORE COLUMN, Web Mercator 256px, CORS `*`, Creative Commons Attribution,
+  ~10 cm over towns, 50 cm elsewhere). Measured 2026-11-07: Sydney to level
+  21, Dubbo 20, open country ~18, and the cache is SPARSE (a missing tile is a
+  200 with an HTML body, not a 404) — so `_stateStitch` tries the deepest
+  level the picture wants, then a level back at a time (four at most), and
+  the capture falls back to Mapbox. A NSW business's finder opens on it
+  (`#imgSrcState`, value `state`; `DRAW.bgFrom = 'nsw'`); LINZ is no longer
+  offered to any Australian business (`#imgSrcLinz` hidden). THE OTHER
+  STATES ARE LEFT OUT ON PURPOSE (each checked that day): Victoria's Vicmap
+  Basemap charges business apps a licence fee; Tasmania's theLIST is CC
+  BY-NC-ND (non-commercial); Queensland's public basemap is share-alike and
+  only imagery 3+ years old; SA publishes none; WA's Landgate is a paid
+  subscription; the ACT's and NT's licences are not stated. Add one only with
+  a licence that allows business use, and its credit. Settings says which
+  the finder uses (`_stateImageryNote`). PRIVACY v1.4 (in force 7 Nov) names
+  NSW Spatial Services and Mapbox (which served the default satellite view
+  and was never named) — `legal.mjs` now checks both. The cloud
+  environment's allowed hosts carry `maps.six.nsw.gov.au` /
+  `maps1.six.nsw.gov.au` so a session can reach it. `tests/austate.mjs` (28,
+  UI), `aucountry.mjs` (21), `signup.mjs`.
+- THE SCAFFOLD: ON THE QUOTE OR NOT, OURS OR OUTSOURCED (2026-11-04, the owner:
+  "have a button to click to exclude scaffold from this quote ... in the gutter
+  job type, always default the scaffold to not included and collapse the
+  scaffolding section ... 'Do it ourselves' or 'outsource' ... default the
+  scaffolding labour time to 4 hrs on a house 0-50m2, 6hrs on 51-100m2, 8hrs on
+  100m2-160m2, 10hrs on 161-230m2, 12hrs on 230m2 to 330m2, 15hrs on 330m2 +
+  ... when pushing the pricing to fergus ... those labour hours are put as
+  labour hours in it's own ... section", and "if there's no scaffolding
+  required then it doesn't say it in the 'what we will do'"). On the scaffold
+  object (per roof, `_roofScaffold`): `excluded` (with `exclAuto` when the
+  Gutters only default put it there, `exclTouched` once the office chose),
+  `mode: 'diy'` and `diy` {leadHrs, appHrs, leadPrice, appPrice, leadCost,
+  appCost, hrsManual, own}. `_scaffoldEff` is still the ONE reader: excluded =
+  0 / 0, diy = hours × the crew's rates; a scaffold with none of it reads as
+  it always did. `_scaffoldDiySync` (run from `calcLabour` for every priced
+  roof) keeps the hours on the area tiers (`SCAFF_DIY_TIERS`, the roof and the
+  roofs folded into it) until one is typed, and the rates on the roof's own
+  labour table until one is typed (blank / ↻ puts them back). The card: two
+  big buttons, Scaffolding included / No scaffolding, then on a roofing job Do
+  it ourselves / Outsource; Do it ourselves swaps the cost and price boxes for
+  a Lead Roofer / Apprentice hours table. A Gutters only job starts with No
+  scaffolding (a new quote, and `_setJobType` on a scaffold nobody chose) and
+  its section FOLDED (`_pxFoldKey` → its own `scaffoldCard_gj` fold), and gets
+  no do-it-ourselves choice; a gutters quote saved before keeps its scaffold.
+  No scaffold = no platform uplift (`_selScaffoldBasePrice`, `scaffoldBase`
+  0). FERGUS: do it ourselves goes as LABOUR lines in a "Scaffolding" section
+  of its own, gutter or none; outsourced is unchanged. WHAT WE WILL DO
+  (`_qbInclusionLines`) drops any scaffold / edge-protection line when
+  `_scaffoldNone()` (excluded, or nothing priced and no line typed), and on a
+  gutters job reads "Remove existing spouting and take it away" while the
+  downpipes are kept, puts "Supply & install new <gutter>" (and new downpipes
+  when picked) straight after the brackets line, ahead of "Seal all joints".
+  The classic A4's scope prose is the office's and is not touched.
+  `tests/scaffoldopts.mjs` (34).
+- A GUTTER THE OFFICE ADDS IS PRICED, AND SETTINGS SHOWS THE PRICE IN USE
+  (2026-11-05, the owner: a 175mm box gutter added to the products and priced
+  at $40/lm on Default Items read "Included" on the quote; and the Typhoon
+  boxes in Settings sat at 0.00 while the Pricing tab charged $19.27 and the
+  rest). `_gutterTotalChargeFor` returned 0 for any id outside the three
+  shipped gutters (`SEL_GUTTER_MATERIAL_PER_LM` / `GUTTER_MATERIAL_PRICES`)
+  although `_gutterMaterialPerLm` read its `<id>_lm` correctly — it now prices
+  any gutter in `_selGuttersAll()`. And `renderPriceBookUI` fills an unpriced
+  gutter box (blank or 0, which `_gutterSupply` treats as "not priced") with
+  the built-in figure from `defaultSettings().price_book.gutter` — the one the
+  quote falls back to — so Settings shows what is charged and a save stores
+  that same figure. `tests/gutterown.mjs`.
+- THE PITCH PLATE STAYS OFF THE RIDGE, AND COMES OFF WITH A CLICK (2026-11-05,
+  the owner with his 15° plate on the ridge's 16.26m measure: "put it off to
+  the side, also allow me to click to delete it, also in the 'edit font size'
+  add a tick box to 'show roof pitch' which adds or deletes the roof pitch on
+  all roofs"). `_clearOfMeasures(p, w, h, segs)` read the measure pills as a
+  top-left corner when they record their CENTRE, so its box sat half a label
+  away and the plate landed on the ridge's measure; it now takes every box as
+  a centre, avoids the sheet-length labels too, and keeps clear of the roof's
+  ridge / hip / valley / change-of-pitch / apron / barge lines (`segs`,
+  screen px), trying SIDEWAYS first. A click with no drag on a plate opens
+  `#pitchPlatePop` ("Roof pitch 15° · ✕ Remove from map", `_pitchPlateRemove`
+  → `pitchLabel.off`, the right-click's own store); a drag still moves it.
+  Canvas view (Edit font size) carries `#viewShowPitch`, "Show roof pitch"
+  (`_showPitchAll`): every roof's plate off, or back on at its default place;
+  ticked while any roof shows one (`_pitchAnyShown`, synced by
+  `_syncPitchLabelBtn` and on opening the menu). Labels only — the pitch never
+  changes. `tests/pitchplate.mjs`.
+- HIDE THE SCAFFOLDING PRICE, AND SAY WHAT THE SUMMARY SHOWS (2026-11-05, the
+  owner: "the scaffolding price on the quote summary is way off, it doesn't
+  match my priced scaffolding in the pricing tab ... put a button next to the
+  quote summary scaffold to 'Hide Scaffolding price' (which combines it with
+  the re-roof price ...) then when combined, add a 'Show Scaffolding price'").
+  Measured on a fresh roofing job in both modes: the summary's scaffold row IS
+  the Pricing tab's figure — plus GST, like every figure on the summary
+  ($2,500 → $2,875.00). The scaffold card now says so (`#scOnQuote`: "On the
+  quote summary: $X incl. GST ($Y + 15% GST)"). If he still sees a
+  difference, ask for both figures and the job: a custom line elsewhere whose
+  words say "scaffold" is counted as scaffold by `_qpScaffoldInLines`, and an
+  extra roof's own scaffold rides inside that roof's price, not this row.
+  `S.quote.scaffoldInBase` folds the row into the main line
+  (`_qpBaseScaffoldShown` = 0, read by `_custBarRows` on the roofing and
+  gutters paths and by the A4's `buildAcceptSummaryRows`); the base row says
+  "Re-roof — main scope of work" with `scaffIn`. The money and the total never
+  move. `_qpScaffoldToggleHtml(r)` puts "Hide scaffolding price" under the
+  scaffold row and "Show scaffolding price" under the folded base row, in the
+  Review section and the computer rail, office only, never on paper.
+  `tests/scaffoldopts.mjs` (41); `typesnap.json` regenerated (deskText only).
+- A ROOFER WHO NEVER LINKS FERGUS (2026-11-05, the owner: "I don't think any
+  of the trial users or any of the paying users have connected to Fergus ...
+  make sure the app's optimized from their point of view ... run a big audit
+  and do a lot of tests"). Audited three ways — a live drive of the whole
+  journey as a trial business with no key, the app's ~1,250 Fergus mentions
+  read in the code, and the site, help bot and emails. The send, the
+  customer's page, the acceptance and its emails were already clean (every
+  push is behind `S.linkedJobId`, every Fergus button `.jms-only`). Fixed:
+  THE QUOTE'S PHOTO SLOTS led with a blue "📷 Upload from Fergus" that alerted
+  "Link a Fergus job first" — now Upload from PC first, then "🖼 From this
+  job's photos" (`_qpCondPhotoFromJob`, a picker over `S.photos`, only when
+  the job has some), and the Fergus button `.jms-only`; `_qpCondPhotoFromFergus`
+  falls back to the job's photos / the PC for an unlinked business (the shed's
+  Change image / Shed render buttons), and the job-photo grid carries "Use in
+  quote" (`_jobPhotoUseInQuote`, the first empty of the four slots) — photos
+  taken on site in RoofMap could not reach the quote without a re-upload. The
+  slot picker's "From Fergus" tab is `.jms-only`. THE JOB DETAILS WINDOW's
+  "Not linked to a Fergus job / Connect Fergus" box is hidden unless Fergus is
+  linked; the chip tooltip and the Home search placeholder say nothing of
+  Fergus (`_refreshJmsLinkUI` adds "& Fergus" when linked). SETTINGS' big card
+  reads "Run Fergus? Link it here — optional … RoofMap works fully on its own",
+  is smaller, hides for a plan without `jms` (Measure / Trade) and on "I don't
+  use job management software — hide this" (`fr_jms_card_hide`, per device).
+  THE ACCEPTANCE TASKS: `ACCEPTANCE_TASKS_DEFAULT` is Flood Roofing's own
+  (Paula / Matt / Ethan, "Accept in Fergus", a hard 50%) and every business got
+  it; a business with no Fergus key now gets `_acceptanceTasksGeneric` (its
+  own deposit %, no names, nothing Fergus) — `_settingsRunsFergus` decides.
+  THE SCHEDULE BOARD's "Fergus job no." is "Job no." and a typed number links
+  to app.fergus.com only when Fergus is linked (`_schedFergusUrl`). REQUEST A
+  FIX's job-management kind probes `/jms/diagnose` only when there is a key.
+  POLLING: a Fergus pick with no key polled 8 failing requests a minute — the
+  server's 400 `not_connected` now skips the fallbacks and sets
+  `window.__fergNoKey`, which the 30 s retry respects (`testFergus` clears it).
+  AND THE OTHER WAY ROUND, found by the audit: a business that DOES run Fergus
+  lost its Fergus buttons at every sign-in (`_frWipeBusinessLocal` clears
+  `fr_jms`, nothing restored it) — `_jmsProvider` now reads the company's key
+  from /settings (`_jmsCompanyKey`) and `loadSettings` re-connects. THE QUOTE'S
+  COVER: `.qd-cover-body` was a 1fr + 300px grid, so in the office's narrow
+  preview the opening note ran one word a line; it wraps now. THE HELP BOT
+  answered "do I need Fergus?" with "Fergus is your job-management system",
+  said invoicing happens in Fergus and called RoofMap "Flood Roofing's
+  internal tool — no charge"; all reworded (`window._helpSearch` exposes the
+  matcher). THE SITE: signup's trial line, the landing's trial, walkthrough
+  and integration tile, pricing's trial lines and the Fergus page ("Team plan,
+  and in the free trial. You do not need it") lead with RoofMap standalone;
+  `build-au-site.mjs`'s walkthrough rule and `sitecopy.mjs`'s Fergus-page pin
+  moved with them. `tests/nofergus.mjs` (36, UI list) walks the whole journey
+  on the real server; against the old code it fails where each fault was.
+  `acceptflow.mjs`'s fixture now carries a Fergus key (Flood Roofing's list).
+- A DUPLICATE IS THE QUOTE IT WAS MADE FROM, AND THE SCAFFOLD ROW IS THE ROOFS
+  ON THE QUOTE (2026-11-06, the owner on job 3350: Duplicate this quote off
+  Sent quote 1 at $45,173.07 gave a draft of $46,841.43 with the Lower Main
+  Roof an optional extra; "the price should be EXACTLY the same, all the
+  sections ... and the whole pricing tab including any custom added material";
+  then "the scaffolding shown in the quote summary is still wrong, it should
+  only show the scaffold totals for the roofs selected" — $12,075 incl. GST
+  against a $5,000 main scaffold).
+  THE ROOFS MOVED UNDER THE VERSION: every per-roof key on a quote
+  (roofSeparate / roofExcluded, roof labour, scaffold, buffer / mark-up,
+  custom lines `area#idx`, `extraRoofsSel`) is a roof NUMBER, and `_roofRemap`
+  renumbers only the LIVE quote — a sent copy taken before a roof was deleted
+  or made main keeps the old numbers, so its duplicate put Roof 2's settings
+  on Roof 3. `_qvRealignToRoofs(V)` runs in `_qvNewDraft` (on the version
+  being viewed, `_qvViewingRecord`) and `_qvOpenDraft`: `_roofIdxMapFromGeom`
+  matches the version's `roofMapGeom.roofs` to today's roofs by outline
+  centroid (then a unique name), `_roofRemapQuoteOnly` moves its keys, the
+  modes come from the geom, the customer's roof picks are put back by roof.
+  And THE MATERIAL TABLE'S TYPED PRICES ARE JOB-LEVEL (`MATERIAL_OVERRIDES`,
+  `MATERIAL_DELETED`), so no version ever carried them: `_qvSnapshot` stores
+  them as `snap.pricing` and a duplicate restores them (remapped,
+  `_matOvRemapObj`); `_roofRemap` now remaps them too. A version from before
+  this has no `pricing` and leaves today's alone.
+  THE $10,500 SCAFFOLD was an orphan line: `defaultQuoteLineItems` named its
+  third line "Scaffolding (platform)" while the sync keys its own
+  "Scaffolding", so an old quote could carry BOTH — the orphan at a stale
+  price, counted as scaffold by `_qpScaffoldInLines`. New quotes' base lines
+  are keyed (`_base`) and named as the sync names them, and
+  `_syncQuoteBaseLineItems` drops an unkeyed, non-custom Labour / Materials /
+  Scaffolding / Scaffolding (platform) line once a keyed one of its kind
+  exists. And a SELECTED extra roof's own scaffold now joins the summary's
+  scaffold row (its line reads its price less that scaffold, `_scMoved` in
+  `_custBarRows`) — the total never moves; not when the scaffold price is
+  hidden or the quote is option-priced. THE JOB TILE'S BUTTONS (Save job,
+  Change job, History & Communications, Files & Photos, the lock, Viewing all)
+  were Review-quote blue for an hour, then became the quiet card below (THE JOB TILE IS A
+  QUIET CARD). `tests/dupexact.mjs` (12, UI list; 9 fail on the old build,
+  reading his $12,075).
+- THE JOB PACK'S DIAGRAMS ARE PICTURES THAT TURN (2026-11-06, the owner: "add
+  a rotate 90deg button on this picture in the job pack, also the next two
+  diagrams (sheet layout and sheet pre-cut) can you put them in picture form
+  too so i can move and edit them, exactly as i can with the detailed map ...
+  and make them default fit to page just like they do now"). Every Job Pack
+  picture carries ⟳ 90° (`.jp-rot-btn`, `_jpRotateImage`): `im.rot` (0 / 90 /
+  180 / 270, clockwise) is applied where the picture is MADE — `_jpCaptureMap`
+  sets `_JP_CAP_ROT` for one capture and every capture's last canvas goes
+  through `_jpCvOut` (`_cvRotQ`; the Basic map's SVG through `_jpSvgRot`) — so
+  the screen, the fit and the PDF are the turned picture, nothing in CSS. A
+  fitted (untouched) picture is fitted again at its new shape; one the office
+  sized turns as it stands, brought down to fit the page if it must. THE
+  APP'S OWN WIDE-ROOF TURN STAYS ON A MOVED PICTURE now (`im.turnKept`, set
+  on the first drag from `data-turned` / `_JP_CAP_TURNED`): before, moving a
+  default map un-turned it. THE SHEET LAYOUT AND PRE-CUT PAGES carry their
+  diagram as a picture (`_jpPackPicPage`, `page.pic` once, ids `def_sp_` /
+  `def_pc_`, mapKeys `sheetplan:pack` / `precut:pack` → `_jpCapturePackSheet`,
+  exactly what the pages drew), fitted by `_jpFitDefaults`; Crop, Edit,
+  duplicate, delete like the map; a deleted one is not put back. The images
+  keep the classes `jp-sl-img` / `jp-precut-img`. `tests/jppics.mjs` (9, UI).
+- A GUTTERS-ONLY JOB PUSHES NO ROOF TO FERGUS (2026-11-06, job 3341: the
+  accepted gutter quote reached Fergus with Roof Labour 13 + 13 hrs and a Roof
+  Material "Adjustment to quoted total" cancelling it — the money right, the
+  crew reading roof hours as time allowed). `_buildFergusItemisedSections`
+  (`_gjFg`) leaves the roof labour table, roof material rows and roof custom
+  lines out on `_isGutterJob()`, puts any reconciliation in Gutter Material,
+  and itemises the gutter in the BASE plan too (it is the quote's base). The
+  plan says so (`share.fergus.gutterBase`), and the server's
+  `_fergusComposeSections` then skips that gutter's price among the picks it
+  adds, or — a different gutter picked — drops the Gutter Labour / Material
+  sections for the picked one's price. Roofing and pole shed unchanged.
+  `tests/gutteronly.mjs` (41).
+- AN ACCEPTED JOB STAYS ACCEPTED WHILE THE OFFICE WORKS A DRAFT (2026-11-06,
+  job 3341, the owner: "the app automatically created a new quote draft, which
+  then made it look like it wasn't accepted"). A draft made off an accepted
+  quote (`_qvFreshDraft`) sets the link back to 'sent', and the Home board reads
+  the status alone, so the job dropped out of Quotes accepted until somebody
+  re-opened the Accepted version. The feed (`_quoteShareRowsPg` /
+  `_quoteShareRowsRead` and the fallback reader) now reads the frozen
+  `versions.accepted` too, and `_feedKeptAcceptance` keeps the row Accepted
+  (with who and how much, `draftAfterAccept`) until the office UNDOES the
+  acceptance (`share.unacceptedAt`, stamped by `unacceptQuote`; an older undo
+  reads 'opened' with no `draftAfterAccept` mark) or SENDS the customer a new
+  quote (`sentAt` after the acceptance). A decline or a question wins.
+  `tests/feedaccepted.mjs` (8, API list).
+- THE FERGUS JOB GETS THE CUSTOMER'S SELECTIONS, AS TEXT AND AS A PAGE
+  (2026-11-06, the owner on job 3341: "can the customer selections be uploaded
+  to the job files in a small PDF ... And ... the Fergus job description ...
+  updated with those customer selections too?"). FERGUS'S "JOB DESCRIPTION" IS
+  `longDescription`; `description` is the job's TITLE ("Doug Rodgers - 704A
+  State Highway 10, Oromahoe - Gutter Replacement", shown in every job list) —
+  read off job 3341 by `hub-jobupdate-probe.yml` →
+  `hub-api/scripts/fergus-jobupdate-probe.js` (read-only; its update bodies fail
+  validation on purpose, and the hub's proxy is GET-only anyway, "Only GET is
+  allowed"). `_fergusJobDescOf` read `description` first and the update wrote
+  the block into both, so 3341's Job Description never changed (and a write
+  that landed would have replaced the title). It reads and writes
+  `longDescription` only now. THE ROUTE IS PUT /jobs/{id} (answered by job
+  3349's acceptance, the owner's error email of 2026-11-06 11:49 am NZ: PATCH
+  404, POST 404, PUT 400 — the route exists and refused a two-field body), so
+  PUT goes first with the WHOLE job sent back (`_fergusJobUpdateBody`: every
+  scalar the read gave plus `customerId` / `siteId` / `mainContactId` from the
+  objects or the links), shape 'read' (description = the title as read,
+  longDescription = the block) then 'create' (title, description = the block);
+  a write that moved the title is put back at once. Every refusal keeps 200
+  characters of what Fergus said (`said`), and the once-only email is per
+  version (`fergusAccept.descFailToldV` 2), so if PUT still refuses, the next
+  email names the field it wants — pin the body from that. ANSWERED THE SAME
+  DAY (job 3334, 1:15 pm NZ): PUT 400 "Job is not in draft" — FERGUS'S
+  PARTNER API ONLY CHANGES A DRAFT JOB, so an accepted job's description
+  CANNOT be written. That refusal is final: `share.fergusAcceptDescSkip =
+  'not-draft'`, no retry, no error email, a share event says so; the
+  selections reach the job as the PDF in its files. AND THE OFFICE WAS
+  EMAILED HOURLY (3349 at 10:24, 11:49, 1:15 pm): the Fergus half read the
+  share BEFORE the office email stamped `acceptOfficeAt` and wrote its stale
+  copy back, wiping the stamp, so every `_officeOwedSweep` sent again. Every
+  server write to the share now goes through `_shareWriteKeys` (re-read, set
+  only its own keys, union `events`), `_acceptOfficeCatchUp` sends the email
+  BEFORE starting Fergus, and `_acceptOfficeTold` remembers each acceptance
+  told in this process. `custevents.mjs` (63; the old code sends 3).
+  THE SELECTIONS GO ON AS A NOTE INSTEAD, AND NOTHING THE CREW READS CARRIES
+  A PRICE (the same afternoon, the owner with 3341's page: "i don't want it to
+  show the price. Also job description still not showing"): where the
+  description is refused as not-draft, `_fergusAddJobNote` adds the picks as a
+  note (`_selectionsNoteText`), trying `FERGUS_NOTE_CANDIDATES` (POST /notes
+  {entityType, entityId, text} first — the attachments route's own shape —
+  then /jobs/{id}/notes); a 2xx claims `share.fergusAcceptNoteAt`, at most two
+  tries (`fergusAccept.noteTries`), and the first all-refused try is emailed
+  ONCE with Fergus's words (`noteFailTold`) — pin the route from that. PINNED THE SAME AFTERNOON (job 3334, 3:38 pm NZ): `/jobs/{id}/notes` is a 404 and POST /notes refused `{entityType, entityId, text}` with "must have required property 'entityName'" — so the candidates are POST /notes with `entityName` 'job' (then with `entityType` too, then 'JOB', 'Job'), and the tries and the one email are per version of the list (`FERGUS_NOTE_V` 2, `_noteTriesOf`), so 3334 / 3349 / 3341, which spent their tries on the old shapes, get two more. The
+  selections PDF has no accepted total and `_selLinesNoPrice` takes the money
+  off every choice line (PDF and note); the description, where it can still be
+  written, keeps its prices. `custevents.mjs` (64). THE PAGE: `_selectionsPdf`
+  (`_pdfDocument`, Helvetica, one A4: the company, "Customer selections", quote
+  and customer, address, who accepted and when, the accepted total, then
+  `_quoteChoiceLines` — the same list the acceptance email and the description
+  carry) is uploaded through `/attachments` as "Customer selections - Quote
+  <ref> - <client>.pdf" beside the accepted quote's PDF; claimed by
+  `share.fergusAcceptSelAt` on ANY 2xx and tried at most three times
+  (`fergusAccept.selTries`), so the hourly retry can never fill a job's files.
+  `_pdfEscape` keeps Latin-1 (®) and the bullet (WinAnsi 0x95). A KEPT
+  acceptance (a draft made off it, 3341's shape) still gets both: `_fergusOnAccept`
+  reads the frozen Accepted version when the link says 'sent', and the hourly
+  `_officeOwedSweep` picks those jobs up (Fergus half only, no email). Calls on
+  one job queue (`_fgAcceptQ`) so the accept-email call, the 90 s catch-up and
+  the sweep never upload twice. Each success is a `fergus-accept` share event.
+  `tests/custevents.mjs` (60), `acceptstale.mjs`.
+- LOOKING AT THE ACCEPTED VERSION IS NOT A NEW ACCEPTANCE (2026-11-06, the
+  owner: "when i switch between a draft and then click on the accepted
+  version, it pushed a new quote to fergus everytime"). `_fergusAutoPushOnAccept`
+  runs from `refreshQuoteProposal`, and the Viewing menu puts a frozen COPY on
+  screen (`_qvView`) that does not carry `fergusAutoPushedFor` — and an accepted
+  job is locked, so the stamp was never saved either. Every look pushed a new
+  Fergus version. It now never runs from a frozen version (`S._qvViewing`),
+  stands down when the server already made this acceptance's version
+  (`share.fergus.auto.acceptedAt` + `quoteId`, `_fergusAutoVersionNow`), and is
+  remembered on the device per Fergus job + acceptance time
+  (`fr_fg_autopushed`, `_fgAutoPushSeen`). An undo and a fresh acceptance (a
+  new time) still pushes. `tests/autopush.mjs` (13).
+- AN OPTIONAL ROOF REACHES FERGUS AS HOURS, AND THE MAIN ROOF'S MATERIALS ARE
+  THE MAIN ROOF'S (2026-11-06, job 3349, the owner: "the labour hours in fergus
+  is way low compared to the accepted quote on the total priced labour across
+  the selected roofs"). Two faults in `_buildFergusItemisedSections`, the money
+  right both times: (1) each optional roof's labour went as ONE line, "Garage —
+  roof labour 1 × $920", no hours and no cost, so Fergus read 40 hours for a
+  78-hour job; it is now that roof's crew (`_roofLabLines(idx)`: Lead Roofer,
+  Apprentice and any labourer, hours × the roof's own rates and cost) named
+  "Garage — Lead Roofer", with one "— labour adjustment" line for whatever the
+  hours do not explain (priced by the m², a typed labour line). The crew is
+  stamped on `S.quote.extraRoofs[i].lab` and `share.priced.extraRoofSplit[i].lab`,
+  so the SERVER's automatic version (`_fergusComposeSections`, falling back to
+  `quote.extraRoofs[i].lab`) does the same; an acceptance stamped before this
+  pushes from the live roof (`roofIdx` on the priced changes). (2)
+  `_readFergusMaterialItems` built the material rows from the Job Pack's pick —
+  every roof the customer took — and each optional roof was then added again as
+  its own material lump, cancelled by "Adjustment to quoted total −$9,185.97";
+  it reads the main roof's group now (`_pricingRoofGroup(0)` under
+  `_matSelOverride`, as `_materialsCostForRoofIdx(0)` does), which also fixes the
+  base plan the server composes from. `tests/fergussplit.mjs` (21),
+  `fergusauto.mjs` (43).
+- THE JOB TILE IS A QUIET CARD (2026-11-06, the owner: "i really don't like
+  the look of this left job menu ... make it obvious that it's not part of the
+  main app's tab buttons but ... tie into the look of the rest of the app and
+  look more subtle and professional"; it was all Review-quote blue for an
+  hour that morning). `#navJobBox.njb`: white, a 1px #e2e8f0 edge, 12px
+  radius; the job's name over a hairline; Save job (the one filled #0099e0
+  button) and Change job (outlined) side by side in `.njb-acts`; History &
+  Communications, Files & Photos and the lock one bordered list
+  (`#navJobList`, `.njb-row`, shown with the job by `_jobLockRender`); line
+  SVG icons, no emoji; the counts are pale-blue chips (`.njb-count`); the
+  lock reads "Locked — Quote sent ✓" / "Unlocked — autosaving". Every id and
+  onclick is unchanged. `tests/jobhistory.mjs`, `joblock.mjs`.
+- A QUOTE SECTION MOVES UP OR DOWN ONE PLACE, AND THE LINE EDITOR SITS LEFT
+  (2026-11-05, the owner: "move the attached 'edit: [line name]' window to the
+  left side, because it's always behind a picture. then have a up/down arrow in
+  the quotes sections so i can re oragnize a section be jumping it up or down
+  one section at a time"). `#propPanel` is `left:12px` on the canvas (the
+  Photos panel covers the right). On the computer layout every section
+  between the proposal and the total carries ↑ ↓ (`_qdMoveHtml`, `.qd-move`,
+  office only — never the customer, never paper); `_qdSecShift` swaps it with
+  the movable section beside it (`_qdMovable`: not the cover, the condition,
+  the proposal or the last) and writes `S.quote.modernOrder`, the template
+  editor's own store, so the phone book follows. A locked job asks first, like
+  any edit. `typesnap.json` regenerated (deskText only, the arrows).
+  `tests/secmove.mjs`.
+- A TURNED ROOF IS REBUILT, NOT SPUN (feedback report 84, 2026-11-05, job
+  FR-59839: "straight gable not good, barges showing outside of outline and
+  the barge sides are showing a gutters"). Rotate 90° on a "Gable + hip/valley
+  corner" roof spun the BUILT lines about the outline's middle, which only
+  lands on a square: on his 20.4 × 16.3 m shed the ridge and the barges stood
+  26 px outside the walls and every wall was re-laid as a gutter. Hip and
+  dutch roofs on any non-square outline did the same. `_gableHvLines`: on
+  four corners an odd turn is the straight gable's own turn
+  (`buildGableRoofLines(outline, true)`), used by the build AND the corner-drag
+  rebuild; an L's hip and valley ignore the turn. Every other shape is spun
+  only where `_outlineTurnsOntoItself` (a square). A roof already saved in the
+  bad state is put right by turning it again or picking the shape.
+  `tests/report84.mjs`.
 - EXTRAS — INCLUDED ITEMS, ON EVERY JOB TYPE (2026-10-30, the owner: "each
   line is an included item, for instance the customer want customer coloured
   downpipes and leaf diverters ... both show as included as show the price ...
@@ -4665,6 +5346,22 @@ not a saving, and 49 purple to 48 orange.
   and corner magnets, which pulled a 40 px slide to 25; and the selection
   follows the junction mid-drag, so the ring and the pad's ridge length no
   longer go blank. `tests/junction.mjs` (23).
+  A HAND-DRAWN HIP OR VALLEY IS AT ITS TRUE ANGLE, AND A LINE'S END CATCHES
+  THE LINE IT WAS DRAWN TO (2026-11-06, the owner: "just indicate to the user
+  where 45 degrees is, and snap it slightly to that 45 degree line ... show the
+  true angle ... only 45 when it's actually 45"; "if it's sort of close to a
+  line, then snap it ... keeping its whatever angle"). `snap()` FORCED every
+  hand-drawn hip and valley onto 45° off its wall and the label said "✓ 45°"
+  whatever the cursor did. Now `_hvGentle` pulls it onto 45° only within
+  `HV_SNAP_TOL_DEG` (3) — the junction drag's own window — a dashed 45° guide
+  shows where 45 is, and `_hvDrawGuide` labels the TRUE plan angle to the wall
+  ("Hip 38.0°" amber, "Hip ✓ 45°" green only at 45). The centre-meet magnet
+  fires only within 2 magnets of the cursor. `_lineEndOntoLine` (getXY, every
+  line tool, after the vertex magnet): an end point is carried ALONG the line's
+  own direction to a wall or line within 2 magnets (a 45° valley stays 45°), a
+  start point drops square onto a line within one; a blue ring marks the catch.
+  The addmeas end drag (`DRAG_EP`) gets the same 45° pull, catch and label.
+  Shift frees all of it. `tests/customroof.mjs` (22, UI list).
   FOUND BESIDE IT: `_cornerRepoNudge` ended with `autosaveJob && autosaveJob()`
   — the same ghost function the back-tray switch, the custom lines and the
   roof-map background toggle were each caught calling, and inside a try, so a
@@ -4932,6 +5629,36 @@ not a saving, and 49 purple to 48 orange.
   compass, screen up = north) off the canvas, never modal. `endKinds` is a
   ROOF_FIELD, saved, in the snapshot, cleared by a new shape / outline. No
   entry = every builder byte-identical. `tests/report80.mjs`.
+- EVERY CORNER, JUNCTION AND APEX CARRIES A LIST (2026-11-06, the owner: "any
+  corner should list the possibilities ... the same for where two hips meet a
+  ridge ... if it's a gable roof, there should be a little circle button where
+  the two barges meet the ridge ... just type hip and valley, Dutch gable, etc.
+  ... don't write a description"). SHORT NAMES: `END_KINDS_3` is Gable / Hip /
+  Dutch gable, a mono's Barge / Hip, the bump row's header "Bump" with Hip &
+  valley / Mono extension, no tooltips. A CORNER WITH NO END OF ITS OWN (an
+  inside corner, a mono's high side) lists the roof's shapes under "Roof"
+  (`CORNER_ROOF_KINDS`, `_cornerRoofType` → `autoGenerateRoof`); a bump's own
+  row stands alone. THE JUNCTION PAD (`#junctRepoPopup`) carries
+  `#junctEndRow` under its arrows: `_endCornersFrom(pt)` walks the hips and
+  barges from the point to the outline corners (a gablet's barges reach its
+  hips first), `_endCandsForCorners` takes the end both corners share from the
+  corner pad's own `_cornerEndCands`, so the two pads can never offer different
+  things; `_junctEndCommit` → `_endCommit`, and a hip end made a gable keeps the
+  pad open without its arrows. THE APEX (`_roofApexes`, `_apexAt`): a ridge end
+  among barges and nothing else — a gable's apex or a gablet's top — gets the
+  junction's circle, and a press opens the same pad in "Roof end" mode
+  (`_endPtOpen`, `_junctPadMode`, class `je-only` hides the arrows); its press
+  sets `SUPPRESS_NEXT_CLICK`, and so does a junction press now (a plain press on
+  a junction used to fall through and open the line popup on top). BUMPS ON A
+  DUTCH ROOF: the corner pad offers Hip & valley / Mono extension on a dutch
+  too; once one is chosen `_dutchLinesWithEnds` builds from `_dutchSkel`
+  (`_hipLinesWithBumps`, an hv bump's own end kept a hip) — with none chosen the
+  dutch builder is untouched. NOT BUILT, and asked: a Z's STEP (one hip to a
+  corner and a valley where the two wings meet) is not an end, so its junction
+  lists the roof's shapes; a "dutch sort of end" there needs his sketch or a
+  Request a Fix on that roof. `tests/endpads.mjs` (19, UI list; the old build
+  cannot run it), `report80` / `report78` / `report82` re-pinned to the short
+  names.
 - A BUMP IS HIP & VALLEY OR A MONO EXTENSION, AND THE OFFICE SAYS WHICH
   (feedback reports 78 and 79, 2026-10-28, the owner on job 3302: "inside the
   fine adjustments window ... show a button to convert this section/corner
@@ -5358,6 +6085,25 @@ not a saving, and 49 purple to 48 orange.
   photo, the map frame on that page is wider than the rotated picture covers,
   and `_qpRoofMapSvg` has reproduced the office's own framing on purpose since
   2026-09-24. Measured against page 2's map of the same roof, which is fine.
+  THE ACCEPTED PDF, TIDIED (2026-11-06, the owner with quote 3347's: "the
+  accepted pdf doesn't look great"). Five faults, all print-only, reproduced
+  with a local harness first (Playwright routes for jspdf / html2canvas — a
+  later `route()` WINS, so register the catch-all abort FIRST; an http static
+  server, since `file://` taints the canvas). (1) The colour chart ran across
+  two sheets: `.qb-swatches` is a `keep` span. (2) The last sheet held the
+  accreditation logos and the validity line alone: when a cut would leave a
+  tail under 0.18 of a sheet, the cut moves up to the boundary before (not
+  into a keep span), so the last sheet opens on a card. (3) "What you chose"
+  stood at a sheet's foot with its list on the next: a row boundary between an
+  h2/h3 and the element after it is dropped, and `.qb-picks` is kept WITH its
+  heading. (4) The roof plan printed pushed off the right of its box — a
+  frame's pan is SCREEN pixels set on a frame of another width — so on paper
+  `.qp-map-inner` takes no transform (the canvas framing shows every roof).
+  (5) Paper said "No colour chosen yet — tap one below" and "Choose as you go
+  — the total on the right updates with you": `_qbNoColourYet` says "Colour:
+  to be confirmed" on paper and on an accepted quote, and `.qb-cta-note` is
+  hidden. The roofing cover band is 260 capture px (was 46 CSS mm = 174 px,
+  a 6:1 strip that cut the crew's heads off). `tests/quotepdf.mjs` (19).
 - A NUMBER TYPED INTO A CUSTOM LINE GOES IN THE ORDER IT IS TYPED (2026-10-19,
   the owner: "I start typing a 5, and then it jumps to the front, so when I
   type in a 5 and then a 0, it shows up as a 05 … 0005"). `_qCustomLiveRerender`
@@ -5722,7 +6468,7 @@ not a saving, and 49 purple to 48 orange.
   'change job' and then put the 'unlocked/locked' button at the bottom").
   THE LEFT MENU: Save job, Change job, History & Communications, Files &
   Photos (`#navJobFilesBtn`, a count once read), then the lock strip — the
-  all five the lock strip's grey (2026-10-28, "grey colour the save job and change job too"), class `.nav-job-btn`, words on the left, half-transparent blue under the pointer and solid blue pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
+  a quiet white card since 2026-11-06 (see THE JOB TILE IS A QUIET CARD), class `.nav-job-btn`, words on the left, a darker blue under the pointer and pressed; the tabs (`.nav-btn`) half-transparent navy under the pointer and solid navy pressed or open (2026-10-29, the owner). `tests/jobhistory.mjs` pins the order.
   THE BYTES NEVER GO IN THE JOB ROW (that is how the database stalled in
   September): a private Storage bucket 'job-files' (`_jfStorage()`, the
   tender's `tender/storage.js` made generic: `create(supabase, {bucket,
@@ -6108,7 +6854,7 @@ Rewrite this section as it is dealt with; a stale list here is worse than
 none. Everything below the handover line has been read and either folded
 into Conventions or dropped as spent.
 
-**Live now.** FRONTEND and BACKEND = `e60cb4c` (the meeting deck's Fergus photos resized on the server and fetched together — `/fergus-files/download?w=`; 2026-11-04 7:45 am NZ, Tests run 41695937722 green, promote run 41696720424 green, backend step verified in 41 s; the hub via GitHub Pages). Before it FRONTEND and BACKEND = `9589e8c` (A SECOND GO AT THE TRIAL: the one-time trial restart and the win-back email page `/admin/winback/page` on the API origin; promote run 41514189797, backend "Live after 40s", 2026-11-03 8:55 am NZ; the email itself NOT yet sent — the owner presses Send). Before it FRONTEND and BACKEND = `cbf75f2` (2026-11-03 8:09 am NZ: the new plan terms — Measure 30 roofs a month, Trade 100, Team unlimited with merchant orders and AI Tendering, older payers on PLANS_LEGACY — Request a Fix, the light-blue job tile, privacy v1.3; the homepage opening shortened with the 41s square demo video beside the headline and Try it now above the fold; promote run 41507243654, backend live, two READY Vercel production deployments carrying the SHA). Before it FRONTEND = `ee7f1d1` (rule 9l switched ON on the owner's "go": the offcut-set guard and the apex nudge / centred donor; sheet-plan.js only, so the proof is two READY Vercel production deployments carrying the SHA; Tests and promote run 41379972818 green; 2026-11-02 3:53 pm NZ). BACKEND unchanged by it. Before it FRONTEND and BACKEND = `cbb9e4b` (one sheet layout per roof shape and a packer that does not repeat itself — job 3314's Job Pack 52 s → 3.5 s, every fixture identical; corner steps get the Hip & valley / Mono extension switch, reports 82/83; rule 9l shipped OFF pending the owner's go; Tests run 41378469343 green, promote run 41378889615: site serving, backend "Live after 100s"; 2026-11-02 3:41 pm NZ). Before it FRONTEND and BACKEND = `bfd98ba` (feedback report 80, every corner offers its end — gable / hip / dutch, a mono's hip end, "Changing which face?" with live hover; report 81, a clearlite is its own run on its own roof, asks which roof where two overlap, takes its sheet off the sheet layout's order and is priced as Clearlite sheets; on the owner's "Go live"; Tests run 41349732878 green, promote run 41350327236: site serving, backend "Live after 40s"; 2026-11-02 10:08 am NZ). Before it FRONTEND = `4c72922` (rule 9k, the sheet layout's offcut sets kept together and in order, the set carries on — sample job 55 → 54, the cross 81 → 80, report 20 71 → 70; on the owner's "go live"; Tests run 41270069211 green, promote run 41270492099 green, two READY Vercel production deployments carrying the SHA; 2026-11-01 4:48 pm NZ. Its first push `0f7c950` was skipped on `hubui`'s crew strip check, which failed on the calendar alone — November began past the last pay run — and is pinned to the pay runs' months now). BACKEND unchanged by it. Before it FRONTEND = `29ab4e4` (the sheet layout v9 on the owner's "Go live on everything": rules 9b–9j and rule 10, less steel first; sheet-plan.js only, so the proof is two READY Vercel production deployments carrying the SHA; Tests run 41234707898 green, promote run 41235218061 green; 2026-11-01 8:40 am NZ). BACKEND unchanged by it. Before it FRONTEND and BACKEND = `afe2348` (the left menu's job buttons all grey and centred; a duplicated draft says on the Quote tab how much less it comes to than the quote emailed, with Keep the sent prices; 2026-10-29 8:42 am NZ, promote run 40756495946: backend "Live after 40s"). Before it FRONTEND = `0223665` (the roof window replaces the roof settings drop-down, live shape changes; a duplicated quote keeps its products; As sent vs today in the Pricing drawer; 2026-10-29 7:41 am NZ, Tests run 40746568843 green, promote run 40747190582: "The site is serving 0223665", backend step red reading `c1e1ca4` — `git diff c1e1ca4..0223665 -- floodroofing/backend/` is EMPTY, so the API runs the same code under the older name). BACKEND = `c1e1ca4`. Before it FRONTEND and BACKEND = `c1e1ca4` (a new paying subscriber emails the owner, the daily report says when each started paying; 2026-10-29 6:14 am NZ, Tests run 40732295139 green, promote run 40733008859: site serving, backend "Live after 300s"). Before it FRONTEND and BACKEND = `bae28d6` (feedback reports 78/79: a bump on a hip roof is Hip & valley or Mono extension, switched on the corner pad, a drag never changes it; a corner grab takes the nearest corner; 2026-10-28 4:54 pm NZ, Tests run 40628178495 green on its second attempt after one `hubui` dark-theme-reload check flaked on shard 2 — the hub is untouched by it and the suite passes 104/104 locally — promote run 40629240702: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `e5f3aeb` (the Gutters only job type with Marley Typhoon's own colour chart; 2026-10-28 4:31 pm NZ, Tests run 40626663912 green, promote run 40627066699: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `c3e0ddb` (the product list — gutter and profile pictures, own grades, own options — and the custom email wording survive a reload and a stale tab's save; a sent job stays locked when the Draft is picked from the Viewing menu; 2026-10-28 1:47 pm NZ, promote run 40610866433: site serving, backend "Live after 40s". Its first ship `c189d61` was skipped on a `quotedrafts` timing pin, fixed in `c3e0ddb`). Before it FRONTEND and BACKEND = `bf97a41` (Files & Photos on every job: uploads and every RoofMap export or send kept in the private `job-files` bucket, Fergus files listed, opened inside RoofMap; the left menu Save, Change job, History & Communications, Files & Photos, then the lock; 2026-10-27 10:45 am NZ, Tests run 40588732990 green, promote run 40589303351: site serving, backend "Live after 40s"). Before it `d8a63be` (Scott's pricing CSV: the site address, Custom Price Book items tagged Material join the materials at cost with the job's buffer and mark-up, the rest an "Other lines on the quote" block with its own total; 2026-10-27 10:33 am NZ). Before it FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
+**Live now.** FRONTEND and BACKEND = `7c9e822` (an Australian business says its state, NSW businesses get the NSW Government's own aerial photos, privacy v1.4 — `7d38e9a`; and the CI runner pinned to Ubuntu 24.04 after `ubuntu-latest` moved to 26.04 and broke Playwright; promote run 42332690607, site "Live after 40s", backend "Live after 60s", 2026-11-07 4:11 pm NZ). Before it `66eeb0e` (the accepted quote PDF tidied — quote 3347: colour chart and picks kept whole, no logos-only last sheet, the roof plan whole, no tap prompts on paper, a taller cover; promote run 42160119687, site and backend "Live after 40s", 2026-11-06 5:07 pm NZ). Before it `82aa9ab` (the Fergus note goes as POST /notes with `entityName`, the field Fergus asked for, and jobs that spent their tries on the old shapes try again — `FERGUS_NOTE_V` 2; promote run 42155616926, backend "Live after 60s", 2026-11-06 4:18 pm NZ). Before it `06ee5d1` (the Customer selections PDF carries no price, and where Fergus refuses the Job Description ("Job is not in draft") the picks are tried as a note on the job; promote run 42145019107, backend "Live after 60s", 2026-11-06 2:38 pm NZ). Before it `093f242` (the office told ONCE per acceptance — the stale share write that wiped `acceptOfficeAt` and re-sent hourly is gone; Fergus's "not in draft" is final; rule 7c, hand-drawn lines joined in the sheet layout, switched ON on the owner's "Go on all"; promote run 42144377493, backend "Live after 60s", 2:32 pm NZ). Before it FRONTEND and BACKEND = `555019e` (hand-drawn hips and valleys at their true angle with a gentle 45° snap and a dashed guide; line ends catch the line they were drawn to; the Fergus job description by PUT with the whole job; rule 7c, the sheet layout joining lines that stop short, shipped OFF pending the owner's go; promote run 42128047524, backend "Live after 40s", 2026-11-06 12:15 pm NZ). Before it `ac22494` (every corner, junction and apex lists what it can become; promote run 42125079746, 2026-11-06 11:53 am NZ). Before it FRONTEND and BACKEND = `8361d26` (an accepted job stays under Quotes accepted while the office works a draft; the Fergus job gets a Customer selections PDF and its Job Description — `longDescription` — on acceptance; viewing the Accepted version never pushes to Fergus; optional roofs reach Fergus as hours and the main roof's materials are the main roof's alone — job 3349; promote run 42115947987, backend "Live after 40s", 2026-11-06 10:49 am NZ. Its two earlier pushes e6b3c1f and 2303e66 were skipped on `fergusauto`'s stub of the old Fergus job shape, fixed in this one). Before it FRONTEND and BACKEND = `07607a8` (the Job Pack's diagrams as pictures with ⟳ 90°; a gutters-only job pushes no roof to Fergus; the job tile a quiet card; promote run 42107654305 green, 2026-11-06 9:59 am NZ). Before it FRONTEND and BACKEND = `d8f3a65` (a duplicate is the quote it was made from — job 3350; the summary's scaffold row is the main roof plus the selected roofs; promote run 42103514027 green, 2026-11-06 9:28 am NZ). Before it FRONTEND and BACKEND = `c03fa8e` (the no-Fergus audit: A ROOFER WHO NEVER LINKS FERGUS under Conventions; promote run 42098544604, backend "Live after 40s", 2026-11-06 8:56 am NZ). Before it FRONTEND and BACKEND = `187a165` (Hide / Show scaffolding price on the quote summary, the scaffold card naming the summary's incl.-GST figure; with it the scaffold options, report 84, the pitch plate, the office's own gutters priced, the line editor on the left and the quote sections' ↑ ↓; promote run 41936682782 green on both halves, 2026-11-05 12:50 pm NZ — its first Tests attempt failed on `coach` alone, which passes locally and went green on the one re-run). Before it FRONTEND and BACKEND = `e60cb4c` (the meeting deck's Fergus photos resized on the server and fetched together — `/fergus-files/download?w=`; 2026-11-04 7:45 am NZ, Tests run 41695937722 green, promote run 41696720424 green, backend step verified in 41 s; the hub via GitHub Pages). Before it FRONTEND and BACKEND = `9589e8c` (A SECOND GO AT THE TRIAL: the one-time trial restart and the win-back email page `/admin/winback/page` on the API origin; promote run 41514189797, backend "Live after 40s", 2026-11-03 8:55 am NZ; the email itself NOT yet sent — the owner presses Send). Before it FRONTEND and BACKEND = `cbf75f2` (2026-11-03 8:09 am NZ: the new plan terms — Measure 30 roofs a month, Trade 100, Team unlimited with merchant orders and AI Tendering, older payers on PLANS_LEGACY — Request a Fix, the light-blue job tile, privacy v1.3; the homepage opening shortened with the 41s square demo video beside the headline and Try it now above the fold; promote run 41507243654, backend live, two READY Vercel production deployments carrying the SHA). Before it FRONTEND = `ee7f1d1` (rule 9l switched ON on the owner's "go": the offcut-set guard and the apex nudge / centred donor; sheet-plan.js only, so the proof is two READY Vercel production deployments carrying the SHA; Tests and promote run 41379972818 green; 2026-11-02 3:53 pm NZ). BACKEND unchanged by it. Before it FRONTEND and BACKEND = `cbb9e4b` (one sheet layout per roof shape and a packer that does not repeat itself — job 3314's Job Pack 52 s → 3.5 s, every fixture identical; corner steps get the Hip & valley / Mono extension switch, reports 82/83; rule 9l shipped OFF pending the owner's go; Tests run 41378469343 green, promote run 41378889615: site serving, backend "Live after 100s"; 2026-11-02 3:41 pm NZ). Before it FRONTEND and BACKEND = `bfd98ba` (feedback report 80, every corner offers its end — gable / hip / dutch, a mono's hip end, "Changing which face?" with live hover; report 81, a clearlite is its own run on its own roof, asks which roof where two overlap, takes its sheet off the sheet layout's order and is priced as Clearlite sheets; on the owner's "Go live"; Tests run 41349732878 green, promote run 41350327236: site serving, backend "Live after 40s"; 2026-11-02 10:08 am NZ). Before it FRONTEND = `4c72922` (rule 9k, the sheet layout's offcut sets kept together and in order, the set carries on — sample job 55 → 54, the cross 81 → 80, report 20 71 → 70; on the owner's "go live"; Tests run 41270069211 green, promote run 41270492099 green, two READY Vercel production deployments carrying the SHA; 2026-11-01 4:48 pm NZ. Its first push `0f7c950` was skipped on `hubui`'s crew strip check, which failed on the calendar alone — November began past the last pay run — and is pinned to the pay runs' months now). BACKEND unchanged by it. Before it FRONTEND = `29ab4e4` (the sheet layout v9 on the owner's "Go live on everything": rules 9b–9j and rule 10, less steel first; sheet-plan.js only, so the proof is two READY Vercel production deployments carrying the SHA; Tests run 41234707898 green, promote run 41235218061 green; 2026-11-01 8:40 am NZ). BACKEND unchanged by it. Before it FRONTEND and BACKEND = `afe2348` (the left menu's job buttons all grey and centred; a duplicated draft says on the Quote tab how much less it comes to than the quote emailed, with Keep the sent prices; 2026-10-29 8:42 am NZ, promote run 40756495946: backend "Live after 40s"). Before it FRONTEND = `0223665` (the roof window replaces the roof settings drop-down, live shape changes; a duplicated quote keeps its products; As sent vs today in the Pricing drawer; 2026-10-29 7:41 am NZ, Tests run 40746568843 green, promote run 40747190582: "The site is serving 0223665", backend step red reading `c1e1ca4` — `git diff c1e1ca4..0223665 -- floodroofing/backend/` is EMPTY, so the API runs the same code under the older name). BACKEND = `c1e1ca4`. Before it FRONTEND and BACKEND = `c1e1ca4` (a new paying subscriber emails the owner, the daily report says when each started paying; 2026-10-29 6:14 am NZ, Tests run 40732295139 green, promote run 40733008859: site serving, backend "Live after 300s"). Before it FRONTEND and BACKEND = `bae28d6` (feedback reports 78/79: a bump on a hip roof is Hip & valley or Mono extension, switched on the corner pad, a drag never changes it; a corner grab takes the nearest corner; 2026-10-28 4:54 pm NZ, Tests run 40628178495 green on its second attempt after one `hubui` dark-theme-reload check flaked on shard 2 — the hub is untouched by it and the suite passes 104/104 locally — promote run 40629240702: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `e5f3aeb` (the Gutters only job type with Marley Typhoon's own colour chart; 2026-10-28 4:31 pm NZ, Tests run 40626663912 green, promote run 40627066699: site serving, backend "Live after 40s"). Before it FRONTEND and BACKEND = `c3e0ddb` (the product list — gutter and profile pictures, own grades, own options — and the custom email wording survive a reload and a stale tab's save; a sent job stays locked when the Draft is picked from the Viewing menu; 2026-10-28 1:47 pm NZ, promote run 40610866433: site serving, backend "Live after 40s". Its first ship `c189d61` was skipped on a `quotedrafts` timing pin, fixed in `c3e0ddb`). Before it FRONTEND and BACKEND = `bf97a41` (Files & Photos on every job: uploads and every RoofMap export or send kept in the private `job-files` bucket, Fergus files listed, opened inside RoofMap; the left menu Save, Change job, History & Communications, Files & Photos, then the lock; 2026-10-27 10:45 am NZ, Tests run 40588732990 green, promote run 40589303351: site serving, backend "Live after 40s"). Before it `d8a63be` (Scott's pricing CSV: the site address, Custom Price Book items tagged Material join the materials at cost with the job's buffer and mark-up, the rest an "Other lines on the quote" block with its own total; 2026-10-27 10:33 am NZ). Before it FRONTEND = `4cd5ff7` (the sheet layout shows only the colour-coded key over the picture, its chips painted exactly as the sheets are; the hips snap to 45° as a ridge junction slides, `685db36`; the roof settings panel folds after 1.5 s, `4402f73`; 2026-10-27 3:44 pm NZ, Tests run 40439237945 green, promote run 40440098891 green, READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `df67204` (the Job Pack's page 1 carries the sheet layout and the layout is the count, the calc check withdrawn, the maps in the owner's order, the roof colour section deletes; feedback report 77, the double cascade, 75 → 69 sheets; rule 8b, a nick at the gutter end is not a cut; rule 8c, the closer carries the longest row — report 76 176 sheets with nothing extra; 2026-10-27 12:38 pm NZ on the owner's "go live on everything", Tests run 40420663514 green, promote run 40421101209: site serving, backend "Live after 40s"; the local full gate 284/285, the one red `tenderapi` failing identically on clean main in the container while main's CI ran it green). Before it FRONTEND = `cb397d5` (the sheet layout of feedback reports 70–76 and 50: the bigger block is the rectangle, a wing before the main's hip end cut from that end's strips, the main keeps its sheets under the wing's far hip, the hip-cap corner; every label starts at the gutter, the corner triangles labelled, the number only with no length; 2026-10-27 10:11 am NZ on the owner's "go live", Tests run 40401137222 green, promote run 40401727845 green on both halves, two READY Vercel production deployments carrying the SHA). Before it FRONTEND and BACKEND = `e756176` (three plans — Business off sale, Team carries the inbox and domain, Measure gains merchant orders; no founding 30%; new trials are 3 real roofs or 30 days; the trial funnel on the analytics page; 2026-10-23 9:29 pm NZ, promote run 39924909749: site serving, backend "Live after 40s"). Before it FRONTEND = `22bbfda` (an L's two valley tails feed each other on gable roofs, a valley tail laid from its point or its barge by efficiency, the two-from-one-sheet pairing withdrawn; report 20: 48 → 47 sheets; 2026-10-23 7:49 pm NZ on the owner's "go live", Tests run 39913358244 green, promote run 39913759918 green, two READY Vercel production deployments carrying the SHA — sheet-plan.js only, so Vercel's list is the proof). BACKEND = `9de484c`, unchanged by it. Before it `9de484c` (the gable + hip & valley L and the step-down apron, feedback reports 17-20; 2026-10-23 7:10 pm NZ, Tests run 39909423842 green, promote run 39909805794: site serving, backend "Live after 60s"). Before it `2b4d6ed` (the sheet layout work that was held on the branch, now shipped on the owner's go: the dutch corners laid as complements, bigger sheet numbers, no face badges, and the gable + hip & valley T at 72 via `swapPass`; 2026-10-23 2:08 pm NZ, Tests run 39881285733 green, promote run 39881688648: site serving and backend "Live after 60s", two READY Vercel production deployments carrying the SHA). Before it `b38b21f` (AI Tendering Phase 1 — a third job type, on ONLY for the owner's three logins via `TENDERING_USERS`, see `docs/ai-tendering/DECISIONS.md`; Roof and Pole Shed unchanged, `tests/typesnap.mjs` holds them to the cent; 2026-10-23 1:06 pm NZ, promote run 39875572053: site serving, backend "Live after 220s"). Before it `d3cef74` (a customer's question
 answered from Gmail and followed back onto the job, the History &
 Communications window, the left menu reordered; 2026-10-23 10:19 am NZ, promote
 run 39856153437: "The site is serving" and "Live after 40s" on the backend —

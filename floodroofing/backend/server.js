@@ -135,7 +135,7 @@ const VERCEL_PROJECT_PREFIXES = [
 const APP_DOMAINS = [
   'floodroofing.co.nz',   // quote.floodroofing.co.nz — our own roofing company's
   'roofmap.co.nz',        // the product, New Zealand
-  'roofmap.com',          // the product, international
+  'roofmap.com',          // the product, Australia (2026-11-04) — roofmap.com and www.roofmap.com
 ];
 
 function isAllowedOrigin(origin) {
@@ -1350,7 +1350,7 @@ function _mustRead(res, what){
 // invite it is owed has been accepted.
 const _companyCache = new Map();
 const COMPANY_CACHE_MS = 60 * 1000;
-async function _companyOf(userId){
+async function _companyOf(userId, opts){
   if (!userId) return null;
   const _cc = _companyCache.get(userId);
   if (_cc && Date.now() - _cc.at < COMPANY_CACHE_MS) return _cc.cid;
@@ -1386,7 +1386,24 @@ async function _companyOf(userId){
       try { await supabase.from('company_users').insert({ company_id: cid, user_id: userId, role: 'owner' }); } catch(e){}
     } else {
       const cname = (prof && (prof.company || prof.name || prof.email)) || '';
-      const { data: co, error } = await supabase.from('companies').insert({ name: cname || 'My Company' }).select('id').single();
+      // The country the person signing up chose (POST /auth/register); a
+      // database without the column yet makes the business without it, which
+      // reads as NZ — the same as every business before it.
+      const ins = { name: cname || 'My Company' };
+      if (opts && opts.country) ins.country = _normCountry(opts.country);
+      if (opts && opts.state && ins.country === 'AU') ins.state = _normState(opts.state);
+      if (!ins.state) delete ins.state;
+      let { data: co, error } = await supabase.from('companies').insert(ins).select('id').single();
+      if (error && ins.state && _missingColumn(error, 'state')){
+        recordError('company-state', new Error('companies.state is not migrated yet — an Australian business was created without its state'), { route: 'POST /auth/register' });
+        delete ins.state;
+        ({ data: co, error } = await supabase.from('companies').insert(ins).select('id').single());
+      }
+      if (error && ins.country && _missingColumn(error, 'country')){
+        if (ins.country === 'AU') recordError('company-country', new Error('companies.country is not migrated yet — an Australian business was created without its country, so it reads as NZ'), { route: 'POST /auth/register' });
+        delete ins.country;
+        ({ data: co, error } = await supabase.from('companies').insert(ins).select('id').single());
+      }
       if (error) console.error('[company] could not create a company for ' + userId + ':', error.message);
       if (!error && co) {
         cid = co.id;
@@ -1575,6 +1592,80 @@ const BILLING_ENABLED = process.env.BILLING_ENABLED === 'false'
 // deploy, so they get the canonical domain, full stop — PUBLIC_APP_URL
 // exists only for staging.
 const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').replace(/\/+$/, '');
+
+// AUSTRALIA (2026-11-04). A business is in New Zealand or Australia:
+// `companies.country`, 'NZ' or 'AU', and a missing or unknown value is NZ —
+// every business that existed before this is a New Zealand one, and an old
+// database without the column reads exactly as it always has. Australia is
+// sold on roofmap.com, so an Australian business's emailed links go there
+// (PUBLIC_APP_URL_AU), and it pays in AUD at the same numbers as NZD.
+const PUBLIC_APP_URL_AU = (process.env.PUBLIC_APP_URL_AU || 'https://roofmap.com').replace(/\/+$/, '');
+function _normCountry(v){ return String(v == null ? '' : v).trim().toUpperCase() === 'AU' ? 'AU' : 'NZ'; }
+function _publicUrlFor(country){ return _normCountry(country) === 'AU' ? PUBLIC_APP_URL_AU : PUBLIC_APP_URL; }
+function _currencyFor(country){ return _normCountry(country) === 'AU' ? 'aud' : 'nzd'; }
+function _countryWords(country){ return _normCountry(country) === 'AU' ? 'Australia' : 'New Zealand'; }
+// THE STATE OF AN AUSTRALIAN BUSINESS (2026-11-07, the owner: "add the free
+// NSW government imagery for the Australian site, make the user enter their
+// state so they are using the right states government imagery in the app").
+// One of the eight, or '' — never guessed. A New Zealand business has none.
+const AU_STATES = ['NSW', 'VIC', 'QLD', 'SA', 'WA', 'TAS', 'ACT', 'NT'];
+function _normState(v){ const s = String(v == null ? '' : v).trim().toUpperCase(); return AU_STATES.indexOf(s) >= 0 ? s : ''; }
+// Never throws, never stands in for a failed read with a guess: '' is "not
+// said", which the app reads as Mapbox — the same as before states existed.
+async function _companyState(cid){
+  if (!cid) return '';
+  try {
+    const r = await supabase.from('companies').select('state').eq('id', cid).maybeSingle();
+    if (r && r.error) return '';
+    return _normState(r && r.data && r.data.state);
+  } catch (e) { return ''; }
+}
+function _missingColumn(err, col){
+  const m = String((err && (err.message || err.details || err.hint)) || err || '');
+  return m.indexOf(col) >= 0 && /does not exist|could not find|schema cache/i.test(m);
+}
+// The business's country. A column the migration has not added yet is NZ —
+// that IS what every row on such a database is. Any other failure: with
+// `strict` it is an error (a checkout must never quietly bill an Australian
+// business in NZD because a read blinked), without it NZ, because the callers
+// that pass no `strict` only choose which of two working domains a link uses.
+async function _companyCountry(cid, strict){
+  if (!cid) return 'NZ';
+  let r;
+  try { r = await supabase.from('companies').select('country').eq('id', cid).maybeSingle(); }
+  catch (e) { r = { error: e }; }
+  if (r && r.error){
+    if (_missingColumn(r.error, 'country')) return 'NZ';
+    if (strict){
+      const e = new Error('Could not read your business — the database did not answer. Try again in a moment.');
+      e.upstream = true; e.status = 503; e.detail = String((r.error && r.error.message) || r.error);
+      throw e;
+    }
+    return 'NZ';
+  }
+  return _normCountry(r && r.data && r.data.country);
+}
+// The same, for a person: the business their profile names, else their first
+// membership. Never throws; for links only.
+async function _countryOfUser(userId){
+  if (!userId) return 'NZ';
+  try {
+    let cid = null;
+    const { data: p } = await supabase.from('profiles').select('company_id').eq('id', userId).maybeSingle();
+    cid = (p && p.company_id) || null;
+    if (!cid){
+      const { data: cu } = await supabase.from('company_users').select('company_id, created_at').eq('user_id', userId)
+        .order('created_at', { ascending: true }).limit(1);
+      cid = (cu && cu[0] && cu[0].company_id) || null;
+    }
+    return await _companyCountry(cid);
+  } catch (e) { return 'NZ'; }
+}
+async function _countryOfSub(sub){
+  if (!sub) return 'NZ';
+  if (sub.company_id) return _companyCountry(sub.company_id);
+  return _countryOfUser(sub.user_id);
+}
 
 // The BUSINESS's subscription. One licence covers everyone in the company, so
 // an invited teammate is already paid for and never needs a trial of their own.
@@ -1827,6 +1918,7 @@ app.get('/subscription', requireAuth, async (req, res) => {
     if (ids) roofs = { roofs_limit: limit, roofs_used: Math.min(limit, ids.size), roofs_left: Math.max(0, limit - ids.size), roof_jobs: Array.from(ids) };
     else roofs = { roofs_limit: limit, roofs_used: null, roofs_left: null, roof_jobs: [] };
   }
+  const _subCountry = await _companyCountry(req.companyId);
   res.json({
     status: (sub && sub.status) || 'none',
     billing: BILLING_ENABLED,        // false = the gate is open regardless
@@ -1842,6 +1934,10 @@ app.get('/subscription', requireAuth, async (req, res) => {
     // (A SECOND GO AT THE TRIAL): the app offers the button when this is true.
     restart_ok: (function(){ try { return BILLING_ENABLED && !_trialRestartWhy(sub, req.user.email); } catch (e) { return false; } })(),
     plan: await _planOf(req.companyId),
+    // Where the business is and what it pays in (AUSTRALIA, 2026-11-04).
+    country: _subCountry,
+    currency: _currencyFor(_subCountry),
+    state: _subCountry === 'AU' ? await _companyState(req.companyId) : '',
     // The terms it is on and, on a capped plan, this month's roofs (the app
     // shows "12 of 30 roofs this month" and opens the plans at the cap).
     terms: await (async () => { try { return (await _planInfo(req.companyId)).legacy ? 'legacy' : 'current'; } catch (e) { return 'current'; } })(),
@@ -2071,6 +2167,10 @@ async function _companyBrief(cid, userId){
     const { data } = await supabase.from('companies').select('id, name, slug').eq('id', cid).maybeSingle();
     const brief = data || { id: cid };
     brief.role = await _roleOf(userId);
+    // NZ or AU — what the app sells in and which site it points at. Read on
+    // its own so an old database without the column still answers the rest.
+    brief.country = await _companyCountry(cid);
+    if (brief.country === 'AU') brief.state = await _companyState(cid);
     // The business's own verified domain, if it has one — quote links prefer it
     // over the roofmap.co.nz address.
     try {
@@ -2116,8 +2216,11 @@ app.get('/team', requireAuth, async (req, res) => {
     const plan = pi.plan;
     const lim = _limitsFor(plan, pi.legacy);
     const seats = { used: members.length + invites.length, allowed: lim.seats === Infinity ? null : lim.seats };
+    const _co = co || { id: req.companyId };
+    _co.country = await _companyCountry(req.companyId);
+    if (_co.country === 'AU') _co.state = await _companyState(req.companyId);
     res.json({
-      company: co || { id: req.companyId },
+      company: _co,
       me: { id: req.user.id, role: await _roleOf(req.user.id) },
       members, invites,
       plan: { id: plan, label: lim.label, seats: seats,
@@ -2153,7 +2256,8 @@ app.post('/team/invites', requireAuth, requireOwner, rateLimit(20, 3600000), asy
     const row = { company_id: req.companyId, email: email, role: role, token_hash: _sha256(raw), created_by: req.user.id };
     const { data, error } = await supabase.from('company_invites').insert(row).select('id, email, role, created_at, expires_at').single();
     if (error) return res.status(500).json({ error: error.message });
-    const link = PUBLIC_APP_URL + '/app?invite=' + encodeURIComponent(raw);   // /app, not the landing page — see /auth/forgot
+    // /app, not the landing page — see /auth/forgot; on the business's own site (NZ or AU).
+    const link = _publicUrlFor(await _companyCountry(req.companyId)) + '/app?invite=' + encodeURIComponent(raw);
     const { data: co } = await supabase.from('companies').select('name').eq('id', req.companyId).maybeSingle();
     const coName = (co && co.name) || 'your team';
     const who = req.user.email || 'a colleague';
@@ -2684,9 +2788,11 @@ function _cleanPhone(p){
   return s.replace(/\D/g, '').length >= 7 ? s : '';
 }
 function _verifyRequired(){ return EMAIL_ENABLED && process.env.VERIFY_EMAIL !== 'false'; }
-async function _sendVerifyMail(userId, email, name){
+async function _sendVerifyMail(userId, email, name, country){
   const t = jwt.sign({ id: userId, email, purpose: 'verify' }, JWT_SECRET, { expiresIn: '3d' });
-  const link = PUBLIC_APP_URL + '/app?verify=' + encodeURIComponent(t);
+  // The site they signed up on: roofmap.com for Australia, roofmap.co.nz otherwise.
+  if (country === undefined) country = await _countryOfUser(userId);
+  const link = _publicUrlFor(country) + '/app?verify=' + encodeURIComponent(t);
   const hi = name ? 'Hi ' + String(name).split(/\s+/)[0] + ',' : 'Hi,';
   await _dispatchMail({
     to: email,
@@ -2702,6 +2808,13 @@ async function _sendVerifyMail(userId, email, name){
 
 app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailKey), async (req, res) => {
   const { email, password, name, company } = req.body;
+  // NZ or AU (2026-11-04). Anything else, or nothing, is NZ — the sign-up
+  // pages that predate Australia send no country at all.
+  const country = _normCountry((req.body || {}).country);
+  // Australia's state (2026-11-07): picks the state's own aerial imagery.
+  // A page from before sends none, and a business without one is simply on
+  // Mapbox until the owner says, in Settings → Branding.
+  const state = country === 'AU' ? _normState((req.body || {}).state) : '';
   if (String((req.body || {}).website || '').trim()) {
     // The honeypot. A person cannot see the field; whoever filled it is a script.
     console.warn('[auth] signup honeypot tripped from ' + req.ip);
@@ -2767,7 +2880,7 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     // INVITE_COMPANY_ID could only ever name ONE company, so every person who
     // signed up with the shared code landed in that same business — fine while
     // there was one, wrong the moment RoofMap has subscribers.
-    const cid = await _companyOf(userId);
+    const cid = await _companyOf(userId, { country: country, state: state });
     // A registration with no company is not a registration: every table is
     // scoped by company_id, so the account would come up empty and stay empty,
     // and the only visible symptom is a missing row in `companies`. Undo the
@@ -2802,12 +2915,12 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
     // Tell the owner. A trial starting is the one event worth a ring, and
     // until now nobody was told — signups were a number in the metrics.
-    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst }).catch(function(){});
+    _signupAlert({ company, name, email, phone, interests, pending: verifyFirst, country, state }).catch(function(){});
     if (verifyFirst) {
       // No session until the address is confirmed. The account exists, so a
       // second signup with this email says "already registered" — the resend
       // route is the way back in.
-      try { await _sendVerifyMail(userId, email, name); }
+      try { await _sendVerifyMail(userId, email, name, country); }
       catch (e) {
         console.error('[auth] verification mail failed, opening the account anyway:', e.message);
         await supabase.from('profiles').update({ verify_pending: false }).eq('id', userId);
@@ -2858,13 +2971,15 @@ async function _signupAlert(o){
   if (!SIGNUP_ALERT_TO || !EMAIL_ENABLED) return;
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
   const who = [o.company, o.name].filter(Boolean).join(' · ') || o.email;
+  const au = _normCountry(o.country) === 'AU';
   await _dispatchMail({
     to: SIGNUP_ALERT_TO, fromName: 'RoofMap', replyTo: o.email,
-    subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who,
+    subject: (o.confirmed ? 'Trial confirmed: ' : 'New signup: ') + who + (au ? ' (Australia)' : ''),
     text: (o.confirmed
       ? 'They have confirmed their email — the ' + _TRIAL_WORDS() + ' trial of Team is under way.\n\n'
       : 'A new business has signed up for the ' + _TRIAL_WORDS() + ' trial of Team.\n\n') +
       nice('Business', o.company) + nice('Name', o.name) + 'Email: ' + o.email + '\n' + nice('Phone', o.phone) +
+      'Country: ' + _countryWords(o.country) + (au && _normState(o.state) ? ' (' + _normState(o.state) + ')' : '') + '\n' +
       nice('Drawn here by', (o.interests || []).map(k => INTERESTS[k] || k).join(', ')) +
       (o.pending ? '\nThey have not confirmed their email yet — you will get another note when they do.\n' : '') +
       '\nReply to this email and it goes straight to them.',
@@ -2902,10 +3017,11 @@ async function _trialOwnerFor(sub){
   } catch (e) {}
   return null;
 }
-function _trialEndedMail(p, sub){
+function _trialEndedMail(p, sub, country){
   const token = jwt.sign({ purpose: 'cancel-trial', id: p.id, email: p.email, cid: sub.company_id || null }, JWT_SECRET, { expiresIn: '60d' });
-  const planUrl = PUBLIC_APP_URL + '/app?billing=plans';
-  const cancelUrl = PUBLIC_APP_URL + '/trial-ended?t=' + encodeURIComponent(token);
+  const base = _publicUrlFor(country);
+  const planUrl = base + '/app?billing=plans';
+  const cancelUrl = base + '/trial-ended?t=' + encodeURIComponent(token);
   const first = String(p.name || '').split(' ')[0] || 'there';
   const text = 'Hi ' + first + ',\n\nYour free RoofMap trial has ended.\n\n' +
     'Everything you measured, drew and quoted is still there — pick a plan and carry on where you left off:\n' + planUrl + '\n\n' +
@@ -2946,7 +3062,7 @@ async function _trialEndedSweep(){
       // the other order costs a duplicate every hour.
       const { error: uerr } = await supabase.from('subscriptions').update({ trial_ended_mail_at: new Date().toISOString() }).eq('id', sub.id);
       if (uerr) throw new Error(uerr.message);
-      await _dispatchMail(_trialEndedMail(p, sub));
+      await _dispatchMail(_trialEndedMail(p, sub, await _countryOfSub(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[trial-ended] ' + (e && e.message)); }
   }
@@ -3081,6 +3197,13 @@ const WINBACK_SUBJECT = 'RoofMap has come a long way since you tried it — have
 const WINBACK_VIDEO = PUBLIC_APP_URL + '/media/roofmap-demo.mp4';
 const WINBACK_THUMB = PUBLIC_APP_URL + '/media/roofmap-demo-email.jpg';
 const WINBACK_RESTART = PUBLIC_APP_URL + '/app?restart=trial';
+// An Australian business gets the same email pointed at roofmap.com, and a
+// footer that does not tell it RoofMap is a New Zealand product.
+function _winbackLinks(country){
+  if (_normCountry(country) !== 'AU') return { video: WINBACK_VIDEO, thumb: WINBACK_THUMB, restart: WINBACK_RESTART, home: PUBLIC_APP_URL, au: false };
+  const b = _publicUrlFor('AU');
+  return { video: b + '/media/roofmap-demo.mp4', thumb: b + '/media/roofmap-demo-email.jpg', restart: b + '/app?restart=trial', home: b, au: true };
+}
 const WINBACK_POINTS = [
   ['A coach that walks you through your first roof', 'find the house, line the photo up, trace it, pick the roof type. No guessing what to press next.'],
   ['A sheet layout for every roof', 'every sheet numbered, the offcuts used where they fit, and a pre-cut page for the boys on the ground.'],
@@ -3088,21 +3211,23 @@ const WINBACK_POINTS = [
   ['Files, photos and every email on the job', 'in one place, alongside your Fergus files if you use Fergus.'],
   ['AI Tendering on the Team plan', 'drop the plans in and get a tender quote back.'],
 ];
-function _winbackText(){
+function _winbackText(country){
+  const L = _winbackLinks(country);
   return 'Hi there,\n\n' +
     'You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the ' +
     'first ten minutes were confusing, so I have spent the last two months fixing exactly that.\n\n' +
-    'Watch the 41-second demo (an address to a sent quote): ' + WINBACK_VIDEO + '\n\n' +
+    'Watch the 41-second demo (an address to a sent quote): ' + L.video + '\n\n' +
     'What is new:\n' + WINBACK_POINTS.map(function(p){ return '- ' + p[0] + ': ' + p[1]; }).join('\n') + '\n\n' +
     'I would like you to have another go, free. The new trial is ' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS +
     ' days, whichever comes first, and no card. Everything from last time is still in your account.\n\n' +
-    'Restart my free trial: ' + WINBACK_RESTART + '\n\n' +
+    'Restart my free trial: ' + L.restart + '\n\n' +
     'Sign in with the email you used last time (forgotten the password? there is a reset link on the sign-in page).\n\n' +
     'Any questions, just reply — it comes straight to me.\n\n' +
     'Aron\nFounder, RoofMap\n\n' +
     'Not interested? Reply "stop" and I will not email you again.';
 }
-function _winbackHtml(){
+function _winbackHtml(country){
+  const L = _winbackLinks(country);
   const P = 'margin:0 0 16px;font-size:15px;line-height:1.6;color:#0a1628';
   const btn = function(href, label){
     return '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 18px"><tr><td style="border-radius:10px;background:#0099cc">' +
@@ -3115,21 +3240,23 @@ function _winbackHtml(){
       '<p style="' + P + '">Hi there,</p>' +
       '<p style="' + P + '">You gave RoofMap a go a while back. If getting started felt hard, that is on me — a lot of roofers told me the first ten minutes were confusing, so I have spent the last two months fixing exactly that.</p>' +
     '</td></tr>' +
-    '<tr><td style="padding:0 28px 18px"><a href="' + WINBACK_VIDEO + '" style="text-decoration:none">' +
-      '<img src="' + WINBACK_THUMB + '" width="544" alt="Watch the 41-second RoofMap demo: an address to a sent quote" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px"></a></td></tr>' +
+    '<tr><td style="padding:0 28px 18px"><a href="' + L.video + '" style="text-decoration:none">' +
+      '<img src="' + L.thumb + '" width="544" alt="Watch the 41-second RoofMap demo: an address to a sent quote" style="display:block;width:100%;max-width:544px;height:auto;border:0;border-radius:10px"></a></td></tr>' +
     '<tr><td style="padding:0 28px 4px">' +
       '<p style="margin:0 0 10px;font-size:16px;font-weight:bold;color:#0a1628">What’s new</p>' +
       '<ul style="margin:0 0 18px;padding:0 0 0 20px;font-size:15px;line-height:1.55;color:#0a1628">' +
         WINBACK_POINTS.map(function(p){ return '<li style="margin:0 0 8px"><b>' + _esc(p[0]) + '</b> — ' + _esc(p[1]) + '</li>'; }).join('') +
       '</ul>' +
       '<p style="' + P + '">I would like you to have another go, free. The new trial is <b>' + TRIAL_ROOFS + ' real roofs or ' + TRIAL_ROOF_DAYS + ' days</b>, whichever comes first, and no card. Everything from last time is still in your account.</p>' +
-      btn(WINBACK_RESTART, 'Restart my free trial') +
+      btn(L.restart, 'Restart my free trial') +
       '<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#64748b">Sign in with the email you used last time. Forgotten the password? There is a reset link on the sign-in page.</p>' +
       '<p style="' + P + '">Any questions, just reply — it comes straight to me.</p>' +
       '<p style="' + P + '">Aron<br><span style="color:#64748b">Founder, RoofMap</span></p>' +
     '</td></tr>' +
     '<tr><td style="padding:14px 28px 22px;border-top:1px solid #e3e8ef;font-size:12px;line-height:1.5;color:#94a3b8">' +
-      'Not interested? Reply “stop” and I won’t email you again. RoofMap · Whangarei, New Zealand · <a href="' + PUBLIC_APP_URL + '" style="color:#94a3b8">roofmap.co.nz</a></td></tr>' +
+      'Not interested? Reply “stop” and I won’t email you again. RoofMap · ' + (L.au
+        ? '<a href="' + L.home + '" style="color:#94a3b8">' + L.home.replace(/^https?:\/\//, '') + '</a>'
+        : 'Whangarei, New Zealand · <a href="' + PUBLIC_APP_URL + '" style="color:#94a3b8">roofmap.co.nz</a>') + '</td></tr>' +
     '</table></td></tr></table></body></html>';
 }
 function _winbackLooksTest(r){
@@ -3141,10 +3268,11 @@ async function _winbackList(){
     .select('id, user_id, company_id, status, trial_ends_at, created_at, paid_since, trial_restarted_at, stripe_customer_id').limit(5000), 'subscriptions');
   // A company with ANY paying row is a customer, whatever its other rows say.
   const paying = new Set((subs || []).filter(s => s.company_id && (s.status === 'active' || s.paid_since)).map(s => s.company_id));
-  const names = new Map();
+  const names = new Map(), countries = new Map();
   try {
-    const { data: cos } = await supabase.from('companies').select('id, name').limit(5000);
-    (cos || []).forEach(c => names.set(c.id, c.name || ''));
+    let r = await supabase.from('companies').select('id, name, country').limit(5000);
+    if (r.error && _missingColumn(r.error, 'country')) r = await supabase.from('companies').select('id, name').limit(5000);
+    (r.data || []).forEach(c => { names.set(c.id, c.name || ''); countries.set(c.id, _normCountry(c.country)); });
   } catch (e) {}
   // Who told us why they left, on the trial-ended form: shown beside them so
   // the owner reads it before deciding to write again.
@@ -3169,6 +3297,7 @@ async function _winbackList(){
     seen.add(key);
     const r = { sub_id: sub.id, email: String(p.email).trim(), name: p.name || '', company: names.get(sub.company_id) || p.company || '',
       ended: sub.trial_ends_at || sub.created_at || null,
+      country: countries.get(sub.company_id) || 'NZ',
       left_why: leftWhy.get('c:' + sub.company_id) || leftWhy.get('u:' + (p.id || sub.user_id)) || '' };
     r.test = _winbackLooksTest(r);
     out.push(r);
@@ -3181,15 +3310,15 @@ async function _winbackSent(){
   if (r.error) throw Object.assign(new Error(r.error.message), { upstream: true });
   return (r.data && r.data.value) || null;
 }
-function _winbackMail(bcc, to){
+function _winbackMail(bcc, to, country){
   return { to: to || WINBACK_FROM, bcc: bcc && bcc.length ? bcc.join(', ') : undefined, subject: WINBACK_SUBJECT,
-    text: _winbackText(), html: _winbackHtml(), fromName: 'Aron at RoofMap', fromAddress: WINBACK_FROM, replyTo: WINBACK_FROM, platform: true };
+    text: _winbackText(country), html: _winbackHtml(country), fromName: 'Aron at RoofMap', fromAddress: WINBACK_FROM, replyTo: WINBACK_FROM, platform: true };
 }
 app.get('/admin/winback', async (req, res) => {
   if (!(await _analyticsOk(req))) return res.status(404).json({ error: 'Not found' });
   try {
     res.json({ list: await _winbackList(), sent: await _winbackSent(), subject: WINBACK_SUBJECT, from: 'Aron at RoofMap <' + WINBACK_FROM + '>',
-      sendable: _platformMailboxSendable(WINBACK_FROM), html: _winbackHtml() });
+      sendable: _platformMailboxSendable(WINBACK_FROM), html: _winbackHtml(), html_au: _winbackHtml('AU') });
   } catch (e) {
     if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
     res.status(500).json({ error: e.message });
@@ -3200,7 +3329,7 @@ app.post('/admin/winback/test', async (req, res) => {
   try {
     const to = String((req.body || {}).to || WINBACK_FROM).trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'That is not an email address.' });
-    const r = await _dispatchMail(_winbackMail(null, to));
+    const r = await _dispatchMail(_winbackMail(null, to, (req.body || {}).country));
     if (r && r.held) return res.status(503).json({ error: 'Held — RoofMap cannot send as ' + WINBACK_FROM + ' on this server.' });
     res.json({ ok: true, to: to });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -3222,11 +3351,16 @@ app.post('/admin/winback/send', async (req, res) => {
     const up = await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: stamp.sent_at }, { onConflict: 'key' });
     if (up.error) throw new Error(up.error.message);
     // Resend takes 50 addresses a message; the owner's own copy is the To.
-    const emails = list.map(r => r.email);
-    for (let i = 0; i < emails.length; i += 45){
-      const part = emails.slice(i, i + 45);
-      try { const r = await _dispatchMail(_winbackMail(part)); stamp.batches.push({ n: part.length, ok: !(r && r.held), id: r && r.messageId || null }); }
-      catch (e) { stamp.batches.push({ n: part.length, ok: false, error: String(e && e.message || e).slice(0, 200) }); }
+    // New Zealand first, exactly as before; an Australian business gets its
+    // own copy pointed at roofmap.com, in batches of its own.
+    for (const ctry of ['NZ', 'AU']){
+      const emails = list.filter(r => _normCountry(r.country) === ctry).map(r => r.email);
+      for (let i = 0; i < emails.length; i += 45){
+        const part = emails.slice(i, i + 45);
+        const b = ctry === 'AU' ? { country: 'AU' } : {};
+        try { const r = await _dispatchMail(_winbackMail(part, null, ctry)); stamp.batches.push(Object.assign({ n: part.length, ok: !(r && r.held), id: r && r.messageId || null }, b)); }
+        catch (e) { stamp.batches.push(Object.assign({ n: part.length, ok: false, error: String(e && e.message || e).slice(0, 200) }, b)); }
+      }
     }
     try { await supabase.from('platform_state').upsert({ key: WINBACK_KEY, value: stamp, updated_at: new Date().toISOString() }, { onConflict: 'key' }); } catch (e) {}
     const bad = stamp.batches.filter(b => !b.ok);
@@ -3446,9 +3580,9 @@ function _dripText(step, first, appUrl, roofs){
     'pick a plan and it carries on exactly where you left it:\n\n' + appUrl + '?billing=plans\n\n' +
     'Not sure it earns its keep? Reply and tell me what is missing. If it is something I can build, I usually will.' + sig;
 }
-function _trialDripMail(step, p, roofs){
+function _trialDripMail(step, p, roofs, country){
   const first = String(p.name || '').split(' ')[0] || 'there';
-  const text = _dripText(step, first, PUBLIC_APP_URL + '/app', step.key === 'd12' ? roofs : null);
+  const text = _dripText(step, first, _publicUrlFor(country) + '/app', step.key === 'd12' ? roofs : null);
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#0a1628;max-width:560px">' +
     text.split('\n\n').map(par => '<p>' + _esc(par).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#0099cc">$1</a>') + '</p>').join('') + '</div>';
   return { to: p.email, subject: (roofs && step.roofSubject) || step.subject, text, html, fromName: 'Aron at RoofMap', fromAddress: MAIL_SUPPORT, replyTo: MAIL_SUPPORT, platform: true };
@@ -3513,7 +3647,7 @@ async function _trialDripSweep(){
       const { error: uerr } = await supabase.from('subscriptions').update({ trial_drip: drip }).eq('id', sub.id);
       if (uerr) throw new Error(uerr.message);
       if (!p){ out.skipped++; continue; }
-      await _dispatchMail(_trialDripMail(send, p, await _trialRoofsLeft(sub)));
+      await _dispatchMail(_trialDripMail(send, p, await _trialRoofsLeft(sub), await _countryOfSub(sub)));
       out.sent++;
     } catch (e) { out.errors++; console.error('[trial-drip] ' + (e && e.message)); }
   }
@@ -3662,7 +3796,9 @@ app.post('/auth/verify', rateLimit(20, 900000), async (req, res) => {
   try {
     const { data: was } = await supabase.from('profiles').select('verify_pending, name, company, phone').eq('id', payload.id).maybeSingle();
     await supabase.from('profiles').update({ verify_pending: false, email_verified_at: new Date().toISOString() }).eq('id', payload.id);
-    if (was && was.verify_pending) _signupAlert({ company: was.company, name: was.name, email: payload.email, phone: was.phone, confirmed: true }).catch(function(){});
+    if (was && was.verify_pending) _countryOfUser(payload.id).then(function(c){
+      return _signupAlert({ company: was.company, name: was.name, email: payload.email, phone: was.phone, confirmed: true, country: c });
+    }).catch(function(){});
     const cid = await _companyOf(payload.id);
     const authToken = jwt.sign({ id: payload.id, email: payload.email, cid, tv: await _tokenVersion(payload.id) }, JWT_SECRET, { expiresIn: '30d' });
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', payload.id).maybeSingle();
@@ -3711,7 +3847,7 @@ app.post('/auth/forgot', rateLimit(5, 900000), async (req, res) => {
     // reads (2026-10-22, tyler@tgmroofing.co.nz: "This keeps just taking me
     // back to the home page"). vercel.json and landing.html forward /?reset=
     // as well, for links already in inboxes.
-    const link = PUBLIC_APP_URL + '/app?reset=' + encodeURIComponent(t);
+    const link = _publicUrlFor(await _countryOfUser(userId)) + '/app?reset=' + encodeURIComponent(t);
     await _dispatchMail({
       to: email,
       subject: 'Reset your RoofMap password',
@@ -5808,13 +5944,41 @@ async function _saveShareBack(job, share){
     "UPDATE public.jobs SET draw_state = jsonb_set(draw_state, '{state,quote,share}', $1::jsonb, true), " +
     "updated_at = now() WHERE id = $2 AND draw_state->'state'->'quote' IS NOT NULL", [JSON.stringify(share), job.id]);
 }
+// WRITE ONLY THE KEYS YOU CHANGED, ONTO THE SHARE AS IT IS NOW (2026-11-06,
+// job 3349: "i keep getting this email of the job getting accepted"). The
+// office email stamps `acceptOfficeAt`; the Fergus half, started a moment
+// before, had read the share WITHOUT it and wrote its whole copy back a few
+// seconds later — the stamp was gone, and every hourly sweep emailed the
+// office again (10:24, 11:49, 1:15 pm). Every server write to the share now
+// re-reads it and sets its own keys on the fresh copy; `events` are unioned.
+async function _shareWriteKeys(job, quote, sh, keys){
+  let fresh = null;
+  try {
+    const r = await supabase.from('jobs').select('q_share:draw_state->state->quote->share').eq('id', job.id).single();
+    if (!r.error && r.data && r.data.q_share && typeof r.data.q_share === 'object') fresh = r.data.q_share;
+  } catch (e) {}
+  const out = fresh || sh || {};
+  (keys || []).forEach(function(k){
+    if (k === 'events'){
+      const seen = {}, all = [];
+      [].concat(Array.isArray(out.events) ? out.events : [], Array.isArray(sh.events) ? sh.events : []).forEach(function(ev){
+        const id = ev ? (ev.type + '|' + ev.at + '|' + (ev.message || '')) : '';
+        if (!ev || seen[id]) return; seen[id] = 1; all.push(ev);
+      });
+      out.events = all.slice(-80);
+    } else if (sh[k] !== undefined) out[k] = sh[k];
+  });
+  quote.share = out;
+  if (_pgPool()) await _saveShareBack(job, out);
+  else await _saveQuoteBack(job, quote);
+  return out;
+}
 async function _shareStamp(job, quote, key){
   try {
     const sh = quote.share || {};
     sh[key] = new Date().toISOString();
     quote.share = sh;
-    if (_pgPool()) await _saveShareBack(job, sh);
-    else await _saveQuoteBack(job, quote);        // no direct pool: the whole quote, once
+    await _shareWriteKeys(job, quote, sh, [key]);
   } catch (e) {
     try { recordError('server', new Error('share stamp ' + key + ' failed: ' + (e && e.message || e)),
       { route: '/q/:token/event', company: (job && job.company_id) || '' }); } catch (e2) {}
@@ -6537,8 +6701,17 @@ async function _acceptOfficeNotify(job, quote, attachment, opts){
                         attachments: await _termsFilesFor(_st, 'accept_office', job.company_id),
                         fromName: String((((_st || {}).branding) || {}).company_name || '').trim() || undefined,
                         replyTo: _cust || undefined });
+  _acceptOfficeTold(job.id, (quote.share || {}).acceptedAt, true);
   await _shareStamp(job, quote, 'acceptOfficeAt');
   return { ok: true };
+}
+// Belt and braces beside the stamp: this process never tells the office about
+// the same acceptance twice, whatever a stale write does to the share.
+const _ACCEPT_OFFICE_TOLD = new Map();
+function _acceptOfficeTold(jobId, acceptedAt, mark){
+  const k = String(jobId) + '|' + String(acceptedAt || '');
+  if (mark){ _ACCEPT_OFFICE_TOLD.set(k, Date.now()); if (_ACCEPT_OFFICE_TOLD.size > 2000) _ACCEPT_OFFICE_TOLD.delete(_ACCEPT_OFFICE_TOLD.keys().next().value); return true; }
+  return _ACCEPT_OFFICE_TOLD.has(k);
 }
 // The net under it. 90 seconds is long enough for the browser's PDF to land
 // (it is built and uploaded in a few seconds when it works at all) and short
@@ -6559,12 +6732,21 @@ async function _acceptOfficeCatchUp(jobId){
       .eq('id', jobId).single();
     if (r.error || !r.data || !r.data.quote) return false;
     const job = r.data, quote = r.data.quote, sh = quote.share || {};
-    if ((sh.status || '') !== 'accepted') return false;
-    // The description is written whether or not the email is still owed: the
-    // browser may have sent the email and nothing else.
-    _fergusOnAccept(jobId, null).catch(function(){});
-    if (sh.acceptOfficeAt) return false;              // already told
+    if ((sh.status || '') !== 'accepted'){
+      // An acceptance kept in the frozen version while the office works a
+      // draft (job 3341) still owes the Fergus job its selections; the office
+      // email, if it was ever owed, went with the acceptance itself.
+      _fergusOnAccept(jobId, null).catch(function(){});
+      return false;
+    }
+    // The email FIRST and its stamp written, then the Fergus half — never side
+    // by side, or Fergus's write can carry a share read before the stamp.
+    if (sh.acceptOfficeAt || _acceptOfficeTold(jobId, sh.acceptedAt)){
+      _fergusOnAccept(jobId, null).catch(function(){});
+      return false;                                    // already told
+    }
     const nr = await _acceptOfficeNotify(job, quote, null);
+    _fergusOnAccept(jobId, null).catch(function(){});
     return !!(nr && nr.ok && !nr.off);                   // switched off or nowhere to send is not "sent"
   } catch (e) {
     try { recordError('server', new Error('accept-office catch-up failed: ' + (e && e.message || e)), { route: '/q/:token/event' }); } catch (e2) {}
@@ -6643,12 +6825,66 @@ const STRIPE_PRICES_ANNUAL = {
   team:     process.env.STRIPE_PRICE_TEAM_ANNUAL     || '',
   business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL || '',
 };
+// AUSTRALIA (2026-11-04): an Australian business pays in AUD, the same
+// numbers as NZD. The normal way is ONE price per plan carrying an `aud`
+// currency option (_ensureAudCurrencyOptions adds it) and the checkout asking
+// for currency=aud. A separate AUD price may be named instead; when it is,
+// that price is used and no currency is passed.
+const STRIPE_PRICES_AUD = {
+  measure:  process.env.STRIPE_PRICE_MEASURE_AUD  || '',
+  solo:     process.env.STRIPE_PRICE_SOLO_AUD     || '',
+  team:     process.env.STRIPE_PRICE_TEAM_AUD     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS_AUD || '',
+};
+const STRIPE_PRICES_ANNUAL_AUD = {
+  measure:  process.env.STRIPE_PRICE_MEASURE_ANNUAL_AUD  || '',
+  solo:     process.env.STRIPE_PRICE_SOLO_ANNUAL_AUD     || '',
+  team:     process.env.STRIPE_PRICE_TEAM_ANNUAL_AUD     || '',
+  business: process.env.STRIPE_PRICE_BUSINESS_ANNUAL_AUD || '',
+};
 function _stripePlanOfPrice(priceId){
   // Both cycles resolve to the same plan — a portal switch from monthly to
-  // yearly must not change what the business is entitled to.
-  return Object.keys(STRIPE_PRICES).find(function(k){ return STRIPE_PRICES[k] && STRIPE_PRICES[k] === priceId; })
-      || Object.keys(STRIPE_PRICES_ANNUAL).find(function(k){ return STRIPE_PRICES_ANNUAL[k] && STRIPE_PRICES_ANNUAL[k] === priceId; })
-      || '';
+  // yearly must not change what the business is entitled to. So does an AUD
+  // price named on its own.
+  const inMap = function(m){ return Object.keys(m).find(function(k){ return m[k] && m[k] === priceId; }); };
+  return inMap(STRIPE_PRICES) || inMap(STRIPE_PRICES_ANNUAL) || inMap(STRIPE_PRICES_AUD) || inMap(STRIPE_PRICES_ANNUAL_AUD) || '';
+}
+// Every configured price gets an AUD currency option at its own NZD numbers
+// (A$79 / A$149 / A$299, the yearly prices likewise), with the price's own tax
+// behaviour. Idempotent: a price that already has one — or IS an AUD price —
+// is left alone. Runs a minute after boot and from POST /admin/aud-prices/run.
+async function _ensureAudCurrencyOptions(){
+  const out = { checked: 0, added: 0, already: 0, skipped: 0, errors: 0, prices: [] };
+  if (!process.env.STRIPE_SECRET_KEY) return Object.assign(out, { off: 'billing off' });
+  const ids = [], seen = new Set();
+  [[STRIPE_PRICES, 'monthly'], [STRIPE_PRICES_ANNUAL, 'annual']].forEach(function(pair){
+    Object.keys(pair[0]).forEach(function(plan){
+      const id = pair[0][plan];
+      if (id && !seen.has(id)){ seen.add(id); ids.push({ id: id, plan: plan, cycle: pair[1] }); }
+    });
+  });
+  for (const x of ids){
+    const rec = { id: x.id, plan: x.plan, cycle: x.cycle };
+    try {
+      const p = await _stripeGet('/v1/prices/' + encodeURIComponent(x.id) + '?expand%5B%5D=currency_options');
+      out.checked++;
+      const opts = p.currency_options || {};
+      if (String(p.currency || '').toLowerCase() === 'aud' || opts.aud){ out.already++; rec.state = 'already'; out.prices.push(rec); continue; }
+      if (p.unit_amount == null){ out.skipped++; rec.state = 'no unit_amount (tiered or custom price)'; out.prices.push(rec); continue; }
+      const params = { 'currency_options[aud][unit_amount]': p.unit_amount };
+      // Only a real choice is copied: 'unspecified' is what an option with no
+      // tax_behavior already is.
+      if (p.tax_behavior === 'exclusive' || p.tax_behavior === 'inclusive') params['currency_options[aud][tax_behavior]'] = p.tax_behavior;
+      await _stripeCall('/v1/prices/' + encodeURIComponent(x.id), params);
+      out.added++; rec.state = 'added'; rec.unit_amount = p.unit_amount; out.prices.push(rec);
+    } catch (e) {
+      out.errors++; rec.state = 'error'; rec.error = String(e && e.message || e).slice(0, 200); out.prices.push(rec);
+      recordError('aud-prices', new Error('Could not give Stripe price ' + x.id + ' (' + x.plan + ', ' + x.cycle + ') an AUD option — ' + rec.error +
+        '. Until it has one, an Australian checkout falls back to NZD.'), { route: 'aud-prices' });
+    }
+  }
+  if (out.added || out.errors) console.log('[stripe] AUD prices: added ' + out.added + ', already ' + out.already + ', errors ' + out.errors);
+  return out;
 }
 // One POST to Stripe, form-encoded the way its API wants. params is a flat
 // object whose keys may already carry Stripe's bracket syntax.
@@ -6815,7 +7051,13 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
     // Yearly = two months free; anything that isn't exactly 'annual' bills
     // monthly, so an old client that never sends the field changes nothing.
     const annual = String((req.body || {}).billing || '').toLowerCase() === 'annual';
-    const priceId = annual ? STRIPE_PRICES_ANNUAL[plan] : STRIPE_PRICES[plan];
+    // Australia pays in AUD (2026-11-04). The country is read strictly: a read
+    // that failed must not bill an Australian business in NZD by default.
+    const country = await _companyCountry(req.companyId, true);
+    const au = country === 'AU';
+    const nzPriceId = annual ? STRIPE_PRICES_ANNUAL[plan] : STRIPE_PRICES[plan];
+    const audPriceId = au ? (annual ? STRIPE_PRICES_ANNUAL_AUD[plan] : STRIPE_PRICES_AUD[plan]) : '';
+    const priceId = audPriceId || nzPriceId;
     if (!priceId) return res.status(400).json({ error: annual
       ? ('Yearly billing for that plan isn\'t configured yet (STRIPE_PRICE_' + plan.toUpperCase() + '_ANNUAL).')
       : ('That plan has no Stripe price configured yet (STRIPE_PRICE_' + plan.toUpperCase() + ').') });
@@ -6829,8 +7071,8 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       mode: 'subscription',
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': 1,
-      success_url: PUBLIC_APP_URL + '/index.html?billing=success',
-      cancel_url:  PUBLIC_APP_URL + '/index.html?billing=cancelled',
+      success_url: _publicUrlFor(country) + '/index.html?billing=success',
+      cancel_url:  _publicUrlFor(country) + '/index.html?billing=cancelled',
       client_reference_id: req.companyId,
       'metadata[company_id]': req.companyId,
       'metadata[user_id]': req.user.id,
@@ -6865,9 +7107,76 @@ app.post('/billing/checkout', requireAuth, async (req, res) => {
       try { const _row = await _companySettingsRow(req); _billTo = String((_row && _row.billing_email) || '').trim(); } catch (e) {}
       params.customer_email = _billTo || req.user.email || undefined;
     }
-    const session = await _stripeCall('/v1/checkout/sessions', params);
-    res.json({ url: session.url });
-  } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
+    if (au){
+      // The same price in AUD — its currency option — unless an AUD price of
+      // its own is named, which already is AUD.
+      if (!audPriceId) params.currency = 'aud';
+      params['metadata[country]'] = 'AU';
+    }
+    let session, currency = au ? 'aud' : undefined;
+    try {
+      session = await _stripeCall('/v1/checkout/sessions', params);
+    } catch (e) {
+      // Stripe refused the AUD checkout over the currency (the price has no
+      // AUD option yet, or the customer already pays in NZD). Selling beats
+      // blocking: once more in NZD, and never silently.
+      if (!(au && nzPriceId && /currenc/i.test(String(e && e.message || '')))) throw e;
+      recordError('aud-checkout', new Error('An Australian checkout was refused in AUD and sold in NZD instead — ' + e.message +
+        ' (plan ' + plan + (annual ? ', yearly' : ', monthly') + ', price ' + priceId + '). Run POST /admin/aud-prices/run or set STRIPE_PRICE_' +
+        plan.toUpperCase() + (annual ? '_ANNUAL' : '') + '_AUD.'), { route: 'POST /billing/checkout', company: req.companyId });
+      const nz = Object.assign({}, params);
+      delete nz.currency;
+      nz['line_items[0][price]'] = nzPriceId;
+      session = await _stripeCall('/v1/checkout/sessions', nz);
+      currency = 'nzd';
+    }
+    res.json(currency ? { url: session.url, currency: currency } : { url: session.url });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// Where the business is: NZ or AU. The OWNER's to change (it decides the
+// currency they are billed in), and only their own business's.
+app.put('/company/country', requireAuth, async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const want = String((req.body || {}).country || '').trim().toUpperCase();
+    if (want !== 'NZ' && want !== 'AU') return res.status(400).json({ error: 'Pick a country: NZ or AU.' });
+    // The state rides with it (2026-11-07): sent by Settings → Branding's
+    // State box. Absent leaves the stored one alone; a New Zealand business
+    // has none; an unknown name is refused rather than stored.
+    const body = req.body || {};
+    const upd = { country: want };
+    let stateSent = Object.prototype.hasOwnProperty.call(body, 'state');
+    if (want === 'NZ') { upd.state = null; stateSent = true; }
+    else if (stateSent){
+      const st = _normState(body.state);
+      if (body.state && !st) return res.status(400).json({ error: 'Pick a state: ' + AU_STATES.join(', ') + '.' });
+      upd.state = st || null;
+    }
+    let { error } = await supabase.from('companies').update(upd).eq('id', req.companyId);
+    if (error && stateSent && _missingColumn(error, 'state')){
+      delete upd.state;
+      ({ error } = await supabase.from('companies').update(upd).eq('id', req.companyId));
+    }
+    if (error){
+      if (_missingColumn(error, 'country'))
+        return res.status(503).json({ error: 'The server is still being updated — try again in a minute.', code: 'NOT_MIGRATED' });
+      return res.status(503).json({ error: 'Could not save that — the database did not answer. Try again in a moment.', code: 'UPSTREAM_UNAVAILABLE' });
+    }
+    // Nothing caches a country (every reader asks the companies row), but the
+    // plan and membership caches are dropped too so the next sign-in brief is
+    // read whole.
+    _planCache.delete(req.companyId);
+    _companyCache.delete(req.user.id);
+    const _c2 = await _companyCountry(req.companyId, true);
+    res.json({ country: _c2, state: _c2 === 'AU' ? await _companyState(req.companyId) : '' });
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
 });
 
 // ── ASKING STRIPE DIRECTLY ──────────────────────────────────────────
@@ -7053,7 +7362,7 @@ app.post('/billing/portal', requireAuth, async (req, res) => {
     if (!sub || !sub.stripe_customer_id) return res.status(400).json({ error: 'No billing account yet — subscribe first.' });
     const session = await _stripeCall('/v1/billing_portal/sessions', {
       customer: sub.stripe_customer_id,
-      return_url: PUBLIC_APP_URL + '/index.html',
+      return_url: _publicUrlFor(await _companyCountry(req.companyId)) + '/index.html',
     });
     res.json({ url: session.url });
   } catch (e) { res.status(e.status || 500).json({ error: e.message }); }
@@ -7093,11 +7402,17 @@ function _subInvoiceNumbers(inv){
   const total = cents(inv.amount_paid != null ? inv.amount_paid : (inv.total != null ? inv.total : inv.amount_due));
   // Stripe Tax on → believe it. Off → derive from the GST-inclusive total.
   const stripeTax = inv.tax != null ? cents(inv.tax) : null;
+  const currency = String(inv.currency || 'nzd').toUpperCase();
   let gst, net;
   if (stripeTax != null && stripeTax > 0) { gst = stripeTax; net = Math.round((total - gst) * 100) / 100; }
-  else if (SUB_GST_RATE > 0) { net = Math.round((total / (1 + SUB_GST_RATE / 100)) * 100) / 100; gst = Math.round((total - net) * 100) / 100; }
+  // The GST-inclusive fallback is New Zealand's: an AUD payment (Australia,
+  // 2026-11-04 — RoofMap is not GST-registered there, so Stripe Tax adds
+  // nothing) carries no GST, and pretending 15% of it was GST would be wrong.
+  else if (SUB_GST_RATE > 0 && currency === 'NZD') { net = Math.round((total / (1 + SUB_GST_RATE / 100)) * 100) / 100; gst = Math.round((total - net) * 100) / 100; }
   else { net = total; gst = 0; }
-  return { total, net, gst, currency: String(inv.currency || 'nzd').toUpperCase() };
+  const out = { total, net, gst, currency };
+  if (!(gst > 0) && currency !== 'NZD') out.noGst = true;
+  return out;
 }
 function _subInvoiceEmail(inv){
   const n = _subInvoiceNumbers(inv);
@@ -7115,8 +7430,11 @@ function _subInvoiceEmail(inv){
   rows.push(['Invoice', num]);
   rows.push(['Paid', when.toLocaleDateString('en-NZ')]);
   const gstLine = n.gst > 0 ? ('GST (' + (SUB_GST_RATE || '') + '%)') : null;
+  // Not New Zealand's money and no GST on it: an invoice, not a tax invoice,
+  // and it says plainly that no GST was charged. An NZ invoice reads as before.
+  const title = n.noGst ? 'RoofMap — subscription invoice' : 'RoofMap — subscription tax invoice';
   const lines = [
-    'RoofMap — subscription tax invoice',
+    title,
     '',
     desc,
     periodTxt ? ('Period: ' + periodTxt) : '',
@@ -7126,7 +7444,8 @@ function _subInvoiceEmail(inv){
     n.gst > 0 ? ('Subtotal: ' + _money(n.net) + ' ' + n.currency) : '',
     n.gst > 0 ? (gstLine + ': ' + _money(n.gst) + ' ' + n.currency) : '',
     'Total paid: ' + _money(n.total) + ' ' + n.currency,
-    SUB_GST_NUMBER ? ('GST number: ' + SUB_GST_NUMBER) : '',
+    n.noGst ? 'No GST charged' : '',
+    (SUB_GST_NUMBER && !n.noGst) ? ('GST number: ' + SUB_GST_NUMBER) : '',
     '',
     inv.invoice_pdf ? ('Stripe PDF: ' + inv.invoice_pdf) : '',
     inv.hosted_invoice_url ? ('View online: ' + inv.hosted_invoice_url) : '',
@@ -7134,7 +7453,7 @@ function _subInvoiceEmail(inv){
     'Questions about this invoice — just reply to this email.',
   ].filter(function(x){ return x !== ''; });
   const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0a1628;max-width:640px">' +
-    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">RoofMap — tax invoice</div>' +
+    '<div style="font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#0099cc">' + (n.noGst ? 'RoofMap — invoice' : 'RoofMap — tax invoice') + '</div>' +
     '<h2 style="font-size:19px;margin:8px 0 14px">' + esc(_money(n.total)) + ' ' + esc(n.currency) + ' paid — thank you</h2>' +
     '<table style="border-collapse:collapse;font-size:13px;margin-bottom:14px">' +
       rows.map(function(r){ return '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(r[0]) +
@@ -7144,12 +7463,13 @@ function _subInvoiceEmail(inv){
       (n.gst > 0 ? '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">Subtotal</td><td style="padding:3px 0">' + esc(_money(n.net)) + '</td></tr>' +
                    '<tr><td style="padding:3px 18px 3px 0;color:#5f6b7a">' + esc(gstLine) + '</td><td style="padding:3px 0">' + esc(_money(n.gst)) + '</td></tr>' : '') +
       '<tr><td style="padding:5px 18px 3px 0;color:#5f6b7a"><strong>Total paid</strong></td><td style="padding:5px 0"><strong>' + esc(_money(n.total)) + ' ' + esc(n.currency) + '</strong></td></tr>' +
+      (n.noGst ? '<tr><td colspan="2" style="padding:3px 0;color:#5f6b7a">No GST charged</td></tr>' : '') +
     '</table>' +
-    (SUB_GST_NUMBER ? '<p style="font-size:12px;color:#5f6b7a">GST number: ' + esc(SUB_GST_NUMBER) + '</p>' : '') +
+    ((SUB_GST_NUMBER && !n.noGst) ? '<p style="font-size:12px;color:#5f6b7a">GST number: ' + esc(SUB_GST_NUMBER) + '</p>' : '') +
     (inv.hosted_invoice_url ? '<p><a href="' + esc(inv.hosted_invoice_url) + '" style="display:inline-block;background:#0a1628;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">View or download the invoice</a></p>' : '') +
     '<p style="font-size:12px;color:#5f6b7a">Questions about this invoice — just reply to this email.</p>' +
   '</div>';
-  return { subject: 'RoofMap tax invoice ' + num + ' — ' + _money(n.total) + ' ' + n.currency,
+  return { subject: (n.noGst ? 'RoofMap invoice ' : 'RoofMap tax invoice ') + num + ' — ' + _money(n.total) + ' ' + n.currency,
            text: lines.join('\n'), html: html };
 }
 function _subFailedEmail(inv){
@@ -7239,8 +7559,9 @@ async function _subRowForStripe(subId, custId){
 // Who the business is, for the email: its name, the owner's name, email and
 // phone, when it signed up, and what the paying businesses now come to.
 async function _newPayerDetails(row){
-  const out = { company: '', name: '', email: '', phone: '', signedUp: '', payingCount: 0, mrr: 0 };
+  const out = { company: '', name: '', email: '', phone: '', signedUp: '', payingCount: 0, mrr: 0, country: 'NZ' };
   try {
+    if (row.company_id) out.country = await _companyCountry(row.company_id);
     if (row.company_id){
       const { data: co } = await supabase.from('companies').select('name, created_at').eq('id', row.company_id).maybeSingle();
       if (co){ out.company = co.name || ''; out.signedUp = co.created_at || ''; }
@@ -7269,10 +7590,17 @@ function _newPayerEmail(row, d, o){
   const nice = (k, v) => v ? (k + ': ' + v + '\n') : '';
   const days = (isFinite(Date.parse(d.signedUp)) && isFinite(Date.parse(o.paidAt)))
     ? Math.max(0, Math.round((Date.parse(o.paidAt) - Date.parse(d.signedUp)) / 864e5)) : null;
-  const paidLine = o.amount > 0 ? ('$' + o.amount.toFixed(2) + ' ' + String(o.currency || 'nzd').toUpperCase() + ' incl. GST') : '';
+  // An AUD payment (Australia, 2026-11-04) carries no GST: say so, and
+  // price the plan in A$. NZ reads exactly as before.
+  const aud = String(o.currency || '').toLowerCase() === 'aud';
+  const auCo = _normCountry(d.country) === 'AU';
+  const cur = String(o.currency || 'nzd').toUpperCase();
+  const paidLine = o.amount > 0 ? ('$' + o.amount.toFixed(2) + ' ' + cur + (aud ? ' — no GST charged' : ' incl. GST')) : '';
+  const priceWords = price ? (aud ? 'A$' + price + ' a month' : '$' + price + ' + GST a month') : '';
   const text = 'Congratulations — ' + who + ' has started paying for RoofMap.\n\n' +
     nice('Business', d.company) + nice('Name', d.name) + nice('Email', d.email) + nice('Phone', d.phone) +
-    'Plan: ' + plan + (price ? ' ($' + price + ' + GST a month)' : '') + '\n' +
+    (auCo ? 'Country: Australia\n' : '') +
+    'Plan: ' + plan + (price ? ' (' + priceWords + ')' : '') + '\n' +
     nice('First payment', paidLine) +
     'Paying since: ' + _nzDateWords(o.paidAt) + '\n' +
     nice('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' — ' + days + ' day' + (days === 1 ? '' : 's') + ' before paying' : '')) : '') +
@@ -7287,7 +7615,8 @@ function _newPayerEmail(row, d, o){
     '<div style="margin-top:4px;color:#cfe3f5">' + h(who) + ' has started paying on ' + h(plan) + '.</div></div>' +
     '<table style="margin:14px 0;border-collapse:collapse;font-size:14px">' +
     row2('Business', d.company) + row2('Name', d.name) + row2('Email', d.email) + row2('Phone', d.phone) +
-    row2('Plan', plan + (price ? ' — $' + price + ' + GST a month' : '')) + row2('First payment', paidLine) +
+    (auCo ? row2('Country', 'Australia') : '') +
+    row2('Plan', plan + (price ? ' — ' + priceWords : '')) + row2('First payment', paidLine) +
     row2('Paying since', _nzDateWords(o.paidAt)) +
     row2('Signed up', d.signedUp ? (_nzDateWords(d.signedUp) + (days != null ? ' (' + days + ' day' + (days === 1 ? '' : 's') + ' before paying)' : '')) : '') +
     '</table>' +
@@ -7785,6 +8114,24 @@ const ACCEPTANCE_TASKS_DEFAULT = [
   { title: 'Check / adjust the dates in the schedule, then send the tentative schedule email',
                                                                   who: 'Paula', urgency: 60, days: 4 },
 ];
+// Every business that does NOT run Fergus (2026-11-05 audit: none of the
+// trial or paying businesses had linked it). The list above is Flood
+// Roofing's own, with its own people's names and a hard 50% — a stranger's
+// first win must not tell them to "Accept in Fergus". Their own deposit
+// percentage, no names (nobody to match), nothing Fergus.
+function _acceptanceTasksGeneric(settingsRow){
+  const inv = _invoiceSettingsOf(settingsRow);
+  return [
+    { title: inv.auto_send_deposit ? ('Check the ' + inv.deposit_percent + '% deposit invoice went out')
+                                   : ('Send the ' + inv.deposit_percent + '% deposit invoice'), urgency: 90, days: 1 },
+    { title: 'Order the roof',                                               urgency: 80, days: 3 },
+    { title: 'Book the job in and confirm the dates with the customer',      urgency: 60, days: 4 },
+  ];
+}
+function _settingsRunsFergus(settingsRow){
+  const k = settingsRow && settingsRow.jms_keys;
+  return !!(k && String(k.fergus || '').trim());
+}
 // The team as a list, for matching a checklist's "Matt" to a real person.
 // Deliberately NOT called _companyMembers: that name is already taken by the
 // id → name map _nameOf reads, and a second declaration of it silently won —
@@ -7819,7 +8166,7 @@ async function _acceptanceTasks(job, quote){
       .eq('company_id', job.company_id).eq('job_id', job.id).eq('notes', marker).limit(1);
     if (dupe && dupe.length) return 0;
     const settingsRow = await _settingsRowForJob(job);
-    let list = ACCEPTANCE_TASKS_DEFAULT;
+    let list = _settingsRunsFergus(settingsRow) ? ACCEPTANCE_TASKS_DEFAULT : _acceptanceTasksGeneric(settingsRow);
     try {
       const custom = settingsRow && settingsRow.acceptance_tasks;
       if (Array.isArray(custom) && custom.length) list = custom.slice(0, 12);
@@ -7969,7 +8316,9 @@ async function _quoteShareRowsPg(req, limit){
     "((draw_state->'state'->'quote'->'share') - 'fergus' - 'priced') AS q_share, " +
     "draw_state->'state'->'quote'->'ref' AS q_ref, draw_state->'state'->'quote'->'client' AS q_client, " +
     "draw_state->'state'->'quote'->'accepted' AS q_accepted, draw_state->'state'->'quote'->'fergusAutoPushedFor' AS q_pushed, " +
-    "draw_state->'state'->'linkedJobId' AS q_linked";
+    "draw_state->'state'->'linkedJobId' AS q_linked, " +
+    "draw_state->'state'->'quote'->'versions'->'accepted'->'quote'->'accepted' AS q_vacc, " +
+    "draw_state->'state'->'quote'->'versions'->'accepted'->>'at' AS q_vacc_at";
   const shared = "draw_state->'state'->'quote'->'share'->>'token' IS NOT NULL";
   const client = await pool.connect();
   try {
@@ -7991,7 +8340,8 @@ async function _quoteShareRowsPg(req, limit){
     merged.sort(function(a, b){ return t(b.updated_at) - t(a.updated_at); });
     return merged.slice(0, limit).map(function(j){
       return { id: j.id, client_name: j.client_name, share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
-               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null,
+               vAccepted: j.q_vacc || null, vAcceptedAt: j.q_vacc_at || null };
     }).filter(function(r){ return r.share && r.share.token; });
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
@@ -8051,7 +8401,9 @@ async function _quoteShareRowsRead(req, limit){
     // Enough to tell an accepted quote that has reached Fergus from
     // one still waiting for somebody to open the job.
     'q_pushed:draw_state->state->quote->fergusAutoPushedFor,' +
-    'q_linked:draw_state->state->linkedJobId';
+    'q_linked:draw_state->state->linkedJobId,' +
+    'q_vacc:draw_state->state->quote->versions->accepted->quote->accepted,' +
+    'q_vacc_at:draw_state->state->quote->versions->accepted->>at';
   // Only jobs that have actually been SHARED — filtered on the token
   // expression (there's a functional index on it), so Postgres doesn't
   // decompress every job's multi-MB draw_state.
@@ -8073,7 +8425,8 @@ async function _quoteShareRowsRead(req, limit){
     return merged.slice(0, limit).map(function(j){
       return { id: j.id, client_name: j.client_name,
                share: j.q_share, ref: j.q_ref, client: j.q_client, accepted: j.q_accepted,
-               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null };
+               pushedFor: j.q_pushed || null, linkedJobId: j.q_linked || null,
+               vAccepted: j.q_vacc || null, vAcceptedAt: j.q_vacc_at || null };
     }).filter(function(r){ return r.share && r.share.token; });
   }
   if (/statement timeout|canceling statement|57014/i.test(String(failed.error.message))) {
@@ -8088,13 +8441,41 @@ async function _quoteShareRowsRead(req, limit){
   if (fb.error) { const err = new Error(fb.error.message); err.http = 500; throw err; }
   return (fb.data || []).map(function(j){
     const q = j.quote || {};
+    const va = (q.versions && q.versions.accepted) || null;
     return { id: j.id, client_name: j.client_name,
              share: q.share, ref: q.ref, client: q.client, accepted: q.accepted,
              pushedFor: q.fergusAutoPushedFor || null,
-             linkedJobId: (((j.state || {}).linkedJobId) || null) };
+             linkedJobId: (((j.state || {}).linkedJobId) || null),
+             vAccepted: (va && va.quote && va.quote.accepted) || null, vAcceptedAt: (va && va.at) || null };
   }).filter(function(r){ return r.share && r.share.token; });
 }
 
+// AN ACCEPTED JOB STAYS ACCEPTED WHILE THE OFFICE WORKS A DRAFT (2026-11-06,
+// job 3341: the owner found an accepted gutter job under Quotes sent — "the
+// app automatically created a new quote draft, which then made it look like
+// it wasn't accepted"). A draft made off an accepted quote (_qvFreshDraft: a
+// new draft, a duplicate, the "make a draft?" answer to an edit or a push)
+// sets the link back to 'sent' so the customer's page does not lock on the
+// new draft — and the board read that status alone. The acceptance is still
+// on the job's frozen Accepted version, so the job reads Accepted until the
+// office UNDOES the acceptance (`unacceptedAt`, or an older undo's 'opened'
+// with no draft mark) or SENDS the customer a quote after it (`sentAt`).
+function _feedKeptAcceptance(r){
+  const sh = (r && r.share) || {};
+  if ((sh.status || 'sent') === 'accepted' && r.accepted) return false;   // already accepted as it stands
+  const va = r && r.vAccepted;
+  if (!va || typeof va !== 'object') return false;
+  const at = Date.parse(r.vAcceptedAt || va.at || '');
+  if (!isFinite(at)) return false;
+  const st = sh.status || 'sent';
+  if (st === 'declined' || st === 'queried') return false;
+  const un = Date.parse(sh.unacceptedAt || '');
+  if (isFinite(un) && un >= at) return false;
+  if (st === 'opened' && !sh.draftAfterAccept) return false;            // an undo from before the stamp
+  const sent = Date.parse(sh.sentAt || '');
+  if (isFinite(sent) && sent > at) return false;                         // a new quote went to the customer
+  return true;
+}
 // Office home-screen feed: every job that has a shared quote, with its
 // current status + last activity. Team and up — this is the quote
 // notifications feature the Team tier sells.
@@ -8104,16 +8485,19 @@ app.get('/quote-activity', requireAuth, requirePlan('activity', 'Quote notificat
     const feed = rows.map(function(r){
       const sh = r.share;
       const lastEv = (sh.events && sh.events.length) ? sh.events[sh.events.length - 1] : null;
+      const kept = _feedKeptAcceptance(r);
+      const acc = r.accepted || (kept ? r.vAccepted : null);
       return {
         jobId: r.id,
         client: r.client_name || r.client || '—',
         ref: r.ref || '',
-        status: sh.status || 'sent',
+        status: kept ? 'accepted' : (sh.status || 'sent'),
         token: sh.token,
         openCount: sh.openCount || 0,
         lastOpenedAt: sh.lastOpenedAt || null,
         query: sh.query || null,
-        accepted: r.accepted || null,
+        accepted: acc || null,
+        draftAfterAccept: !!(kept && !r.accepted),
         // "Accepted, linked to a Fergus job, and Fergus has not been told" —
         // the state the home board had no way to show.
         fergusPending: !!(r.accepted && r.accepted.at && r.linkedJobId &&
@@ -8438,7 +8822,9 @@ async function _reminderQuoteLink(job, share){
       } catch (e) {}
     }
   }
-  if (!base) base = PUBLIC_APP_URL;
+  // No domain or address of its own: the business's site — roofmap.com for
+  // an Australian business, roofmap.co.nz otherwise.
+  if (!base) base = _publicUrlFor(await _companyCountry(job.company_id));
   let link = base + '/?q=' + share.token;
   if (job.ref) link += '&j=' + encodeURIComponent(String(job.ref).replace(/[^A-Za-z0-9\-]/g, ''));
   link += '&i=' + encodeURIComponent(String(job.id));
@@ -8591,7 +8977,9 @@ async function _officeOwedSweep(){
   if (!EMAIL_ENABLED) return out;
   const q = await supabase.from('jobs')
     .select('id, user_id, company_id, client_name, site_address, ' +
-            'q_share:draw_state->state->quote->share')
+            'q_share:draw_state->state->quote->share, ' +
+            'q_vacc:draw_state->state->quote->versions->accepted->quote->accepted, ' +
+            'q_vacc_at:draw_state->state->quote->versions->accepted->>at')
     .not('draw_state->state->quote->share->>token', 'is', null)
     .gte('updated_at', new Date(Date.now() - 14 * 86400000).toISOString())
     .order('updated_at', { ascending: false }).limit(500);
@@ -8602,13 +8990,19 @@ async function _officeOwedSweep(){
     // Only an accept, and only one that has an acceptedAt to judge the age by.
     // A decline or a question is sent on the event and is not re-tried here:
     // re-sending a week-old question would read as a new one.
-    if (st !== 'accepted') continue;
-    // The email may be done and the FERGUS description still owed - that half
-    // is retried too, but only on a job that is actually linked, or every
-    // acceptance would cost a read an hour for a fortnight for nothing.
-    const _fgOwed = !!(sh.fergus && sh.fergus.jobId) && !sh.fergusAcceptDescAt;
+    // The email may be done and the FERGUS description or selections PDF still
+    // owed - that half is retried too, but only on a job that is actually
+    // linked, or every acceptance would cost a read an hour for a fortnight.
+    const _fa = sh.fergusAccept || {};
+    const _fgOwed = !!(sh.fergus && sh.fergus.jobId) &&
+      ((!sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip) || (!sh.fergusAcceptSelAt && (+_fa.selTries || 0) < 3) ||
+       (!!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(_fa) < 2));
+    // A draft made off an accepted quote (job 3341) reads 'sent' with the
+    // acceptance in its frozen version: only the Fergus half is owed there.
+    const _kept = st !== 'accepted' && _fgOwed && _feedKeptAcceptance({ share: sh, accepted: null, vAccepted: r.q_vacc, vAcceptedAt: r.q_vacc_at });
+    if (st !== 'accepted' && !_kept) continue;
     if (sh.acceptOfficeAt && !_fgOwed) continue;
-    const at = Date.parse(sh.acceptedAt || '');
+    const at = Date.parse(sh.acceptedAt || r.q_vacc_at || (r.q_vacc && r.q_vacc.at) || '');
     if (!isFinite(at)) continue;
     if (isFinite(ACCEPT_OFFICE_FROM) && at < ACCEPT_OFFICE_FROM) { out.floored++; continue; }
     const age = Date.now() - at;
@@ -8804,6 +9198,11 @@ async function _officeOwedTick(){
       ', skipped ' + r.skipped + ', errors ' + r.errors);
   } catch (e) { console.error('[office-owed] tick failed: ' + (e && e.message)); }
 }
+app.post('/admin/aud-prices/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _ensureAudCurrencyOptions()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
 app.post('/admin/paid-since/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _paidSinceBackfill()); }
@@ -10948,18 +11347,58 @@ function _fergusJobSummaryText(quote, extra){
 // shapes, and after any 2xx READ THE JOB BACK and only count it when the
 // description actually changed. Every attempt is returned so the first real
 // push tells us which one is right \u2014 pin it with FERGUS_JOB_UPDATE_PATH then.
+// ANSWERED by job 3349's acceptance (2026-11-06, the owner's error email):
+// PATCH /jobs/{job} 404, POST /jobs/{job} 404, PUT /jobs/{job} 400 — PUT is the
+// route, and a 400 is Fergus refusing the BODY (it wants the whole job, not two
+// fields). So PUT first, with the job sent back whole in two shapes (below);
+// the others stay as a fallback. Each refusal now keeps the first 200
+// characters of what Fergus said, so the next email names the missing field.
 const FERGUS_JOB_UPDATE_CANDIDATES = [
-  'PATCH /jobs/{job}',
   'PUT /jobs/{job}',
+  'PATCH /jobs/{job}',
   'POST /jobs/{job}',
 ];
+// The job as Fergus reads it, sent back as an update: every scalar the read
+// gave and the ids of the objects it names (customer, site, contact), with the
+// long description replaced. Shape 'read' keeps Fergus's read names
+// (description = the title, longDescription); shape 'create' is the partner
+// API's create shape (title, description = the long text).
+function _fergusIdOf(o, rel, links){
+  if (o && typeof o === 'object' && o.id != null) return o.id;
+  if (typeof o === 'number' || (typeof o === 'string' && /^\d+$/.test(o))) return +o;
+  const l = (links || []).find(x => x && x.rel === rel && /\/(\d+)$/.test(String(x.href || '')));
+  return l ? +String(l.href).match(/\/(\d+)$/)[1] : undefined;
+}
+function _fergusJobUpdateBody(before, want, shape){
+  const b = before || {}, out = {};
+  const skip = { id: 1, links: 1, createdAt: 1, lastModified: 1, jobNo: 1, jobNumber: 1, status: 1, activeQuote: 1, jobVariants: 1, assignedGroups: 1 };
+  Object.keys(b).forEach(k => {
+    if (skip[k]) return;
+    const v = b[k];
+    if (v == null || typeof v !== 'object') out[k] = v;
+  });
+  const cid = _fergusIdOf(b.customer, 'customers', b.links); if (cid != null) out.customerId = cid;
+  const sid = _fergusIdOf(b.siteAddress || b.site, 'sites', b.links); if (sid != null) out.siteId = sid;
+  const mid = _fergusIdOf(b.mainContact, 'contacts', b.links); if (mid != null) out.mainContactId = mid;
+  if (shape === 'create'){
+    out.title = b.description; out.description = want; delete out.longDescription;
+  } else {
+    out.longDescription = want;
+  }
+  return out;
+}
+// FERGUS'S "JOB DESCRIPTION" IS `longDescription` (read off job 3341 by
+// hub-jobupdate-probe.yml, 2026-11-06: longDescription "Quote to replace
+// guttering", the box the office reads; `description` is the job's TITLE,
+// "Doug Rodgers - 704A State Highway 10, Oromahoe - Gutter Replacement",
+// shown in every job list). This read `description` first and wrote the block
+// into both, so a write that landed would have replaced the job's title.
+// The title is never touched now.
 function _fergusJobDescOf(j){
   if (!j || typeof j !== 'object') return null;
-  const d = (j.description != null) ? j.description
-          : (j.longDescription != null) ? j.longDescription
-          : (j.brief_description != null) ? j.brief_description
-          : (j.briefDescription != null) ? j.briefDescription : null;
-  return d == null ? null : String(d);
+  if (j.longDescription != null) return String(j.longDescription);
+  if ('longDescription' in j) return '';
+  return null;
 }
 async function _fergusReadJob(H, jobId){
   try {
@@ -10985,26 +11424,41 @@ async function _fergusUpdateJobDescription(fergusKey, jobId, summary){
   const list = process.env.FERGUS_JOB_UPDATE_PATH
     ? [process.env.FERGUS_JOB_UPDATE_PATH] : FERGUS_JOB_UPDATE_CANDIDATES;
   const attempts = [];
-  for (const entry of list) {
+  const title0 = before.description;
+  const tries = [];
+  list.forEach(entry => {
     const m = String(entry).match(/^\s*(GET|POST|PUT|PATCH)\s+(\S+)/i);
     const method = m ? m[1].toUpperCase() : 'PATCH';
     const tpl = m ? m[2] : String(entry).trim();
-    const path = FERGUS_PREFIX + tpl.replace('{job}', job);
-    // Both spellings: Fergus reads one and ignores the other.
-    const body = { description: want, longDescription: want };
+    if (method === 'PUT'){
+      tries.push({ method, tpl, shape: 'read', body: _fergusJobUpdateBody(before, want, 'read') });
+      tries.push({ method, tpl, shape: 'create', body: _fergusJobUpdateBody(before, want, 'create') });
+    } else tries.push({ method, tpl, shape: 'min', body: { longDescription: want } });
+  });
+  for (const t of tries) {
+    const path = FERGUS_PREFIX + t.tpl.replace('{job}', job);
     try {
-      const r = await httpsRequest(FERGUS_HOST, path, method, H, body);
-      const a = { path: method + ' ' + tpl, status: r.status };
+      const r = await httpsRequest(FERGUS_HOST, path, t.method, H, t.body);
+      const a = { path: t.method + ' ' + t.tpl + (t.shape !== 'min' ? ' (' + t.shape + ')' : ''), status: r.status };
+      if (!(r.status >= 200 && r.status < 300)) a.said = String(r.body || '').replace(/\s+/g, ' ').slice(0, 200);
       attempts.push(a);
       if (r.status === 401 || r.status === 403) return { ok: false, path: a.path, status: r.status, attempts, auth: true };
+      if (r.status === 400 && /not in draft/i.test(a.said || '')) return { ok: false, notDraft: true, path: a.path, status: r.status, attempts };
       if (!(r.status >= 200 && r.status < 300)) continue;
       const after = await _fergusReadJob(H, jobId);
       const now = _fergusJobDescOf(after);
       a.verified = (now != null) ? (now.indexOf(FERGUS_DESC_OPEN) >= 0) : null;
+      // A write that moved the TITLE is put right at once with the read shape
+      // (the title as it was, the long description as wanted).
+      if (after && title0 != null && after.description !== title0){
+        a.titleMoved = true;
+        try { await httpsRequest(FERGUS_HOST, path, 'PUT', H, _fergusJobUpdateBody(Object.assign({}, before), a.verified ? want : (before.longDescription || ''), 'read')); } catch (e) {}
+        if (!a.verified) continue;
+      }
       // Cannot tell (the job would not read back) counts as done, the same
       // forgiveness the promote check gives a backend it cannot reach.
       if (a.verified !== false) return { ok: true, path: a.path, status: r.status, verified: a.verified, attempts };
-    } catch (e) { attempts.push({ path: method + ' ' + tpl, error: String(e && e.message || e).slice(0, 120) }); }
+    } catch (e) { attempts.push({ path: t.method + ' ' + t.tpl, error: String(e && e.message || e).slice(0, 120) }); }
   }
   return { ok: false, attempts };
 }
@@ -11075,7 +11529,9 @@ function _fergusSelectionChanges(P, quote){
   (P.extraRoof || []).forEach(function(price, i){
     if (erSel[i] && price > 0){
       const nm = (P.extraRoofLabel || [])[i] || ('Roof ' + (i + 2));
-      out.push({ label: 'Optional extra roof — ' + nm, delta: +price, roofName: nm, split: (P.extraRoofSplit || [])[i] || null });
+      const xr = (Array.isArray(quote && quote.extraRoofs) ? quote.extraRoofs : [])[i] || {};
+      out.push({ label: 'Optional extra roof — ' + nm, delta: +price, roofName: nm, split: (P.extraRoofSplit || [])[i] || null,
+                 lab: Array.isArray(xr.lab) ? xr.lab : null });
     }
   });
   const baseG = quote.baseGrade || 'maxam';
@@ -11138,13 +11594,34 @@ function _fergusComposeSections(plan, P, quote){
     const low = String(c.label || '').toLowerCase();
     // An included extra is the office's own line, whatever its words say.
     if (c.inclx){ section('Extras').lineItems.push(mk('mat', c.label.replace(/^Extras — /, ''), 1, c.delta)); return; }
+    // A gutters-only job (2026-11-06, job 3341): the plan's base already
+    // carries its gutter itemised — labour hours the crew reads — so the same
+    // gutter is not added again; a different gutter picked by the customer
+    // replaces the itemised sections with its own price.
+    if (c.gutter && plan.gutterBase){
+      if (plan.gutterBase === (quote.proposalOptions || {}).gutterType) return;
+      for (let i = sections.length - 1; i >= 0; i--) if (sections[i] && /^Gutter (Labour|Material)$/.test(sections[i].name)) sections.splice(i, 1);
+    }
     if (c.gutter){ section('Guttering').lineItems.push(mk('mat', 'Guttering — ' + c.label, 1, c.delta)); return; }
     if (low.indexOf('downpipe') >= 0){ section('Downpipes').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (low.indexOf('bracket') >= 0){ section('Guttering').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (low.indexOf('scaffold') >= 0){ section('Scaffolding').lineItems.push(mk('mat', c.label, 1, c.delta)); return; }
     if (c.split && (c.split.materials || c.split.labour || c.split.scaffold)){
       const rn = c.roofName || c.label;
-      if (c.split.labour)    section(labourName).lineItems.push(mk('lab', rn + ' — roof labour', 1, c.split.labour, 0));
+      if (c.split.labour){
+        // The roof's own crew as hours (job 3349, 2026-11-06), the app's rule:
+        // the hours at their rates, then one line for whatever they do not
+        // explain, so the roof still totals its price to the cent.
+        const lab = (Array.isArray(c.split.lab) && c.split.lab.length) ? c.split.lab : (c.lab || []);
+        let labSum = 0;
+        lab.forEach(x => {
+          const h = +(+x.hrs || 0).toFixed(2), pr = +(+x.price || 0).toFixed(2); if (h <= 0) return;
+          section(labourName).lineItems.push(mk('lab', rn + ' — ' + (x.name || 'Labour'), h, pr, +x.cost || 0));
+          labSum += h * pr;
+        });
+        const labRem = +(c.split.labour - labSum).toFixed(2);
+        if (Math.abs(labRem) >= 0.01) section(labourName).lineItems.push(mk('lab', rn + (labSum ? ' — labour adjustment' : ' — roof labour'), 1, labRem, 0));
+      }
       if (c.split.materials) section(matName).lineItems.push(mk('mat', rn + ' — roof material', 1, c.split.materials));
       if (c.split.scaffold)  section('Scaffolding').lineItems.push(mk('mat', rn + ' — scaffolding', 1, c.split.scaffold));
       const rem = +(c.delta - ((c.split.materials || 0) + (c.split.labour || 0) + (c.split.scaffold || 0))).toFixed(2);
@@ -11242,7 +11719,99 @@ async function _fergusAutoVersionNow(jobId){
 // IT RE-READS THE JOB ITSELF rather than trusting the copy it was handed:
 // _fergusAutoVersionNow is on a debounce and writes the same share, so a claim
 // decided from a stale copy is a claim that can be made twice.
-async function _fergusOnAccept(jobId, attachment){
+// THE CUSTOMER'S SELECTIONS, AS A PAGE FOR THE FERGUS JOB (2026-11-06, the
+// owner: "can the customer selections be uploaded to the job files in a small
+// PDF showing the customer's selections?"). The same list the acceptance email
+// and the Fergus description carry (_quoteChoiceLines), so the three agree.
+// A choice line without its money: "Garage — $4,838.69" → "Garage".
+function _selLinesNoPrice(lines){
+  return (lines || []).map(function(x){
+    return String(x || '').replace(/\s*[\u2014\-–(]*\s*[+\-−]?\s*(?:NZ|A)?\$\s?[\d,]+(?:\.\d+)?\)?(\s*(incl\.?|excl\.?|\+)\s*GST)?/gi, '').replace(/[\s:—–-]+$/, '').trim();
+  }).filter(Boolean);
+}
+// THE SELECTIONS AS A NOTE ON THE FERGUS JOB (2026-11-06). Fergus refuses to
+// change the Job Description of a job past draft ("Job is not in draft"), so
+// the customer's picks go on as a note instead — the yellow box the crew reads
+// on the job summary. Fergus publishes no notes route we can reach, so the
+// plausible shapes are tried (the attachments route's own entityType /
+// entityId shape first); a 2xx is the note; every refusal is kept with
+// Fergus's words for the one email that names the route.
+// ANSWERED (job 3334, 3:38 pm NZ 2026-11-06): POST /notes is the route —
+// /jobs/{id}/notes is a 404 — and it refused {entityType, entityId, text} with
+// "must have required property 'entityName'". So the entity is NAMED, and the
+// attachments route's own lowercase 'job' is tried first. The tries are counted
+// per version of this list (FERGUS_NOTE_V), so a job that spent its two tries
+// on the old shapes gets two more on these.
+const FERGUS_NOTE_V = 2;
+const FERGUS_NOTE_CANDIDATES = [
+  ['POST /notes', function(job, t){ return { entityName: 'job', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'job', entityType: 'job', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'JOB', entityId: job, text: t }; }],
+  ['POST /notes', function(job, t){ return { entityName: 'Job', entityId: job, text: t }; }],
+];
+function _noteTriesOf(fa){ return (fa && fa.noteV === FERGUS_NOTE_V) ? (+fa.noteTries || 0) : 0; }
+async function _fergusAddJobNote(fergusKey, jobId, text){
+  const H = { 'Authorization': 'Bearer ' + fergusKey, 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  const attempts = [];
+  for (const c of FERGUS_NOTE_CANDIDATES){
+    const m = c[0].match(/^(\S+)\s+(\S+)$/);
+    const path = FERGUS_PREFIX + m[2].replace('{job}', encodeURIComponent(String(jobId)));
+    const idv = /^\d+$/.test(String(jobId)) ? +jobId : jobId;
+    try {
+      const r = await httpsRequest(FERGUS_HOST, path, m[1], H, c[1](idv, text));
+      const a = { path: c[0] + ' ' + Object.keys(c[1](idv, 'x')).join(','), status: r.status };
+      if (!(r.status >= 200 && r.status < 300)) a.said = String(r.body || '').replace(/\s+/g, ' ').slice(0, 160);
+      attempts.push(a);
+      if (r.status === 401 || r.status === 403) return { ok: false, auth: true, attempts };
+      if (r.status >= 200 && r.status < 300) return { ok: true, path: a.path, attempts };
+    } catch (e) { attempts.push({ path: c[0], error: String(e && e.message || e).slice(0, 120) }); }
+  }
+  return { ok: false, attempts };
+}
+function _selectionsNoteText(quote, acc, client){
+  const lines = _selLinesNoPrice(_quoteChoiceLines(quote));
+  return ['RoofMap \u2014 customer selections, quote ' + (quote.ref || '') +
+          (acc && (acc.name || acc.at) ? ' (accepted' + (acc.name ? ' by ' + acc.name : '') + (acc.at ? ' on ' + _nzWhen(acc.at) : '') + ')' : ''), '']
+    .concat((lines.length ? lines : ['As quoted']).map(function(x){ return '\u2022 ' + x; })).join('\n');
+}
+function _selectionsPdf(job, quote, acc, company){
+  quote = quote || {}; acc = acc || {};
+  const client = (job && job.client_name) || quote.client || acc.name || 'Customer';
+  const site = (job && job.site_address) || quote.addr || '';
+  // NO PRICES (2026-11-06, the owner on 3341's page in the Fergus files: "i
+  // don't want it to show the price") — the crew reads this, not the customer.
+  const lines = _selLinesNoPrice(_quoteChoiceLines(quote));
+  const NAVY = '0.05 0.16 0.33', GREY = '0.35 0.38 0.42';
+  const items = [
+    { text: String(company || '').trim() || 'RoofMap', size: 10, bold: true, colour: GREY },
+    { text: 'Customer selections', size: 20, bold: true, colour: NAVY, gap: 6 },
+    { text: 'Quote ' + (quote.ref || '') + ' \u2014 ' + client, size: 12, bold: true, gap: 10 },
+  ];
+  if (site) items.push({ text: site, size: 11 });
+  if (acc.name || acc.at) items.push({ text: 'Accepted by ' + (acc.name || client) + (acc.at ? ' on ' + _nzWhen(acc.at) : ''), size: 11, gap: 4 });
+  items.push({ text: 'What the customer chose', size: 13, bold: true, colour: NAVY, gap: 16 });
+  (lines.length ? lines : ['As quoted']).forEach(x => {
+    items.push({ text: '\u2022  ' + x, size: 11, gap: 3, indent: 6, hang: 12 });
+  });
+  items.push({ text: 'Accepted online through RoofMap. These are the customer\u2019s own picks on the quote they accepted.', size: 9, colour: GREY, gap: 22 });
+  const safe = t => String(t || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const filename = ('Customer selections - Quote ' + safe(quote.ref) + (client ? ' - ' + safe(client) : '')).slice(0, 96) + '.pdf';
+  return { buf: _pdfDocument(items), filename };
+}
+// ONE AT A TIME PER JOB: the customer's accept-email call (with the PDF), the
+// 90-second catch-up and the hourly sweep can all land on one job, and each
+// re-reads the job and claims what it does - so they queue, and the second
+// sees the first's claims instead of uploading the same page twice.
+const _fgAcceptQ = new Map();
+function _fergusOnAccept(jobId, attachment){
+  const k = String(jobId || '');
+  const prev = _fgAcceptQ.get(k) || Promise.resolve();
+  const run = prev.catch(function(){}).then(function(){ return _fergusOnAcceptNow(jobId, attachment); });
+  _fgAcceptQ.set(k, run);
+  run.finally(function(){ if (_fgAcceptQ.get(k) === run) _fgAcceptQ.delete(k); }).catch(function(){});
+  return run;
+}
+async function _fergusOnAcceptNow(jobId, attachment){
   try {
     if (!jobId) return null;
     const r = await supabase.from('jobs')
@@ -11252,23 +11821,87 @@ async function _fergusOnAccept(jobId, attachment){
     const job = r.data, quote = r.data.quote;
     const plan = ((quote || {}).share || {}).fergus;
     if (!plan || !plan.jobId) return null;              // not a Fergus-linked job
-    const sh = quote.share || {}, acc = quote.accepted || {};
-    if ((sh.status || '') !== 'accepted') return null;
-    const needDesc = !sh.fergusAcceptDescAt;
+    const sh = quote.share || {};
+    // THE ACCEPTED QUOTE, wherever it is (job 3341, 2026-11-06): a draft the
+    // office made off it sets the link back to 'sent', and the acceptance then
+    // lives in the frozen Accepted version - the same test the board's feed
+    // uses, so the two agree on whether this job is accepted.
+    let aq = quote;
+    if ((sh.status || '') !== 'accepted' || !quote.accepted){
+      const va = ((quote.versions || {}).accepted) || null;
+      const vq = va && va.quote;
+      if (!vq || !_feedKeptAcceptance({ share: sh, accepted: quote.accepted || null, vAccepted: vq.accepted, vAcceptedAt: va.at })) return null;
+      aq = Object.assign({}, vq, { share: Object.assign({}, vq.share || {}, { priced: ((vq.share || {}).priced) || (sh.priced) }) });
+    }
+    const acc = aq.accepted || {};
+    const fa = sh.fergusAccept || {};
+    const needDesc = !sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip;
     const needFile = !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
-    if (!needDesc && !needFile) return null;
+    // A Fergus upload that answered 2xx without a body we recognise may still
+    // have landed, so the selections PDF is tried at most three times - a
+    // job's files must never fill up with copies from the hourly retry.
+    const needSel = !sh.fergusAcceptSelAt && (+fa.selTries || 0) < 3;
+    const _noteOwed = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(fa) < 2;
+    if (!needDesc && !needFile && !needSel && !_noteOwed) return null;
     const fergusKey = await _fergusKeyFor({ companyId: job.company_id || null, user: { id: job.user_id } });
     if (!fergusKey) return null;
     const out = {};
+    const events = [];
     if (needDesc){
-      const summary = _fergusJobSummaryText(quote, {
+      const summary = _fergusJobSummaryText(aq, {
         full: true, total: acc.total,
-        acceptedBy: acc.name || job.client_name || quote.client || '',
+        acceptedBy: acc.name || job.client_name || aq.client || '',
         acceptedAt: acc.at ? _nzWhen(acc.at) : '',
         note: 'Accepted online through RoofMap. Accept the quote in Fergus by hand.',
       });
       out.desc = await _fergusUpdateJobDescription(fergusKey, plan.jobId, summary);
-      if (out.desc && out.desc.ok) sh.fergusAcceptDescAt = new Date().toISOString();
+      if (out.desc && out.desc.ok){ sh.fergusAcceptDescAt = new Date().toISOString(); events.push('Fergus job description updated with the customer\u2019s selections'); }
+      else if (out.desc && out.desc.notDraft){
+        // FERGUS ONLY LETS A JOB BE CHANGED WHILE IT IS A DRAFT (2026-11-06, job
+        // 3334's acceptance: PUT 400 "Job is not in draft"). An accepted job is
+        // past that, so this is a final answer, not a failure to retry or report:
+        // the selections still reach the job as the PDF in its files.
+        sh.fergusAcceptDescSkip = 'not-draft';
+        events.push('Fergus job description left as it is: Fergus only lets a draft job be changed (the selections are in the job\u2019s files)');
+      }
+      else if (fa.descFailToldV !== 2){
+        // Said once per version of the update, not every hour for a fortnight:
+        // the owner is emailed what Fergus answered, which is how the right
+        // route gets pinned (v2: the whole job on PUT, and Fergus's own words).
+        fa.descFailTold = new Date().toISOString(); fa.descFailToldV = 2;
+        try { recordError('server', new Error('Fergus job description not updated on acceptance of quote ' + (aq.ref || jobId) + ': ' +
+          ((out.desc && out.desc.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.verified === false ? ' (not changed)' : '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
+          { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
+      }
+    }
+    // The description could not be written (a job past draft): the picks go
+    // on as a note — twice at most, never a second note once one landed.
+    const needNote = !!sh.fergusAcceptDescSkip && !sh.fergusAcceptNoteAt && _noteTriesOf(fa) < 2;
+    if (needNote){
+      fa.noteTries = _noteTriesOf(fa) + 1; fa.noteV = FERGUS_NOTE_V;
+      out.note = await _fergusAddJobNote(fergusKey, plan.jobId, _selectionsNoteText(aq, acc, job.client_name || aq.client || ''));
+      if (out.note && out.note.ok){ sh.fergusAcceptNoteAt = new Date().toISOString(); events.push('Customer\u2019s selections added to the Fergus job as a note'); }
+      else if (fa.noteFailToldV !== FERGUS_NOTE_V && !(out.note && out.note.auth)){
+        fa.noteFailTold = new Date().toISOString(); fa.noteFailToldV = FERGUS_NOTE_V;
+        try { recordError('server', new Error('Fergus note not added on acceptance of quote ' + (aq.ref || jobId) + ': ' +
+          ((out.note && out.note.attempts) || []).map(a => a.path + ' ' + (a.status || a.error || '') + (a.said ? ' "' + a.said + '"' : '')).join(', ')),
+          { route: 'fergus-on-accept', company: job.company_id || '' }); } catch (e) {}
+      }
+    }
+    if (needSel){
+      fa.selTries = (+fa.selTries || 0) + 1;
+      let company = '';
+      try { const idn = await _mailIdentityOf(job.company_id || null, job.user_id); company = (idn && (idn.cname || idn.name)) || ''; } catch (e) {}
+      if (!company) { try { company = await _companyNameOf(job.company_id) || ''; } catch (e) {} }
+      const doc = _selectionsPdf(job, aq, acc, company);
+      const field = process.env.FERGUS_FILES_FIELD || 'file';
+      const et = process.env.FERGUS_ATTACH_ENTITY_TYPE || 'job';
+      const a = await _fergusAttachmentAttempt(et, plan.jobId, doc.buf, 'application/pdf', doc.filename, field, fergusKey);
+      out.sel = { ok: !!(a && a.ok), created: !!(a && a.looksCreated), status: a && a.status, name: doc.filename,
+                  error: (a && a.error) || (a && !a.ok ? String(typeof a.body === 'string' ? a.body : JSON.stringify(a.body || '')).slice(0, 200) : '') };
+      // Any 2xx counts: a second copy of the same page is worse than a body
+      // whose shape we did not recognise.
+      if (out.sel.ok){ sh.fergusAcceptSelAt = new Date().toISOString(); events.push('Customer\u2019s selections PDF added to the Fergus job\u2019s files'); }
     }
     if (needFile){
       let buf = null;
@@ -11287,12 +11920,18 @@ async function _fergusOnAccept(jobId, attachment){
     // Kept with the quote, never only in a log: "why is the description still
     // the old one" is then answered off the saved job, which is the discipline
     // the publish and mark-sent attempts already follow.
-    sh.fergusAccept = { at: new Date().toISOString(),
+    sh.fergusAccept = Object.assign(fa, { at: new Date().toISOString(),
       desc: out.desc ? { ok: !!out.desc.ok, path: out.desc.path || '', unchanged: !!out.desc.unchanged,
-                         attempts: (out.desc.attempts || []).slice(-4) } : undefined,
-      file: out.file };
+                         attempts: (out.desc.attempts || []).slice(-4) } : fa.desc,
+      file: out.file || fa.file, sel: out.sel || fa.sel,
+      note: out.note ? { ok: !!out.note.ok, path: out.note.path || '', attempts: (out.note.attempts || []).slice(-4) } : fa.note });
+    if (events.length){
+      if (!Array.isArray(sh.events)) sh.events = [];
+      events.forEach(m => sh.events.push({ type: 'fergus-accept', at: new Date().toISOString(), message: m }));
+      if (sh.events.length > 80) sh.events = sh.events.slice(-80);
+    }
     quote.share = sh;
-    if (_pgPool()) await _saveShareBack(job, sh); else await _saveQuoteBack(job, quote);
+    await _shareWriteKeys(job, quote, sh, ['fergusAccept', 'fergusAcceptDescAt', 'fergusAcceptDescSkip', 'fergusAcceptNoteAt', 'fergusAcceptSelAt', 'fergusAcceptFileAt', 'events']);
     return out;
   } catch (e) {
     try { recordError('server', new Error('fergus on-accept failed: ' + (e && e.message || e)),
@@ -12367,7 +13006,10 @@ function _pdfEscape(t){
     // so fold the few characters this report can contain and drop the rest.
     .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
     .replace(/[–—]/g, '-').replace(/…/g, '...')
-    .replace(/[^\x20-\x7e]/g, '?');
+    // Latin-1 itself is WinAnsi's own upper half (®, é, °, ×), so it is kept:
+    // "Permanent Green®" is a Colorsteel name, not a typo to fold away. The
+    // bullet is WinAnsi's 0x95.
+    .replace(/[^\x20-\x7e\xa0-\xff•]/g, '?').replace(/•/g, '\x95');
 }
 function _pdfWrap(lines){
   const out = [];
@@ -12420,6 +13062,62 @@ function _pdfFromLines(lines){
   for (let i = 1; i < count; i++){
     table += String(offsets[i] || 0).padStart(10, '0') + ' 00000 n \n';
   }
+  push(table);
+  push('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return Buffer.concat(chunks);
+}
+// A small A4 document in Helvetica: a heading and lines of their own size.
+// items: [{text, size?, bold?, gap?, colour?}] — `gap` is extra space above.
+// Wrapped on an approximate width (Helvetica averages ~0.5 em a character),
+// which is generous enough for a short page of choices.
+function _pdfDocument(items){
+  const W = 595, H = 842, M = 50, TOP = H - 56, BOTTOM = 56;
+  const pages = [[]]; let y = TOP;
+  for (const it of (items || [])){
+    const size = it.size || 11, lead = Math.round(size * 1.38);
+    const cols = Math.max(20, Math.floor((W - 2 * M - (it.indent || 0)) / (size * 0.52)));
+    const words = String(it.text == null ? '' : it.text).split(/\s+/);
+    const lines = []; let cur = '';
+    for (const w of words){ if (!cur) cur = w; else if ((cur + ' ' + w).length <= cols) cur += ' ' + w; else { lines.push(cur); cur = w; } }
+    lines.push(cur);
+    y -= (it.gap || 0);
+    lines.forEach((ln, k) => {
+      if (y - lead < BOTTOM){ pages.push([]); y = TOP; }
+      y -= lead;
+      pages[pages.length - 1].push({ x: M + (it.indent || 0) + (k && it.hang ? it.hang : 0), y, size, bold: !!it.bold, text: ln, colour: it.colour || null });
+    });
+  }
+  const objs = [];
+  const pageIds = pages.map((_, i) => 5 + i * 2);
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pages.length + ' >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+  pages.forEach((pl, i) => {
+    const id = pageIds[i];
+    objs[id] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] ' +
+               '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (id + 1) + ' 0 R >>';
+    const body = pl.map(l => (l.colour ? l.colour + ' rg ' : '0 0 0 rg ') + 'BT /' + (l.bold ? 'F2' : 'F1') + ' ' + l.size + ' Tf ' +
+      l.x + ' ' + l.y + ' Td (' + _pdfEscape(l.text) + ') Tj ET').join('\n');
+    objs[id + 1] = '<< /Length ' + Buffer.byteLength(body, 'latin1') + ' >>\nstream\n' + body + '\nendstream';
+  });
+  return _pdfSerialise(objs);
+}
+function _pdfSerialise(objs){
+  const chunks = [];
+  let len = 0;
+  const push = (str) => { const b = Buffer.from(str, 'latin1'); chunks.push(b); len += b.length; };
+  push('%PDF-1.4\n');
+  const offsets = [];
+  for (let i = 1; i < objs.length; i++){
+    if (!objs[i]) continue;
+    offsets[i] = len;
+    push(i + ' 0 obj\n' + objs[i] + '\nendobj\n');
+  }
+  const xref = len;
+  const count = objs.length;
+  let table = 'xref\n0 ' + count + '\n0000000000 65535 f \n';
+  for (let i = 1; i < count; i++) table += String(offsets[i] || 0).padStart(10, '0') + ' 00000 n \n';
   push(table);
   push('trailer\n<< /Size ' + count + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
   return Buffer.concat(chunks);
@@ -13795,6 +14493,12 @@ const _MIGRATION_SQL = [
   // the default is 'trial' — full access — and nobody loses a feature the day
   // this ships.
   "alter table public.companies add column if not exists plan text not null default 'trial'",
+  // Where the business is: 'NZ' or 'AU' (2026-11-04). Null is NZ — every
+  // business before Australia was sold — so there is no default to backfill.
+  "alter table public.companies add column if not exists country text",
+  // An Australian business's state (2026-11-07): picks the state government's
+  // own aerial imagery where that state gives one away (NSW). Null = not said.
+  "alter table public.companies add column if not exists state text",
   "create unique index if not exists idx_companies_slug on public.companies (lower(slug)) where slug is not null",
   // Per-company invitations. Replaces INVITE_COMPANY_ID, which could only ever
   // point at ONE company — so every invited person landed in that same
@@ -14899,10 +15603,11 @@ app.post('/admin/support/reply', async (req, res) => {
         const convo = mine.concat([row]).slice(-12);
         const line = function(m){ return (m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + ': ' + String(m.body || '').trim(); };
         const escH = function(v){ return String(v == null ? '' : v).replace(/[&<>"]/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+        const appBase = _publicUrlFor(lastUser.company_id ? await _companyCountry(lastUser.company_id) : await _countryOfUser(lastUser.user_id));
         const text = 'Hi' + (first ? ' ' + first : '') + ',\n\n' + 'We have replied to your message in RoofMap.\n\n' +
           'Our reply:\n' + body + '\n\n— ' + row.author + '\n\n' +
           'Your conversation so far:\n' + convo.map(line).join('\n\n') + '\n\n' +
-          'To reply, open RoofMap (' + PUBLIC_APP_URL + '/app) and click the Help bubble at the bottom right — or just reply to this email.';
+          'To reply, open RoofMap (' + appBase + '/app) and click the Help bubble at the bottom right — or just reply to this email.';
         const html = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0a1628;line-height:1.5;max-width:560px">' +
           '<p>Hi' + (first ? ' ' + escH(first) : '') + ',</p><p>We have replied to your message in RoofMap.</p>' +
           '<div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px 14px;margin:12px 0;white-space:pre-wrap">' + escH(body) +
@@ -14911,7 +15616,7 @@ app.post('/admin/support/reply', async (req, res) => {
           convo.map(function(m){ return '<div style="margin:6px 0;padding:8px 11px;border-radius:10px;white-space:pre-wrap;' +
             (m.sender === 'support' ? 'background:#f0f9ff;border:1px solid #cfe8f5' : 'background:#f1f5f9') + '"><b style="font-size:12px">' +
             escH(m.sender === 'support' ? (m.author || 'RoofMap support') : 'You') + '</b><br>' + escH(String(m.body || '').trim()) + '</div>'; }).join('') +
-          '<p style="margin-top:16px">To reply, open <a href="' + PUBLIC_APP_URL + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
+          '<p style="margin-top:16px">To reply, open <a href="' + appBase + '/app">RoofMap</a> and click the <b>Help</b> bubble at the bottom right — or just reply to this email.</p></div>';
         // FROM ROOFMAP OR NOT AT ALL (2026-10-01, the owner's: "it can never
         // come from the roofing company"): platform mail, so it is held until the
         // platform can send as support@roofmap.co.nz — the bubble pops open
@@ -15709,6 +16414,16 @@ app.listen(PORT, () => {
   // The paid-since dates of businesses that were paying before they were kept.
   const _psKick = setTimeout(function(){ _paidSinceBackfill().catch(function(e){ console.warn('[stripe] paid-since backfill: ' + e.message); }); }, 75e3);
   if (_psKick.unref) _psKick.unref();
+  // Every Stripe price gets its AUD option (AUSTRALIA, 2026-11-04). Only
+  // against the real Stripe unless AUD_PRICES_BOOT=true says otherwise, so a
+  // suite's stand-in is never written to behind its back; AUD_PRICES_BOOT=false
+  // switches it off.
+  if (process.env.STRIPE_SECRET_KEY && process.env.AUD_PRICES_BOOT !== 'false' &&
+      (process.env.AUD_PRICES_BOOT === 'true' || STRIPE_API_BASE === 'https://api.stripe.com')){
+    const _audMs = Math.max(0, parseInt(process.env.AUD_PRICES_BOOT_MS || '60000', 10) || 0);
+    const _audKick = setTimeout(function(){ _ensureAudCurrencyOptions().catch(function(e){ console.warn('[stripe] AUD prices: ' + e.message); }); }, _audMs);
+    if (_audKick.unref) _audKick.unref();
+  }
   // The accepted totals the office has corrected (ACCEPTED_TOTAL_FIXES).
   const _atKick = setTimeout(function(){ _acceptedTotalFixesOnce().catch(function(){}); }, 50e3);
   if (_atKick.unref) _atKick.unref();

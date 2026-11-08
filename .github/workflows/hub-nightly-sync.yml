@@ -19,7 +19,7 @@ on:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned 2026-11-07: ubuntu-latest became 26.04, where this Playwright cannot install Chromium
     timeout-minutes: 45   # master pulls FULL history (all jobs, all labour, Xero 2018+) — give it room
     env:
       HUB_API_URL: ${{ secrets.HUB_API_URL }}   # job-level so it can gate the step below

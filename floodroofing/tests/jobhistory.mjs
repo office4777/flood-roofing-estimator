@@ -167,28 +167,25 @@ check('the left menu reads Save job, Change job, History & Communications, Files
   v.inOrder, JSON.stringify(v));
 check('…History & Communications and Files & Photos are buttons of their own there, shown with the job',
   v.shown && /History & Communications/.test(v.txt) && /Files & Photos/.test(v.ftxt), JSON.stringify(v));
-// 2026-10-28, the owner: "change the blue buttons to a grey button, same as
-// 'locked/unlocked' and center the words", then "grey colour the save job and
-// change job too" — all five are the lock strip's grey (words on the left since 2026-10-29).
-check('…every job button is the lock strip\'s grey, words on the left',
-  v.greys.every(g => g === v.greys[4]) && !/rgb\(0, *153, *204\)/.test(v.greys[0]) &&
-  v.align.every(a => a === 'left'), JSON.stringify([v.greys, v.align]));
-// 2026-10-29, the owner: "move the wording on each button to the left side,
-// then highlight the button in the 50/50 transparent blue colour then go solid
-// blue when it's clicked, the same in the main tab buttons, do a 50/50
-// transparent navy colour, then solid when it's clicked".
+// 2026-11-06, the owner: "i really don't like the look of this left job
+// menu ... make it obvious that it's not part of the main app's tab buttons
+// ... more subtle and professional" — a white card: Save filled blue, Change
+// job outlined beside it, History / Files / the lock a white list.
+check('…Save job the one filled button, the rest quiet white, words on the left',
+  v.greys[0] === 'rgb(0, 153, 224)' && v.greys.slice(1, 4).every(g => g === 'rgb(255, 255, 255)') && v.align.every(a => a === 'left'),
+  JSON.stringify([v.greys, v.align]));
 const hv = await pg.evaluate(() => {
-  const rules = [];
-  for (const sh of document.styleSheets){ try { for (const r of sh.cssRules) if (r.selectorText) rules.push(r); } catch(e){} }
-  const find = (sel, st) => rules.some(r => r.selectorText.includes(sel) && r.style.backgroundColor.replace(/\s/g,'') === st);
-  return { jobHover: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):hover', 'rgba(0,153,204,0.5)'),
-           jobPress: find('.nav-job-btn:not(.sv-ok):not(.sv-bad):active', 'rgb(0,153,204)'),
-           tabHover: find('.nav-btn:hover', 'rgba(10,22,40,0.5)'),
+  const box = document.getElementById('navJobBox'), cs = getComputedStyle(box);
+  return { card: cs.backgroundColor === 'rgb(255, 255, 255)' && cs.borderTopStyle === 'solid',
+           grouped: !!document.querySelector('#navJobList #navJobHistBtn') && !!document.querySelector('#navJobList #navJobFilesBtn') && !!document.querySelector('#navJobList #navJobLockSide'),
+           pair: !!document.querySelector('.njb-acts #navJobSaveBtn') && !!document.querySelector('.njb-acts #navJobChangeBtn'),
+           icons: ['navJobSaveBtn','navJobChangeBtn','navJobHistBtn','navJobFilesBtn'].every(id => !!document.querySelector('#' + id + ' svg')),
+           noEmoji: !/[\u{1F4BE}\u{1F5C2}\u{1F4C1}]/u.test(box.textContent),
            classed: ['navJobSaveBtn','navJobChangeBtn','navJobHistBtn','navJobFilesBtn','navJobLockSide']
              .every(id => document.getElementById(id).classList.contains('nav-job-btn')) };
 });
-check('…half blue under the pointer, solid blue pressed; the tabs half navy under the pointer',
-  hv.jobHover && hv.jobPress && hv.tabHover && hv.classed, JSON.stringify(hv));
+check('…the job tile is a white card: Save and Change job side by side, History, Files and the lock one list, line icons not emoji',
+  hv.card && hv.grouped && hv.pair && hv.icons && hv.noEmoji && hv.classed, JSON.stringify(hv));
 // ── the history window ──
 await pg.evaluate(() => { S.currentJobId = 'j1'; _jobHistoryOpen(); });
 await pg.waitForTimeout(700);

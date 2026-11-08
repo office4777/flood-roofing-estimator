@@ -138,15 +138,48 @@ db.jobs.find(j => j.id === 'j-decoff').user_id = 'u2';
 // Fergus is reached two ways and both need a seam: the job read and the
 // description write go through httpsRequest (__TEST_HTTPS), and the attachment
 // upload uses global fetch directly, because it is multipart.
-const fergus = { desc: [], files: [], versions: [], job: { id: 'FJ-77', description: 'Customer rang about a leak.' } };
+// Fergus's own shape, read off job 3341 (2026-11-06): `description` is the
+// job's TITLE and `longDescription` is the Job Description box.
+const fergus = { desc: [], files: [], versions: [], titleTouched: 0,
+  jobs: { 'FJ-77': { id: 'FJ-77', description: 'Fergus Linked - 9 Test Road - Re-roof', longDescription: 'Customer rang about a leak.' },
+          'FJ-41': { id: 'FJ-41', description: 'Doug Rodgers - 704A State Highway 10, Oromahoe - Gutter Replacement', longDescription: 'Quote to replace guttering' } } };
+fergus.job = fergus.jobs['FJ-77'];
+// FJ-90 is Fergus as job 3334's acceptance found it (2026-11-06): no PATCH or
+// POST on a job, and PUT refuses any job that is past draft — slowly, so the
+// office email's stamp lands while the Fergus half is still waiting.
+fergus.jobs['FJ-90'] = { id: 'FJ-90', description: 'Alfred Crawford - 512 Lodore Road - Re-roof', longDescription: 'Re-roof', jobType: 'Quote', customer: { id: 5 }, siteAddress: { id: 6 } };
+fergus.puts90 = 0;
 globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
   if (!/fergus/.test(String(host))) return Promise.resolve({ status: 500, body: '{}' });
-  if (method === 'GET' && /^\/jobs\/FJ-77$/.test(path))
-    return Promise.resolve({ status: 200, body: JSON.stringify({ data: fergus.job }) });
-  if (method === 'PATCH' && /^\/jobs\/FJ-77$/.test(path)){
-    fergus.desc.push(String((body || {}).description || ''));
-    fergus.job.description = String((body || {}).description || '');
+  if (/^\/jobs\/FJ-90$/.test(String(path)) && method !== 'GET'){
+    if (method === 'PUT'){ fergus.puts90++;
+      return new Promise(r2 => setTimeout(() => r2({ status: 400, body: '{"error":"Bad Request","message":"Job is not in draft","statusCode":400}' }), 400)); }
+    return Promise.resolve({ status: 404, body: '{"message":"Route ' + method + ':/api/partner/jobs/FJ-90 not found","statusCode":404}' });
+  }
+  if (method === 'GET' && /^\/jobs\/FJ-90$/.test(String(path)))
+    return new Promise(r2 => setTimeout(() => r2({ status: 200, body: JSON.stringify({ data: fergus.jobs['FJ-90'] }) }), 150));
+  const m = String(path).match(/^\/jobs\/(FJ-77|FJ-41)$/);
+  if (method === 'GET' && m)
+    return Promise.resolve({ status: 200, body: JSON.stringify({ data: fergus.jobs[m[1]] }) });
+  if (method === 'PATCH' && m){
+    if ((body || {}).description !== undefined) fergus.titleTouched++;
+    fergus.desc.push(String((body || {}).longDescription || ''));
+    fergus.jobs[m[1]].longDescription = String((body || {}).longDescription || '');
     return Promise.resolve({ status: 200, body: '{"ok":true}' });
+  }
+  // Fergus's own answers (job 3334, 2026-11-06): /jobs/{id}/notes is a 404,
+  // and POST /notes without entityName is a 400 naming it.
+  if (method === 'POST' && /^\/jobs\/[^/]+\/notes$/.test(String(path))){
+    (fergus.noteRefused = fergus.noteRefused || []).push(String(path));
+    return Promise.resolve({ status: 404, body: JSON.stringify({ message: 'Route POST:' + path + ' not found', statusCode: 404 }) });
+  }
+  if (method === 'POST' && /^\/notes$/.test(String(path)) && !(body || {}).entityName){
+    (fergus.noteRefused = fergus.noteRefused || []).push(String(path));
+    return Promise.resolve({ status: 400, body: JSON.stringify({ error: 'Bad Request', message: "Validation Failed: [<body>: must have required property 'entityName'].", statusCode: 400 }) });
+  }
+  if (method === 'POST' && /^\/notes$/.test(String(path))){
+    (fergus.notes = fergus.notes || []).push({ path: String(path), body: body || {} });
+    return Promise.resolve({ status: 201, body: JSON.stringify({ data: { id: 'N' + fergus.notes.length } }) });
   }
   // the auto-version's quote create / list, which rides along on an accept
   if (method === 'POST' && /\/jobs\/[^/]+\/quotes$/.test(path)) fergus.versions.push(body || {});
@@ -155,7 +188,11 @@ globalThis.__TEST_HTTPS = (host, path, method, headers, body) => {
 const _realFetch = globalThis.fetch;
 globalThis.fetch = (u, o) => {
   if (String(u).indexOf('api.fergus.com') >= 0){
-    fergus.files.push({ url: String(u) });
+    const fd = o && o.body, f = fd && fd.get && fd.get('file');
+    const rec = { url: String(u), name: (f && f.name) || '', entityId: fd && fd.get && fd.get('entityId'), bytes: null };
+    fergus.files.push(rec);
+    if (f && f.arrayBuffer) return f.arrayBuffer().then(ab => { rec.bytes = Buffer.from(ab).toString('latin1');
+      return new Response(JSON.stringify({ data: { id: 'ATT-' + fergus.files.length } }), { status: 201, headers: { 'content-type': 'application/json' } }); });
     return Promise.resolve(new Response(JSON.stringify({ data: { id: 'ATT-1' } }),
       { status: 201, headers: { 'content-type': 'application/json' } }));
   }
@@ -369,9 +406,26 @@ await post('/q/tok-fg/accept-email?job=j-fg', {
   pdfBase64: Buffer.from('%PDF-1.4 accepted').toString('base64'),
   filename: 'Quote 3310 - Roofing - Fergus Linked.pdf' });
 await settle(1200);
+const _accFile = fergus.files.find(f => /^Quote 3310/.test(f.name)) || {};
+const _selFile = fergus.files.find(f => /^Customer selections/.test(f.name)) || {};
 check('the accepted quote PDF is uploaded to the Fergus job',
-  fergus.files.length === 1 && /attachments/.test(fergus.files[0].url),
-  JSON.stringify(fergus.files));
+  fergus.files.length === 2 && /attachments/.test(_accFile.url || '') && _accFile.entityId === 'FJ-77',
+  JSON.stringify(fergus.files.map(f => f.name)));
+// "can the customer selections be uploaded to the job files in a small PDF
+// showing the customer's selections?" (2026-11-06)
+const _sb = _selFile.bytes || '';
+check('…and beside it a one-page PDF of the customer\u2019s selections, named for the quote',
+  _selFile.name === 'Customer selections - Quote 3310 - Fergus Linked.pdf' && _selFile.entityId === 'FJ-77' &&
+  /^%PDF-1\.4/.test(_sb) && /%%EOF\s*$/.test(_sb) && /\/Count 1 /.test(_sb),
+  JSON.stringify({ name: _selFile.name, head: _sb.slice(0, 12) }));
+check('…listing what they chose and who accepted it, NO PRICE anywhere (the owner, 2026-11-06) — ® and all',
+  /\(Customer selections\)/.test(_sb) && /Quote 3310/.test(_sb) && /Steel grade: Colorsteel\xae? ?MAXAM/.test(_sb) &&
+  /Guttering: 125mm Colorsteel box gutter/.test(_sb) && /Extra \\\(included\\\): Coloured downpipes\)/.test(_sb) &&
+  !/\$|incl\. GST|Accepted total/.test(_sb) && /Accepted by Fergus Linked/.test(_sb) && !/\?MAXAM|Colorsteel\?/.test(_sb),
+  (_sb.match(/\(([^)]*)\) Tj/g) || []).join(' ').slice(0, 900));
+check('…and the share records both, so neither is uploaded twice',
+  !!shareOf('j-fg').fergusAcceptSelAt && (shareOf('j-fg').fergusAccept || {}).sel && shareOf('j-fg').fergusAccept.sel.ok === true,
+  JSON.stringify(shareOf('j-fg').fergusAccept || {}));
 check('…and the share records it, so it cannot be uploaded twice',
   !!shareOf('j-fg').fergusAcceptFileAt, JSON.stringify(shareOf('j-fg').fergusAccept || {}));
 const desc = fergus.desc[fergus.desc.length - 1] || '';
@@ -390,6 +444,10 @@ check('…with the total and who accepted it, above RoofMap\u2019s own marked bl
 check('and the customer\u2019s own words are kept, not overwritten',
   desc.indexOf('Customer rang about a leak.') < desc.indexOf('Steel grade'),
   desc.slice(0, 120));
+check('it is written to the Job Description (longDescription) and the job\u2019s TITLE is never touched',
+  fergus.titleTouched === 0 && fergus.jobs['FJ-77'].description === 'Fergus Linked - 9 Test Road - Re-roof' &&
+  /RoofMap quote summary/.test(fergus.jobs['FJ-77'].longDescription),
+  JSON.stringify({ touched: fergus.titleTouched, title: fergus.jobs['FJ-77'].description }));
 
 // Done once. A second pass must not write it again or attach a second copy.
 fergus.files.length = 0; const _descWas = fergus.desc.length;
@@ -458,6 +516,89 @@ check('…and Fergus gets a new accepted version at the ACCEPTED price, MagnaFlo
 
 await post('/admin/accepted-pick-fixes/run?token=ce-test-token', {});
 check('…and never again once Fergus carries the accepted price', fergus.versions.length === 1, String(fergus.versions.length));
+// ── AN ACCEPTANCE KEPT UNDER A DRAFT STILL REACHES FERGUS (job 3341) ──────
+// The office opened a draft off the accepted quote, which set the link back to
+// 'sent'; the acceptance lives in the frozen Accepted version, and the hourly
+// sweep writes the Fergus job's description and its selections PDF from it.
+{
+  const accQ = { ref: '3341', client: 'Doug Rodgers', quoteKind: 'gutters',
+    proposalOptions: { gutterType: 'box125', downpipes: 'no', gutterColour: 'Permanent Green\u00ae' },
+    accepted: { name: 'Doug Rodgers', total: 8964.62, at: ago(0.2) } };
+  const q41 = quote({ ref: '3341', client: 'Doug Rodgers', addr: '704A State Highway 10, Oromahoe', quoteKind: 'gutters',
+    proposalOptions: { gutterType: 'box125' },
+    share: { token: 'tok-41', status: 'sent', sentAt: ago(1), acceptedAt: ago(0.2), acceptOfficeAt: ago(0.2), sentTo: 'doug@example.com', events: [],
+             fergus: { jobId: 'FJ-41', rev: 7, title: 'Quote 3341' } },
+    versions: { accepted: { id: 'vA41', at: ago(0.2), label: 'Accepted quote', total: 8964.62, quote: accQ } } });
+  db.jobs.push(job('j-41', q41));
+  fergus.files.length = 0; fergus.desc.length = 0;
+  await post('/admin/office-owed/run?token=ce-test-token', {});
+  await settle(1500);
+  const f41 = fergus.files.find(f => /Quote 3341/.test(f.name)) || {};
+  const d41 = fergus.jobs['FJ-41'].longDescription;
+  check('a draft made off an accepted quote (3341): the sweep still writes the Fergus Job Description from the accepted version',
+    /RoofMap quote summary/.test(d41) && /^Quote to replace guttering/.test(d41) && /Guttering: 125mm Colorsteel box gutter/.test(d41) &&
+    /Downpipes: Not included/.test(d41) && /Gutter colour: Permanent Green/.test(d41) && /\$8,964\.62/.test(d41) &&
+    fergus.jobs['FJ-41'].description === 'Doug Rodgers - 704A State Highway 10, Oromahoe - Gutter Replacement',
+    d41.slice(0, 600));
+  check('…and uploads the selections PDF to its files',
+    f41.name === 'Customer selections - Quote 3341 - Doug Rodgers.pdf' && f41.entityId === 'FJ-41' &&
+    /Gutter colour: Permanent Green\xae/.test(f41.bytes || ''),
+    JSON.stringify(fergus.files.map(f => f.name)));
+  check('…and does neither again on the next sweep',
+    (await (async () => { const n = fergus.files.length, d = fergus.desc.length;
+      await post('/admin/office-owed/run?token=ce-test-token', {}); await settle(1200);
+      return fergus.files.length === n && fergus.desc.length === d; })()), String(fergus.files.length));
+  // the office's still-sent link is not touched: the draft is the office's
+  check('…without marking the draft accepted or emailing anyone',
+    shareOf('j-41').status === 'sent' && !sent.some(m => /3341/.test(m.subject || '')), JSON.stringify({ st: shareOf('j-41').status }));
+}
+// ── THE OFFICE IS TOLD ONCE, AND FERGUS'S "NOT IN DRAFT" IS FINAL (job 3349,
+// 2026-11-06: "i keep getting this email of the job getting accepted") ─────
+// The Fergus half read the share before the office email's stamp landed and
+// wrote its copy back without it, so every hourly sweep emailed the office
+// again. And Fergus refuses to change a job past draft, which is not a fault.
+{
+  const q49 = quote({ ref: '3349', client: 'Alfred Crawford', addr: '512 Lodore Road, Okaihau',
+    accepted: { name: 'Alfred Crawford', total: 33177.5, at: ago(0.1) },
+    share: { token: 'tok-49', status: 'accepted', sentAt: ago(1), acceptedAt: ago(0.1), sentTo: 'alfred@example.com', events: [],
+             fergus: { jobId: 'FJ-90', rev: 3, title: 'Quote 3349' } } });
+  db.jobs.push(job('j-49', q49));
+  const before = sent.filter(m => /Quote accepted — 3349/.test(m.subject || '')).length;
+  for (let i = 0; i < 3; i++){ await post('/admin/office-owed/run?token=ce-test-token', {}); await settle(1500); }
+  const n49 = sent.filter(m => /Quote accepted — 3349/.test(m.subject || '')).length - before;
+  const sh49 = shareOf('j-49');
+  check('JOB 3349: three hourly sweeps tell the office ONCE (the Fergus write no longer wipes the stamp)',
+    n49 === 1 && !!sh49.acceptOfficeAt, JSON.stringify({ n49, at: sh49.acceptOfficeAt }));
+  check('…Fergus\'s "Job is not in draft" is taken as final: no more PUTs, nothing reported',
+    sh49.fergusAcceptDescSkip === 'not-draft' && fergus.puts90 === 1 && !((sh49.fergusAccept || {}).descFailToldV),
+    JSON.stringify({ skip: sh49.fergusAcceptDescSkip, puts: fergus.puts90, fa: sh49.fergusAccept }));
+  const pdf49 = fergus.files.find(f => /Quote 3349/.test(f.name) && f.entityId === 'FJ-90') || {};
+  check('…and the selections PDF still goes into the job\'s files — WITHOUT a price ("i don\'t want it to show the price")',
+    !!pdf49.name && !/\$\s?[\d,]+|Accepted total/.test(pdf49.bytes || ''), JSON.stringify(fergus.files.map(f => f.name)));
+  const notes49 = (fergus.notes || []).filter(n => /FJ-90/.test(n.path) || (n.body || {}).entityId === 'FJ-90');
+  const nt = notes49.length ? (notes49[0].body.text || notes49[0].body.note || '') : '';
+  check('…and the selections go on the Fergus job as ONE note instead (no price), never again on the next sweeps',
+    notes49.length === 1 && /customer selections, quote 3349/.test(nt) && !/\$/.test(nt) && !!shareOf('j-49').fergusAcceptNoteAt,
+    JSON.stringify({ n: notes49.length, nt: nt.slice(0, 200) }));
+  check('…by POST /notes NAMING the job (Fergus: "must have required property \'entityName\'")',
+    notes49.length === 1 && notes49[0].path === '/notes' && notes49[0].body.entityName === 'job',
+    JSON.stringify(notes49[0] && notes49[0].body && { entityName: notes49[0].body.entityName, path: notes49[0].path }));
+  // JOB 3334's shape: its two tries went on the old shapes (no version mark),
+  // Fergus refused both. The new shapes get two tries of their own.
+  const q34 = quote({ ref: '3334', client: 'Aidan Test', addr: '1 Kerikeri Road',
+    accepted: { name: 'Aidan Test', total: 34231.35, at: ago(0.2) },
+    share: { token: 'tok-34n', status: 'accepted', sentAt: ago(1), acceptedAt: ago(0.2), sentTo: 'aidan@example.com', events: [],
+             acceptOfficeAt: ago(0.15), fergusAcceptDescSkip: 'not-draft', fergusAcceptSelAt: ago(0.1),
+             fergusAccept: { noteTries: 2, noteFailTold: ago(0.1) },
+             fergus: { jobId: 'FJ-34', rev: 2, title: 'Quote 3334' } } });
+  db.jobs.push(job('j-34n', q34));
+  for (let i = 0; i < 2; i++){ await post('/admin/office-owed/run?token=ce-test-token', {}); await settle(1500); }
+  const notes34 = (fergus.notes || []).filter(n => (n.body || {}).entityId === 'FJ-34');
+  const sh34 = shareOf('j-34n');
+  check('JOB 3334: tries spent on the old note shapes do not stop the new one — ONE note, claimed',
+    notes34.length === 1 && !!sh34.fergusAcceptNoteAt && (sh34.fergusAccept || {}).noteV === 2,
+    JSON.stringify({ n: notes34.length, at: sh34.fergusAcceptNoteAt, fa: sh34.fergusAccept }));
+}
 await new Promise(r2 => relay.close(r2));
 const bad = results.filter(x => !x).length;
 console.log('\n' + (results.length - bad) + '/' + results.length + ' passed');

@@ -46,7 +46,10 @@ const db = {
   ],
   user_settings: [{ user_id: 'u-aron', company_id: 'c1',
     branding: { company_name: 'Flood Roofing LTD', email: 'office@floodroofing.co.nz' },
-    quote_defaults: {}, jms_keys: {}, price_book: {}, labour_pricing: {},
+    // Flood Roofing runs Fergus: its own checklist (names, "Accept in Fergus") is
+    // the list for a business with a Fergus key. One without gets the generic
+    // list — tests/nofergus.mjs.
+    quote_defaults: {}, jms_keys: { fergus: 'fergPAT_test' }, price_book: {}, labour_pricing: {},
     invoicing: {}, updated_at: now }],
   jobs: [ mkJob('j-3206', 'tok3206'),
           // No client name — nothing to click on a board row, so it must not

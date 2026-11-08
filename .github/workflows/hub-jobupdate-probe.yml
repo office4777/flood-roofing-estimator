@@ -1,0 +1,29 @@
+name: Hub Fergus job-update probe
+
+# On demand: which route lets RoofMap change a Fergus job's description, and which field the "Job
+# Description" is. Writes nothing (every update body fails validation on purpose).
+
+on:
+  workflow_dispatch:
+    inputs:
+      job_no:
+        description: 'Fergus job number to read'
+        required: false
+        default: '3341'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Probe Fergus job update
+        working-directory: floodroofing/hub-api
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+          PROXY_SECRET: ${{ secrets.PROXY_SECRET }}
+          JOB_NO: ${{ github.event.inputs.job_no }}
+        run: node scripts/fergus-jobupdate-probe.js
