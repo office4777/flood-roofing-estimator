@@ -5347,7 +5347,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T22:57:07Z';
+  window.APP_BUILT_AT = '2026-11-08T23:00:15Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -72930,6 +72930,16 @@ function _jpRenderFlashingCell(box, bi){
 // library entry that mentions the parent type.
 function _jpResolveDefaultDrawing(flashingType){
   var direct = _matSavedFlashingsFor(flashingType);
+  // THE ROOF'S OWN PROFILE FIRST, AND THE STANDARD ONE OF IT (2026-11-08, the
+  // owner: "for the 5-rib roofing ... the standard apron for 5-rib it was
+  // populating was actually for a corrugated roof. We've just made a dedicated
+  // 5-rib ... standard apron 5-rib ... make that the ... default apron for
+  // 5-rib"). A drawing set to exactly this profile beats one set to "any", and
+  // a "Standard …" one beats the rest; the built-ins still lead on a tie.
+  var _prof0 = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var _rankD = function(r){ var e = r.entry || {}; return ((e.profile || 'any') === _prof0 ? 0 : 2) + (/\bstandard\b/i.test(e.name || '') ? 0 : 1); };
+  if (direct && direct.length > 1) direct = direct.map(function(r, i){ return { r: r, i: i }; })
+    .sort(function(a, b){ return _rankD(a.r) - _rankD(b.r) || a.i - b.i; }).map(function(x){ return x.r; });
   if (direct && direct.length){
     // The Materials picker lets the office choose WHICH saved drawing this
     // type uses, and that choice must follow onto the job pack card. The
@@ -72970,6 +72980,21 @@ function _jpResolveDefaultDrawing(flashingType){
     return t.indexOf(parent + '|') === 0 && (p === 'any' || p === profile);
   });
   if (hit) return { entry: hit };
+  // Pass 2b — a drawing made for THIS profile whose NAME says what it is
+  // ("Standard Apron 5-Rib" saved with its Type left as Custom), the
+  // "Standard …" one first. Before this a 5-Rib roof fell straight to the
+  // profile-blind pass and got the corrugate apron.
+  if (profile !== 'any'){
+    var named = all.filter(function(e){
+      if ((e.profile || 'any') !== profile) return false;
+      var n = (e.name || '').toLowerCase();
+      if (n.indexOf(parent) < 0) return false;
+      if (/penetration|chimney|back ?tray|box/.test(n)) return false;   // a penetration's apron is not the wall apron
+      var other = { side:'head', head:'side' }[sub];
+      return !(other && n.indexOf(other) >= 0 && n.indexOf(sub) < 0);
+    }).sort(function(a, b){ return (/\bstandard\b/i.test(b.name || '') ? 1 : 0) - (/\bstandard\b/i.test(a.name || '') ? 1 : 0); });
+    if (named.length) return { entry: named[0] };
+  }
   // Pass 3 — profile-agnostic prefix match (last resort).
   hit = all.find(function(e){
     var t = (e.flashingType || 'custom') + '';
