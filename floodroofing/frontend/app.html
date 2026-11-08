@@ -5347,7 +5347,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T23:00:36Z';
+  window.APP_BUILT_AT = '2026-11-08T23:31:09Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -69402,12 +69402,42 @@ function _flashCollectLabelled() {
   var seenLetters = {};
   // First pass: collect, applying overrides where present.
   var roofs = (DRAW.roofs && DRAW.roofs.length) ? DRAW.roofs : null;
+  // AN EDIT FOLLOWS ITS LINE (2026-11-08, the owner: "even if I ... move a
+  // corner or adjust anything ... my custom saved edits should still be there
+  // and they should never change"). An override is keyed by the line's end
+  // points, so moving a corner left it on a key no line has. Each line with
+  // no override of its own takes the nearest such orphan of its own type
+  // (midpoint within about a third of its length, 40 px at least), and the
+  // override moves to the line's new key.
+  var _ovOrphans = null;
+  var _ovMid = function(k){ var m = /^[^|]*\|(-?\d+),(-?\d+)\|(-?\d+),(-?\d+)$/.exec(k); return m ? [(+m[1] + +m[3]) / 2, (+m[2] + +m[4]) / 2, Math.hypot(m[3]-m[1], m[4]-m[2])] : null; };
+  var _ovFollow = function(l, key){
+    if (_ovOrphans === null){
+      _ovOrphans = [];
+      var live = {};
+      var _all = roofs ? roofs.map(function(r, i){ return i === DRAW.activeRoofIdx ? DRAW.lines : r.lines; }) : [DRAW.lines];
+      _all.forEach(function(ls){ (ls || []).forEach(function(x){ var kk = _flashLineKey(x); if (kk) live[kk] = 1; }); });
+      Object.keys(ovs).forEach(function(k){ if (!live[k] && ovs[k] && Object.keys(ovs[k]).length){ var mm = _ovMid(k); if (mm) _ovOrphans.push({ k: k, t: k.split('|')[0], m: mm }); } });
+    }
+    if (!_ovOrphans.length) return null;
+    var me = _ovMid(key); if (!me) return null;
+    var best = null, bd = Infinity, lim = Math.max(40, me[2] * 0.35);
+    _ovOrphans.forEach(function(o){
+      if (o.used || o.t !== (l.type || '?')) return;
+      var d = Math.hypot(o.m[0] - me[0], o.m[1] - me[1]);
+      if (d <= lim && d < bd){ bd = d; best = o; }
+    });
+    if (!best) return null;
+    best.used = true;
+    ovs[key] = ovs[best.k]; delete ovs[best.k];
+    return ovs[key];
+  };
   function processRoof(roofIdx, outline, lines) {
     (lines || []).forEach(function(l){
       if (!_flashLineEligible(l, includeGutters)) return;
       var key = _flashLineKey(l);
       if (!key) return;
-      var ov  = ovs[key] || {};
+      var ov  = ovs[key] || _ovFollow(l, key) || {};
       // Honour the `hidden` flag for every flashing type — including
       // ridges + hips. The user explicitly asked to be able to delete
       // any reference measure (letter+number tag) from the materials
@@ -72891,12 +72921,12 @@ function _jpRenderFlashingCell(box, bi){
     var letterInput, lenInput, qtyCell, deleteCell;
     if (isExtra){
       letterInput = '<input type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'letter\',this.value)" style="width:30px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'font-style:italic">';
-      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      lenInput    = '<input type="number" step="0.1" min="0.1" value="'+_clLenShow(r.length)+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'length\',this.value)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
       qtyCell     = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" onchange="_matExtrasUpdate(\''+esc(spec.key)+'\','+extraIdx+',\'qty\',this.value)" style="width:34px;border:none;background:transparent;text-align:right;padding:0;'+_fs+'font-weight:700">';
       deleteCell  = '<button class="pdf-hide" onclick="_matExtrasDelete(\''+esc(spec.key)+'\','+extraIdx+')" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     } else {
       letterInput = '<input data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" onfocus="this.select()" onchange="_matInlineSetLetter(this)" style="width:30px;border:none;background:transparent;font-weight:700;color:#0a1628;padding:0;'+_fs+'">';
-      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
+      lenInput    = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+_clLenShow(r.length)+'" onfocus="this.select()" onchange="_matInlineSetLength(this)" style="width:52px;border:none;background:transparent;text-align:left;padding:0;'+_fs+'font-weight:700">';
       qtyCell     = '<span style="'+_fs+'font-weight:700">'+r.qty+'</span>';
       deleteCell  = '<button class="pdf-hide" onclick="_matInlineDelete(this)" data-cl-row="'+rowKey+'" title="Delete row" style="background:none;border:none;color:#b91c1c;font-size:14px;cursor:pointer;padding:0 2px;font-weight:700">×</button>';
     }
@@ -73403,8 +73433,20 @@ function _jpSheetFreeze(){
   var rows = [];
   var scS = _jpSheetCountsInScope();
   try { rows = _jpBuildSheetRows(scS); } catch(e){ rows = []; }
+  // autoQty is the CALCULATED count, read with no typed quantity applied.
+  // It was taken from the rows above, which already carry the quantity being
+  // typed (the setter writes it before the list freezes), so a typed 61 was
+  // recorded as the calculated figure — and the next roof change, which keeps
+  // a quantity only where qty differs from autoQty, put 50 back over it
+  // (2026-11-08, the owner: "even if I ... move a corner ... my custom saved
+  // edits should still be there").
+  var autoBy = {};
+  var _qo = DRAW.sheetGroupQtyOverrides;
+  try { DRAW.sheetGroupQtyOverrides = {}; _jpBuildSheetRows(scS).forEach(function(r){ autoBy[r.origLen] = r.qty; }); }
+  catch(e){} finally { DRAW.sheetGroupQtyOverrides = _qo; }
   DRAW.matSheetFrozen = { sig: _jpSheetSig(scS),
-    rows: rows.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty, autoQty: r.qty }; }) };
+    rows: rows.map(function(r){ return { origLen: r.origLen, len: r.len, qty: r.qty,
+      autoQty: (autoBy[r.origLen] != null) ? autoBy[r.origLen] : r.qty }; }) };
   return DRAW.matSheetFrozen;
 }
 function _jpSheetUnfreeze(){
@@ -75258,12 +75300,12 @@ function _matCutListTable(cl, emptyMsg, noFoot) {
       var idx = r._extraIdx;
       qtyHtml = '<input type="number" step="1" min="1" value="'+r.qty+'" onfocus="this.select()" '+
         'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+idx+',\'qty\',this.value)">';
-      lenHtml = '<input type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" onfocus="this.select()" '+
+      lenHtml = '<input type="number" step="0.1" min="0.1" value="'+_clLenShow(r.length)+'" onfocus="this.select()" '+
         'onchange="_matExtrasUpdate(\''+esc(typeKey)+'\','+idx+',\'length\',this.value)">';
       delBtn  = '<button class="mat-list-del" onclick="_matExtrasDelete(\''+esc(typeKey)+'\','+idx+')" title="Delete row">×</button>';
     } else {
       qtyHtml = '<span style="font-weight:700;font-variant-numeric:tabular-nums">'+r.qty+'</span>';
-      lenHtml = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+      lenHtml = '<input data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+_clLenShow(r.length)+'" '+
         'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)">';
       delBtn  = '<button class="mat-list-del" data-cl-row="'+rowKey+'" onclick="_matInlineDelete(this)" title="Delete row">×</button>';
     }
@@ -75368,7 +75410,7 @@ function _matCutListTableWithCost(cl, emptyMsg, rate) {
     var letterInput = '<input class="cl-letter" data-cl-row="'+rowKey+'" type="text" maxlength="3" value="'+esc(lbl)+'" '+
       'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLetter(this)" '+
       'style="width:42px;border:1px solid transparent;background:transparent;font-weight:600;color:#0a1628;padding:2px 4px;border-radius:4px;font-size:inherit">';
-    var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+r.length.toFixed(1)+'" '+
+    var lenInput = '<input class="cl-length" data-cl-row="'+rowKey+'" type="number" step="0.1" min="0.1" value="'+_clLenShow(r.length)+'" '+
       'onfocus="this.select()" onkeydown="_matInlineKey(event,this)" onchange="_matInlineSetLength(this)" '+
       'style="width:62px;border:1px solid transparent;background:transparent;text-align:right;padding:2px 4px;border-radius:4px;font-size:inherit">';
     html += '<tr>'+
@@ -75398,7 +75440,13 @@ function _matInlineMatchesFor(rowKey){
   var labelled = (typeof _flashCollectLabelled === 'function') ? _flashCollectLabelled() : [];
   return labelled.filter(function(o){
     if (!_matLineMatchesSection(o.line, type)) return false;
-    var sameLetter = (letter || '') === (o.letter || '');
+    // A row with no letter is a group of lines of one length (four hips
+    // at 6.9 m on one row): it is every line in the group, whatever letter
+    // the map gives each. Matching the blank against "A" found nothing, so
+    // a typed length, a letter and the row's x were silently dropped and
+    // the next render put the calculated figure back (2026-11-08, the
+    // owner: "my custom edits have disappeared and it's reverted back").
+    var sameLetter = !letter || letter === (o.letter || '');
     var sameLen = Math.abs(+o.lengthM - lenNum) < 0.05;
     return sameLetter && sameLen;
   });
@@ -75427,6 +75475,9 @@ function _matInlineSetLetter(inp){
   _flashRefreshAfterEdit();
 }
 
+// A cut-list length shows as typed: 7.75 stays 7.75 (it read 7.8 once the
+// card re-rendered, which looks like the edit was changed), 6.90 reads 6.9.
+function _clLenShow(v){ var n = +v || 0; var t = n.toFixed(2); return /\.\d0$/.test(t) ? n.toFixed(1) : t; }
 function _matInlineSetLength(inp){
   var rowKey = inp.getAttribute('data-cl-row');
   var n = parseFloat(inp.value);

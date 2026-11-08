@@ -28,6 +28,14 @@ async function open(companyName, extraBranding){
   const pg = await ctx.newPage();
   pg.on('pageerror', e => errs.push(e.message));
   pg.on('dialog', d => d.accept());
+  // NOTHING LEAVES THE MACHINE (2026-11-08). The suite hung to run.mjs's 600 s
+  // limit on two CI runs in a day and never once locally (four at a time, 95 s
+  // each): the cloud container's proxy refuses a CDN at once, a CI runner
+  // really fetches it, and a page waiting on a slow cdnjs / font / tile host
+  // waits for ever. Every third-party request is refused here as it is there.
+  // Registered FIRST — Playwright tries the most recent route first, so the
+  // API stub below still answers its own host.
+  await pg.route(/^https?:\/\//, r => r.abort());
   await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
     const u = r.request().url();
     const j = x => r.fulfill({ status:200, contentType:'application/json', body: JSON.stringify(x) });
