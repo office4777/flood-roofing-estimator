@@ -4198,6 +4198,16 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .qb-incl-row{ display:flex; gap:10px; align-items:flex-start; padding:10px 13px; border-bottom:1px solid #eef2f6; font-size:13.5px; line-height:1.4; color:#26374b; }
 .qb-incl-row:last-child{ border-bottom:none; }
 .qb-incl-row svg{ color:#2e9e57; flex:0 0 auto; margin-top:2px; }
+.flib-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.flib-chip{ padding:9px 16px; border:2px solid var(--border,#d6dde6); border-radius:10px; background:#fff; color:#0a1628; font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
+.flib-chip:hover{ border-color:#0099e0; }
+.flib-chip.on{ background:#0099e0; border-color:#0099e0; color:#fff; }
+.flib-chip-n{ display:inline-block; min-width:20px; margin-left:4px; padding:1px 6px; border-radius:9px; background:#e0f2fe; color:#075985; font-size:11px; font-weight:700; text-align:center; }
+.flib-chip.on .flib-chip-n{ background:rgba(255,255,255,.25); color:#fff; }
+.flib-sec{ margin:0 0 18px; border:1px solid var(--border,#d6dde6); border-radius:12px; overflow:hidden; background:#fff; }
+.flib-sec-hd{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 16px; background:#0a1628; color:#fff; font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; }
+.flib-sec-n{ font-size:11px; font-weight:600; letter-spacing:0; text-transform:none; color:rgba(255,255,255,.7); }
+.flib-sec-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; padding:14px; }
 .qb-incl-hd{ font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; font-weight:700; color:#2e9e57; margin:0 0 6px 2px; }
 .qb-excl-hd{ color:#c0392b; margin-top:4px; }
 .qb-excl-row svg{ color:#c0392b; }
@@ -5335,7 +5345,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-07T03:01:18Z';
+  window.APP_BUILT_AT = '2026-11-08T22:56:23Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -10086,9 +10096,10 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Saved flashing drawings — Job Pack shows the matching ones for the selected roof profile. Each saved flashing is one cross-section sketch you can re-use across jobs.</p>
       <!-- Filters + new button -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-        <div style="min-width:180px">
-          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;display:block">Filter — Profile</label>
-          <select id="flibFilterProfile" onchange="renderFlashingLibrary()" style="margin:0">
+        <div style="flex:1 1 100%">
+          <label style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;display:block">Roof profile</label>
+          <div id="flibProfileChips" class="flib-chips"></div>
+          <select id="flibFilterProfile" onchange="renderFlashingLibrary()" style="display:none">
             <option value="">All profiles</option>
             <option value="Corrugate">Corrugate</option>
             <option value="5-Rib">5-Rib</option>
@@ -51682,6 +51693,7 @@ function renderFlashingLibrary() {
   var ftEl = document.getElementById('flibFilterType');
   var fProfile = fpEl ? fpEl.value : '';
   var fType    = ftEl ? ftEl.value : '';
+  try { _flibChipsRender(combined.filter(function(r){ return !fType || (r.entry.flashingType || 'custom') === fType; }), fProfile); } catch(e){}
   var rows = combined.filter(function(r){
     if (fProfile && (r.entry.profile || 'any') !== fProfile) return false;
     if (fType    && (r.entry.flashingType || 'custom') !== fType) return false;
@@ -51702,8 +51714,52 @@ function renderFlashingLibrary() {
                      'changepitch':'Change-of-pitch', 'valley':'Valley',
                      'ridgehip':'Ridge / Hip', 'gutter':'Gutter',
                      'drip':'Drip edge', 'custom':'Custom' };
-  grid.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">'+
-    rows.map(function(r){
+  // ONE SECTION PER ROOF PROFILE (2026-11-08, the owner: "separate the
+  // corrugate and the 5-rib flashing so it's easier to quickly pick the
+  // correct flashing for the correct roof profile"): Corrugate, then 5-Rib,
+  // then any other profile, then the ones that fit any profile — each its own
+  // banded section, the cards in the flashing-type order; the profile buttons
+  // over them show one section at a time (All shows every section).
+  var typeOrder = ['ridgehip','barge|side','barge|starter','barge|finish','barge|head','barge','apron|side','apron|head','apron','valley','changepitch','gutter','drip','custom'];
+  var tRank = function(t){ var i = typeOrder.indexOf(t || 'custom'); return i < 0 ? typeOrder.length : i; };
+  var groups = {};
+  rows.forEach(function(r){ var pk = r.entry.profile || 'any'; (groups[pk] = groups[pk] || []).push(r); });
+  var keys = _flibProfileOrder(Object.keys(groups));
+  grid.innerHTML = keys.map(function(pk){
+    var list = groups[pk].slice().sort(function(a, b){ return tRank(a.entry.flashingType) - tRank(b.entry.flashingType) || String(a.entry.name || '').localeCompare(String(b.entry.name || '')); });
+    return '<div class="flib-sec" data-flib-profile="'+esc(pk)+'">'+
+      '<div class="flib-sec-hd"><span>'+esc(_flibProfileLabel(pk))+'</span><span class="flib-sec-n">'+list.length+' flashing'+(list.length === 1 ? '' : 's')+'</span></div>'+
+      '<div class="flib-sec-grid">'+list.map(function(r){ return _flibCardHtml(r, typeLabels); }).join('')+'</div>'+
+    '</div>';
+  }).join('');
+}
+// The profile buttons over the library: All, then every profile the library
+// holds in the section order, each with its count.
+function _flibProfileOrder(keys){
+  var lead = ['Corrugate', '5-Rib'];
+  var rest = keys.filter(function(k){ return lead.indexOf(k) < 0 && k !== 'any'; }).sort();
+  return lead.filter(function(k){ return keys.indexOf(k) >= 0; }).concat(rest, keys.indexOf('any') >= 0 ? ['any'] : []);
+}
+function _flibProfileLabel(pk){ return pk === 'any' ? 'Any profile' : pk; }
+function _flibChipsRender(all, cur){
+  var host = document.getElementById('flibProfileChips'); if (!host) return;
+  var counts = {};
+  all.forEach(function(r){ var pk = r.entry.profile || 'any'; counts[pk] = (counts[pk] || 0) + 1; });
+  ['Corrugate', '5-Rib'].forEach(function(k){ if (!counts[k]) counts[k] = 0; });
+  var chip = function(val, label, n){
+    return '<button type="button" class="flib-chip'+(cur === val ? ' on' : '')+'" onclick="_flibPickProfile(\''+esc(val).replace(/'/g, "\\'")+'\')">'+esc(label)+
+      (n != null ? ' <span class="flib-chip-n">'+n+'</span>' : '')+'</button>';
+  };
+  host.innerHTML = chip('', 'All', all.length) + _flibProfileOrder(Object.keys(counts)).map(function(k){ return chip(k, _flibProfileLabel(k), counts[k]); }).join('');
+}
+function _flibPickProfile(v){
+  var sel = document.getElementById('flibFilterProfile'); if (!sel) return;
+  if (v && !Array.prototype.some.call(sel.options, function(o){ return o.value === v; })){
+    var o = document.createElement('option'); o.value = v; o.textContent = v; sel.appendChild(o);
+  }
+  sel.value = v; renderFlashingLibrary();
+}
+function _flibCardHtml(r, typeLabels){
       var e = r.entry;
       var thumb = e.sketch
         ? '<img src="'+e.sketch+'" alt="" style="width:100%;height:110px;object-fit:contain;background:#fff;border-bottom:1px solid var(--border);display:block">'
@@ -51754,7 +51810,6 @@ function renderFlashingLibrary() {
           '</div>'+
         '</div>'+
       '</div>';
-    }).join('') + '</div>';
 }
 
 // Snapshot a flashing entry into the user's library under a NEW name
