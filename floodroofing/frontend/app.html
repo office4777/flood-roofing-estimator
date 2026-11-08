@@ -4726,6 +4726,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 .qd-sec-proposal{ display:block; }
 .qd-sec-proposal .qb-plan{ border-top:none; border-left:none; border-bottom:1px solid #e6ebf1; padding:24px 28px 22px; }
 .qd-sec-proposal .qb-plan .qp-roofmap{ max-height:none; }
+.qd-incl-grid{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 24px; align-items:start; }
+.qd-incl-col > .qb-incl-hd:first-child{ margin-top:0; }
 /* related choices side by side */
 .qd-sec-hd{ padding-bottom:0 !important; }
 .qd-sec-hd .qb-para{ margin-bottom:6px; }
@@ -4788,7 +4790,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   .qd-mini-total b{ display:block; font-size:20px; font-weight:800; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
   .qd-mini button{ flex:0 0 auto; padding:11px 18px; border:none; border-radius:10px; background:#0099e0; color:#fff; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; }
   .qd-mini-done{ flex:0 0 auto; font-size:13px; font-weight:700; color:#6ee7a8; }
-  .qd-sec-proposal, .qd-grid3, .qd-grid2, .qd-cover-body{ grid-template-columns:minmax(0,1fr); }
+  .qd-sec-proposal, .qd-grid3, .qd-grid2, .qd-cover-body, .qd-incl-grid{ grid-template-columns:minmax(0,1fr); }
   .qd-cell + .qd-cell{ border-left:none; border-top:1px solid #e6ebf1; }
   .qd .qb-swatches{ grid-template-columns:repeat(4,1fr); }
   .qd-photo-grid{ grid-template-columns:repeat(2,1fr); }
@@ -5335,7 +5337,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T22:33:08Z';
+  window.APP_BUILT_AT = '2026-11-08T22:40:02Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -35697,19 +35699,27 @@ function _qbProposal(opts){
   // the markup, not moved by CSS `order` — the PDF capture lays a flex order
   // out wrongly. The phone book keeps the words first, the plan under them.
   var planHtml = roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '';
+  var sideBySide = !!opts.desk && (excl.length > 0 || notes.length > 0);
   return (opts.desk ? planHtml : '')+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">What we will do</span>'+
       '<h2 class="qb-h2" id="qbPropTitle">'+esc2(_qbProposalTitle())+'</h2>'+
       _qeInlineBtn('desc')+
+      // ON A COMPUTER THE LISTS SIT SIDE BY SIDE (2026-11-08, the owner:
+      // "move the 'what's excluded' to the right of the 'what's included'
+      // then any notes go under the 'what's excluded'"): included on the
+      // left, excluded and the notes in a column on the right. Only where
+      // there is a right-hand column to fill; the phone book stacks them.
+      (sideBySide ? '<div class="qd-incl-grid"><div class="qd-incl-col">' : '')+
       // Exclusions (2026-09-22): when the office lists any, the two lists
       // get headings and the exclusions carry a red cross.
-      (excl.length ? '<div class="qb-incl-hd">What\u2019s included</div>' : '')+
+      ((excl.length || sideBySide) ? '<div class="qb-incl-hd">What\u2019s included</div>' : '')+
       '<div class="qb-incl">'+
         lines.map(function(t, i){
           return '<div class="qb-incl-row'+(i >= ownIn ? ' qb-incl-auto' : '')+'"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+
       '</div>'+
+      (sideBySide ? '</div><div class="qd-incl-col">' : '')+
       (excl.length ? '<div class="qb-incl-hd qb-excl-hd">What\u2019s excluded</div><div class="qb-incl qb-excl">'+
         excl.map(function(t, i){
           return '<div class="qb-incl-row qb-excl-row'+(i >= ownEx ? ' qb-incl-auto' : '')+'"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><span>'+esc2(t)+'</span></div>';
@@ -35722,6 +35732,7 @@ function _qbProposal(opts){
             '<path d="M10 8.1v3.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>'+
             '<circle cx="10" cy="14.7" r="1.05" fill="currentColor"/></svg><span>'+esc2(t)+'</span></div>';
         }).join('')+'</div>' : '')+
+      (sideBySide ? '</div></div>' : '')+
       extraRows+
     '</div>'+
     (opts.desk ? '' : planHtml);
