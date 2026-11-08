@@ -4721,9 +4721,10 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 .qd-photo{ margin:0; }
 .qd-photo img{ display:block; width:100%; aspect-ratio:4/3; object-fit:cover; border-radius:12px; background:#e6ebf1; }
 .qd-photo figcaption{ margin-top:6px; font-size:12px; line-height:1.4; color:#5b6b7d; }
-/* the proposal: what we do beside the roof plan */
-.qd-sec-proposal{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); }
-.qd-sec-proposal .qb-plan{ border-top:none; border-left:1px solid #e6ebf1; padding:24px 24px 26px; }
+/* the proposal: the roof plan across the full width, what we do under it
+   (2026-11-08; it was the two side by side) */
+.qd-sec-proposal{ display:block; }
+.qd-sec-proposal .qb-plan{ border-top:none; border-left:none; border-bottom:1px solid #e6ebf1; padding:24px 28px 22px; }
 .qd-sec-proposal .qb-plan .qp-roofmap{ max-height:none; }
 /* related choices side by side */
 .qd-sec-hd{ padding-bottom:0 !important; }
@@ -4788,7 +4789,6 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   .qd-mini button{ flex:0 0 auto; padding:11px 18px; border:none; border-radius:10px; background:#0099e0; color:#fff; font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; }
   .qd-mini-done{ flex:0 0 auto; font-size:13px; font-weight:700; color:#6ee7a8; }
   .qd-sec-proposal, .qd-grid3, .qd-grid2, .qd-cover-body{ grid-template-columns:minmax(0,1fr); }
-  .qd-sec-proposal .qb-plan{ border-left:none; border-top:1px solid #e6ebf1; }
   .qd-cell + .qd-cell{ border-left:none; border-top:1px solid #e6ebf1; }
   .qd .qb-swatches{ grid-template-columns:repeat(4,1fr); }
   .qd-photo-grid{ grid-template-columns:repeat(2,1fr); }
@@ -5335,7 +5335,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-07T03:01:18Z';
+  window.APP_BUILT_AT = '2026-11-08T22:33:08Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -35691,7 +35691,13 @@ function _qbProposal(opts){
   // roofs on a plan. Either way the customer must still be able to add one,
   // so when the plan does not already offer them they get their own rows.
   var extraRows = _qbExtraRoofRows(!!roofBlock);
-  return ''+
+  // THE COMPUTER LAYOUT LEADS WITH THE ROOF PLAN, FULL WIDTH (2026-11-08,
+  // the owner: "for the computer quote, can you make the 'your roof plan'
+  // the full width, then put the 'What we will do' underneath"). Put first in
+  // the markup, not moved by CSS `order` — the PDF capture lays a flex order
+  // out wrongly. The phone book keeps the words first, the plan under them.
+  var planHtml = roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '';
+  return (opts.desk ? planHtml : '')+
     '<div class="qb-body">'+
       '<span class="qb-eyebrow">What we will do</span>'+
       '<h2 class="qb-h2" id="qbPropTitle">'+esc2(_qbProposalTitle())+'</h2>'+
@@ -35718,7 +35724,7 @@ function _qbProposal(opts){
         }).join('')+'</div>' : '')+
       extraRows+
     '</div>'+
-    (roofBlock ? '<div class="qb-plan qb-half qb-noswipe">'+roofBlock+'</div>' : '');
+    (opts.desk ? '' : planHtml);
 }
 // The optional roofs on this quote, as rows the customer can tick. The roof
 // plan already offers the roofs it draws, so this only renders what the plan
@@ -38314,7 +38320,7 @@ function _qdPhotoGrid(photos){
       }).join('')+'</div>'+
     '</div>';
 }
-function _qdProposal(){ return _qbProposal({ desk:true, mapH: 320, mapKey: 'desk' }); }
+function _qdProposal(){ return _qbProposal({ desk:true, mapH: 480, mapKey: 'desk' }); }
 // BRACKETS AND DOWNPIPES ARE NOT A MARGIN NOTE ON THE GUTTER (2026-10-18,
 // the owner: "when gutter is selected, don't squeeze the brackets/downpipes
 // selection in next to it, instead add this in underneath in new section
