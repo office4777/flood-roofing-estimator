@@ -7969,10 +7969,23 @@ function _sheetPuzzleBuildRaw(opts){
       // always the deeper end (reports 75 and 76: 13.5 m sheets beside 15.3).
       // `PZ_LONGEST_RECT = false` (or window.__PZ_LONGEST_RECT = false) puts
       // the area back against a slope.
-      // (Against a slope a tie is the same sheet to within 10 mm: report
-      // 70's wing 6.21 m beside the main's 6.35 m is the main's to cut.)
+      // (Against a slope "the same length" is the same sheet to within 10 mm:
+      // report 70's wing 6.21 m beside the main's 6.35 m is the main's to
+      // cut. AND A TIE STILL HAS A RECTANGLE (the owner, 2026-11-08: "If two
+      // blocks are equal length, one of them needs to take on the job as the
+      // main rectangle"): the bigger area, and where the areas tie too (an
+      // even-armed L) the block whose slopes face north and south — its
+      // gutters level across the picture — so exactly one of the two is.)
       if (T.lay === 'apex'){ if (((f.hipApexD || f.dMax) - f.dMin) >= (T.dMax - T.dMin) - tol) return false; }
-      else if (_pzLongestRect()){ if (((f.hipApexD || f.dMax) - f.dMin) >= (T.dMax - T.dMin) - Math.max(0.5, 0.01 / scaleM)) return false; }
+      else if (_pzLongestRect()){
+        var fDep = (f.hipApexD || f.dMax) - f.dMin, tDep = T.dMax - T.dMin, tie = Math.max(0.5, 0.01 / scaleM);
+        if (fDep > tDep + tie) return false;
+        if (fDep >= tDep - tie){
+          var aF = _pzBlockArea(R, f, f.dMin), aT = _pzBlockArea(R, T, T.dMin, T.T1 - T.T0);
+          if (aF > aT * 1.01) return false;
+          if (aF >= aT * 0.99 && Math.abs(T.t[1]) > Math.abs(T.t[0])) return false;
+        }
+      }
       else if (_pzBlockArea(R, f, f.dMin) >= _pzBlockArea(R, T, T.dMin, T.T1 - T.T0)) return false;   // the end's own block is the bigger one: IT is the rectangle, laid by the plain hip
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
