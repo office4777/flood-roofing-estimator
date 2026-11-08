@@ -5345,7 +5345,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T23:31:15Z';
+  window.APP_BUILT_AT = '2026-11-08T23:45:38Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -71609,6 +71609,17 @@ function _jpRenderHeader(content, page, idx){
   // back into the hidden legacy inputs so populateMatJobInfo +
   // autosave keep working.
   var d = (typeof _matDrawTotals === 'function') ? _matDrawTotals() : { roofArea:0, flashingsLm:0, gutterLm:0, pitch:0 };
+  // THE FLASHINGS TILE IS THE ORDER (2026-11-08, the owner: "the exact edits
+  // that I made in the app follow through to the order"). It reads the cut
+  // lists below it — every typed length, added row and delete — not
+  // the lines as measured, so the cover's total and the rows under it agree.
+  try {
+    if (typeof _matBuildCutList === 'function' && Array.isArray(window._MAT_FLASHING_SPECS)){
+      var _fo = 0;
+      _MAT_FLASHING_SPECS.forEach(function(sp){ _fo += (+_matBuildCutList(sp.key, sp.waste).totalLm || 0); });
+      d = Object.assign({}, d, { flashingsLm: _fo });
+    }
+  } catch(e){}
   // Roof pitch is editable straight from the tile — it drives m² and the
   // sheet / hip / valley / barge lengths, so changing it re-derives the
   // whole pack (see _jpSetPitch).
@@ -71854,6 +71865,32 @@ function _gutterCutRows(){
       buckets[k].qty++;
     });
   });
+  // An edit follows its row when a corner moves (2026-11-08, the owner: "even
+  // if I ... move a corner ... my custom saved edits should still be there").
+  // The overrides are keyed by the piece length, which moves with the run; an
+  // edit left on a length no row has any more goes to the nearest row with
+  // none of its own (within half a metre or a tenth of the piece).
+  (function(){
+    var stores = [hidden, qtyOv, lenOv];
+    var orphanKeys = {};
+    stores.forEach(function(st){ Object.keys(st).forEach(function(k){ if (!buckets[k]) orphanKeys[k] = 1; }); });
+    Object.keys(orphanKeys).forEach(function(ok){
+      var okn = parseFloat(ok); if (!isFinite(okn)) return;
+      var best = null, bd = Infinity;
+      order.forEach(function(k){
+        if (hidden[k] != null || qtyOv[k] != null || lenOv[k] != null) return;
+        var d = Math.abs(parseFloat(k) - okn);
+        if (d <= Math.max(0.5, okn * 0.1) && d < bd){ bd = d; best = k; }
+      });
+      if (!best) return;
+      stores.forEach(function(st){ if (st[ok] != null){ st[best] = st[ok]; delete st[ok]; } });
+    });
+    if (Object.keys(orphanKeys).length){
+      if (!DRAW.gutterRowHidden) DRAW.gutterRowHidden = hidden;
+      if (!DRAW.gutterRowQty) DRAW.gutterRowQty = qtyOv;
+      if (!DRAW.gutterRowLen) DRAW.gutterRowLen = lenOv;
+    }
+  })();
   var rows = [];
   order.forEach(function(k){
     if (hidden[k]) return;
@@ -74685,6 +74722,24 @@ function _flashRefreshAfterEdit(){
 // Legacy alias — older code paths still call renderFlashingLayout().
 function renderFlashingLayout(){ return renderMatRoofMap(); }
 
+// How one labelled line is ordered: n pieces of len metres. Over 8 m it is
+// split (100 mm overlap shared across the joins), and a piece length the
+// office typed on that split row (`pieceM`, 2026-11-08) is what is ordered —
+// the ridge on a long gable comes out as 3 @ 6.20, and a 6.55 typed there was
+// matched against a line 6.20 long, found none, and was thrown away, so the
+// supplier got 6.20 ("every time I order a roof, it reverts ... the ridge and
+// the barge, back to the default lengths").
+function _flashPiecesOf(o){
+  var L = +o.lengthM || 0;
+  if (L <= 8 + 1e-6) return { n: 1, len: L };
+  var n = 2;
+  // Smallest n such that (L + 0.1*(n-1)) / n <= 8.
+  while ((L + 0.1 * (n - 1)) / n > 8 + 1e-6) n++;
+  var len = Math.ceil(((L + 0.1 * (n - 1)) / n) * 100) / 100;
+  var ov = (DRAW.flashLayoutOverrides || {})[o.key];
+  if (ov && +ov.pieceM > 0) len = +ov.pieceM;
+  return { n: n, len: len };
+}
 function _matBuildCutList(type, waste) {
   // Gutter has its own ordering rule (+0.4 m waste, 8 m max piece, 0.1 m
   // lap per join, round up to 0.1 m) and its own edit/hide overrides —
@@ -74727,17 +74782,9 @@ function _matBuildCutList(type, waste) {
     // multiple pieces with a 100 mm overlap distributed across them.
     // Example: an 8.3 m run becomes 2 × 4.2 m  ((8.3 + 0.1) / 2).
     // A 16 m run becomes 3 × 5.4 m  ((16 + 0.2) / 3 = 5.4).
-    var L = +o.lengthM;
-    if (L > 8 + 1e-6) {
-      var n = 2;
-      // Smallest n such that (L + 0.1*(n-1)) / n <= 8.
-      while ((L + 0.1 * (n - 1)) / n > 8 + 1e-6) n++;
-      var pieceLen = Math.ceil(((L + 0.1 * (n - 1)) / n) * 100) / 100;
-      for (var pp = 0; pp < n; pp++) {
-        pieces.push({ letter: o.letter, length: pieceLen, _split: n });
-      }
-    } else {
-      pieces.push({ letter: o.letter, length: L });
+    var _pc = _flashPiecesOf(o);
+    for (var pp = 0; pp < _pc.n; pp++) {
+      pieces.push(_pc.n > 1 ? { letter: o.letter, length: _pc.len, _split: _pc.n } : { letter: o.letter, length: _pc.len });
     }
   });
   // Group identical (letter, length) into single rows. Pieces in the
@@ -75430,7 +75477,9 @@ function _matInlineMatchesFor(rowKey){
     // the next render put the calculated figure back (2026-11-08, the
     // owner: "my custom edits have disappeared and it's reverted back").
     var sameLetter = !letter || letter === (o.letter || '');
-    var sameLen = Math.abs(+o.lengthM - lenNum) < 0.05;
+    // The row's length is the PIECE ordered — a split line's piece, not the
+    // line's whole length.
+    var sameLen = Math.abs(_flashPiecesOf(o).len - lenNum) < 0.05;
     return sameLetter && sameLen;
   });
 }
@@ -75476,7 +75525,13 @@ function _matInlineSetLength(inp){
   matches.forEach(function(m){
     var ov = DRAW.flashLayoutOverrides[m.key] || {};
     delete ov.hidden;
-    if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
+    // A split line (over 8 m) keeps its run and its number of pieces; what
+    // was typed is the length of each piece.
+    if (_flashPiecesOf(m).n > 1){
+      if (!isNaN(n) && n > 0) ov.pieceM = n; else delete ov.pieceM;
+    } else {
+      if (!isNaN(n) && n > 0) ov.lengthM = n; else delete ov.lengthM;
+    }
     DRAW.flashLayoutOverrides[m.key] = ov;
   });
   _flashRefreshAfterEdit();
