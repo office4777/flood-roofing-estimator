@@ -4758,7 +4758,21 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   overrides, hidden rows and extras under `DRAW.matSheetByRoof[idx]`;
   `_jpSheetScope(idx, fn)` swaps a roof's set into the job-level slots the
   row builder and setters read, so every onclick on a roof's section goes
-  through `_jpSheetScoped(idx, 'fnName', …)`. `_jpSheetRowsAll()` is what
+  through `_jpSheetScoped(idx, 'fnName', …)`.
+  EVERY TYPED FIGURE SURVIVES A TRIP TO ROOF MAP AND A MOVED CORNER
+  (2026-11-08, the owner: "my custom edits have disappeared ... even if I
+  ... move a corner ... my custom saved edits should still be there"). Three
+  faults: a flashing row grouping several lines of one length has NO letter,
+  and `_matInlineMatchesFor` demanded it equal each line's own, so a typed
+  length / letter / ✕ there reached no line and the next render put the
+  calculated figure back (a blank letter now matches every line of that type
+  and length); a flashing override is keyed by the line's end points
+  (`_flashLineKey`), so moving a corner orphaned it — `_flashCollectLabelled`
+  now moves an orphan onto the nearest line of its type with none of its own;
+  and `_jpSheetFreeze` took `autoQty` from rows already carrying the typed
+  quantity, so the roof-change merge read a typed 61 as calculated and put 50
+  back — it reads the calculated count with no overrides applied. A typed
+  length shows as typed (`_clLenShow`: 7.75, not 7.8). `tests/jpkeep.mjs`. `_jpSheetRowsAll()` is what
   the order email and the supplier order read. All of these stores (and
   `S.jobPack`) are saved with the job since 2026-09-18 — before that a
   reload dropped every typed quantity.
