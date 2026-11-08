@@ -7355,6 +7355,8 @@ function _pzWallKind(e, R, tol){
 // The area of the block a face belongs to: how far the outline runs from
 // the face's gutter line inward through the middle of the face, times its
 // width along the gutter (the given span, else the face's own gutter).
+var PZ_LONGEST_RECT = true;
+function _pzLongestRect(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_RECT != null) return !!window.__PZ_LONGEST_RECT; return PZ_LONGEST_RECT; }
 function _pzBlockArea(R, f, dGut, span){
   var tx = f.t[0], ty = f.t[1], dx = f.d[0], dy = f.d[1];
   var w = span != null ? span : (isFinite(f.tg1 - f.tg0) ? f.tg1 - f.tg0 : f.t1 - f.t0);
@@ -7645,7 +7647,7 @@ function _pzBuildKey(opts){
     // thumbnail, a size — lay the same roof.)
     ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
-      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON,
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(),
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
     return JSON.stringify([idxs, sigs, o, flags]);
   } catch(e){ return null; }
@@ -7955,13 +7957,22 @@ function _sheetPuzzleBuildRaw(opts){
       // the wing's piece above it — the valley and the wing's hip are
       // parallel, one sheet apart — so the pairing holds.)
       if (((f.hipApexD || f.dMax) - f.dMin) > (T.dMax - T.dMin) + tol) return false;   // deeper than the slope's sheets (a gablet measured to where its hips would meet): it can never come out of them
-      // WHICH BLOCK IS THE RECTANGLE: "the larger area with the longest
-      // sheets". Against a slope, the larger area: a T's bar end stands in
-      // front of the stem's slope, but the bar is the bigger block. Against
-      // a hip END, the longest sheets: the deeper end is the bigger block's
-      // (reports 75 and 76, a wing longer along the gutter than the main is
-      // wide but shallower than it, its sheets 13.5 m beside 15.3 m).
+      // WHICH BLOCK IS THE RECTANGLE: THE ONE WITH THE LONGEST SHEETS
+      // (2026-11-08, the owner: "It should pick the block with the longest
+      // sheet length as the main rectangle, not the rectangle with the
+      // largest area"). The end is cut from the slope only where the slope's
+      // sheets are the longer; the same length both sides (an even-armed L)
+      // cuts nothing. Against a slope this used to be the larger AREA, so an
+      // L whose 13 m wing ran the length of the house (13 x 20 m against an
+      // 18 x 14 m main) became the rectangle with its 7.18 m sheets, and the
+      // main's 7.73 m slope was laid as the wing. Against a hip END it was
+      // always the deeper end (reports 75 and 76: 13.5 m sheets beside 15.3).
+      // `PZ_LONGEST_RECT = false` (or window.__PZ_LONGEST_RECT = false) puts
+      // the area back against a slope.
+      // (Against a slope a tie is the same sheet to within 10 mm: report
+      // 70's wing 6.21 m beside the main's 6.35 m is the main's to cut.)
       if (T.lay === 'apex'){ if (((f.hipApexD || f.dMax) - f.dMin) >= (T.dMax - T.dMin) - tol) return false; }
+      else if (_pzLongestRect()){ if (((f.hipApexD || f.dMax) - f.dMin) >= (T.dMax - T.dMin) - Math.max(0.5, 0.01 / scaleM)) return false; }
       else if (_pzBlockArea(R, f, f.dMin) >= _pzBlockArea(R, T, T.dMin, T.T1 - T.T0)) return false;   // the end's own block is the bigger one: IT is the rectangle, laid by the plain hip
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
       var fT0 = sgn > 0 ? f.t0 : -f.t1, fT1 = sgn > 0 ? f.t1 : -f.t0;      // the end's extent in the slope's t
