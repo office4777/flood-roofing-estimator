@@ -14,8 +14,8 @@ const OUT = process.argv[2] || join(ROOT, '..', '.hub-shots');
 mkdirSync(OUT, { recursive: true });
 
 
-// A Fergus read for the toolbox sheet (2026-10-31): who was on which job last week, the hours logged so far this
-// week, the forecast filled — seeded from the Workload rows so the picture shows the crew tables as they fill in.
+// A Fergus read for the toolbox sheet (2026-10-31; the calendar alone since 2026-11-08): who is booked on which job
+// this week and last, the forecast filled — seeded from the Workload rows so the picture shows the schedule grids filled in.
 const TBX_SEED = `window.__tbxSeedFergus = () => {
   const ws = tbxMonday(new Date()), lm = tbxAddDays(ws, -7), jobs = S.get('fwJobs', []);
   const A = jobs[0].id, B = jobs[1].id, C = jobs[2].id;
@@ -35,7 +35,7 @@ const TBX_SEED = `window.__tbxSeedFergus = () => {
   [0, 1, 2, 3].forEach(i => { bookL('Lead roofer', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, i, '7:00am', '5:00pm'); bookL('Apprentice', A, '#' + jobs[0].jobNo + ' ' + jobs[0].client, i, '7:00am', '5:00pm'); });
   bookL('Lead roofer', B, '#' + jobs[1].jobNo + ' ' + jobs[1].client, 4, '7:00am', '5:00pm'); bookL('Apprentice', B, '#' + jobs[1].jobNo + ' ' + jobs[1].client, 4, '7:00am', '5:00pm');
   [0, 1, 2, 3, 4].forEach(i => bookL('Second lead', C, '#' + jobs[2].jobNo + ' ' + jobs[2].client, i, '7:00am', '5:00pm'));
-  f.fergus = { at: '27 Oct, 6:58 am', from: lm, to: tbxAddDays(ws, 6), last, week, jobs: jm, entries: 61, sorted: true, cal, calErr: '', calLast, calLastErr: '' };
+  f.fergus = { at: '27 Oct, 6:58 am', from: lm, to: tbxAddDays(ws, 6), jobs: jm, cal, calErr: '', calLast, calLastErr: '' };
   f.crew = { [B]: 'Lead roofer, Apprentice', [C]: 'Second lead' };
   f.forecastMon = 'Mainly clear'; f.forecastTue = 'Slight rain, 70% chance of rain'; f.forecastWed = 'Partly cloudy'; f.forecastThu = 'Overcast'; f.forecastFri = 'Clear sky';
   all[ws] = f; S.set('tbx', all);

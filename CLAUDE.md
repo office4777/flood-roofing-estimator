@@ -184,6 +184,27 @@ accordingly.
   now, because an A4 sheet's print viewport (~718 px) used to put the stacked phone layout on his PDF.
   `hubui` (125) pins both grids, the four pages, a break moved / removed / added, the print media's
   breaks and the computer's A4 card.
+  THE SHEET PRINTS EDGE TO EDGE, THE SCHEDULE IS THE OLD APP'S GRID, A JOB CAN BE UNTICKED (2026-11-08, the owner with
+  his PDF: "the margins are too big, also i want the 'staff schedule - this week' from my old toolbox app that pulled it
+  from fergus", then "untick job in the list for the 'Jobs on the go' and delete the 'Crews — last week & this week'").
+  THE MARGINS were not margins: on a computer `html.is-desktop body` has a 232px gutter for the sidebar and `#top` is the
+  hub's own header, neither hidden under `body.tbx-printing`, so the browser shrank every sheet to about two thirds to fit
+  them beside it and the header led page 1. Both are off the paper now, `@page` is 8mm (the A4 card 8mm in, the inner
+  box `zoom:var(--tbx-z,.81)`), and EACH PAGE FITS ITS SHEET: `tbxFitPages()` after every render measures a page's
+  sections (the content, not the stretched flex box) against `TBX_PAGE_MM` 265mm less the footer and sets `--tbx-z`
+  down to .5 — the old app's per-page scale slider worked out by itself; his footer had run onto a fifth sheet. 265mm,
+  NOT 281: Chromium's PDF spills a 274mm flex page's footer onto the next sheet with 8mm margins (measured with
+  `pg.pdf`), so the print `min-height` is 265mm too. THE SECTION is `schedule` (was `crews`; `tbxBreaks` maps a stored
+  'crews' break across): "Staff schedule — this week (Fergus)" = Refresh button + read stamp, this week's grid
+  (`#tbx-cal`), last week's under it (`#tbx-cal-last`) — Employee with a coloured dot (`TBX_DOTS`, crews sorted
+  together, leaders first), a navy day header "Mon / 02/11", the job number bold over the address in italics
+  (`fg.jobs[id].site`, else the event title's), a dash where nothing is booked, a day off red. The job-by-job and
+  person-by-person tables (`#tbx-week`, `#tbx-last`, the typed `crew` notes) and the TIME-ENTRY reads are GONE:
+  `tbxLoadFergus(btn, quiet)` is the two calendar windows and the job names alone, and READS BY ITSELF (`_tbxAutoTried`,
+  400ms after a render of a week with no read, or this week's read older than `TBX_FG_STALE_MS` 2h — quiet, once a week
+  a sitting, only with Fergus connected) so the grid is there without a press. THE TICK: `f.jobsOff[id]` (`tbxSetJobOff`,
+  a checkbox first column `.tbx-tick`, `.tbx-np` so it never prints); an unticked row is `tr.tbx-off` — dimmed on the
+  screen, `display:none` on the paper. `hubui` (129) pins all of it; `hub-shots` seeds the calendar only.
   THE MEETING DECK'S FERGUS PHOTOS COME SMALL AND TOGETHER (2026-11-03, the owner: "the fergus job
   photos are taking along time to load, please speed this up to be alot faster, mayb lower the
   resolution slightly"). Fergus's "thumbnail" is the full photo, so the picker grid pulled every
