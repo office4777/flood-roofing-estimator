@@ -321,9 +321,24 @@ check('a 10 m wide wing on an 18 × 14 main is still two sheets narrower than th
 }
 rules('the wide-wing L', r);
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[790,140],[790,440],[1040,440],[1040,1140],[140,1140]], autoType: 'hip' });
-check('a 13 m wing on a 14 m main: the wing\'s block (13 × 20 m) is the bigger one, so IT is the rectangle and its end keeps the apex lay (the T\'s rule)',
-  gridFaces(r).length === 0 && r.faces.filter(f => f.lay === 'apex').length >= 2, r.faces.map(f => f.lay).join(','));
-rules('the too-wide wing', r);
+// THE LONGEST SHEETS ARE THE RECTANGLE (2026-11-08, the owner: "L with a 13m
+// wing is wrong, it should look pretty much identical to L with a 10m wing and
+// share the same logic", then "It should pick the block with the longest sheet
+// length as the main rectangle, not the rectangle with the largest area"). The
+// wing's block (13 × 20 m) is the bigger AREA, but the main's 7.73 m sheets are
+// longer than the wing's 7.18, so the main is the rectangle and the wing's end
+// is cut from its north slope, as on the 10 m wing.
+check('a 13 m wing on a 14 m main: the main has the longer sheets (7.73 against 7.18), so IT is the rectangle and the wing\'s end comes out of its north slope, as on the 10 m wing',
+  gridFaces(r).length === 1, r.faces.map(f => f.lay).join(','));
+{
+  const nl = r.pieces.filter(p => p.block === 'C').map(p => p.label);
+  check('…the north slope runs C1–C9 whole and ✂C10–C17 feet across the wing\'s end; 65 sheets, 48 × 7.73 + 17 × 7.18, nothing extra',
+    ['C1','C9','✂C10','✂C17'].every(l => nl.includes(l)) && tallyOf(r) === '48x7730,17x7180' && r.extras === 0, tallyOf(r) + ' ' + nl.slice(0, 20).join(','));
+}
+rules('the 13 m wing', r);
+// …and a tie (the same sheet to within 10 mm, an even-armed L) cuts nothing.
+r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,140],[440,740],[1040,740],[1040,1040],[140,1040]], autoType: 'hip' });
+check('an even-armed L (6 m arms, the same sheets both ways): nothing is cut from either slope', gridFaces(r).length === 0, r.faces.map(f => f.lay).join(','));
 // FEEDBACK REPORT 70 (2026-10-27, the owner: "use the plain hip logic first,
 // then slice the sheets ... like a cookie cutter ... that plain hip logic is
 // there should be 30 sheets (same as the green southside) then that whole
