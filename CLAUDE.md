@@ -4772,7 +4772,24 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   and `_jpSheetFreeze` took `autoQty` from rows already carrying the typed
   quantity, so the roof-change merge read a typed 61 as calculated and put 50
   back — it reads the calculated count with no overrides applied. A typed
-  length shows as typed (`_clLenShow`: 7.75, not 7.8). `tests/jpkeep.mjs`. `_jpSheetRowsAll()` is what
+  length shows as typed (`_clLenShow`: 7.75, not 7.8). `tests/jpkeep.mjs`.
+  AND THE ORDER IS THE EDITED PACK (the same day: "every time I order a roof,
+  it reverts ... the ridge and the barge, back to the default lengths ... the
+  supplier is getting the wrong order"). Order Roof sends the Job Pack's own
+  pages (`_orderEmailBuildBlob` → `_buildJobPackPdf`), so it carries whatever
+  the pack shows; the pack was what lost the edit. A flashing line over 8 m is
+  ordered as split pieces (`_flashPiecesOf`: n pieces, the 100 mm laps shared),
+  so an 18 m gable ridge reads 3 @ 6.20 — and a length typed on that row was
+  matched against a LINE 6.20 long, found none and was dropped. The matcher
+  compares the piece now, and a split line keeps a typed piece length as
+  `pieceM` on its override (n unchanged). The cover's FLASHINGS tile adds up
+  the cut lists (`_jpRenderHeader`), not the measured lines, so it is the
+  ordered total. Gutter row edits (`gutterRowLen/Qty/Hidden`, keyed by the
+  piece length) move to the nearest row when a corner moves the run.
+  `jpkeep` drives the real Order Roof flow with the PDF libraries stubbed and
+  reads what html2canvas is handed: 18 of its 24 checks pass on the old build,
+  which ordered "3 @ 6.2m". NOT CHANGED: the PRICE's flashing metres still come
+  from the measured lines (`_matDrawTotals`), only the order and the pack. `_jpSheetRowsAll()` is what
   the order email and the supplier order read. All of these stores (and
   `S.jobPack`) are saved with the job since 2026-09-18 — before that a
   reload dropped every typed quantity.

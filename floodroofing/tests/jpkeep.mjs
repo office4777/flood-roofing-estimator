@@ -99,6 +99,79 @@ const sheetAfter = await pg.evaluate(() => [...document.querySelectorAll('#tab-m
 check('…and after moving another corner', sheetAfter.includes('61'), JSON.stringify(sheetAfter));
 check('…with the hips still at 7.75', await has925(), JSON.stringify(await hipRows()));
 
+// ── THE ORDER (the owner, the same day: "every time I order a roof, it
+// reverts ... the ridge and the barge, back to the default lengths ... the
+// supplier is getting the wrong order"). A gable 18 m long: its ridge is ONE
+// 18.4 m line ordered as 3 @ 6.20, and a length typed on that row was matched
+// against a line 6.20 long, found none, and was dropped — so the order PDF
+// carried 6.20. Every edit is made here, then the real Order Roof flow runs
+// with the PDF libraries stubbed, and what html2canvas is handed (the pages
+// the supplier gets) must carry each one.
+await toRoof();
+await pg.evaluate(() => {
+  clearAll(true); setTool('outline');
+  DRAW.currentPts = [[200,150],[800,150],[800,500],[200,500]]; finishCurrent();
+  document.querySelectorAll('#_rsModal,.rs-drop').forEach(e => e.remove());
+  DRAW.scaleMetresPerPx = 0.03; autoGenerateRoof('gable'); setTool('select');
+});
+await toPack();
+const rowKeys = () => pg.evaluate(() => [...document.querySelectorAll('#tab-materials input[data-cl-row]')].filter(x => x.offsetParent && /SetLength/.test(x.getAttribute('onchange'))).map(x => x.getAttribute('data-cl-row')));
+const setRow = (k, v) => pg.evaluate(([k, v]) => { const i = [...document.querySelectorAll('#tab-materials input[data-cl-row]')].find(x => x.offsetParent && x.getAttribute('data-cl-row') === k && /SetLength/.test(x.getAttribute('onchange'))); i.value = v; i.dispatchEvent(new Event('change', { bubbles:true })); }, [k, v]);
+const g0 = await rowKeys();
+const gRidge = g0.find(k => /^ridgehip::/.test(k)), gBarges = g0.filter(k => /^barge/.test(k));
+check('the gable ridge is one split row of 3 pieces', gRidge === 'ridgehip::::6.20', JSON.stringify(g0));
+await setRow(gRidge, '6.55'); await pg.waitForTimeout(500);
+check('THE FAULT: a split ridge row takes a typed length', (await rowKeys()).includes('ridgehip::::6.55'), JSON.stringify(await rowKeys()));
+await setRow(gBarges[0], '6.10'); await pg.waitForTimeout(500);
+await pg.evaluate((k) => { const b = [...document.querySelectorAll('#tab-materials [onclick^="_matInlineDelete"]')].find(x => x.offsetParent && x.getAttribute('data-cl-row') === k); b.click(); }, gBarges[gBarges.length - 1]);
+await pg.waitForTimeout(500);
+await pg.evaluate(() => { _matExtrasAdd('ridgehip'); });
+await pg.waitForTimeout(400);
+await pg.evaluate(() => { const ins = [...document.querySelectorAll('#tab-materials input[onchange*="_matExtrasUpdate"]')].filter(x => x.offsetParent);
+  const l = ins.find(x => /'length'/.test(x.getAttribute('onchange'))), q = ins.find(x => /'qty'/.test(x.getAttribute('onchange')));
+  l.value = '3.33'; l.dispatchEvent(new Event('change', { bubbles:true })); q.value = '2'; q.dispatchEvent(new Event('change', { bubbles:true })); });
+await pg.waitForTimeout(400);
+await pg.evaluate(() => { const i = [...document.querySelectorAll('#tab-materials input')].find(x => x.offsetParent && /fr_rivets_qty/.test(x.getAttribute('onchange') || '')); i.value = '150'; i.dispatchEvent(new Event('change', { bubbles:true })); });
+await pg.waitForTimeout(400);
+await toRoof(); await toPack();
+check('…the split ridge keeps 6.55 after Roof Map and back', (await rowKeys()).includes('ridgehip::::6.55'), JSON.stringify(await rowKeys()));
+const caps = await pg.evaluate(async () => {
+  window.__caps = [];
+  window.saveCurrentJob = async () => {}; window._isJobDirty = () => false; S.currentJobId = 'job-1';
+  window._matDownloadBlob = () => {};
+  window._loadPdfLibs = async () => {
+    window.html2canvas = async (el) => { window.__caps.push(el.innerText.replace(/\s+/g, ' ')); const c = document.createElement('canvas'); c.width = 20; c.height = 28; return c; };
+    const doc = new Proxy({}, { get: (t, k) => k === 'then' ? undefined : k === 'internal' ? { pageSize: { getWidth: () => 210, getHeight: () => 297, width: 210, height: 297 } } : k === 'output' ? () => new Blob(['x']) : () => doc });
+    window.jspdf = { jsPDF: function(){ return doc; } };
+  };
+  _openOrderChecklist();
+  await new Promise(r => setTimeout(r, 1200));
+  document.querySelectorAll('#orderChecklistModal .ordck').forEach(b => { b.checked = true; });
+  _orderRoofProceed();
+  await new Promise(r => setTimeout(r, 1000));
+  await _orderEmailBuildBlob();
+  return window.__caps.join(' ');
+});
+check('THE REPORT: the order PDF carries the typed ridge (3 @ 6.55)', /3 @ 6\.55\s?m/.test(caps), (caps.match(/RIDGING.{0,60}/) || [''])[0]);
+check('…and not the calculated 6.2', !/@ 6\.2\s?m/.test(caps));
+check('…the added ridge row (2 @ 3.33)', /2 @ 3\.33\s?m/.test(caps));
+check('…the typed barge (6.1)', /1 @ 6\.1\s?m/.test(caps), (caps.match(/barge flashing.{0,80}/i) || [''])[0]);
+check('…the deleted barge is not ordered (3 barges, not 4)', (caps.match(/@ (5\.9|6\.1)\s?m/g) || []).length === 3, String((caps.match(/@ (5\.9|6\.1)\s?m/g) || []).length));
+check('…150 rivets', /150 rivets/.test(caps));
+check('…and its cover total is the edited flashings (3×6.55 + 2×3.33 + 6.1 + 2×5.9 = 44.2 lm)', /FLASHINGS 44\.2 lm/.test(caps), (caps.match(/FLASHINGS [\d.]+ lm/) || [''])[0]);
+
+// A gutter row's edit follows the run when a corner moves.
+await toRoof();
+const gut = await pg.evaluate(() => {
+  const rows0 = _gutterCutRows().filter(r => !r.isExtra);
+  const k = rows0[0].origKey;
+  _gutterRowSetLen(k, 7.4);
+  DRAW.outline[1] = [812, 140]; regenerateAutoRoofLines('gable');
+  const rows1 = _gutterCutRows().filter(r => !r.isExtra);
+  return { before: rows0.map(r => r.origKey + ':' + r.len), after: rows1.map(r => r.origKey + ':' + r.len) };
+});
+check('a typed gutter length survives a moved corner', gut.after.some(x => /:7\.4$/.test(x)), JSON.stringify(gut));
+
 check('none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;
