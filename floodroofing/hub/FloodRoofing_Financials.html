@@ -7619,15 +7619,17 @@ async function tbxLoadFergus(btn,quiet){
   try{
     const lastMon=tbxAddDays(ws,-7),weekEnd=tbxAddDays(ws,7);
     const lookup=tbxJobLookup();const jobs={};
+    // THE DATE-TIME CARRIES NO MILLISECONDS (2026-11-08, the owner's screen: HTTP 400 "The filterDateFrom must be a valid d…"):
+    // the probe's 200 was `2026-10-19T00:00:00Z`; `…T00:00:00.000Z` is refused, so the read had never once succeeded for him.
     const calRead=async from=>{   // a day either side in UTC covers Auckland's week whatever the clock offset; tbxCalCompact keeps the week's own days
-      const j=await fergusApiFetch('/calendarEvents?filterDateFrom='+encodeURIComponent(tbxAddDays(from,-1)+'T00:00:00.000Z')+'&filterDateTo='+encodeURIComponent(tbxAddDays(from,8)+'T00:00:00.000Z'));
+      const j=await fergusApiFetch('/calendarEvents?filterDateFrom='+encodeURIComponent(tbxAddDays(from,-1)+'T00:00:00Z')+'&filterDateTo='+encodeURIComponent(tbxAddDays(from,8)+'T00:00:00Z'));
       const raw=Array.isArray(j)?j:((j&&(j.data||j.results||j.events))||[]);
       const c=tbxCalCompact(raw,from);
       c.forEach(ev=>{if(ev.jobId&&!jobs[ev.jobId]){const k=lookup[ev.jobId];const t=tbxCalTitle(ev.title);jobs[ev.jobId]={no:(k&&k.no)||t.no,name:(k&&k.name)||t.name,site:(k&&k.site)||t.site};}});
       return c;};
     let cal=[],calErr='',calLast=[],calLastErr='';
-    try{cal=await calRead(ws);if(!cal.length)calErr='empty';}catch(e){calErr=String(e&&e.message||e).slice(0,120);}
-    try{calLast=await calRead(lastMon);if(!calLast.length)calLastErr='empty';}catch(e){calLastErr=String(e&&e.message||e).slice(0,120);}
+    try{cal=await calRead(ws);if(!cal.length)calErr='empty';}catch(e){calErr=String(e&&e.message||e).slice(0,300);}
+    try{calLast=await calRead(lastMon);if(!calLast.length)calLastErr='empty';}catch(e){calLastErr=String(e&&e.message||e).slice(0,300);}
     if(calErr&&calErr!=='empty'&&calLastErr&&calLastErr!=='empty')throw new Error(calErr);
     // names for jobs nothing above named — a few reads, capped
     const unnamed=Object.keys(jobs).filter(id=>!jobs[id].name).slice(0,12);

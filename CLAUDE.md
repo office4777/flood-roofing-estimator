@@ -202,7 +202,10 @@ accordingly.
   person-by-person tables (`#tbx-week`, `#tbx-last`, the typed `crew` notes) and the TIME-ENTRY reads are GONE:
   `tbxLoadFergus(btn, quiet)` is the two calendar windows and the job names alone, and READS BY ITSELF (`_tbxAutoTried`,
   400ms after a render of a week with no read, or this week's read older than `TBX_FG_STALE_MS` 2h — quiet, once a week
-  a sitting, only with Fergus connected) so the grid is there without a press. THE TICK: `f.jobsOff[id]` (`tbxSetJobOff`,
+  a sitting, only with Fergus connected) so the grid is there without a press. THE DATE-TIME CARRIES NO MILLISECONDS: the
+  hub sent `…T00:00:00.000Z` and Fergus answers 400 "The filterDateFrom must be a valid date…" to it (the owner's screen,
+  the same day) — the probe's 200 on 31 Oct was `T00:00:00Z`, so the calendar read had NEVER succeeded for him; the
+  stored `calErr` keeps 300 characters now, not 120, so the next refusal reads whole. THE TICK: `f.jobsOff[id]` (`tbxSetJobOff`,
   a checkbox first column `.tbx-tick`, `.tbx-np` so it never prints); an unticked row is `tr.tbx-off` — dimmed on the
   screen, `display:none` on the paper. `hubui` (129) pins all of it; `hub-shots` seeds the calendar only.
   THE MEETING DECK'S FERGUS PHOTOS COME SMALL AND TOGETHER (2026-11-03, the owner: "the fergus job
