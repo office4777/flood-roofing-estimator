@@ -462,6 +462,22 @@ THE LAY:
    half of an end from the OPPOSITE slope's offcuts (the hand decides). Which
    block is the rectangle: against a slope, the larger area (a T's bar, not
    its stem); against a hip end, the longest sheets.
+3b. THE LONGEST SHEETS ARE THE RECTANGLE, AND THE LIGHTER LAY STANDS
+   (2026-11-08, the owner: "L with a 13m wing is wrong, it should look pretty
+   much identical to L with a 10m wing and share the same logic"; "It should
+   pick the block with the longest sheet length as the main rectangle, not
+   the rectangle with the largest area"; "If two blocks are equal length, one
+   of them needs to take on the job as the main rectangle"; then, on the v11b
+   pictures, the 13 m L the new way and the even-armed L, the hip T and the
+   dutch T back as they were). Against a slope the end is cut from it where
+   the slope's sheets are the LONGER (`_pzLongestRect`, `PZ_LONGEST_RECT`,
+   `window.__PZ_LONGEST_RECT`); the same sheet to 10 mm is a tie, settled by
+   the bigger area, then the block running east–west. Where that and the old
+   area rule decide an end differently (`rectDiff`), the roof is laid both
+   ways (`opts.rectArea`) and rule 10's `better` keeps the one with less
+   steel. 13 m wing on 18 × 14: 67 → 65 sheets, 502 → 493 m, C1–C9 whole and
+   ✂C10–C17, as the 10 m wing. Every fixture and the other 50 test roofs
+   identical (the T's, even L and dutch T keep the area lay, each lighter).
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,

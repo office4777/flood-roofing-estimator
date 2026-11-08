@@ -336,13 +336,16 @@ check('a 13 m wing on a 14 m main: the main has the longer sheets (7.73 against 
     ['C1','C9','✂C10','✂C17'].every(l => nl.includes(l)) && tallyOf(r) === '48x7730,17x7180' && r.extras === 0, tallyOf(r) + ' ' + nl.slice(0, 20).join(','));
 }
 rules('the 13 m wing', r);
-// …and a tie still has a rectangle (the owner, the same day: "If two blocks
-// are equal length, one of them needs to take on the job as the main
-// rectangle"): the bigger area, and on an even-armed L, where the areas tie
-// too, the block running across the picture — exactly one end is cut.
+// …and the lay with less steel stands (the owner, the same day, on the
+// pictures: "the even-armed L, the one on the left is actually better ... the
+// hip T, the one on the left is right ... the Dutch T, the one on the left is
+// better"). A tie of sheet lengths still names a rectangle — the bigger area,
+// then the east–west block — but where that and the old area rule disagree
+// the roof is laid both ways and `better` keeps the lighter: here the area
+// lay, 81 sheets, nothing cut (82 and 3.3 m more the other way).
 r = await lay({ scaleMetresPerPx: 0.02, calPitch: 25, outline: [[140,140],[440,140],[440,740],[1040,740],[1040,1040],[140,1040]], autoType: 'hip' });
-check('an even-armed L (6 m arms, the same sheets both ways): ONE block is the rectangle — the east–west one — and the upright arm\'s end is cut from its north slope',
-  gridFaces(r).length === 1 && Math.abs(r.faces.find(f => f.lay === 'grid').d[1]) > 0.9, r.faces.map(f => f.lay + '@' + f.d.map(v => v.toFixed(2))).join(' '));
+check('an even-armed L (6 m arms): laid both ways and the lighter kept — nothing cut, 81 × 3.32',
+  gridFaces(r).length === 0 && tallyOf(r) === '81x3320', tallyOf(r) + ' ' + r.faces.map(f => f.lay).join(','));
 rules('the even-armed L', r);
 // FEEDBACK REPORT 70 (2026-10-27, the owner: "use the plain hip logic first,
 // then slice the sheets ... like a cookie cutter ... that plain hip logic is
