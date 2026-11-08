@@ -7645,7 +7645,7 @@ function _pzBuildKey(opts){
     var o = {};
     // (Only what the builder reads: a picture's own options — rotWide, a
     // thumbnail, a size — lay the same roof.)
-    ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
+    ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay', 'rectArea'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
       window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(),
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
@@ -7690,7 +7690,7 @@ function _sheetPuzzleBuildRaw(opts){
     if (DRAW.roofs && DRAW.roofs.length){ for (var r = 0; r < DRAW.roofs.length; r++) idxs.push(r); }
     else idxs = [-1];
   }
-  var roofs = [], faces = [], pieces = [];
+  var roofs = [], faces = [], pieces = [], rectDiff = false;
   idxs.forEach(function(idx){
     var R = _pzRoofGeom(idx, opts);
     if (!R) return;
@@ -7976,8 +7976,16 @@ function _sheetPuzzleBuildRaw(opts){
       // main rectangle"): the bigger area, and where the areas tie too (an
       // even-armed L) the block whose slopes face north and south — its
       // gutters level across the picture — so exactly one of the two is.)
+      // Both rules are a legitimate lay, and the one ordering less steel is
+      // kept (the owner, 2026-11-08, on the pictures: the 13 m wing's L the
+      // longest-sheets way, the even-armed L, the hip T and the dutch T the
+      // area way — each the lay with less steel): where the two rules would
+      // decide this end differently the roof is laid again by area
+      // (`opts.rectArea`, `rectDiff`) and `better` keeps the lighter.
+      var areaSays = T.lay === 'apex' ? null : !(_pzBlockArea(R, f, f.dMin) >= _pzBlockArea(R, T, T.dMin, T.T1 - T.T0));
       if (T.lay === 'apex'){ if (((f.hipApexD || f.dMax) - f.dMin) >= (T.dMax - T.dMin) - tol) return false; }
-      else if (_pzLongestRect()){
+      else if (_pzLongestRect() && !opts.rectArea){
+        var longSays = (function(){
         var fDep = (f.hipApexD || f.dMax) - f.dMin, tDep = T.dMax - T.dMin, tie = Math.max(0.5, 0.01 / scaleM);
         if (fDep > tDep + tie) return false;
         if (fDep >= tDep - tie){
@@ -7985,6 +7993,9 @@ function _sheetPuzzleBuildRaw(opts){
           if (aF > aT * 1.01) return false;
           if (aF >= aT * 0.99 && Math.abs(T.t[1]) > Math.abs(T.t[0])) return false;
         }
+        return true; })();
+        if (longSays !== areaSays) rectDiff = true;
+        if (!longSays) return false;
       }
       else if (_pzBlockArea(R, f, f.dMin) >= _pzBlockArea(R, T, T.dMin, T.T1 - T.T0)) return false;   // the end's own block is the bigger one: IT is the rectangle, laid by the plain hip
       var sgn = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
@@ -8134,6 +8145,11 @@ function _sheetPuzzleBuildRaw(opts){
   // (the owner, the same evening): the whole roof is laid both ways and the
   // one ordering fewer sheets is kept, then the one ordering less steel; on
   // an exact tie, the point.
+  if (rectDiff && !opts.noFill && !opts.rectArea && !opts._noAlt){
+    var altR = null;
+    try { altR = _sheetPuzzleBuild(Object.assign({}, opts, { rectArea: true, _monoDefer: true })); } catch(e){ altR = null; }
+    if (altR && altR.tally && res.tally){ fin(res); fin(altR); if (better(altR, res)){ res = altR; res._lay = Object.assign({}, res._lay, { rectArea: true }); } }
+  }
   if (!opts.noFill && !opts.noTipLay && !opts._noAlt && faces.some(function(f){ return f.tipLay; })){
     var nSheets = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
