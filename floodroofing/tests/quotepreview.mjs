@@ -74,8 +74,8 @@ const t0 = await pg.evaluate(() => ({
   phone: !!document.getElementById('qpViewBtn_phone'),
   noDoc: !document.getElementById('qpViewBtn_doc'),
   style: !!document.getElementById('qsBtn_classic') && !!document.getElementById('qsBtn_modern'),
-  deskOn: (document.getElementById('qpViewBtn_computer')||{}).style.fontWeight === '700',
-  phoneOn: (document.getElementById('qpViewBtn_phone')||{}).style.fontWeight === '700',
+  deskOn: _qpPreviewMode() === 'computer',
+  phoneOn: _qpPreviewMode() === 'phone',
   modernOn: (document.getElementById('qsBtn_modern')||{}).style.fontWeight === '700'
 }));
 check('the Quote tab carries a Computer / Phone switch and a Classic / Modern style switch — no Document view', t0.toggle && t0.desk && t0.phone && t0.noDoc && t0.style);
@@ -91,8 +91,7 @@ check('picking Phone shows the customer’s book', v1.book && v1.a4 === 0);
 check('…in a phone-sized frame, not full screen', v1.w > 380 && v1.w < 430 && v1.h > 760 && v1.h < 860,
       v1.w + '×' + v1.h);
 check('…and the app around it still scrolls', v1.bodyScrolls);
-check('…with the switch now reading Phone', await pg.evaluate(() =>
-  (document.getElementById('qpViewBtn_phone')||{}).style.fontWeight === '700'));
+check('…with the editing view now on Phone', await pg.evaluate(() => _qpPreviewMode() === 'phone'));
 
 // ── the book works inside the frame ─────────────────────────────────
 const nav = await pg.evaluate(async () => {
@@ -161,7 +160,7 @@ const vc = await pg.evaluate(() => ({
   notCustomerLayer: !document.documentElement.classList.contains('qp-desk'),
   rail: !!document.querySelector('#qpRoot .qd-rail-in'), nav: document.querySelectorAll('#qpRoot #qdNav button').length,
   bodyScrolls: getComputedStyle(document.body).overflow !== 'hidden',
-  on: (document.getElementById('qpViewBtn_computer')||{}).style.fontWeight === '700'
+  on: _qpPreviewMode() === 'computer'
 }));
 check('picking Computer shows the customer’s one-page layout with its rail and nav', vc.qd && vc.a4 === 0 && vc.rail && vc.nav >= 5, JSON.stringify(vc));
 check('…as a preview inside the Quote tab, not the customer’s own layer', vc.cls && vc.notCustomerLayer && vc.bodyScrolls && vc.on);
@@ -253,6 +252,74 @@ const lockView = await pg.evaluate(() => {
 check('a locked quote still lets the office switch the preview to Phone', lockView.phone === true, JSON.stringify(lockView));
 check('…and back to Computer', lockView.computer === true, JSON.stringify(lockView));
 check('…while Classic / Modern is a real change and stays behind the lock', lockView.style === false, JSON.stringify(lockView));
+
+// ── THE CUSTOMER PREVIEW IS THE CUSTOMER'S PAGE (2026-11-09) ─────────
+// The owner: "for the customer preview, on the quote tab, I want this to be
+// ... exactly what [the customer] sees ... And then the phone's customer
+// preview ... with a phone screen. And with a blank background ... on the
+// left side ... a big button ... exit quote preview." The two buttons open
+// the app's own customer page in a frame, handed the draft on screen.
+await pg.evaluate(() => { _setQuotePreviewMode('computer'); document.querySelectorAll('#_rsModal, ._rsBackdrop').forEach(e => e.remove()); try { _closePricingPanel(); } catch(e){} });
+const officeBefore = await pg.evaluate(() => ({ q: JSON.stringify(S.quote), tot: _custBarTotalValue() }));
+const netBefore = [];
+const onReq = (r) => { if (/railway\.app/.test(r.url())) netBefore.push(r.method() + ' ' + r.url().replace(/^.*railway\.app/, '')); };
+ctx.on('request', onReq);
+await pg.click('#qpViewBtn_computer');
+await pg.waitForTimeout(4500);
+const frameOf = () => pg.frames().find(f => /[?&]qpv=1/.test(f.url()));
+const fd = frameOf();
+const dk = fd ? await fd.evaluate(() => ({
+  cust: !!window.__CUSTOMER_MODE, qpv: !!window.__QPV,
+  desk: document.documentElement.classList.contains('qp-desk'),
+  secs: [...document.querySelectorAll('[data-qd-sec]')].map(s => s.dataset.qdSec),
+  office: !!document.querySelector('.qd-move, .qe-rail-btn, [onclick*="_qbSectionRemove"]'),
+  appShown: !!document.querySelector('.app') && getComputedStyle(document.querySelector('.app')).display !== 'none',
+  client: S.quote && S.quote.client, tot: _custBarTotalValue(), w: innerWidth
+})) : null;
+const ov = await pg.evaluate(() => {
+  const o = document.getElementById('qpvOverlay'), x = document.getElementById('qpvExitBtn');
+  const r = o && o.getBoundingClientRect(), xr = x && x.getBoundingClientRect();
+  return { on: !!o, full: !!r && r.width >= innerWidth - 1 && r.height >= innerHeight - 1,
+           exit: x ? x.textContent.trim() : '', exitLeft: !!xr && xr.left < 120, exitBig: !!xr && xr.height >= 40 };
+});
+check('Computer opens the customer’s own page over the whole screen, the app hidden behind it', ov.on && ov.full && dk && dk.cust && dk.qpv && dk.desk && !dk.appShown, JSON.stringify({ ov, dk }));
+check('…with a big “Exit quote preview” button on the left', /Exit quote preview/.test(ov.exit) && ov.exitLeft && ov.exitBig, JSON.stringify(ov));
+check('…showing this quote, the same total as the office, and none of the office’s buttons',
+  dk && dk.client === 'Sharon Whittaker' && Math.abs(dk.tot - officeBefore.tot) < 0.01 && !dk.office && dk.secs.includes('cover') && dk.secs.includes('review'),
+  dk && JSON.stringify({ client: dk.client, tot: dk.tot, office: officeBefore.tot, secs: dk.secs.join(',') }));
+
+// the customer's buttons in the preview record nothing
+const acts = fd ? await fd.evaluate(async () => {
+  const out = {};
+  try { await customerQuery(); } catch(e){ out.qErr = e.message; }
+  out.toastQ = !!document.getElementById('qpvToast');
+  try { await acceptQuoteDigitally(); } catch(e){ out.aErr = e.message; }
+  out.accepted = !!(S.quote && S.quote.accepted);
+  return out;
+}) : null;
+await pg.waitForTimeout(400);
+check('accepting or asking a question in the preview sends and records nothing', acts && acts.toastQ && !acts.accepted, JSON.stringify(acts));
+
+await pg.click('#qpvOverlay [data-qpv="phone"]');
+await pg.waitForTimeout(4500);
+const fp = frameOf();
+const ph = fp ? await fp.evaluate(() => ({ w: innerWidth, book: document.documentElement.classList.contains('qp-book'), cust: !!window.__CUSTOMER_MODE })) : null;
+check('Phone shows the customer’s phone book in a phone-width screen', ph && ph.cust && ph.book && ph.w >= 370 && ph.w <= 400, JSON.stringify(ph));
+await pg.click('#qpvExitBtn');
+await pg.waitForTimeout(500);
+const after = await pg.evaluate(() => ({ ov: !!document.getElementById('qpvOverlay'), tab: document.body.dataset.tab, frames: document.querySelectorAll('iframe[src*="qpv=1"]').length, q: JSON.stringify(S.quote), tot: _custBarTotalValue() }));
+check('Exit quote preview goes straight back to the editable quote', !after.ov && after.tab === 'quote' && after.frames === 0, JSON.stringify({ ov: after.ov, tab: after.tab }));
+check('…and the office’s quote is exactly as it was', after.q === officeBefore.q && Math.abs(after.tot - officeBefore.tot) < 0.01);
+await pg.click('#qpViewBtn_phone');
+await pg.waitForTimeout(4000);
+const ph2 = frameOf() ? await frameOf().evaluate(() => innerWidth) : 0;
+check('the Phone button opens the phone preview directly', ph2 >= 370 && ph2 <= 400, String(ph2));
+await pg.keyboard.press('Escape');
+await pg.waitForTimeout(300);
+check('…and Esc closes it', !(await pg.$('#qpvOverlay')));
+ctx.off('request', onReq);
+const posts = netBefore.filter(x => /^(POST|PUT|PATCH|DELETE) /.test(x));
+check('the preview writes nothing to the server', posts.length === 0, posts.join(' | ') || 'none');
 
 check('nothing threw anywhere in the Quote tab', errs.length === 0, errs.join(' | ') || 'clean');
 

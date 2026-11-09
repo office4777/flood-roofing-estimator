@@ -5347,7 +5347,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T23:45:31Z';
+  window.APP_BUILT_AT = '2026-11-09T01:39:45Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5378,6 +5378,17 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // sign-in screen never shows; _tryBoot() (later) dresses the page.
   try { if (new URLSearchParams(location.search).get('try') === '1') window.__PLAYGROUND = true; } catch(e){}
   var _cq = new URLSearchParams(location.search).get('q');
+  // THE OFFICE'S CUSTOMER PREVIEW (2026-11-09): the Quote tab's Computer /
+  // Phone buttons open this page in a frame with ?qpv=1, and the quote comes
+  // from the office window that opened it (_qpvPayload) rather than from the
+  // server — the draft on screen, exactly as the customer's page would render
+  // it. Nothing is fetched, posted or recorded (`__QPV`).
+  var _qpvBoot = false;
+  try { _qpvBoot = new URLSearchParams(location.search).get('qpv') === '1' && window.parent && window.parent !== window; } catch(e){ _qpvBoot = false; }
+  if (_qpvBoot){
+    _cq = 'preview';
+    window.__QPV = true;
+  }
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
     try { window.__CUSTOMER_JOB = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
@@ -5387,8 +5398,27 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     // time bootCustomerView() runs on DOMContentLoaded the data is usually
     // already here, taking the whole network hop off the critical path.
     // (It also doubles as the backend warm-up the old /health ping did.)
-    try { window.__CUSTOMER_PREVIEW = (new URLSearchParams(location.search).get('preview') === '1'); } catch(e){}
-    try {
+    try { window.__CUSTOMER_PREVIEW = window.__QPV || (new URLSearchParams(location.search).get('preview') === '1'); } catch(e){}
+    if (window.__QPV) try {
+      // Asked for by message, not read off window.parent: a frame may not
+      // reach into its parent where the two count as different origins
+      // (a file:// page always does), and a message works either way.
+      window.__CUSTOMER_QUOTE_PREFETCH = new Promise(function(res){
+        var done = false;
+        var give = function(p){
+          if (done) return; done = true;
+          res(p ? new Response(JSON.stringify(p), { status: 200, headers: { 'Content-Type': 'application/json' } })
+                : new Response('{}', { status: 404 }));
+        };
+        window.addEventListener('message', function(e){
+          if (e.source !== window.parent || !e.data || e.data.qpv !== 'payload') return;
+          give(e.data.payload || null);
+        });
+        try { window.parent.postMessage({ qpv: 'ready' }, '*'); } catch(e){}
+        setTimeout(function(){ give(null); }, 10000);
+      });
+    } catch(e){}
+    else try {
       var _qhUrl = BACKEND + '/q/' + encodeURIComponent(_cq)
         + (window.__CUSTOMER_JOB ? ('?job=' + encodeURIComponent(window.__CUSTOMER_JOB)) : '')
         + (window.__CUSTOMER_PREVIEW ? ((window.__CUSTOMER_JOB ? '&' : '?') + 'preview=1') : '');
@@ -8525,8 +8555,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <span class="no-print qp-view-toggle" id="qpViewToggle" style="display:inline-flex;align-items:center;gap:6px">
           <span style="font-size:12px;font-weight:700;color:#0a1628">Customer preview:</span>
           <span style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">
-            <button type="button" id="qpViewBtn_computer" onclick="_setQuotePreviewMode('computer')" title="The quote exactly as the customer's computer shows it" style="padding:6px 14px;border:none;background:#0a1628;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">💻 Computer</button>
-            <button type="button" id="qpViewBtn_phone" onclick="_setQuotePreviewMode('phone')" title="The quote exactly as the customer's phone shows it" style="padding:6px 14px;border:none;background:transparent;color:var(--text2);font-size:12.5px;font-weight:500;cursor:pointer">📱 Phone</button>
+            <button type="button" id="qpViewBtn_computer" onclick="_qpvOpen('desk')" title="Open the quote exactly as your customer sees it on a computer" style="padding:6px 14px;border:none;background:#0a1628;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer">💻 Computer</button>
+            <button type="button" id="qpViewBtn_phone" onclick="_qpvOpen('phone')" title="Open the quote exactly as your customer sees it on a phone" style="padding:6px 14px;border:none;background:transparent;color:var(--text2);font-size:12.5px;font-weight:500;cursor:pointer">📱 Phone</button>
           </span>
         </span>
         <span class="no-print" id="qpStyleToggle" style="display:inline-flex;align-items:center;gap:6px">
@@ -14080,6 +14110,9 @@ function _maintBanner(payload){
 }
 async function api(method, path, body) {
   if (window.__PLAYGROUND){ var _pe = new Error('Not in the playground'); _pe.status = 0; _pe.playground = true; throw _pe; }
+  // The office's customer preview frame (?qpv=1) talks to nobody: it renders
+  // the quote it was handed and records nothing.
+  if (window.__QPV){ var _qe = new Error('Preview only'); _qe.status = 0; _qe.preview = true; throw _qe; }
   var tok = localStorage.getItem('fr_token') || '';
   var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
   if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
@@ -20635,7 +20668,7 @@ var _LOCK_SCOPE = '#tab-roof, #tab-quote, #tab-scope, #tab-materials, #tab-order
 // OPENING the Pricing drawer — the office must be able to inspect a sent
 // quote's pricing in full; the question is asked at the first real change).
 var _LOCK_CLICK_SCOPE = '#tab-quote, #tab-scope, #tab-materials, #tab-order, #tab-jobpack, #jobDetailsModal, #quotePricingPanel';
-var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|_jobFilesOpen|_jobFilesClose|_jf[A-Za-z]*|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
+var _LOCK_OK_CALLS = /^\s*(_jpToggleMapPanel|_fergusPanelToggle|_togglePricingPanel|_closePricingPanel|_openPricingPanel|_jobPhotoView|_photoOpen|_photoZoom|_jobPhotosApplyZoom|_sidepopResizeStart|adjustZoom|zoomFit|_fitCanvas|toggleSidePanel|_setPricingRoof|_setProfitView|_setDocZoomFactor|openQuoteEmail|printQuote|printCustomerQuote|pushQuotePricingToFergus|pushQuotePdfToFergus|copyCustomerLink|_qv[A-Za-z]*|_qt[A-Za-z]*|_qChangeTemplate|gotoTab|renderMaterialPriceTable|refreshQuoteProposal|_jpPreview|printJobPack|saveMaterialsAsPdf|saveScopePricingAsPdf|_matDownload|_qaBar|_toggleQuoteExtras|_qpCondPhotoOpen|_setPricingTab|_setQuotePreviewMode|_qpv[A-Za-z]*|_syncQuotePreviewToggle|_qpPreviewClassesSync|_fitDocZoom|_syncDocZoomUi|_jobLockToggle|_jobHistoryOpen|_jobFilesOpen|_jobFilesClose|_jf[A-Za-z]*|openSelectJobModal|_versionMenuToggle|openJobDetailsModal|closeJobDetailsModal|_navJobTap)\b/;
 function _lockClickAllowed(t){
   if (!t || !t.closest) return true;
   // Surfaces that only LOOK. The lock exists so no measurement, quantity or
@@ -32973,8 +33006,20 @@ function buildAcceptSummaryRows(){
 // Digital acceptance — records who accepted, when, the selected options +
 // grades and the total on the quote, then saves.  No email (the office
 // tracks acceptance in Fergus).
+// In the office's customer preview the customer's buttons say what they would
+// do and do nothing — no event, no email, no acceptance.
+function _qpvNotice(what){
+  var t = document.getElementById('qpvToast');
+  if (!t){ t = document.createElement('div'); t.id = 'qpvToast';
+    t.style.cssText = 'position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:200010;background:#0a1628;color:#fff;padding:12px 18px;border-radius:10px;font:600 13px Inter,-apple-system,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:86vw;text-align:center';
+    document.body.appendChild(t); }
+  t.textContent = 'Preview only — ' + what + ' Nothing has been sent.';
+  t.style.display = 'block';
+  clearTimeout(window._qpvToastT); window._qpvToastT = setTimeout(function(){ t.style.display = 'none'; }, 3500);
+}
 function acceptQuoteDigitally(){
   if (!S.quote) return;
+  if (window.__QPV){ _qpvNotice('your customer accepts from the link you email them.'); return; }
   // The prominent "Accept quote" button (sticky bar + signature page) ALWAYS
   // opens the confirmation popup. The name field + terms tick now live INSIDE
   // that popup — previously this button silently blocked when the terms box,
@@ -34837,6 +34882,7 @@ function _qpPricedFp(P){
 }
 function _postCustomerEvent(type, extra){
   if (!window.__CUSTOMER_TOKEN) return Promise.resolve({ ok: true });
+  if (window.__QPV) return Promise.resolve({ ok: true });   // the office's own preview
   var body = Object.assign({ type:type, selections:_customerSelections() }, extra||{});
   // Resolves { ok: false } instead of swallowing failures — accept /
   // decline / query MUST tell the customer when their action didn't
@@ -34923,6 +34969,7 @@ function _postCustomerUpdateDebounced(){
   _custUpdT = setTimeout(function(){ _postCustomerEvent('update'); }, 700);
 }
 function customerDecline(){
+  if (window.__QPV){ _qpvNotice('your customer can decline from their link.'); return; }
   if (S.quote && S.quote.accepted){ alert('You\'ve already accepted this quote.'); return; }
   if (!confirm('Decline this quote? You can still contact us if you change your mind.')) return;
   _postCustomerEvent('declined').then(function(r){
@@ -34933,6 +34980,7 @@ function customerDecline(){
   });
 }
 function customerQuery(){
+  if (window.__QPV){ _qpvNotice('your customer can ask you a question from their link.'); return; }
   var m = window.prompt('What would you like to ask about this quote?');
   if (!m) return;
   _postCustomerEvent('queried', { message:m }).then(function(r){
@@ -35045,6 +35093,97 @@ function _setQuotePreviewMode(m, force){
     } catch(e){}
   }
 }
+// ── THE CUSTOMER PREVIEW IS THE CUSTOMER'S PAGE (2026-11-09, the owner: "for
+// the customer preview, on the quote tab, I want this to be ... what the actual
+// customer sees ... the phone's customer preview ... with a phone screen. And
+// with a blank background, so you can't see the app ... a big button that says
+// exit quote preview"). Not the office's editable layout restyled: the app
+// itself, loaded in a frame as the customer's link loads it (?qpv=1), handed
+// THIS quote as the server would hand it — stamped with the prices, products
+// and recommendations a send would stamp, on a copy, so the office's quote is
+// not touched — with nothing fetched, posted or recorded.
+function _qpvPayload(){
+  if (!S.quote) return null;
+  var orig = S.quote, q = JSON.parse(JSON.stringify(orig));
+  // A frozen version or an accepted quote is shown as it stands; a draft gets
+  // what the send would stamp, worked out on the copy.
+  if (!S._qvViewing && !q.accepted){
+    try { S.quote = q; _qStampCustomerCopy(); } catch(e){} finally { S.quote = orig; }
+  }
+  delete q.versions;
+  // What the server strips before the customer sees the quote (server.js
+  // CUSTOMER_HIDDEN_FIELDS), once the quote carries sell prices.
+  if (q.share && q.share.priced && q.share.priced.v === 1){
+    ['materialBase','scaffoldBase','scaffoldCustom','roofMaterialMarkup','gutterMaterialMarkup',
+     'roofMatQtyBuffer','gutterMatQtyBuffer','labourRatesCustom','labourCalc','labourHrsManual','labour',
+     'roofLabour','roofLabourCalc','gutterLabour','gutterPrices','gutterUnitPrices','selectionPrices',
+     'psSubtotal','shedEst','showLabourCalc','cpbMat'].forEach(function(k){ delete q[k]; });
+  }
+  var br = {};
+  try { br = JSON.parse(JSON.stringify((S.settings && S.settings.branding) || {})); } catch(e){}
+  return { quote: q, branding: br, expired: false, expiresAt: null };
+}
+function _qpvOpen(mode){
+  mode = (mode === 'phone') ? 'phone' : 'desk';
+  if (!S.quote){ return; }
+  try { refreshQuoteProposal(); } catch(e){}   // the roof plan's geometry, stamped by the render
+  window.__qpvPayload = _qpvPayload();
+  var ov = document.getElementById('qpvOverlay');
+  if (!ov){
+    ov = document.createElement('div');
+    ov.id = 'qpvOverlay';
+    ov.innerHTML =
+      '<style>'+
+      '#qpvOverlay{position:fixed;inset:0;z-index:2147483000;display:flex;background:#e9edf2;font-family:Inter,-apple-system,sans-serif}'+
+      '#qpvOverlay .qpv-rail{flex:0 0 190px;background:#0a1628;color:#fff;display:flex;flex-direction:column;gap:14px;padding:18px 14px;box-sizing:border-box}'+
+      '#qpvOverlay .qpv-exit{display:block;width:100%;padding:16px 10px;border:none;border-radius:12px;background:#0099e0;color:#fff;font:800 15px/1.25 Inter,-apple-system,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(0,153,224,.35)}'+
+      '#qpvOverlay .qpv-exit:hover{background:#0087c7}'+
+      '#qpvOverlay .qpv-lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#7dd3fc;margin-top:6px}'+
+      '#qpvOverlay .qpv-seg{display:flex;border:1px solid rgba(255,255,255,.25);border-radius:9px;overflow:hidden}'+
+      '#qpvOverlay .qpv-seg button{flex:1;padding:8px 4px;border:none;background:transparent;color:rgba(255,255,255,.8);font:600 12px Inter,-apple-system,sans-serif;cursor:pointer}'+
+      '#qpvOverlay .qpv-seg button.on{background:#fff;color:#0a1628;font-weight:800}'+
+      '#qpvOverlay .qpv-note{font-size:11.5px;line-height:1.45;color:rgba(255,255,255,.65)}'+
+      '#qpvOverlay .qpv-stage{flex:1 1 auto;min-width:0;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}'+
+      '#qpvOverlay .qpv-frame{border:0;background:#e9edf2;display:block}'+
+      '#qpvOverlay.qpv-desk .qpv-frame{position:absolute;inset:0;width:100%;height:100%}'+
+      '#qpvOverlay.qpv-phone .qpv-phone{width:410px;height:min(864px,calc(100vh - 40px));box-sizing:border-box;padding:10px;border-radius:46px;background:#0b0f17;box-shadow:0 24px 60px rgba(10,22,40,.35),inset 0 0 0 2px #2a3242}'+
+      '#qpvOverlay.qpv-phone .qpv-frame{width:390px;height:100%;border-radius:36px}'+
+      '</style>'+
+      '<div class="qpv-rail">'+
+        '<button type="button" class="qpv-exit" id="qpvExitBtn" onclick="_qpvClose()">&larr; Exit quote preview</button>'+
+        '<div class="qpv-lbl">Customer preview</div>'+
+        '<div class="qpv-seg"><button type="button" data-qpv="desk" onclick="_qpvOpen(\'desk\')">Computer</button><button type="button" data-qpv="phone" onclick="_qpvOpen(\'phone\')">Phone</button></div>'+
+        '<div class="qpv-note">Exactly what your customer sees on their link. Nothing you press here is sent or recorded.</div>'+
+      '</div>'+
+      '<div class="qpv-stage" id="qpvStage"></div>';
+    document.body.appendChild(ov);
+    window._qpvKey = function(e){ if (e.key === 'Escape') _qpvClose(); };
+    document.addEventListener('keydown', window._qpvKey);
+    // The frame asks for its quote; it is handed only to our own frame.
+    window._qpvMsg = function(e){
+      var f = document.getElementById('qpvFrame');
+      if (!f || e.source !== f.contentWindow || !e.data || e.data.qpv !== 'ready') return;
+      // Our own origin, except a file:// page, whose frames have none to match.
+      var o = (location.protocol !== 'file:' && location.origin && location.origin !== 'null') ? location.origin : '*';
+      try { f.contentWindow.postMessage({ qpv: 'payload', payload: window.__qpvPayload || null }, o); } catch(err){}
+    };
+    window.addEventListener('message', window._qpvMsg);
+  }
+  ov.className = 'qpv-' + mode;
+  Array.prototype.forEach.call(ov.querySelectorAll('[data-qpv]'), function(b){ b.classList.toggle('on', b.getAttribute('data-qpv') === mode); });
+  var stage = document.getElementById('qpvStage');
+  var base = location.href.split('#')[0].split('?')[0];
+  var src = base + '?qpv=1&m=' + mode + '&t=' + Date.now();
+  var frame = '<iframe class="qpv-frame" id="qpvFrame" title="Customer preview" src="' + src + '"></iframe>';
+  stage.innerHTML = mode === 'phone' ? '<div class="qpv-phone">' + frame + '</div>' : frame;
+}
+function _qpvClose(){
+  var ov = document.getElementById('qpvOverlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+  if (window._qpvKey){ document.removeEventListener('keydown', window._qpvKey); window._qpvKey = null; }
+  if (window._qpvMsg){ window.removeEventListener('message', window._qpvMsg); window._qpvMsg = null; }
+  window.__qpvPayload = null;
+}
 function _syncQuotePreviewToggle(){
   if (!window.__CUSTOMER_MODE) _qpPreviewClassesSync();
   var cur = _qpPreviewMode();
@@ -35054,7 +35193,9 @@ function _syncQuotePreviewToggle(){
     b.style.color = on ? '#fff' : 'var(--text2)';
     b.style.fontWeight = on ? '700' : '500';
   };
-  ['computer','phone'].forEach(function(k){ paint(document.getElementById('qpViewBtn_' + k), k === cur); });
+  // The two Customer preview buttons OPEN the customer's page (_qpvOpen);
+  // they are not a switch, so neither is lit.
+  ['computer','phone'].forEach(function(k){ paint(document.getElementById('qpViewBtn_' + k), false); });
   var st = _quoteStyle();
   ['classic','modern'].forEach(function(k){ paint(document.getElementById('qsBtn_' + k), k === st); });
   // The card's hint says how THIS preview is edited.
@@ -87183,6 +87324,7 @@ try {
   }, 1000);
   function left(){
     try {
+      if (window.__QPV) return;   // the customer preview frame is not a screen of the app
       var tok = localStorage.getItem('fr_token'); if (!tok) return;
       var sc = _screenNow();
       var body = JSON.stringify({ name: 'screen_left', props: { screen: sc, seconds: Math.round((Date.now() - screenSince) / 1000),

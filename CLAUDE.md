@@ -1517,6 +1517,29 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   side by side (`.qd-incl-grid`, one column under 900 px) — included left,
   excluded then the notes right. The phone book is unchanged. `typesnap.json`
   regenerated (deskText only).
+- THE CUSTOMER PREVIEW IS THE CUSTOMER'S OWN PAGE (2026-11-09, the owner: "I
+  want this to be ... exactly what [the customer] sees ... the phone's customer
+  preview ... with a phone screen ... a blank background, so you can't see the
+  app ... a big button that says ... exit quote preview"). The Quote tab's
+  Customer preview Computer / Phone buttons call `_qpvOpen('desk'|'phone')`:
+  a full-screen `#qpvOverlay` (navy rail on the left with `#qpvExitBtn` "←
+  Exit quote preview", a Computer / Phone switch; Esc closes) holding an
+  iframe of app.html itself with `?qpv=1`. That frame boots as the CUSTOMER
+  (`window.__QPV`, `_cq = 'preview'`, `bootCustomerView`) — so it is the very
+  page the link shows, not an office imitation — and gets its quote from the
+  office window by postMessage (`{qpv:'ready'}` → `{qpv:'payload'}`, only to
+  our own frame; a file:// page has no origin to match, so '*' there), built by
+  `_qpvPayload()`: the draft on screen with the customer copy stamped
+  (`_qStampCustomerCopy` on a deep copy, the live quote untouched), `versions`
+  off and the server's CUSTOMER_HIDDEN_FIELDS stripped. Phone = the frame at
+  390 px inside a phone bezel. The frame talks to NOBODY: `api()` throws under
+  `__QPV`, `_postCustomerEvent` and the screen_left beacon are skipped, and
+  Accept / Decline / Ask a question show "Preview only … Nothing has been
+  sent" (`_qpvNotice`). `_qpv*` is in `_LOCK_OK_CALLS` (looking is not
+  editing). The editable quote on the tab keeps its own computer / phone
+  layout (`_setQuotePreviewMode`, still used by the suites), but no button
+  sets it now and the two buttons are never lit. `tests/quotepreview.mjs`
+  (38).
 - EXCLUSIONS on the modern proposal: `S.quote.custExcl` (edited beside
   the inclusions in `_qdescOpen`, kind `'x'`; `_qbExclusionLines`). When
   any exist the two lists get "What's included" / "What's excluded"
