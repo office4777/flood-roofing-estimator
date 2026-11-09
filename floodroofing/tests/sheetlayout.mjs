@@ -485,8 +485,20 @@ rules('report 71', r);
   const inRect = p => p.c[0] > 1231 && p.c[0] < 1577;
   const south = r.faces.find(f => f.d[1] < -0.9);
   const sRect = r.pieces.filter(p => p.face === south.id && p.c[0] > 1220 && p.c[0] < 1577 && !p.scrap);   // (the 18th lapped at the rectangle's west corner)
-  check('report 85: the rectangle\'s south side is 18 sheets at 5.69 m, one run (was E1–E11 then 5.14 m F sheets)',
-    sRect.length === 18 && sRect.every(p => p.ordered && lenR[p.block] === 5690), sRect.map(p => p.label + (p.ordered ? '' : '(fed)')).join(' '));
+  check('report 85: the rectangle\'s south side is 18 sheets, one run — 5.69 m, and the three under the lower ridge short sheets at their own 5.14 m (the owner: "they should be short sheets at that required length")',
+    sRect.length === 18 && sRect.every(p => p.ordered) && sRect.filter(p => lenR[p.block] === 5140).length === 3 && sRect.filter(p => lenR[p.block] === 5690).length === 15, sRect.map(p => p.label + ':' + lenR[p.block]).join(' '));
+  // A FULL SET WHERE POSSIBLE ("the purple sheets C19, C18 ... C12. The
+  // offcuts to that set should go and replace green D4 orange A5 ... because
+  // it's a full set"): the west strip's rows below the ridge come off the
+  // rectangle's north-slope C sheets, in order; the rows above it off the
+  // south slope's E sheets, in order.
+  const west = r.faces.find(f => f.d[0] > 0.9 && f.edges.some(e => e.kind === 'gutter' && e.len > 200));
+  const wRows = r.pieces.filter(p => p.face === west.id && !p.scrap).sort((p, q) => q.c[1] - p.c[1]);
+  const lowC = wRows.filter(p => p.c[1] > 700 && p.c[1] < 812).map(p => p.label);
+  const hiE = wRows.filter(p => p.c[1] > 590 && p.c[1] < 685).map(p => p.label.replace('✂', ''));
+  check('report 85: the west strip\'s lower rows are one C set in order, its upper rows one E set in order',
+    lowC.every(l => /^↺C\d+$/.test(l)) && lowC.length >= 5 && lowC.map(l => +l.slice(2)).every((n, i, a) => !i || n > a[i - 1])
+    && hiE.every(l => /^↺E\d+$/.test(l)) && hiE.length >= 4, 'lower ' + lowC.join(' ') + ' | upper ' + hiE.join(' '));
   const north = r.pieces.filter(p => (p.face === T.id || p.face === wing.id) && inRect(p) && p.c[0] > 1345 && !p.scrap);
   check('report 85: the rectangle\'s north side is its 5.69 m sheets right across, the east corner ones too (was ↺A4 ↺B6 ↺C3 offcuts there), each wing column a sheet or its carried foot',
     north.length >= 17 && north.every(p => (p.ordered || p.strung) && lenR[p.block] === 5690), north.map(p => p.label).join(' '));

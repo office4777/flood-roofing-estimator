@@ -542,7 +542,21 @@ THE LAY:
    and the feet ✂C9–✂C13 on the wing's end), south E1–E18 (+E19–E21 the
    west strip's corner), 53 sheets, 292.6 m (v12 54 / 289.8, live 57 /
    301.3). Every other fixture and the 37-shape gate identical. Shown as
-   "Sheet layout v13 - report 85 main rectangle"; NOT LIVE until his "go".
+   "Sheet layout v13 - report 85 main rectangle". THEN v14, the same day
+   (the owner: "E12, E13, E14, they should not be full-length blue sheets.
+   They should be short sheets at that required length ... the purple sheets
+   C19 ... C12 ... offcuts to that set should go and replace green D4 orange
+   A5 ... because it's a full set. And the rule should be to use a full set
+   where possible ... The idea is for a roofer to lay one of the triangles and
+   then straight away use the offcut somewhere"): a full strip under a lower
+   ridge inside the rectangle stays a sheet at ITS OWN length (only the CUT
+   strips join the rectangle's block); move 8 (an end as one set) also takes a
+   wing's end laid on the rectangle's hip end (rule 4b), its home the main
+   end's hips too, and on a main rectangle keeps a cleaner set for up to one
+   sheet more (`forced`); and the wing at the rectangle's hip end is not laid
+   again from its own apex (`res.rectMain` skips that alternative). Report 85
+   v14: 53 sheets, 292.0 m; the west strip's lower rows ↺C13, ↺C15–↺C19, its
+   upper rows ↺E12–↺E18. NOT LIVE until his "go".
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,

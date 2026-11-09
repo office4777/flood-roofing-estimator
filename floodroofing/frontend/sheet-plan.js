@@ -8198,7 +8198,8 @@ function _sheetPuzzleBuildRaw(opts){
   // wing's own slopes feed its end better than the pairing does. Laid both
   // ways; the pairing is kept unless the other orders fewer sheets, or as
   // many and less steel.
-  if (!opts.noFill && !opts.noApexTmpl && !opts._noAlt && res.faces.some(function(f){ return f.adoptedBy; })){
+  // (rule 3d: on a main rectangle the wing at its hip end is ITS end's — rule 4b — and is fed as the rectangle's sets; not laid again from its own apex)
+  if (!opts.noFill && !opts.noApexTmpl && !opts._noAlt && !res.rectMain && res.faces.some(function(f){ return f.adoptedBy; })){
     var nSheets2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.count; }, 0); };
     var steel2 = function(z){ return (z.tally || []).reduce(function(t, x){ return t + x.Lmm * x.count; }, 0); };
     var alt2 = null;
@@ -8528,6 +8529,7 @@ function _sheetPuzzleFill(pz){
       });
     });
     if (!broken) rectR.clear();
+    pz.rectMain = rectR.size > 0;
   }
   var inRectOf = function(f, p){
     var R = rectR.get(f); if (!R) return false;
@@ -8560,7 +8562,6 @@ function _sheetPuzzleFill(pz){
     var runs = [];
     fulls.forEach(function(p){
       var lv = mmOf(p.longPx, f), cur = runs[runs.length - 1];
-      if (inRectOf(f, p) && lv >= rectR.get(f).M - _PZ_RECT_STEP_MM) lv = rectR.get(f).M;
       if (cur && Math.abs(cur.level - lv) <= Math.max(60, cur.level * 0.04)){ cur.pieces.push(p); cur.k1 = p.k; }
       else runs.push({ level: lv, pieces: [p], k0: p.k, k1: p.k });
     });
@@ -10878,12 +10879,15 @@ function _pzOptimise(pz){
     };
     var countAll = function(){ var n = 0, st = 0; pz.blocks.forEach(function(b){ b.pieces.forEach(function(pc){ n++; st += lenOf(pc); }); }); return { n: n, steel: st }; };
     pz.faces.forEach(function(f){
-      if (f.lay !== 'apex') return;
+      // (rule 3d: a wing's end laid on the main's hip end is fed as a set too —
+      // report 85's west strip, from the rectangle's north-slope offcuts)
+      var wingEnd = f.lay === 'grid' && f.template && f.template.lay === 'apex' && pz.rectMain;
+      if (f.lay !== 'apex' && !wingEnd) return;
       // Its home: the slopes across its own hips, and across the hips of a
       // wing's end laid on it (rule 4b) — never another end's sheets.
       var hipKeys = {};
       pz.faces.forEach(function(g){
-        if (g !== f && g.adoptedBy !== f && g.template !== f) return;
+        if (g !== f && g.adoptedBy !== f && g.template !== f && !(wingEnd && g === f.template)) return;
         (g.edges || []).forEach(function(e){ if (e.kind === 'hip') hipKeys[_pzEdgeKey(e)] = 1; });
       });
       [1, -1].forEach(function(h){
@@ -11075,7 +11079,11 @@ function _pzOptimise(pz){
         // (a colour break taken out of the set may cost up to half a sheet of
         // the set's length — the owner's clean look over a little steel)
         var allow = 1000 + Math.max(0, breaks0 - breaks1) * (best.B ? best.B.Lmm : 0) / 2;
-        if (ok && after.n <= before.n && stray1 <= stray0 && breaks1 <= breaks0 && (after.n < before.n || stray1 < stray0 || breaks1 < breaks0) && after.steel <= before.steel + allow){
+        // (rule 3d, the owner on report 85: "use a full set where possible ...
+        // it should be forced to be worked there to be part of that set": on a
+        // main rectangle a cleaner set is kept for up to one sheet more)
+        var forced = pz.rectMain && ok && stray1 <= stray0 && breaks1 < breaks0 && after.n <= before.n + 1 && after.steel <= before.steel + allow + (best.B ? best.B.Lmm : 0);
+        if (forced || (ok && after.n <= before.n && stray1 <= stray0 && breaks1 <= breaks0 && (after.n < before.n || stray1 < stray0 || breaks1 < breaks0) && after.steel <= before.steel + allow)){
           log.endSets = (log.endSets || 0) + 1; memo.clear();
         } else restore();
       });
