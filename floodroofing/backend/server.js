@@ -245,6 +245,7 @@ const BIG_BODY = [
   ['POST', /^\/email\/send-order\/?$/],            // order PDF attachment
   ['POST', /^\/feedback\/?$/],                    // bug report + screenshot PDF
   ['POST', /^\/claude\//],                        // aerial image to the model
+  ['POST', /^\/newbuild\/specs\/?$/],          // New Build: the plan set's text
 ];
 function _wantsBigBody(req){
   return BIG_BODY.some(function (e) { return req.method === e[0] && e[1].test(req.path); });

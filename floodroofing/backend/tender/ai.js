@@ -287,4 +287,55 @@ async function askTender(doc, message, plans, images, chat, opts){
   return r;
 }
 
-module.exports = { MODELS, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, SECTION_TOOL, ASK_TOOL, draftTender, amendTender, editSection, askTender };
+// ── New Build: the specs off a set of building plans (2026-11-09) ───
+// The owner: "find out the specs of the detailed roof, for example, 0.55
+// gauge maxim trim line, and that would populate in the quote with that
+// product. And if it's saved in the price book, use that price. However, if
+// it's not saved in the price book, just use an AI estimate." Text first
+// (every page's text layer), pictures of the pages only when a set has none.
+// Each spec names its page; where two pages disagree it is a CONFLICT, and the
+// office is asked rather than the model choosing quietly.
+const SPEC = (what) => obj({
+  text: S('what the plans say, word for word as near as possible, or "" when the plans do not say'),
+  match_id: S('the id from the company\'s list that is this product, or "" when none is'),
+  pages: S('the page numbers it is stated on, e.g. "2, 6", or ""'),
+  confidence: N('0 to 1'),
+});
+const NEWBUILD_TOOL = {
+  name: 'record_specs',
+  description: 'Record the roofing specification read off the building plans.',
+  strict: true,
+  input_schema: obj({
+    roof_plan_page: N('the page number of the roof plan, or 0 if there is none'),
+    pitch_deg: N('the roof pitch in degrees, or 0 when not stated'),
+    pitch_pages: S('pages the pitch is stated on'),
+    profile: SPEC('roof profile'),
+    profile_rate_m2: N('when match_id is "": a typical NZ trade supply price for this profile in this grade and gauge, NZD ex GST per m2 of roof, else 0'),
+    thickness: obj({ text: S('the gauge as stated, e.g. "0.55" or "0.40 BMT", or ""'), value: { type: 'string', enum: ['0.40', '0.55', ''] }, pages: S(), confidence: N() }),
+    grade: SPEC('steel grade / coating'),
+    gutter: SPEC('gutter'),
+    downpipes: S('the downpipes as stated, or ""'),
+    colour: S('the roof colour as stated, or ""'),
+    underlay: S('the underlay as stated, or ""'),
+    conflicts: { type: 'array', items: obj({ item: { type: 'string', enum: ['profile', 'thickness', 'grade', 'gutter', 'pitch', 'colour', 'other'] }, values: { type: 'array', items: obj({ text: S(), pages: S() }) }, note: S('one short sentence') }) },
+    notes: { type: 'array', items: S('anything else on the roof the office should know, one line each') },
+  }),
+};
+async function newbuildSpecs(pages, products, images, opts){
+  const lines = (arr) => (arr || []).map(x => x.id + ' | ' + x.name).join('\n') || '(none)';
+  const parts = ['THE COMPANY\'S PRODUCTS (id | name):', 'Steel grades:', lines(products && products.grades), '',
+    'Roof profiles:', lines(products && products.profiles), '', 'Gutters:', lines(products && products.gutters), '',
+    'THE PLAN SET, PAGE BY PAGE:'];
+  let budget = 300000;
+  for (const pg of (pages || [])) {
+    const t = String(pg.text || '').slice(0, Math.max(0, Math.min(40000, budget)));
+    budget -= t.length;
+    parts.push('=== PAGE ' + pg.page + ' ===', t || '(no text on this page)');
+    if (budget <= 0) break;
+  }
+  const r = await structured('extract', 'newbuild-specs', NEWBUILD_TOOL, parts.join('\n'), images || [], Object.assign({ maxTokens: 6000 }, opts || {}));
+  r.result = r.input || {};
+  return r;
+}
+
+module.exports = { MODELS, NEWBUILD_TOOL, newbuildSpecs, costUsd, prompt, available, structured, classifyPage, CLASSIFY_TOOL, TENDER_TOOL, SECTION_TOOL, ASK_TOOL, draftTender, amendTender, editSection, askTender };

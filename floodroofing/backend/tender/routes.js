@@ -61,6 +61,40 @@ function mount(app, deps){
   const bad = (res, msg, code) => res.status(400).json({ error: msg, code: code || 'BAD_REQUEST' });
   const oops = (res, e, route) => { try { recordError('tender', e, { route }); } catch (e2) {} res.status(500).json({ error: String(e && e.message || e) }); };
 
+  // ── NEW BUILD: "AI your plans" (2026-11-09) ──────────────────────
+  // The owner: "this AI Your Plans should only be offered in the team tier.
+  // The team subscription. Not the measure, not the trade, but the team."
+  // So the PLAN decides, not the tendering list of names: Team, Business and
+  // a trial (which is Team) — `planTender`. The geometry is read in the
+  // browser; only the pages' TEXT (and, for a set with no text layer, a few
+  // page pictures) comes here, and nothing is stored.
+  async function requireTeamPlan(req, res, next){
+    if (process.env.TENDERING_ALL === 'true') return next();
+    try { if (await planTender(req)) return next(); } catch (e) {}
+    return res.status(403).json({ error: 'AI your plans is part of the Team plan.', code: 'PLAN_TEAM_ONLY', needs: 'Team' });
+  }
+  const cleanList = (a) => (Array.isArray(a) ? a : []).slice(0, 60).map(x => ({ id: String((x && x.id) || '').slice(0, 60), name: String((x && x.name) || '').slice(0, 120) })).filter(x => x.id);
+  app.post('/newbuild/specs', requireAuth, requireSubscription, requireTeamPlan, rateLimit(20, 60000), async (req, res) => {
+    try {
+      if (!ai.available()) return bad(res, 'The AI is not set up on the server yet.', 'NO_AI');
+      const b = req.body || {};
+      const pages = (Array.isArray(b.pages) ? b.pages : []).slice(0, 80)
+        .map(p => ({ page: Math.max(1, parseInt(p && p.page, 10) || 0), text: String((p && p.text) || '').slice(0, 60000) }))
+        .filter(p => p.page);
+      const images = (Array.isArray(b.images) ? b.images : []).slice(0, 4)
+        .filter(im => im && typeof im.base64 === 'string' && im.base64.length < 2.5e6 && /^[A-Za-z0-9+/=]+$/.test(im.base64.slice(0, 200)))
+        .map(im => ({ mime: im.mime === 'image/png' ? 'image/png' : 'image/jpeg', base64: im.base64, label: 'Page ' + (parseInt(im.page, 10) || '?') + ':' }));
+      if (!pages.length && !images.length) return bad(res, 'Nothing was read off the plans.', 'NO_PAGES');
+      const pr = b.products || {};
+      const products = { grades: cleanList(pr.grades), profiles: cleanList(pr.profiles), gutters: cleanList(pr.gutters) };
+      const r = await ai.newbuildSpecs(pages, products, images);
+      res.json({ specs: r.result, model: r.model, prompt: r.promptVersion, ms: r.ms });
+    } catch (e) {
+      try { recordError('newbuild-specs', e, { route: 'POST /newbuild/specs' }); } catch (e2) {}
+      res.status(502).json({ error: 'Claude could not read the plans: ' + String(e && e.message || e).slice(0, 200) });
+    }
+  });
+
   // Is it on? The app asks once at boot to decide whether to show the type.
   app.get('/tender/enabled', requireAuth, async (req, res) => {
     const on = await enabledFor(req);

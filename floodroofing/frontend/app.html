@@ -5347,7 +5347,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-08T23:45:31Z';
+  window.APP_BUILT_AT = '2026-11-09T01:20:11Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6301,6 +6301,15 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
                     style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0099cc;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">
               📷 Import from Fergus
             </button>
+          </div>
+          <div id="nbAiWrap" style="display:none;margin-top:12px">
+            <input type="file" id="nbAiFile" accept="application/pdf,.pdf" onchange="_nbAiFileChosen(event)" style="display:none">
+            <button type="button" id="nbAiBtn" onclick="_nbAiPick()"
+                    title="Upload the building plans: the roof is drawn off the roof plan and the specs go on the quote"
+                    style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 16px;background:linear-gradient(135deg,#0a1628,#0b5a8a);color:#fff;border:none;border-radius:9px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(10,22,40,.25)">
+              ✨ AI your plans
+            </button>
+            <div style="font-size:11.5px;color:#64748b;margin-top:5px;text-align:center">Upload the building plans as a PDF: the roof is drawn off the roof plan and the specs go on the quote.</div>
           </div>
         </div>
         <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button><button type="button" class="prev-rm" id="roofPrevToCanvas" onclick="_roofPrevToCanvas()" title="Put this photo under the drawing — on an empty canvas, or over the picture that is there" style="right:auto;left:8px;background:#0099cc;color:#fff;border-color:#0099cc">🗺 Add to canvas</button></div>
@@ -9003,6 +9012,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <button type="button" id="jtBtn_roofing"  onclick="_setJobType('roofing')"  style="padding:9px 20px;border:none;background:#0a1628;color:#fff;font-size:13px;font-weight:700;cursor:pointer">🏠 Roofing</button>
         <button type="button" id="jtBtn_poleshed" onclick="_setJobType('poleshed')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏚 Pole Shed</button>
         <button type="button" id="jtBtn_gutters" onclick="_setJobType('gutters')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">〰 Gutters only</button>
+        <button type="button" id="jtBtn_newbuild" onclick="_setJobType('newbuild')" style="padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">🏗 New Build</button>
         <button type="button" id="jtBtn_tender" onclick="_setJobType('tender')" style="display:none;padding:9px 20px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer">📐 AI Tendering</button>
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:5px">Chooses which quote draft this job uses — you can switch it later on the Quote tab.</div>
@@ -17705,6 +17715,637 @@ function _psIsShed(){ return !!(window.S && S.quote && S.quote.quoteKind === 'po
 // The gutter line is drawn corner to corner on a Gutters only job.
 function _gjPolyGutter(){ try { return _isGutterJob(); } catch(e){ return false; } }
 function _isGutterJob(){ try { return !!(window.S && S.quote && S.quote.quoteKind === 'gutters'); } catch(e){ return false; } }
+// NEW BUILD (2026-11-09, the owner: "This should also be a new job type ...
+// called new build. Which would also change all the quote sections"). Priced,
+// drawn and packed exactly as a roofing job; the quote has no roof-condition
+// section and no old roof, reads "New Roof Proposal", and the products the
+// plans specify are the recommended ones (`S.quote.nbSpec`).
+function _isNewBuild(){ try { if (window.S && S.quote) return S.quote.quoteKind === 'newbuild'; return window._pendingJobType === 'newbuild'; } catch(e){ return false; } }
+// ══ NEW BUILD — "AI YOUR PLANS" (2026-11-09, the owner: "Now that new build
+// job type it should add another button on the roof map tabs ... There should
+// be another big button under it called AI Your Plans. Now this AI Your Plans
+// should only be offered in the team tier"). One PDF set of building plans in,
+// and out of it: the roof plan page under the drawing at its printed scale,
+// the outline traced off the plan's own roof-weight line work, the roof built
+// on it, and the plans' specs (profile, gauge, grade, gutter, pitch) read by
+// the AI and put on the quote as the recommended picks.
+//
+// THE GEOMETRY IS READ, NOT GUESSED: a plan PDF is vector line work, so the
+// roof's outline is the thickest lines on the roof plan page (the roof is
+// drawn heavier than the walls), traced as the region the outside cannot
+// flood into, and the inner of the fascia's double line is the wall line.
+// The scale is the "1:N" printed by the title, corrected for "@ A1" printed
+// on an A3. Nothing here is sent anywhere: only the TEXT of the pages goes to
+// the AI, for the specs.
+function _nbAiAllowed(){
+  if (window.__NB_AI_ON === true) return true;
+  if (window.__NB_AI_ON === false) return false;
+  try {
+    var c = JSON.parse(localStorage.getItem('fr_company') || 'null');
+    return !!(c && c.limits && c.limits.tender === true);
+  } catch(e){ return false; }
+}
+function _nbSync(){
+  var on = _isNewBuild();
+  try { document.body.classList.toggle('newbuild-job', on); } catch(e){}
+  var w = document.getElementById('nbAiWrap');
+  if (w) w.style.display = (on && _nbAiAllowed()) ? '' : 'none';
+}
+function _nbAiPick(){
+  if (!_nbAiAllowed()){ try { alert('AI your plans is part of the Team plan.'); } catch(e){} return; }
+  var f = document.getElementById('nbAiFile'); if (f){ f.value = ''; f.click(); }
+}
+function _nbAiFileChosen(e){
+  var f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (f) _nbAiStart(f);
+}
+function _nbEsc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function _nbModal(inner){
+  var wrap = document.getElementById('nbAiModal');
+  if (!wrap){
+    wrap = document.createElement('div');
+    wrap.id = 'nbAiModal';
+    wrap.className = 'pg-wrap';
+    document.body.appendChild(wrap);
+  }
+  wrap.innerHTML = '<div class="pg-box" style="max-width:640px">' + inner + '</div>';
+  wrap.style.display = 'flex';
+}
+function _nbAiClose(){ var w = document.getElementById('nbAiModal'); if (w) w.style.display = 'none'; }
+var _NB_STEPS = ['Reading the plans', 'Finding the roof plan', 'Drawing the roof', 'Reading the specs'];
+function _nbProgress(at, note, name){
+  var h = '<div class="pg-head">AI your plans</div>' +
+    '<div class="pg-sub">' + _nbEsc(name || 'Your plans') + '</div><div style="margin:10px 0 4px">';
+  _NB_STEPS.forEach(function(s, i){
+    var mark = i < at ? '✓' : (i === at ? '…' : '○');
+    var col = i < at ? '#15803d' : (i === at ? '#0a1628' : '#94a3b8');
+    h += '<div class="nb-step" style="color:' + col + ';font-size:13.5px;padding:3px 0;font-weight:' + (i === at ? 700 : 500) + '">' + mark + ' ' + s + '</div>';
+  });
+  h += '</div>' + (note ? '<div class="pg-sub" style="margin-top:6px">' + note + '</div>' : '');
+  _nbModal(h);
+}
+
+// ── Reading a page ────────────────────────────────────────────────
+// The page's words with their positions (top-left origin, PDF points) and
+// its plain text, lines in reading order.
+async function _nbPageText(lib, page){
+  var vp = page.getViewport({ scale: 1 });
+  var tc = await page.getTextContent();
+  var items = [];
+  (tc.items || []).forEach(function(it){
+    if (!it || !it.str || !String(it.str).trim()) return;
+    var m = lib.Util.transform(vp.transform, it.transform);
+    var h = Math.hypot(m[2], m[3]) || Math.abs(it.height) || 8;
+    items.push({ s: String(it.str), x: m[4], y: m[5], h: h, w: Math.abs(it.width || 0) });
+  });
+  var sorted = items.slice().sort(function(a, b){ return (Math.abs(a.y - b.y) > 3) ? a.y - b.y : a.x - b.x; });
+  var lines = [], cur = null;
+  sorted.forEach(function(it){
+    if (!cur || Math.abs(it.y - cur.y) > 3){ cur = { y: it.y, t: [] }; lines.push(cur); }
+    cur.t.push(it.s);
+  });
+  return { items: items, text: lines.map(function(l){ return l.t.join(' '); }).join('\n'), w: vp.width, h: vp.height };
+}
+// Every straight stroke on the page: [x1, y1, x2, y2, width], in the same
+// top-left point space as the words. The width is the line width as it
+// prints, which is the line width times the scale the drawing is placed at.
+async function _nbPageSegs(lib, page){
+  var OPS = lib.OPS, vp = page.getViewport({ scale: 1 });
+  var ol = await page.getOperatorList();
+  var ctm = [1,0,0,1,0,0], lw = 1, st = [], segs = [];
+  function mul(m, n){ return [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]]; }
+  function tp(x, y){ var X = ctm[0]*x+ctm[2]*y+ctm[4], Y = ctm[1]*x+ctm[3]*y+ctm[5]; return vp.convertToViewportPoint(X, Y); }
+  for (var i = 0; i < ol.fnArray.length; i++){
+    var fn = ol.fnArray[i], a = ol.argsArray[i];
+    if (fn === OPS.save) st.push([ctm, lw]);
+    else if (fn === OPS.restore){ var s = st.pop(); if (s){ ctm = s[0]; lw = s[1]; } }
+    else if (fn === OPS.transform) ctm = mul(ctm, a);
+    else if (fn === OPS.setLineWidth) lw = a[0];
+    else if (fn === OPS.setGState && a && a[0]){ (a[0] || []).forEach(function(kv){ if (kv && kv[0] === 'LW') lw = kv[1]; }); }
+    else if (fn === OPS.constructPath && a && Array.isArray(a[0])){
+      var ops = a[0], co = a[1] || [], k = 0, cur = null, start = null;
+      var w = (lw || 0) * Math.sqrt(Math.abs(ctm[0]*ctm[3] - ctm[1]*ctm[2]));
+      for (var j = 0; j < ops.length; j++){
+        var o = ops[j];
+        if (o === OPS.moveTo){ cur = tp(co[k], co[k+1]); start = cur; k += 2; }
+        else if (o === OPS.lineTo){ var p = tp(co[k], co[k+1]); if (cur) segs.push([cur[0], cur[1], p[0], p[1], w]); cur = p; k += 2; }
+        else if (o === OPS.rectangle){
+          var rx = co[k], ry = co[k+1], rw = co[k+2], rh = co[k+3];
+          var q = [tp(rx, ry), tp(rx+rw, ry), tp(rx+rw, ry+rh), tp(rx, ry+rh)];
+          for (var r = 0; r < 4; r++) segs.push([q[r][0], q[r][1], q[(r+1)%4][0], q[(r+1)%4][1], w]);
+          k += 4;
+        }
+        else if (o === OPS.curveTo){ cur = tp(co[k+4], co[k+5]); k += 6; }
+        else if (o === OPS.curveTo2 || o === OPS.curveTo3){ cur = tp(co[k+2], co[k+3]); k += 4; }
+        else if (o === OPS.closePath){ if (cur && start) segs.push([cur[0], cur[1], start[0], start[1], w]); cur = start; }
+      }
+    }
+  }
+  return segs;
+}
+// ── The outline ───────────────────────────────────────────────────
+function _nbLen(s){ return Math.hypot(s[2]-s[0], s[3]-s[1]); }
+function _nbRaster(segs, x0, y0, W, H, K, rad){
+  var m = new Uint8Array(W * H);
+  segs.forEach(function(s){
+    var n = Math.ceil(_nbLen(s) * K * 2) + 1;
+    for (var i = 0; i <= n; i++){
+      var x = Math.round((s[0] + (s[2]-s[0]) * i / n - x0) * K), y = Math.round((s[1] + (s[3]-s[1]) * i / n - y0) * K);
+      for (var dy = -rad; dy <= rad; dy++) for (var dx = -rad; dx <= rad; dx++){
+        var X = x + dx, Y = y + dy;
+        if (X >= 0 && Y >= 0 && X < W && Y < H) m[Y * W + X] = 1;
+      }
+    }
+  });
+  return m;
+}
+// The ink's connected pieces at one point a pixel; the page border and the
+// title block are the pieces covering most of the sheet and are dropped.
+function _nbComponents(segs, pw, ph){
+  var W = Math.ceil(pw) + 2, H = Math.ceil(ph) + 2;
+  var m = _nbRaster(segs, -1, -1, W, H, 1, 1);
+  var lab = new Int32Array(W * H), comps = [], stack = [];
+  for (var p0 = 0; p0 < W * H; p0++){
+    if (!m[p0] || lab[p0]) continue;
+    var id = comps.length + 1, c = { id: id, x0: 1e9, y0: 1e9, x1: -1e9, y1: -1e9, n: 0 };
+    lab[p0] = id; stack.push(p0);
+    while (stack.length){
+      var p = stack.pop(), x = p % W, y = (p / W) | 0;
+      c.n++; if (x < c.x0) c.x0 = x; if (x > c.x1) c.x1 = x; if (y < c.y0) c.y0 = y; if (y > c.y1) c.y1 = y;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++){
+        var X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+        var q = Y * W + X; if (m[q] && !lab[q]){ lab[q] = id; stack.push(q); }
+      }
+    }
+    c.x0 -= 1; c.x1 -= 1; c.y0 -= 1; c.y1 -= 1;
+    comps.push(c);
+  }
+  return { comps: comps, lab: lab, W: W };
+}
+// The crack between region and not-region pixels, chained into its longest
+// loop: an exact trace of a filled shape, as a staircase in pixel corners.
+function _nbTrace(reg, W, H){
+  var next = {};
+  function key(x, y){ return x + ',' + y; }
+  function add(ax, ay, bx, by){ (next[key(ax, ay)] = next[key(ax, ay)] || []).push([bx, by]); }
+  for (var y = 0; y < H; y++) for (var x = 0; x < W; x++){
+    if (!reg[y * W + x]) continue;
+    // Region on the right-hand side walking each edge (y down).
+    if (y === 0 || !reg[(y-1) * W + x]) add(x, y, x+1, y);
+    if (x === W-1 || !reg[y * W + x + 1]) add(x+1, y, x+1, y+1);
+    if (y === H-1 || !reg[(y+1) * W + x]) add(x+1, y+1, x, y+1);
+    if (x === 0 || !reg[y * W + x - 1]) add(x, y+1, x, y);
+  }
+  var best = null, bestA = 0;
+  Object.keys(next).forEach(function(k0){
+    while (next[k0] && next[k0].length){
+      var pts = [], k = k0, guard = 0;
+      var s = k0.split(',').map(Number);
+      pts.push(s);
+      while (guard++ < 2e6){
+        var list = next[k]; if (!list || !list.length) break;
+        var nb = list.pop(); if (!list.length) delete next[k];
+        k = key(nb[0], nb[1]);
+        if (k === k0) break;
+        pts.push(nb);
+      }
+      var A = 0;
+      for (var i = 0; i < pts.length; i++){ var a = pts[i], b = pts[(i+1) % pts.length]; A += a[0]*b[1] - b[0]*a[1]; }
+      if (Math.abs(A) > bestA){ bestA = Math.abs(A); best = pts; }
+    }
+  });
+  return best;
+}
+function _nbSimplify(pts, tol){
+  // Douglas–Peucker on a closed loop, split at its two farthest points.
+  if (!pts || pts.length < 4) return pts;
+  function dp(a){
+    if (a.length < 3) return a;
+    var s = a[0], e = a[a.length-1], dx = e[0]-s[0], dy = e[1]-s[1], L = Math.hypot(dx, dy) || 1e-9, mi = 0, md = 0;
+    for (var i = 1; i < a.length - 1; i++){
+      var d = Math.abs(dy * (a[i][0]-s[0]) - dx * (a[i][1]-s[1])) / L;
+      if (d > md){ md = d; mi = i; }
+    }
+    if (md <= tol) return [s, e];
+    var l = dp(a.slice(0, mi + 1)), r = dp(a.slice(mi));
+    return l.slice(0, -1).concat(r);
+  }
+  var far = 0, fd = 0;
+  for (var i = 1; i < pts.length; i++){ var d = Math.hypot(pts[i][0]-pts[0][0], pts[i][1]-pts[0][1]); if (d > fd){ fd = d; far = i; } }
+  var a = dp(pts.slice(0, far + 1)), b = dp(pts.slice(far).concat([pts[0]]));
+  var out = a.slice(0, -1).concat(b.slice(0, -1));
+  // A side shorter than a tolerance and a half is a notch in the staircase.
+  for (var pass = 0; pass < 3; pass++){
+    var keep = [];
+    for (var j = 0; j < out.length; j++){
+      var p = out[j], q = out[(j+1) % out.length];
+      if (Math.hypot(q[0]-p[0], q[1]-p[1]) < tol * 1.5 && out.length - (out.length - keep.length) > 3){ out[(j+1) % out.length] = [(p[0]+q[0])/2, (p[1]+q[1])/2]; continue; }
+      keep.push(p);
+    }
+    out = keep;
+  }
+  return out;
+}
+function _nbArea(p){ var A = 0; for (var i = 0; i < p.length; i++){ var a = p[i], b = p[(i+1) % p.length]; A += a[0]*b[1] - b[0]*a[1]; } return A / 2; }
+// Move every side of a polygon inward by d (each side's line offset, the
+// corners where the offset lines meet).
+function _nbInset(poly, d){
+  var n = poly.length, sgn = _nbArea(poly) > 0 ? 1 : -1, L = [];
+  for (var i = 0; i < n; i++){
+    var a = poly[i], b = poly[(i+1) % n], dx = b[0]-a[0], dy = b[1]-a[1], l = Math.hypot(dx, dy) || 1;
+    // Inward normal for a loop of this orientation (y down).
+    var nx = -dy / l * sgn, ny = dx / l * sgn;
+    L.push([a[0] + nx * d, a[1] + ny * d, dx, dy]);
+  }
+  var out = [];
+  for (var j = 0; j < n; j++){
+    var p = L[(j + n - 1) % n], q = L[j];
+    var den = p[2] * q[3] - p[3] * q[2];
+    if (Math.abs(den) < 1e-6){ out.push([q[0], q[1]]); continue; }
+    var t = ((q[0]-p[0]) * q[3] - (q[1]-p[1]) * q[2]) / den;
+    out.push([p[0] + p[2] * t, p[1] + p[3] * t]);
+  }
+  return out;
+}
+// Where the roof plan's title sits, and its scale.
+function _nbTitleOf(pt){
+  var best = null;
+  // "Roof Plan" on its own is the drawing's title; "ROOF PLAN NOTES" and
+  // "per 70m2 roof plan area" are words about it.
+  pt.items.forEach(function(it){
+    if (!/roof\s*plan/i.test(it.s)) return;
+    var sc = it.h + (/^\W*roof\s*plan\W*$/i.test(it.s) ? 100 : 0) - (/notes|area|per\s/i.test(it.s) ? 200 : 0);
+    if (!best || sc > best.sc){ best = it; best.sc = sc; }
+  });
+  return best;
+}
+var NB_A_LONG_MM = { A0: 1189, A1: 841, A2: 594, A3: 420, A4: 297 };
+function _nbScaleOf(pt, near, box){
+  var cands = [];
+  pt.items.forEach(function(it){
+    var m = /1\s*:\s*(\d{2,4})(?:\s*@\s*(A[0-4]))?/i.exec(it.s);
+    if (!m) return;
+    var N = +m[1]; if (!(N >= 10 && N <= 2000)) return;
+    var paper = m[2] ? m[2].toUpperCase() : '';
+    if (!paper){
+      // "@ A1" printed as its own word just after.
+      pt.items.forEach(function(o){
+        if (o === it || Math.abs(o.y - it.y) > 4 || o.x < it.x || o.x > it.x + it.w + 60) return;
+        var mm = /@\s*(A[0-4])/i.exec(o.s); if (mm) paper = mm[1].toUpperCase();
+      });
+    }
+    var d = 0;
+    if (box) d = Math.hypot(Math.max(box.x0 - it.x, 0, it.x - box.x1), Math.max(box.y0 - it.y, 0, it.y - box.y1));
+    else if (near) d = Math.hypot(it.x - near.x, it.y - near.y);
+    // A pipe's fall ("gradient 1:60") is not a drawing's scale.
+    if (/gradient|fall|grade|slope|min/i.test(it.s)) d += 5000;
+    var said = paper || /scale/i.test(it.s) || pt.items.some(function(o){ return o !== it && /scale/i.test(o.s) && Math.abs(o.y - it.y) < 4 && o.x < it.x && it.x - o.x < 80; });
+    if (said) d -= 150;
+    cands.push({ N: N, paper: paper, d: d, s: it.s });
+  });
+  if (!cands.length) return null;
+  cands.sort(function(a, b){ return a.d - b.d; });
+  var c = cands[0], f = 1;
+  if (c.paper && NB_A_LONG_MM[c.paper]){
+    var longMm = Math.max(pt.w, pt.h) * 25.4 / 72;
+    f = NB_A_LONG_MM[c.paper] / longMm;
+    if (f > 0.9 && f < 1.1) f = 1;
+  }
+  return { N: c.N, paper: c.paper, factor: f, mmPerPt: 25.4 / 72 * c.N * f, text: c.s };
+}
+// The outline of the roof on one page, in points, or null.
+function _nbFindOutline(pt, segs, title){
+  if (!segs.length) return null;
+  // Line widths, thickest first, by total length.
+  var byW = {};
+  segs.forEach(function(s){ var w = Math.round(s[4] * 4) / 4; byW[w] = (byW[w] || 0) + _nbLen(s); });
+  var widths = Object.keys(byW).map(Number).filter(function(w){ return w > 0; }).sort(function(a, b){ return b - a; });
+  var tries = 0;
+  for (var wi = 0; wi < widths.length && tries < 5; wi++){
+    var wmin = widths[wi] * 0.9;
+    var th = segs.filter(function(s){ return s[4] >= wmin && _nbLen(s) > 0.5; });
+    var tot = th.reduce(function(a, s){ return a + _nbLen(s); }, 0);
+    if (tot < 150) continue;
+    tries++;
+    var res = _nbOutlineFrom(th, pt, title);
+    if (res) return res;
+  }
+  return null;
+}
+function _nbOutlineFrom(th, pt, title){
+  var cc = _nbComponents(th, pt.w, pt.h);
+  var tx = title ? title.x + (title.w || 0) / 2 : pt.w / 2, ty = title ? title.y : pt.h / 2;
+  var cand = cc.comps.filter(function(c){
+    var bw = c.x1 - c.x0, bh = c.y1 - c.y0;
+    return bw > 30 && bh > 30 && bw < pt.w * 0.6 && bh < pt.h * 0.6;
+  });
+  if (!cand.length) return null;
+  cand.forEach(function(c){
+    var dx = Math.max(c.x0 - tx, 0, tx - c.x1), dy = Math.max(c.y0 - ty, 0, ty - c.y1);
+    c.dist = Math.hypot(dx, dy) - Math.sqrt((c.x1 - c.x0) * (c.y1 - c.y0)) * 0.15;
+  });
+  cand.sort(function(a, b){ return a.dist - b.dist; });
+  for (var ci = 0; ci < Math.min(3, cand.length); ci++){
+    var c = cand[ci];
+    // The component's own strokes.
+    var mine = th.filter(function(s){
+      var x = Math.round(s[0]) + 1, y = Math.round(s[1]) + 1;
+      for (var dy = -1; dy <= 1; dy++) for (var dx = -1; dx <= 1; dx++){
+        var q = (y + dy) * cc.W + (x + dx);
+        if (cc.lab[q] === c.id) return true;
+      }
+      return false;
+    });
+    var out = _nbFill(mine, c);
+    if (out) { out.comp = c; out.segs = mine; return out; }
+  }
+  return null;
+}
+function _nbFill(mine, c){
+  var K = 2, pad = 6, x0 = c.x0 - pad, y0 = c.y0 - pad;
+  var W = Math.ceil((c.x1 - c.x0 + pad * 2) * K), H = Math.ceil((c.y1 - c.y0 + pad * 2) * K);
+  if (W * H > 9e6) return null;
+  var m = _nbRaster(mine, x0, y0, W, H, K, 1);
+  var outside = new Uint8Array(W * H), st = [0]; outside[0] = 1;
+  while (st.length){
+    var p = st.pop(), x = p % W, y = (p / W) | 0;
+    if (x > 0 && !outside[p-1] && !m[p-1]){ outside[p-1] = 1; st.push(p-1); }
+    if (x < W-1 && !outside[p+1] && !m[p+1]){ outside[p+1] = 1; st.push(p+1); }
+    if (y > 0 && !outside[p-W] && !m[p-W]){ outside[p-W] = 1; st.push(p-W); }
+    if (y < H-1 && !outside[p+W] && !m[p+W]){ outside[p+W] = 1; st.push(p+W); }
+  }
+  var reg = new Uint8Array(W * H), cnt = 0, inner = 0;
+  for (var i = 0; i < W * H; i++){ if (!outside[i]){ reg[i] = 1; cnt++; if (!m[i]) inner++; } }
+  // A closed shape has room inside it; an open scatter of lines does not.
+  if (inner < cnt * 0.3) return null;
+  var loop = _nbTrace(reg, W, H);
+  if (!loop || loop.length < 8) return null;
+  var poly = _nbSimplify(loop, 1.6 * K).map(function(p){ return [p[0] / K + x0, p[1] / K + y0]; });
+  if (poly.length < 3) return null;
+  // How far in the wall line is: cast in from the middle of each side and
+  // find the second line (the fascia drawn double), else the middle of the
+  // one line there is.
+  var gaps = [];
+  var sgn = _nbArea(poly) > 0 ? 1 : -1;
+  for (var j = 0; j < poly.length; j++){
+    var a = poly[j], b = poly[(j+1) % poly.length], dx = b[0]-a[0], dy = b[1]-a[1], l = Math.hypot(dx, dy);
+    if (l < 8) continue;
+    var nx = -dy / l * sgn, ny = dx / l * sgn;
+    [0.3, 0.5, 0.7].forEach(function(f){
+      var sx = a[0] + dx * f, sy = a[1] + dy * f, run = 0, state = 0, firstEnd = 0, secondStart = 0, secondEnd = 0;
+      for (var t = 0; t <= 10; t += 0.25){
+        var X = Math.round((sx + nx * t - x0) * K), Y = Math.round((sy + ny * t - y0) * K);
+        var ink = (X >= 0 && Y >= 0 && X < W && Y < H) ? m[Y * W + X] : 0;
+        if (state === 0 && !ink && t > 0){ state = 1; firstEnd = t; }
+        else if (state === 1 && ink){ state = 2; secondStart = t; }
+        else if (state === 2 && !ink){ state = 3; secondEnd = t; break; }
+      }
+      if (state === 3 && secondStart <= 7) gaps.push((secondStart + secondEnd) / 2);
+      else if (firstEnd) gaps.push(firstEnd / 2);
+    });
+  }
+  gaps.sort(function(p, q){ return p - q; });
+  var gap = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 0.5;
+  // The traced edge sits a dilation pixel outside the ink.
+  var inset = Math.max(0, Math.min(8, gap - 0.5 / K));
+  var wall = _nbInset(poly, inset);
+  return { poly: wall, outer: poly, gap: gap, inset: inset };
+}
+// Hip or gable: hips are the heavy diagonals that come in to the outline's
+// outside corners.
+function _nbRoofType(res){
+  var poly = res.poly, n = poly.length, sgn = _nbArea(poly) > 0 ? 1 : -1, convex = [];
+  for (var i = 0; i < n; i++){
+    var a = poly[(i + n - 1) % n], b = poly[i], c = poly[(i+1) % n];
+    var cr = (b[0]-a[0]) * (c[1]-b[1]) - (b[1]-a[1]) * (c[0]-b[0]);
+    if (cr * sgn > 0) convex.push(b);
+  }
+  var hips = 0;
+  (res.segs || []).forEach(function(s){
+    var L = _nbLen(s); if (L < 12) return;
+    var ang = Math.abs(Math.atan2(s[3]-s[1], s[2]-s[0]) * 180 / Math.PI) % 90;
+    if (ang < 25 || ang > 65) return;
+    var near = convex.some(function(p){
+      return Math.hypot(p[0]-s[0], p[1]-s[1]) < res.gap + 5 || Math.hypot(p[0]-s[2], p[1]-s[3]) < res.gap + 5;
+    });
+    if (near) hips++;
+  });
+  return hips >= 2 ? 'hip' : 'gable';
+}
+// ── Putting it on the canvas ──────────────────────────────────────
+async function _nbRenderCrop(page, bx0, by0, bw, bh){
+  var s = Math.max(1, Math.min(3, 2600 / Math.max(bw, bh)));
+  var vp = page.getViewport({ scale: s, offsetX: -bx0 * s, offsetY: -by0 * s });
+  var cv = document.createElement('canvas');
+  cv.width = Math.round(bw * s); cv.height = Math.round(bh * s);
+  var ctx = cv.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  return { url: cv.toDataURL('image/jpeg', 0.9), s: s };
+}
+function _nbLoadImg(url){ return new Promise(function(ok, no){ var im = new Image(); im.onload = function(){ ok(im); }; im.onerror = no; im.src = url; }); }
+function _nbCloseRoofPopup(){
+  try { document.querySelectorAll('#_rsModal').forEach(function(rs){ try { rs._rsClose ? rs._rsClose() : rs.remove(); } catch(e){ try { rs.remove(); } catch(e2){} } }); } catch(e){}
+}
+function _nbDrawRoof(img, s, outlinePx, scaleMPerPx, type){
+  try { clearAll(true); } catch(e){}
+  try { _setRoofImgFromDataUrl(img.src); } catch(e){}
+  _applyCanvasBg(img, { zoom: 1, offX: 0, offY: 0, rot: 0 });
+  DRAW.bgFrom = 'pdf';
+  if (scaleMPerPx > 0){
+    DRAW.scaleMetresPerPx = scaleMPerPx;
+    try { _scaleSetByHand(); } catch(e){}
+    DRAW.scaleLabel = 'From the plan';
+  }
+  if (outlinePx){
+    window.__NB_DRAWING = true;
+    try { setTool('outline'); } catch(e){}
+    DRAW.currentPts = outlinePx.map(function(p){ return [p[0], p[1]]; });
+    try { finishCurrent(); } catch(e){}
+    _nbCloseRoofPopup();
+    try { autoGenerateRoof(type || 'hip'); } catch(e){}
+    window.__NB_DRAWING = false;
+    _nbCloseRoofPopup();
+    setTimeout(_nbCloseRoofPopup, 150);
+  }
+  try { setTool('select'); } catch(e){}
+  try { _recalcAllRoofsMeas(); } catch(e){}
+  try { updateMeasTotals(); } catch(e){}
+  try { populateMaterialsFromLines(); } catch(e){}
+  try { redrawAll(); } catch(e){}
+  try { _collapseRoofBg(); } catch(e){}
+}
+
+// ── The specs ─────────────────────────────────────────────────────
+function _nbProducts(){
+  var pick = function(l){ return (l || []).filter(Boolean).map(function(x){ return { id: x.id, name: x.name || x.label || x.id }; }); };
+  var g = [], p = [], gu = [];
+  try { g = pick(_selGrades()); } catch(e){}
+  try { p = pick(_selProfiles()); } catch(e){}
+  try { gu = pick(_selGuttersAll().filter(function(x){ return x && !x.removed; })); } catch(e){}
+  return { grades: g, profiles: p, gutters: gu };
+}
+function _nbThicknessId(v){ v = String(v || ''); return v === '0.55' ? '55' : v === '0.40' ? '40' : ''; }
+// The AI's answer onto the quote: each spec'd product becomes the pick (and
+// so the Recommended row when the quote is sent), the others carry the "not
+// spec'd" note. A profile the company does not sell is added to THIS job,
+// priced at the AI's estimate and flagged so.
+function _nbApplySpecs(sp){
+  if (!sp || !S.quote) return { applied: [] };
+  var applied = [];
+  var nb = { pages: {}, conflicts: Array.isArray(sp.conflicts) ? sp.conflicts : [], notes: Array.isArray(sp.notes) ? sp.notes : [], raw: sp, at: new Date().toISOString() };
+  var prods = _nbProducts();
+  var has = function(list, id){ return !!id && list.some(function(x){ return x.id === id; }); };
+  if (sp.profile && sp.profile.text){
+    var pid = has(prods.profiles, sp.profile.match_id) ? sp.profile.match_id : '';
+    if (!pid){
+      pid = 'nb_' + Date.now().toString(36);
+      if (!Array.isArray(S.quote.customProfiles)) S.quote.customProfiles = [];
+      var rate = +sp.profile_rate_m2;
+      S.quote.customProfiles.push({ id: pid, name: String(sp.profile.text).slice(0, 60), locksGauge: '', coverMm: 0,
+        desc: 'Spec’d in the plans' + (sp.profile.pages && sp.profile.pages.length ? ' (page ' + sp.profile.pages.join(', ') + ')' : ''),
+        rate: (rate > 0 ? Math.round(rate * 100) / 100 : ''), rateUnit: 'm2', aiPriced: rate > 0 });
+      applied.push({ what: 'Profile', val: sp.profile.text, note: rate > 0 ? 'not in your price book — priced at the AI’s estimate of $' + rate.toFixed(2) + '/m², check it' : 'not in your price book — give it a price' , warn: true });
+    } else applied.push({ what: 'Profile', val: sp.profile.text });
+    nb.profile = pid; nb.pages.profile = sp.profile.pages || [];
+    try { _setProposalOption_profile(pid); } catch(e){}
+  }
+  var th = _nbThicknessId(sp.thickness && sp.thickness.value);
+  if (th){
+    nb.steelThickness = th; nb.pages.steelThickness = sp.thickness.pages || [];
+    try { _setProposalOption_thickness(th); } catch(e){}
+    applied.push({ what: 'Thickness', val: sp.thickness.text || (th === '55' ? '0.55' : '0.40') });
+  }
+  if (sp.grade && has(prods.grades, sp.grade.match_id)){
+    nb.steelGrade = sp.grade.match_id; nb.pages.steelGrade = sp.grade.pages || [];
+    try { _setProposalOption_grade(sp.grade.match_id); } catch(e){}
+    applied.push({ what: 'Steel grade', val: sp.grade.text });
+  } else if (sp.grade && sp.grade.text) applied.push({ what: 'Steel grade', val: sp.grade.text, note: 'not one of your grades — left as it was', warn: true });
+  if (sp.gutter && has(prods.gutters, sp.gutter.match_id)){
+    nb.gutterType = sp.gutter.match_id; nb.pages.gutterType = sp.gutter.pages || [];
+    try { _setProposalOption_gutter(sp.gutter.match_id); } catch(e){}
+    applied.push({ what: 'Gutter', val: sp.gutter.text });
+  } else if (sp.gutter && sp.gutter.text) applied.push({ what: 'Gutter', val: sp.gutter.text, note: 'not one of your gutters — left as it was', warn: true });
+  if (+sp.pitch_deg > 0 && +sp.pitch_deg < 80){
+    try { setRoofPitch(+sp.pitch_deg); } catch(e){}
+    applied.push({ what: 'Pitch', val: (+sp.pitch_deg) + '°' });
+  }
+  ['colour', 'downpipes', 'underlay'].forEach(function(k){
+    var v = sp[k] && (sp[k].text || sp[k]);
+    if (v && typeof v === 'string') applied.push({ what: k.charAt(0).toUpperCase() + k.slice(1), val: v, note: 'for your information' });
+  });
+  S.quote.nbSpec = nb;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderMaterialPriceTable(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+  return { applied: applied, conflicts: nb.conflicts, notes: nb.notes };
+}
+
+// ── The whole run ─────────────────────────────────────────────────
+async function _nbAiStart(file){
+  var name = file && file.name;
+  try { _usageEvent('roof_source', { type: 'ai-plans' }); } catch(e){}
+  if (DRAW && DRAW.outline && DRAW.outline.length > 2){
+    if (!confirm('This job already has a roof drawn. Replace it with the roof off these plans?')) return;
+  }
+  _nbProgress(0, '', name);
+  var lib, doc;
+  try { lib = await _pdfjsLoad(); doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; }
+  catch(e){
+    _nbModal('<div class="pg-head">Couldn’t open those plans</div><div class="pg-sub">' + _nbEsc(e && e.message || 'The PDF could not be read.') +
+      '</div><button class="pg-later" onclick="_nbAiClose()">Close</button>');
+    return;
+  }
+  var total = Math.min(doc.numPages || 1, PDF_MAX_PAGES), texts = [];
+  for (var i = 1; i <= total; i++){
+    try { var pg = await doc.getPage(i); var pt = await _nbPageText(lib, pg); pt.n = i; texts.push(pt); }
+    catch(e){ texts.push({ n: i, items: [], text: '', w: 0, h: 0 }); }
+  }
+  // 1. The roof plan page: the page whose "ROOF PLAN" title is the biggest.
+  _nbProgress(1, '', name);
+  var order = texts.map(function(t){ var ti = _nbTitleOf(t); return { t: t, title: ti, score: ti ? ti.sc : -1e9 }; })
+    .sort(function(a, b){ return b.score - a.score; });
+  var found = null;
+  for (var k = 0; k < order.length && k < 6; k++){
+    if (!order[k].title && found) break;
+    try {
+      var page = await doc.getPage(order[k].t.n);
+      var segs = await _nbPageSegs(lib, page);
+      var res = _nbFindOutline(order[k].t, segs, order[k].title);
+      if (res){ found = { page: page, pt: order[k].t, title: order[k].title, res: res }; break; }
+    } catch(e){}
+    if (!order[k].title) break;
+  }
+  // 2. Drawn on the canvas.
+  _nbProgress(2, '', name);
+  var drew = null;
+  try {
+    if (found){
+      var r = found.res, xs = r.outer.map(function(p){ return p[0]; }), ys = r.outer.map(function(p){ return p[1]; });
+      var bx0 = Math.min.apply(null, xs) - 30, by0 = Math.min.apply(null, ys) - 30;
+      var bw = Math.max.apply(null, xs) + 30 - bx0, bh = Math.max.apply(null, ys) + 30 - by0;
+      var cr = await _nbRenderCrop(found.page, bx0, by0, bw, bh);
+      var im = await _nbLoadImg(cr.url);
+      var sc = _nbScaleOf(found.pt, found.title, { x0: bx0 + 30, y0: by0 + 30, x1: bx0 + bw - 30, y1: by0 + bh - 30 });
+      var mpp = sc ? sc.mmPerPt / 1000 / cr.s : 0;
+      // A roof under 3 m or over 300 m across is a scale read wrong.
+      if (mpp){ var span = Math.max(bw, bh) * sc.mmPerPt / 1000; if (span < 3 || span > 300) mpp = 0; }
+      var type = _nbRoofType(r);
+      var px = r.poly.map(function(p){ return [(p[0] - bx0) * cr.s, (p[1] - by0) * cr.s]; });
+      _nbDrawRoof(im, cr.s, px, mpp, type);
+      drew = { page: found.pt.n, type: type, scale: sc, scaled: mpp > 0, corners: px.length };
+    } else {
+      // No outline found: the likeliest page goes under the drawing to trace.
+      var pick = order[0] && order[0].t.n || 1;
+      var p2 = await doc.getPage(pick);
+      var big = await _pdfRenderPage(p2, 2.5);
+      var im2 = await _nbLoadImg(big);
+      _nbDrawRoof(im2, 0, null, 0, null);
+      drew = { page: pick, none: true };
+    }
+  } catch(e){ drew = { err: (e && e.message) || 'could not draw' }; }
+  // 3. The specs, from the pages' words.
+  _nbProgress(3, '', name);
+  var specRes = null, specErr = '';
+  try {
+    var body = { pages: texts.filter(function(t){ return t.text; }).map(function(t){ return { page: t.n, text: t.text.slice(0, 60000) }; }), products: _nbProducts() };
+    var ans = await api('POST', '/newbuild/specs', body);
+    specRes = _nbApplySpecs(ans && ans.specs);
+  } catch(e){ specErr = (e && e.message) || 'The AI could not be reached.'; }
+  try { _roofPdfPagesToPhotos(doc); } catch(e){}
+  _nbSummary(drew, specRes, specErr, name);
+}
+function _nbSummary(drew, spec, specErr, name){
+  var h = '<div class="pg-head">Your plans are in</div><div class="pg-sub">' + _nbEsc(name || '') + '</div>';
+  h += '<div class="nb-sum" style="margin-top:10px;font-size:13.5px;line-height:1.5">';
+  if (drew && drew.err) h += '<div style="color:#b91c1c">✕ The roof could not be drawn: ' + _nbEsc(drew.err) + '</div>';
+  else if (drew && drew.none) h += '<div style="color:#b45309">⚠ No roof outline could be read off the plans. Page ' + drew.page + ' is under the drawing — trace the outline with Building outline' + '.</div>';
+  else if (drew){
+    h += '<div style="color:#15803d">✓ Roof drawn off page ' + drew.page + ' as a ' + (drew.type === 'hip' ? 'hip' : 'gable') + ' roof (' + drew.corners + ' corners).</div>';
+    h += drew.scaled
+      ? '<div style="color:#15803d">✓ Scale ' + _nbEsc('1:' + drew.scale.N + (drew.scale.paper ? ' @ ' + drew.scale.paper : '')) + ' from the plan.</div>'
+      : '<div style="color:#b45309">⚠ No scale could be read — click any measurement and type its real length.</div>';
+  }
+  if (specErr) h += '<div style="color:#b91c1c;margin-top:6px">✕ The specs could not be read: ' + _nbEsc(specErr) + '</div>';
+  if (spec && spec.applied){
+    h += '<div style="margin-top:8px;font-weight:700;color:#0a1628">From the specs</div>';
+    if (!spec.applied.length) h += '<div style="color:#64748b">Nothing found to put on the quote.</div>';
+    spec.applied.forEach(function(a){
+      h += '<div' + (a.warn ? ' style="color:#b45309"' : '') + '>' + (a.warn ? '⚠ ' : '✓ ') + '<b>' + _nbEsc(a.what) + ':</b> ' + _nbEsc(a.val) + (a.note ? ' <span style="color:#64748b">— ' + _nbEsc(a.note) + '</span>' : '') + '</div>';
+    });
+    if (spec.conflicts && spec.conflicts.length){
+      h += '<div class="nb-conf" style="margin-top:8px;padding:8px 10px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px"><b>The plans disagree with themselves — check these:</b>';
+      spec.conflicts.forEach(function(c){
+        h += '<div style="margin-top:4px">' + _nbEsc(c.item) + ': ' + (c.values || []).map(function(v){ return _nbEsc(v.text) + ' (p' + (v.pages || []).join(', p') + ')'; }).join(' vs ') + (c.note ? ' — ' + _nbEsc(c.note) : '') + '</div>';
+      });
+      h += '</div>';
+    }
+  }
+  h += '<div style="margin-top:8px;color:#64748b;font-size:12px">Check the drawing against the plans before you quote it. Every page of the plans is in this job’s photos.</div>';
+  h += '<button class="pg-later" style="margin-top:10px" onclick="_nbAiClose()">Done</button>';
+  _nbModal(h);
+}
 // The tools a gutters-only canvas offers.
 var GJ_TOOLS = { select:1, gutter:1, tape:1, customscale:1, calibrate:1 };
 // The body class the canvas and the Pricing drawer key on, and a gutter
@@ -17712,6 +18353,7 @@ var GJ_TOOLS = { select:1, gutter:1, tape:1, customscale:1, calibrate:1 };
 function _gutterJobSync(){
   var on = _isGutterJob();
   try { document.body.classList.toggle('gutter-job', on); } catch(e){}
+  try { _nbSync(); } catch(e){}
   if (!on || !S.quote) return;
   try {
     var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
@@ -20333,7 +20975,7 @@ function restoreFromJob(j){
     // job that HAS a quote; an older one carries no quoteKind at all and the
     // readers then fell through to window._pendingJobType, which is how the
     // last job's Pole Shed followed the office onto the next client's job.
-    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : (S.quote.quoteKind === 'gutters') ? 'gutters' : 'roofing'; } catch(e){}
+    try { if (S.quote) S.quote.quoteKind = (S.quote.quoteKind === 'poleshed') ? 'poleshed' : (S.quote.quoteKind === 'tender') ? 'tender' : (S.quote.quoteKind === 'gutters') ? 'gutters' : (S.quote.quoteKind === 'newbuild') ? 'newbuild' : 'roofing'; } catch(e){}
     try { _gutterJobSync(); } catch(e){}
     try { _clearPendingJobType(); } catch(e){}
     try { _renderFergusSent(); } catch(e){}
@@ -23413,9 +24055,21 @@ else _installNextButtons();
 // Job-type choice in the New/Edit Job modal. Stashed on window so it
 // survives until the quote is (re)built, and applied to S.quote.quoteKind
 // immediately when a quote already exists.
+// A NEW HOUSE NEEDS SPOUTING (2026-11-09): a New Build has no "No new
+// guttering" choice, so one with none picked takes the first gutter the
+// business sells until the plans (AI your plans) or the office say otherwise.
+function _nbGutterDefault(){
+  if (!S.quote || S.quote.quoteKind !== 'newbuild' || S.quote.accepted) return;
+  var po = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  if (po.gutterType && po.gutterType !== 'none') return;
+  var g = (_selGutters() || [])[0];
+  if (g && g.id) po.gutterType = g.id;
+}
 function _setJobType(k){
   window._pendingJobType = _quoteKindNorm(k);
   if (S.quote) S.quote.quoteKind = window._pendingJobType;
+  try { if (S.quote && S.quote.quoteKind === 'newbuild' && typeof setMainScope === 'function') setMainScope('newroof'); } catch(e){}
+  try { _nbGutterDefault(); } catch(e){}
   try {
     var _sc0 = S.quote && S.quote.scaffold;
     if (_sc0 && !_sc0.exclTouched){
@@ -23433,6 +24087,7 @@ function _setJobType(k){
 function _quoteKindNorm(k){
   if (k === 'poleshed') return 'poleshed';
   if (k === 'gutters') return 'gutters';
+  if (k === 'newbuild') return 'newbuild';
   if (k === 'tender' && _tenderingAvailable()) return 'tender';
   return 'roofing';
 }
@@ -23448,10 +24103,10 @@ function _syncJobTypeToggle(){
   if (_poleShedsKnown() && !avail && window._pendingJobType === 'poleshed') window._pendingJobType = 'roofing';
   if (!tnd && window._pendingJobType === 'tender') window._pendingJobType = 'roofing';
   var ps = avail && (window._pendingJobType === 'poleshed');
-  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : window._pendingJobType === 'gutters' ? 'gutters' : 'roofing');
+  var cur = ps ? 'poleshed' : (window._pendingJobType === 'tender' ? 'tender' : window._pendingJobType === 'gutters' ? 'gutters' : window._pendingJobType === 'newbuild' ? 'newbuild' : 'roofing');
   var psb = document.getElementById('jtBtn_poleshed'); if (psb) psb.style.display = avail ? '' : 'none';
   var tnb = document.getElementById('jtBtn_tender'); if (tnb) tnb.style.display = tnd ? '' : 'none';
-  ['roofing','poleshed','gutters','tender'].forEach(function(k){
+  ['roofing','poleshed','gutters','newbuild','tender'].forEach(function(k){
     var b = document.getElementById('jtBtn_' + k);
     if (!b) return;
     var on = (k === cur);
@@ -23570,6 +24225,10 @@ function jobDetailsPrimary(){
   try {
     if (!S.quote && typeof defaultQuote === 'function') S.quote = defaultQuote();
     if (S.quote) S.quote.quoteKind = _quoteKindNorm(window._pendingJobType);
+    if (S.quote && S.quote.quoteKind === 'newbuild'){
+      try { if (typeof setMainScope === 'function') setMainScope('newroof'); } catch(e){}
+      try { _nbGutterDefault(); } catch(e){}
+    }
     _syncQuoteKindToggle();
   } catch(e){}
   // The job number becomes the quote reference (a linked Fergus job's own
@@ -32945,7 +33604,7 @@ function buildAcceptSummaryRows(){
   var _acSplit = (_acScaff > 0 && _acScaff * (1+rate) < baseTot);
   rows += '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--ed-line)">'+
     '<div style="font-family:var(--ed-sans);font-size:12px;font-weight:700;color:var(--ed-ink)">'+
-      (_acSplit ? 'Re-roof — main scope of work' : ('Original quote'+(opts.length?'':' — main scope of work')))+
+      (_acSplit ? (_nbWord() + ' — main scope of work') : ('Original quote'+(opts.length?'':' — main scope of work')))+
       ' <span style="font-weight:400;color:var(--ed-text2)">(incl. GST)</span></div>'+
     '<div class="ed-serif" style="font-size:14px;font-weight:700;white-space:nowrap">'+fmtMoney(baseTot - (_acSplit ? _acScaff*(1+rate) : 0))+'</div>'+
   '</div>';
@@ -35118,7 +35777,7 @@ function _qbPages(){
     if (p.gutterType && p.gutterType !== 'none')
       pages.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
   }
-  pages.push({ key:'disposal', label:'The old roof', html:_qbDisposal });
+  if (!_isNewBuild()) pages.push({ key:'disposal', label:'The old roof', html:_qbDisposal });
   // Whatever else this company sells, a page each — same shape as ours.
   try {
     _selExtras().forEach(function(g, gi){
@@ -35814,7 +36473,15 @@ var CUST_DESC_GUTTERS = [
   'Seal all joints, outlets and stop ends',
   'Tidy site and remove all debris'
 ];
-function _custDescDefault(){ return _isGutterJob() ? CUST_DESC_GUTTERS : CUST_DESC_DEFAULT; }
+// A New Build has no old roof to take off.
+var CUST_DESC_NEWBUILD = [
+  'Edge-Protection / Scaffolding',
+  'Install New Synthetic Underlay',
+  'Install New {grade} Roofing Sheets',
+  'Install all associated Flashings',
+  'Tidy site and issue Warranty sign-off'
+];
+function _custDescDefault(){ return _isGutterJob() ? CUST_DESC_GUTTERS : _isNewBuild() ? CUST_DESC_NEWBUILD : CUST_DESC_DEFAULT; }
 function _qbGradeName(){
   try {
     var p = (S.quote && S.quote.proposalOptions) || {};
@@ -35955,7 +36622,8 @@ function _classicScopeDefaultLines(){
 // Saved as S.quote.proposalTitle; saving the default deletes it.
 var QB_PROPOSAL_TITLE = 'Re-Roof Proposal';
 var QB_PROPOSAL_TITLE_GUTTERS = 'Guttering Proposal';
-function _qbProposalTitleDefault(){ return _isGutterJob() ? QB_PROPOSAL_TITLE_GUTTERS : QB_PROPOSAL_TITLE; }
+var QB_PROPOSAL_TITLE_NEWBUILD = 'New Roof Proposal';
+function _qbProposalTitleDefault(){ return _isGutterJob() ? QB_PROPOSAL_TITLE_GUTTERS : _isNewBuild() ? QB_PROPOSAL_TITLE_NEWBUILD : QB_PROPOSAL_TITLE; }
 function _qbProposalTitle(){
   var t = String((S.quote && S.quote.proposalTitle) || '').trim();
   return t || _qbProposalTitleDefault();
@@ -36792,7 +37460,22 @@ function _optNoteKey(group, id){ return String(group || '') + ':' + String(id ==
 function _optNote(group, id){
   var m = (S.quote && S.quote.optNotes) || {};
   var n = m[_optNoteKey(group, id)];
-  return (n && String(n.text || '').trim()) ? n : null;
+  if (n && String(n.text || '').trim()) return n;
+  return _nbNotSpecNote(group, id);
+}
+// THE PLANS DECIDE THE RECOMMENDED PRODUCT ON A NEW BUILD (the owner: "the
+// recommended for your roof would be the detailed profile in their plans. And
+// the other profile options would ... have a small note to them to say ...
+// this profile is not spec'd in the plans. Same for the roof thickness"; "The
+// guttering should be the spec'd gutter in the plans"). An office note on the
+// row wins over this one.
+var NB_SPEC_WORD = { profile:'profile', steelThickness:'thickness', gutterType:'gutter' };
+function _nbNotSpecNote(group, id){
+  if (!_isNewBuild() || !NB_SPEC_WORD[group] || id == null) return null;
+  var sp = (S.quote && S.quote.nbSpec) || null;
+  var want = sp && sp[group];
+  if (want == null || want === '' || String(want) === String(id)) return null;
+  return { text: 'This ' + NB_SPEC_WORD[group] + ' is not spec\u2019d in the plans', colour: 'yellow', auto: true };
 }
 function _recLabelDefault(){ return 'Recommended for your ' + (_psIsShed() ? 'shed' : 'roof'); }
 function _recLabel(){
@@ -37139,7 +37822,7 @@ function _qbThickness(){
   var items = [];
   try {
     items = _qbRecMark(_selFixed('thickness', [
-      { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:'The standard residential thickness, used on the bulk of New Zealand re-roofs.' },
+      { id:'40', label:'0.40 gauge', isDefault:true, delta:0, desc:(_isNewBuild() ? 'The standard residential thickness.' : 'The standard residential thickness, used on the bulk of New Zealand re-roofs.') },
       { id:'55', label:'0.55 gauge', delta:_qbIncl(CD.gauge), desc:'Heavier steel — better against hail and falling branches, and a little stiffer underfoot.' }
     ]), 'steelThickness', '40');
   } catch(e){}
@@ -37234,7 +37917,11 @@ function _qbGutter(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var CD = _qbDeltas();
   var _gj = _isGutterJob();
-  var items = _gj ? [] : [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
+  // A NEW BUILD HAS NO SPOUTING TO KEEP (2026-11-09): there is no "No new
+  // guttering" row, and the gutter the plans spec reads as the one the quote
+  // is built on — each other gutter its difference, the gutters job's rule.
+  var _nb = _isNewBuild();
+  var items = (_gj || _nb) ? [] : [{ id:'none', label:'No new guttering', isDefault:true, delta:0, desc:'Your existing spouting stays exactly as it is.' }];
   try {
     _selGutters().forEach(function(g){
       items.push({ id:g.id, label:g.name || g.id, delta:_qbIncl(CD.gutter[g.id] != null ? CD.gutter[g.id] : 0), desc:(g.desc || '') + _qbGutterUpNote(CD, g.id) });
@@ -37246,18 +37933,24 @@ function _qbGutter(){
   // top of the roof, so its whole price is the "+"; here the recommended one is
   // what the quote is priced at, so each card reads against it. Display only:
   // the total and the summary still come from _quoteMoney / _custBarRows.
-  if (_gj && items.length){
+  if ((_gj || _nb) && items.length){
     var _gjRec = _qbRecPick('gutterType', items[0].id);
     var _gjRef = null;
     items.forEach(function(it){ if (it.id === _gjRec) _gjRef = it.delta; });
     if (_gjRef != null) items.forEach(function(it){ it.delta = it.delta - _gjRef; });
   }
-  items = _qbRecMark(items, 'gutterType', _gj ? ((items[0] || {}).id || 'none') : 'none');
+  items = _qbRecMark(items, 'gutterType', (_gj || _nb) ? ((items[0] || {}).id || 'none') : 'none');
   if (_gj) return _qpOptPageWrap('gutter', {
     eyebrow:'Your new guttering', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
     current:p.gutterType || ((items[0] || {}).id || ''), items:items, note:'',
     figure:_qbGutterFigure(p.gutterType),
     blurb:'Choose the spouting you would like. The price shown beside each one is the difference from the one we have recommended.'
+  });
+  if (_nb) return _qpOptPageWrap('gutter', {
+    eyebrow:'Your new guttering', title:'Guttering', group:'gutterType', set:'_setProposalOption_gutter',
+    current:p.gutterType || ((items[0] || {}).id || ''), items:items, note:'',
+    figure:_qbGutterFigure(p.gutterType),
+    blurb:'The spouting your plans call for is the one we have recommended. The price beside each other one is the difference from it.'
   });
   var note = '';
   try {
@@ -38156,6 +38849,7 @@ function _qModernApply(list){
 // customer (and paper) only get it when there is something on it.
 function _qbCondSectionOn(){
   var q = S.quote || {};
+  if (_isNewBuild()) return false;   // a new roof has no existing roof to report on
   try { if (q.pages && q.pages.length && !_qpInDoc('condition')) return false; } catch(e){}
   if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE) return _qbHasCondition();
   return true;
@@ -38182,7 +38876,7 @@ function _qdSectionsRaw(){
     // nothing to put brackets on.
     if (_qdGutterKitOn()) list.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
   }
-  list.push({ key:'disposal', label:'Old roof', html:_qbDisposal });
+  if (!_isNewBuild()) list.push({ key:'disposal', label:'Old roof', html:_qbDisposal });
   try {
     _selExtras().forEach(function(g, gi){
       list.push({ key:'extra' + gi, label:g.title || 'Options', html:function(){ return _qbExtraGroup(g, gi); } });
@@ -38219,7 +38913,7 @@ function _qcoWithInsert(list){
 function _qdWithParked(secs){
   var parked = _qbParkedForOffice(); if (!parked.length) return secs;
   var raw = _qdSectionsRaw().map(function(x){ return x.key; });
-  if (raw.indexOf('condition') < 0) raw.splice(raw.indexOf('proposal'), 0, 'condition');
+  if (raw.indexOf('condition') < 0 && !_isNewBuild()) raw.splice(raw.indexOf('proposal'), 0, 'condition');
   var out = secs.slice();
   parked.forEach(function(k){
     if (out.some(function(x){ return x.key === k; })) return;
@@ -38879,14 +39573,14 @@ function _custBarRows(){
   var _baseOnly = !(scaffSub > 0) || scaffSub >= baseSub;
   if (_baseOnly && _roofSc > 0){
     var _scHid0 = false; try { _scHid0 = _qpScaffoldHidden() && _qpBaseScaffold() > 0; } catch(e){}
-    rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof', value: fmtMoney(baseSub * (1 + rate)) });
+    rows.push({ kind: 'base', label: _bl || (_nbWord() + ' — main scope of work'), short: _bl || _nbWord(), value: fmtMoney(baseSub * (1 + rate)) });
     rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding', value: fmtMoney(_roofSc * (1 + rate)) });
   } else if (_baseOnly){
     var _scHid = false; try { _scHid = _qpScaffoldHidden() && _qpBaseScaffold() > 0; } catch(e){}
-    rows.push({ kind: 'base', label: _bl || (_scHid ? 'Re-roof — main scope of work' : 'Original quote — main scope of work'), short: _bl || (_scHid ? 'Re-roof' : 'Main scope of work'), scaffIn: _scHid,
+    rows.push({ kind: 'base', label: _bl || (_scHid ? (_nbWord() + ' — main scope of work') : 'Original quote — main scope of work'), short: _bl || (_scHid ? _nbWord() : 'Main scope of work'), scaffIn: _scHid,
                 value: fmtMoney(baseSub * (1 + rate)) });
   } else {
-    rows.push({ kind: 'base', label: _bl || 'Re-roof — main scope of work', short: _bl || 'Re-roof',
+    rows.push({ kind: 'base', label: _bl || (_nbWord() + ' — main scope of work'), short: _bl || _nbWord(),
                 value: fmtMoney((baseSub - scaffSub) * (1 + rate)) });
     rows.push({ kind: 'scaffold', label: _qpScaffoldLabel(), short: 'Scaffolding',
                 value: fmtMoney((scaffSub + _roofSc) * (1 + rate)) });
@@ -42946,6 +43640,8 @@ function _psOptionsFollow(text){
 function _setQuoteKind(k){
   if (!S.quote) return;
   S.quote.quoteKind = _quoteKindNorm(k);
+  try { if (S.quote && S.quote.quoteKind === 'newbuild' && typeof setMainScope === 'function') setMainScope('newroof'); } catch(e){}
+  try { _nbGutterDefault(); } catch(e){}
   try { _gutterJobSync(); } catch(e){}
   _syncQuoteKindToggle();
   if (typeof refreshQuoteProposal === 'function') refreshQuoteProposal();
@@ -42973,6 +43669,7 @@ function _qkMenuRender(){
   var tnd = _tenderingAvailable();
   var isT = tnd && S.quote && S.quote.quoteKind === 'tender';
   var isG = !!(S.quote && S.quote.quoteKind === 'gutters');
+  var isNB = !!(S.quote && S.quote.quoteKind === 'newbuild');
   try { document.body.classList.toggle('gutter-job', isG); } catch(e){}
   try { _tenderNavSync(); } catch(e){}
   var close = "this.closest('details').removeAttribute('open');";
@@ -42992,9 +43689,10 @@ function _qkMenuRender(){
     } catch(e){}
     list.innerHTML = scope + '<div id="qkDraftToggle" style="display:block">' +
       '<div class="qa-more-lbl">Job type</div>' +
-      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT && !isG, 'qkBtn_roofing') +
+      item("_setQuoteKind('roofing')", 'Roofing', 'A re-roof or new roof', !ps && !isT && !isG && !isNB, 'qkBtn_roofing') +
       (avail ? item("_setQuoteKind('poleshed')", 'Pole Shed', 'A shed quote with its own pages', ps, 'qkBtn_poleshed') : '') +
       item("_setQuoteKind('gutters')", 'Gutters only', 'New spouting and downpipes, nothing else', isG, 'qkBtn_gutters') +
+      item("_setQuoteKind('newbuild')", 'New Build', 'A new roof priced off the building plans', isNB, 'qkBtn_newbuild') +
       (tnd ? item("_setQuoteKind('tender')", 'AI Tendering', 'Price a roof off a plan set', isT, 'qkBtn_tender') : '') +
       '</div>';
   }
@@ -61573,7 +62271,8 @@ function finishCurrent() {
     try { _updateRoofTypeHint(''); } catch(e){}   // suggest a roof type as soon as the outline closes
     // Ask the two questions the drawing cannot answer for itself — shape and
     // sheet material — right here, while the roof is the thing in hand.
-    try { if (typeof _roofSetupPopup === 'function') setTimeout(function(){ _roofSetupPopup(); }, 60); } catch(e){}
+    // Not when AI your plans drew it: the shape comes off the plan.
+    try { if (typeof _roofSetupPopup === 'function' && !window.__NB_DRAWING) setTimeout(function(){ _roofSetupPopup(); }, 60); } catch(e){}
     return;
   }
 
@@ -77840,11 +78539,12 @@ async function _buildQuotePdf(opts){
 // the owners name") \u2014 'Quote 3264 - Roofing - Robert Elliott.pdf'. It read
 // 'Quote 3264 - Robert Elliott.pdf', so a shed quote and a re-roof for the same
 // customer landed in Downloads looking identical.
+function _nbWord(){ return _isNewBuild() ? 'New roof' : 'Re-roof'; }
 function _quotePdfFilename(){
   var q = (window.S && S.quote) || {};
   var clean = function(t){ return String(t == null ? '' : t).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim(); };
   var ref    = clean(q.ref);
-  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : (q.quoteKind === 'gutters') ? 'Gutters' : 'Roofing';
+  var kind   = (q.quoteKind === 'poleshed') ? 'Pole Shed' : (q.quoteKind === 'gutters') ? 'Gutters' : (q.quoteKind === 'newbuild') ? 'New Build' : 'Roofing';
   var client = clean(q.client);
   return [ ref ? ('Quote ' + ref) : 'Quote', kind, client ]
     .filter(Boolean).join(' - ').slice(0, 100) + '.pdf';

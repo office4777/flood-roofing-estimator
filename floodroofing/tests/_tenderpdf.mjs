@@ -3,7 +3,8 @@
 // register and a page with no text at all. Not a suite — a helper.
 //
 // mkPdf([{ w, h, texts: [{ x, y, size, str }] }])  → Buffer
-// (x, y) are PDF points from the BOTTOM-left, as PDF has it.
+// (x, y) are PDF points from the BOTTOM-left, as PDF has it. `raw` is extra
+// content-stream operators (lines with their own widths, for a roof plan).
 export function mkPdf(pages){
   const objs = [];
   const add = (s) => { objs.push(s); return objs.length; };
@@ -12,7 +13,8 @@ export function mkPdf(pages){
   for (const p of pages) {
     const esc = (s) => String(s).replace(/[\\()]/g, m => '\\' + m);
     const stream = (p.texts || []).map(t => `BT /F1 ${t.size || 10} Tf ${t.x} ${t.y} Td (${esc(t.str)}) Tj ET`).join('\n') +
-      (p.rect ? `\n${p.rect.join(' ')} re S` : '');
+      (p.rect ? `\n${p.rect.join(' ')} re S` : '') +
+      (p.raw ? '\n' + p.raw : '');
     const cId = add(`<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`);
     const pId = add(`__PAGE__ /Contents ${cId} 0 R /MediaBox [0 0 ${p.w} ${p.h}]`);
     kids.push(pId);
