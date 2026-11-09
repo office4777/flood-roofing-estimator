@@ -48,9 +48,14 @@ accordingly.
 - Test fixtures worth knowing: `fixtures-report41.json` is the five-roof job
   behind reports 51 and 52; `fixtures-report50.json`, `fixtures-doublel.json`
   and `fixtures-tee.json` are the hip-and-valley shapes the owner counted by
-  hand. `tools/sheet-shots.mjs` renders any fixture to PNGs of the layout,
-  the calc check and the cut list — send those to the owner BEFORE the gate
-  when the counts are in question.
+  hand. `fixtures-report85.json` is the double-stepped hip of rules 3c/3d.
+  `tools/sheet-shots.mjs` renders any fixture to PNGs of the layout, the
+  pre-cut page (`precut.png`), the calc check and the cut list — send those
+  to the owner BEFORE the gate when the counts are in question; `SHOTS_PRE=
+  "window.__PZ_X=true"` runs JavaScript in the page first, so a rule behind
+  a switch can be pictured before it is on. An outline-only fixture with
+  `autoType` gets its lines from the app's own builder (how the report 85
+  variants were drawn).
 - `floodroofing/hub/FloodRoofing_Financials.html` — the owner's Finance Hub
   (the phone app: Command Centre, P&L strips, back costing, cash), a second
   single-file app with its own README. It is served by GitHub Pages straight
@@ -518,12 +523,11 @@ THE LAY:
    `window.__PZ_NEAR_TMPL`, in `_pzBuildKey`). Report 85: 57 → 54 sheets,
    301.3 → 289.8 m, C1–C14 the rectangle's north slope with ✂C5–✂C9 its feet
    on the wing's end. Every other fixture and the 37-shape gate identical
-   (diffed). Shown as "Sheet layout v12 - report 85"; NOT LIVE until his
-   "go" (committed on the session branch only). The west strip (rule 4b off
-   the rectangle's west end) is laid both ways and its own apex is 3 m
-   lighter, so rule 10 keeps that. Offered, not built: A 4.86 / D 4.90 are
-   40 mm apart and could be one length. `fixtures-report85.json`, 2 pins in
-   `sheetlayout.mjs` (447).
+   (diffed). Shown as "Sheet layout v12 - report 85"; LIVE with 3d (v14,
+   8d4a574, 2026-11-10). Offered, not built: A 4.86 / D 4.90 are 40 mm
+   apart and could be one length (near-equal lengths in one order are common
+   across the fixtures — 5900/5880, 9900/9840 — so a merge rule would move
+   roofs he has passed; ask before building it). `fixtures-report85.json`.
 3d. THE MAIN RECTANGLE IS LAID WHOLE, 18 SHEETS EACH SIDE (report 85, the
    owner on v12: "13.26 divided by 0.762 equals 17.4. So round it up, it
    equals 18 sheets ... 18 sheets for the north side of that main rectangle,
@@ -531,10 +535,10 @@ THE LAY:
    across ... which would replace orange offcut A4, blue offcut B6, purple
    offcut C3 ... Then use the rest of the rules"). The rectangle is the
    deepest ridge carried a depth each way (`rectR` in `_sheetPuzzleFill`);
-   every column across it on its two slopes is one of its sheets at the
-   longest length, a lower ridge inside it (report 85's south slope, 5.14 m
-   F sheets) included, and the optimiser never takes one off (`rectKeep`:
-   move 2, move 3 and move 5's loose sheets skip it). ONLY where the
+   every CUT column across it on its two slopes is one of its sheets at the
+   longest length (a FULL strip under a lower ridge inside it keeps its own
+   shorter length — v14 below), and the optimiser never takes one off
+   (`rectKeep`: move 2, move 3 and move 5's loose sheets skip it). ONLY where the
    rectangle was broken by a step under `_PZ_RECT_STEP_MM` (0.8 m; report
    85's is 0.55 m) — a wing a metre or more lower (reports 71, 74–77, 82,
    50) is the cookie cutter's and rule 5's and is left exactly as it was.
@@ -563,7 +567,25 @@ THE LAY:
    wing's end (`colDonor`) is pool-first, its own column's sheet the preferred
    offcut (and a last pass packs it there where the packer can — on report 85
    it cannot, so it comes off A2's); the forced set may cost two sheets.
-   Report 85 v15: 53 sheets, 290.9 m. LIVE 2026-11-10 on his "go".
+   Report 85 v15: 53 sheets, 290.9 m. LIVE 2026-11-10 9:03 am NZ on his "go"
+   (896012a; Tests run 42688316462, promote run 42689125913). THE FINAL
+   REPORT 85 LAY: north C1–C7 on the wing's end + C8–C18 on the rectangle's
+   slope (feet ✂C8–✂C12 carried), C7's column's small piece ↺A2; south
+   E1–E11, F1–F3 (5.14, under the lower ridge), E12–E18 (the 18th lapped at
+   the rectangle's corner, E17/E18 into the west strip's corner); the west
+   strip's lower rows ↺C12, ↺C14–↺C18 with C19 at the ridge row, upper rows
+   ↺E14–↺E18 as carried feet with ↺E12/↺E13 on the end face; 38 × 5.69,
+   6 × 5.14, 3 × 4.90, 6 × 4.86. LEFT AS IT IS, shown to him: an orange
+   A6 / ↺A1 patch on the north-west face, and ↺B3 between ↺E12 and ↺E14.
+   THE SCOPE, said to him with six variant pictures of the shape (same
+   proportions, deeper steps, wider left strip, 20 × 12, 12 × 15, 18 × 14
+   with big steps): rule 3d only fires where the lower ridge shortens the
+   rectangle's rafters by under 0.8 m. A bigger step lays the old way —
+   variant 6's north side splits between the main sheets and the strip's own
+   3.63 m block. Widening it moved reports 71 and 74–76 by 15–59 m of steel
+   when tried; offered, not done. `tests/sheetlayout.mjs` (451): the wing's
+   template, 18 south, the north run, the C8 column off an offcut, the C and
+   E sets in order, 53 / under 292 m, and 57 sheets with both switches off.
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
@@ -1194,7 +1216,9 @@ LESSONS — mistakes made more than once on these two diagrams:
 SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
 `PZ_SET_GUARD` and `PZ_APEX_SHIFT` (rule 9l, on), `window.__PZ_SET_CORNER`,
 `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
-on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, on), `PZ_NEAR_TMPL` /
+`__PZ_NEAR_TMPL` (rule 3c, on), `PZ_RECT_MAIN` / `__PZ_RECT_MAIN` (rule 3d,
+on; `_PZ_RECT_STEP_MM` 800), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
 count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
 `_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
 it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
