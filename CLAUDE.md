@@ -1657,6 +1657,41 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   merged by `_getBuiltinFlashings` behind the shipped presets. A back-tray the
   owner draws or edits reaches everyone on his next Settings save.
   `tests/flashdefaults.mjs` (19, UI), `tests/builtinflash.mjs` (13, API).
+- COLOUR OPTIONS (2026-11-09, the owner: "add a button next to the roof colour
+  called 'Edit Colours' ... a big window showing all the colour options for that
+  steel selection, then in the settings tab, add a sub-tab called 'Colour
+  Options' ... all the colour options for each steel grade (save all the
+  existing as system built in colours) and seperate the different steel grades
+  and gutter types to all have their own colours ... all colours ticked in by
+  default, then click to un-tick ... also in the quote, if a colour is
+  selected, show a section under the gutter section of the colour options for
+  that gutter type"). THE SYSTEM COLOURS are the built-in charts
+  (MAXAM_COLOURS, ARMORSTEEL_COLOURS, COLORBOND_COLOURS,
+  MARLEY_TYPHOON_COLOURS, Classic's white; `_paletteForGradeIdAll`,
+  `_gjPaletteAll`) and are never edited; what a business turns OFF is
+  `materials_catalog.colourOff = { 'grade:<id>' | 'gutter:<id>': { '<colour
+  name>': true } }` (rides `price_book.__materials_catalog` with the flashing
+  library; no entry = every colour ticked, so no account changes until it
+  unticks one). `_paletteForGradeId` and `_gjPalette` answer the OFFERED
+  colours (`_colourOffered`), so every swatch grid, picker and order form
+  follows; the customer has no Settings, so `_qStampCustomerCopy` puts the
+  map on the quote as `colourOff` and `_colourOffMap` reads that in customer
+  mode. SETTINGS → Pricing → Colour Options (`#set-colours`,
+  `_colourOptionsRender`): a `.set-sec` tile per painted grade (never
+  Zincalume) and per gutter type, each its own chart, a card a colour
+  (`.co-sw`, ticked = offered), Tick all / Untick all, saved by themselves
+  (`_colourSaveSoon` → `_persistCatalogSilently`). ON THE QUOTE: "✎ Edit
+  colours" (`_colourEditBtnHtml`, office only) under the roof colour's and
+  the gutter colour's Chosen line opens `#coModal` (`_colourEditOpen`, 960 px,
+  the same ticks — saved to the account, not the quote). A ROOFING QUOTE
+  CARRIES THE GUTTER COLOUR SECTION (`gcolour`, the gutters-only quote's own
+  `_qbGutterColour`) under Brackets & downpipes once a gutter is picked
+  (`_qdSectionsRaw`, `_qbPages` — it follows the kit when the gutter is
+  moved), its pick in `_qbPicksAutoBase` ("Gutter colour") and in the
+  server's `_quoteSelectionLines` whenever `gutterType` is not none; the
+  colour follows the gutter on every job type (`_setProposalOption_gutter` →
+  `_gjColourFit`). `tests/colouroptions.mjs` (20, UI list); `typesnap.json`
+  regenerated (deskText only, the button's words).
 - EXCLUSIONS on the modern proposal: `S.quote.custExcl` (edited beside
   the inclusions in `_qdescOpen`, kind `'x'`; `_qbExclusionLines`). When
   any exist the two lists get "What's included" / "What's excluded"

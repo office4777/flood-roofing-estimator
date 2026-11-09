@@ -980,10 +980,14 @@ function _quoteSelectionLines(quote){
     out.push(L._t + ': ' + (_quoteProductName(quote, k, v) || L[String(v)] || String(v)));
   }
   if (po.colour && !gj) out.push('Colour: ' + String(po.colour).slice(0, 60));
-  if (gj) {
+  // The gutter's colour on any quote that has a gutter (a roofing quote carries
+  // the section under its gutter since 2026-11-09, as a gutters job always did).
+  {
     const gt = String(po.gutterType || '');
-    const gc = /classic/i.test(gt) ? 'White' : String(po.gutterColour || '').slice(0, 60);
-    if (gc) out.push('Gutter colour: ' + gc);
+    if (gj || (gt && gt !== 'none')) {
+      const gc = /classic/i.test(gt) ? 'White' : String(po.gutterColour || '').slice(0, 60);
+      if (gc) out.push('Gutter colour: ' + gc);
+    }
   }
   return out;
 }

@@ -175,7 +175,7 @@ check('brackets and downpipes appear once a gutter is chosen, in a section of th
 // the nav jumps
 const jump = await d.pg.evaluate(async () => {
   document.querySelector('#qdNav [data-qd-nav="review"]').click();
-  await new Promise(r => setTimeout(r, 900));
+  await new Promise(r => setTimeout(r, 1600));
   const top = document.getElementById('qd-review').getBoundingClientRect().top;
   return { top, on: (document.querySelector('#qdNav button.on') || {}).textContent };
 });
