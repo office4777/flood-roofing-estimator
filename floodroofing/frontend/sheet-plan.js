@@ -7355,6 +7355,8 @@ function _pzWallKind(e, R, tol){
 // The area of the block a face belongs to: how far the outline runs from
 // the face's gutter line inward through the middle of the face, times its
 // width along the gutter (the given span, else the face's own gutter).
+var PZ_NEAR_TMPL = true;
+function _pzNearTmpl(){ if (typeof window !== 'undefined' && window.__PZ_NEAR_TMPL != null) return !!window.__PZ_NEAR_TMPL; return PZ_NEAR_TMPL; }
 var PZ_LONGEST_RECT = true;
 function _pzLongestRect(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_RECT != null) return !!window.__PZ_LONGEST_RECT; return PZ_LONGEST_RECT; }
 function _pzBlockArea(R, f, dGut, span){
@@ -7647,7 +7649,7 @@ function _pzBuildKey(opts){
     // thumbnail, a size — lay the same roof.)
     ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay', 'rectArea'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
-      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(),
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(), _pzNearTmpl(),
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
     return JSON.stringify([idxs, sigs, o, flags]);
   } catch(e){ return null; }
@@ -7944,7 +7946,26 @@ function _sheetPuzzleBuildRaw(opts){
     pend.forEach(function(f){
       if (f.lay !== 'apex') return;
       var cands = [];
-      (tmplOf[dKey(f)] || []).forEach(function(T){ cands.push(T); });
+      var slopes = (tmplOf[dKey(f)] || []).slice();
+      // THE SLOPE THE WING STANDS ON (feedback report 85, 2026-11-10, the
+      // owner: "The main rectangle should be the longest sheet area"): a
+      // slope whose gutter line merely runs on through the roof (report 85's
+      // north-west face, 5.14 m sheets, its line followed 15.9 m to the east
+      // wall) used to come first because its line is the longest, and the
+      // north wing's end was cut from it — while the wing actually stands on
+      // the 5.69 m rectangle's north slope, right behind it. The slopes the
+      // wing's own span lies across come first, the nearest behind first.
+      if (_pzNearTmpl() && slopes.length > 1){
+        var ovl = function(T){
+          var sg = (f.t[0]*T.t[0] + f.t[1]*T.t[1]) > 0 ? 1 : -1;
+          var a0 = sg > 0 ? f.t0 : -f.t1, a1 = sg > 0 ? f.t1 : -f.t0;
+          return Math.min(a1, T.t1) - Math.max(a0, T.t0);
+        };
+        var rank = slopes.map(function(T, i){ var o = ovl(T); return { T: T, i: i, on: o > coverPx * 0.5 && T.dMin > f.dMin + tol, gap: T.dMin - f.dMin }; });
+        rank.sort(function(a, b){ if (a.on !== b.on) return a.on ? -1 : 1; if (a.on && Math.abs(a.gap - b.gap) > tol) return a.gap - b.gap; return a.i - b.i; });
+        slopes = rank.map(function(r){ return r.T; });
+      }
+      slopes.forEach(function(T){ cands.push(T); });
       if (!f.gablet && !opts.noApexTmpl) (apexOf[dKey(f)] || []).slice().sort(function(a, b){ return vSpanOf(b) - vSpanOf(a); }).forEach(function(T){ cands.push(T); });
       cands.some(function(T){ return adoptOn(f, T); });
     });

@@ -22,6 +22,9 @@ await pg.addInitScript(() => { localStorage.setItem('fr_token', 't');
   localStorage.setItem('fr_setup_done', '1'); localStorage.setItem('fr_settings', 'null'); });
 await pg.goto('file://' + ROOT + '/frontend/app.html');
 await pg.waitForTimeout(2800);
+// SHOTS_PRE: JavaScript run in the page first (a switch to try, e.g.
+// "window.__PZ_NEAR_TMPL=true"), so a change behind a switch can be pictured.
+if (process.env.SHOTS_PRE) await pg.evaluate(js => { (0, eval)(js); }, process.env.SHOTS_PRE);
 await pg.evaluate((g) => {
   DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;
   DRAW.outline = g.outline; DRAW.outlineDone = true;
@@ -51,6 +54,12 @@ const dump = async (kind, name) => {
 };
 await dump('sheetplan', 'sheet-layout');
 await dump('calccheck', 'calc-check');
+// The sheet pre-cut layout, as the Job Pack's page draws it.
+{
+  const u = await pg.evaluate(() => { try { return _jpCapturePackSheet('precut', {}); } catch (e) { return null; } });
+  if (u && u.startsWith('data:image/png')) writeFileSync(join(outDir, 'precut.png'), Buffer.from(u.split(',')[1], 'base64'));
+  else console.log('no capture for precut');
+}
 // The cut list page of the job pack.
 const cut = await pg.evaluate(() => {
   const el = [...document.querySelectorAll('.jp-block-title')].find(t => /Cut lists/i.test(t.textContent));

@@ -459,6 +459,27 @@ r = await lay(fx('report71'));
 check('report 71: the wing\'s end paired with the main\'s north end, the rows its far hip cuts at the main\'s 8.50 — 67 sheets since rule 9l (the ends\' strips nudged a quarter cover off the apex, their full apex sheets gone), 70 before, 74 before that',
   gridFaces(r).length === 1 && nOf(r) === 67, tallyOf(r) + ' ' + mOf(r));
 rules('report 71', r);
+// THE SLOPE THE WING STANDS ON (feedback report 85, 2026-11-10, the owner:
+// "The main rectangle should be the longest sheet area ... 9.35 plus 3.91 ...
+// make that the main rectangle"). The north wing's end was cut from the
+// north-west face's 5.14 m columns (its gutter line, followed 15.9 m through
+// the roof, was the longest) instead of the 5.69 m rectangle's north slope
+// right behind it: 57 sheets, 301 m. Now it takes the slope it stands on.
+{
+  const steel = z => z.tally.reduce((t, x) => t + x.Lmm * x.count, 0) / 1000;
+  const blockLen = (z, f) => { const ps = z.pieces.filter(p => p.face === f.id && p.block); const b = ps.length && z.blocks.find(bb => bb.letter === ps[0].block); return b ? b.Lmm : 0; };
+  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = false; });
+  const r0 = await lay(fx('report85'));
+  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = null; });
+  r = await lay(fx('report85'));
+  const wing = r.faces.find(f => f.lay === 'grid' && f.d[1] > 0.9);
+  const T = wing && r.faces.find(f => f.id === wing.template);
+  check('report 85: the north wing\'s end is cut from the 5.69 m rectangle\'s north slope, the slope it stands on (was the north-west face\'s 5.14 m sheets)',
+    T && blockLen(r, T) === 5690, T ? 'template ' + T.id + ' ' + blockLen(r, T) : 'no template');
+  check('report 85: 54 sheets and under 290 m of steel (57 and 301 m before), every other roof unchanged',
+    nOf(r) <= 54 && steel(r) < 290 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
+  rules('report 85', r);
+}
 // THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's
 // roof, a hip with a 1.4 m step down its west side: "it's all patchy again,
 // and it's not following the rules of using a full offcut set in order").

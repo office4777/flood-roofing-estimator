@@ -504,6 +504,26 @@ THE LAY:
    identical (the T's, even L and dutch T keep the area lay, each lighter).
    LIVE 2026-11-08 on the owner's "go" (he had "Sheet layout v11b -
    longest sheets, ties" and called each roof). `tests/sheetlayout.mjs` (436).
+3c. THE WING IS CUT FROM THE SLOPE IT STANDS ON (feedback report 85,
+   2026-11-10, the owner: "The main rectangle should be the longest sheet
+   area. So the longest sheets are E10, E9, E8 ... 9.35 plus 3.91 equals the
+   long side of the main rectangle is 13.26 meters ... 9.9 plus 1.09 ... the
+   short side ... use the rest of the logic that I've taught you"; his sum
+   says 11.99, the outline 10.99). A wing's end used to try every slope facing
+   its way LONGEST GUTTER LINE first, and on report 85 the north-west face's
+   line (5.14 m sheets) runs on through the roof 15.9 m to the east wall, so
+   the north wing's end was cut from it — not from the 5.69 m rectangle's
+   north slope right behind it. Now the slopes the wing's own span lies across
+   come first, the nearest behind first (`_pzNearTmpl`, `PZ_NEAR_TMPL`,
+   `window.__PZ_NEAR_TMPL`, in `_pzBuildKey`). Report 85: 57 → 54 sheets,
+   301.3 → 289.8 m, C1–C14 the rectangle's north slope with ✂C5–✂C9 its feet
+   on the wing's end. Every other fixture and the 37-shape gate identical
+   (diffed). Shown as "Sheet layout v12 - report 85"; NOT LIVE until his
+   "go" (committed on the session branch only). The west strip (rule 4b off
+   the rectangle's west end) is laid both ways and its own apex is 3 m
+   lighter, so rule 10 keeps that. Offered, not built: A 4.86 / D 4.90 are
+   40 mm apart and could be one length. `fixtures-report85.json`, 2 pins in
+   `sheetlayout.mjs` (447).
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
