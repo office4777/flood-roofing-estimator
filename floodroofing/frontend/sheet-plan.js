@@ -8605,6 +8605,13 @@ function _sheetPuzzleFill(pz){
         });
         r = within || ((before && after) ? (after.level > before.level ? after : before) : (before || after));
         var lv = mmOf(p.sheetLongPx || p.longPx, p.face);
+        // (rule 3d, report 85's C8: a piece of the rectangle's slope in a
+        // column whose sheet already stands on the wing's end, not touching
+        // it — C7 runs up the wing's end and stops short of the apex — comes
+        // off that sheet's offcut: "C8 ... should actually be the offcut of
+        // C7 ... It should just make it start from wherever it will work")
+        var colSheet = null; if (rectR.has(f) && p.face === f && !p.full && !p.chainBelow && f.adopters) f.adopters.some(function(a){ return a.pieces.some(function(q){ if (q.viaTemplate === f && q.k === p.k){ colSheet = q; return true; } return false; }); });
+        if (colSheet){ p.poolFirst = r.block; p.colDonor = colSheet; f.endPieces.push(p); return; }
         var inR = inRectOf(f, p) && lv <= rectR.get(f).M + Math.max(60, rectR.get(f).M * 0.04) && (!p.full || lv >= rectR.get(f).M - _PZ_RECT_STEP_MM);
         if (inR){ var mr = runs.reduce(function(m, x){ return (!m || x.level > m.level) ? x : m; }, null); if (mr) r = mr; }
         var isRect = p.chainBelow || p.viaTemplate || inR;   // the rectangle's own sheet, by the cookie cutter (or the main rectangle's, rule 3d)
@@ -8792,6 +8799,7 @@ function _sheetPuzzleFill(pz){
     // nearer. Among offcuts equally at home, an offcut travels a metre to
     // save 40 mm.
     var home = (homeFor(pc, oc) || (pc.gabletFace && oc.face === f)) ? (pc.poolFirst ? 300 : 600) : 0;
+    if (pc.colDonor && pc.colDonor.label === oc.donor) home += 5000;   // its own column's sheet (rule 3d, report 85's C8 off C7)
     return surplus + 0.04 * dist - home + (oc.roofIdx === pc.roofIdx ? 0 : 1e9);
   }
   // WHERE AN OFFCUT IS AT HOME: on its own face (a wing's valley pieces are
@@ -11081,8 +11089,8 @@ function _pzOptimise(pz){
         var allow = 1000 + Math.max(0, breaks0 - breaks1) * (best.B ? best.B.Lmm : 0) / 2;
         // (rule 3d, the owner on report 85: "use a full set where possible ...
         // it should be forced to be worked there to be part of that set": on a
-        // main rectangle a cleaner set is kept for up to one sheet more)
-        var forced = pz.rectMain && ok && stray1 <= stray0 && breaks1 < breaks0 && after.n <= before.n + 1 && after.steel <= before.steel + allow + (best.B ? best.B.Lmm : 0);
+        // main rectangle a cleaner set is kept for up to two sheets more)
+        var forced = pz.rectMain && ok && stray1 <= stray0 && breaks1 < breaks0 && after.n <= before.n + 2 && after.steel <= before.steel + allow + 2 * (best.B ? best.B.Lmm : 0);
         if (forced || (ok && after.n <= before.n && stray1 <= stray0 && breaks1 <= breaks0 && (after.n < before.n || stray1 < stray0 || breaks1 < breaks0) && after.steel <= before.steel + allow)){
           log.endSets = (log.endSets || 0) + 1; memo.clear();
         } else restore();
@@ -11326,7 +11334,20 @@ function _pzOptimise(pz){
     }
     memo.clear(); stayMap = null;
   })();
-  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets && !log.endSets && !log.trims && !log.runOrder && !log.carry){ pz.optLog = log; return pz; }
+  // (rule 3d, report 85: a piece in the column of a sheet standing on the
+  // wing's end comes off THAT sheet's offcut where the packer can place it —
+  // "C8 ... should actually be the offcut of C7")
+  pz.pieces.forEach(function(p){
+    if (!p.colDonor || p.ordered || !p.from || p.from === p.colDonor.label) return;
+    var sh = S.get(p.colDonor); if (!sh) return;
+    stayMap = null; memo.clear();
+    var was = p.from; p.from = '~';
+    stayMap = null; memo.clear();
+    var ok = false; try { ok = packs(sh, [p]); } catch(e){ ok = false; }
+    p.from = was; stayMap = null; memo.clear();
+    if (ok){ commit(new Map([[p, sh]])); stayMap = null; memo.clear(); log.colDonor = (log.colDonor || 0) + 1; }
+  });
+  if (!log.extras && !log.shorter && !log.full && !log.stair && !log.donors && !log.runs && !log.sets && !log.endSets && !log.trims && !log.runOrder && !log.carry && !log.colDonor){ pz.optLog = log; return pz; }
   // The blocks close up, and every name follows its sheet.
   pz.blocks = pz.blocks.filter(function(b){ return b.pieces.length; });
   pz.faces.forEach(function(f){ if (f.blocks) f.blocks = f.blocks.filter(function(b){ return b.pieces.length; }); });

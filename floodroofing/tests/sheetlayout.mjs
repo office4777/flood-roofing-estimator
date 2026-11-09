@@ -467,7 +467,7 @@ rules('report 71', r);
 // right behind it: 57 sheets, 301 m. Now it takes the slope it stands on.
 {
   const steel = z => z.tally.reduce((t, x) => t + x.Lmm * x.count, 0) / 1000;
-  const blockLen = (z, f) => { const ps = z.pieces.filter(p => p.face === f.id && p.block); const b = ps.length && z.blocks.find(bb => bb.letter === ps[0].block); return b ? b.Lmm : 0; };
+  const blockLen = (z, f) => { const ps = z.pieces.filter(p => p.face === f.id && p.block && p.ordered); const b = ps.length && z.blocks.find(bb => bb.letter === ps[0].block); return b ? b.Lmm : 0; };
   await pg.evaluate(() => { window.__PZ_NEAR_TMPL = false; window.__PZ_RECT_MAIN = false; });
   const r0 = await lay(fx('report85'));
   await pg.evaluate(() => { window.__PZ_NEAR_TMPL = null; window.__PZ_RECT_MAIN = null; });
@@ -501,9 +501,15 @@ rules('report 71', r);
     && hiE.every(l => /^↺E\d+$/.test(l)) && hiE.length >= 4, 'lower ' + lowC.join(' ') + ' | upper ' + hiE.join(' '));
   const north = r.pieces.filter(p => (p.face === T.id || p.face === wing.id) && inRect(p) && p.c[0] > 1345 && !p.scrap);
   check('report 85: the rectangle\'s north side is its 5.69 m sheets right across, the east corner ones too (was ↺A4 ↺B6 ↺C3 offcuts there), each wing column a sheet or its carried foot',
-    north.length >= 17 && north.every(p => (p.ordered || p.strung) && lenR[p.block] === 5690), north.map(p => p.label).join(' '));
-  check('report 85: 53 sheets, under 293 m (57 and 301 m before), every other roof unchanged',
-    nOf(r) <= 53 && steel(r) < 293 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
+    north.length >= 17 && north.filter(p => !(p.ordered || p.strung)).length <= 1 && north.filter(p => p.ordered || p.strung).every(p => lenR[p.block] === 5690), north.map(p => p.label).join(' '));
+  // C8 (the owner: "C8 should be part of the C7 sheet ... should actually be
+  // the offcut ... that should remove a whole sheet"): the small piece below
+  // C7 in C7's own column is cut from an offcut, not ordered as a sheet.
+  const c7col = r.pieces.filter(p => p.face === T.id && p.c[0] > 1438 && p.c[0] < 1460 && !p.scrap);
+  check('report 85: the piece under C7 in C7\'s column is cut from an offcut, not a sheet of its own (was C8)',
+    c7col.length === 1 && !c7col[0].ordered, c7col.map(p => p.label).join(' '));
+  check('report 85: 53 sheets, under 292 m (57 and 301 m before), every other roof unchanged',
+    nOf(r) <= 53 && steel(r) < 292 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
   rules('report 85', r);
 }
 // THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's

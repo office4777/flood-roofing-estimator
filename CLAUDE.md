@@ -556,7 +556,14 @@ THE LAY:
    sheet more (`forced`); and the wing at the rectangle's hip end is not laid
    again from its own apex (`res.rectMain` skips that alternative). Report 85
    v14: 53 sheets, 292.0 m; the west strip's lower rows ↺C13, ↺C15–↺C19, its
-   upper rows ↺E12–↺E18. NOT LIVE until his "go".
+   upper rows ↺E12–↺E18. LIVE 2026-11-10 8:52 am NZ on his "go" (8d4a574).
+   v15 (the same morning, "C8 should be part of the C7 sheet ... should
+   actually be the offcut of C7 ... that should remove a whole sheet"): a
+   piece of the rectangle's slope in the column of a sheet that stands on the
+   wing's end (`colDonor`) is pool-first, its own column's sheet the preferred
+   offcut (and a last pass packs it there where the packer can — on report 85
+   it cannot, so it comes off A2's); the forced set may cost two sheets.
+   Report 85 v15: 53 sheets, 290.9 m. NOT LIVE until his "go".
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
