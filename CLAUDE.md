@@ -1540,6 +1540,39 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   layout (`_setQuotePreviewMode`, still used by the suites), but no button
   sets it now and the two buttons are never lit. `tests/quotepreview.mjs`
   (38).
+- THE FLASHING LIBRARY'S DEFAULTS, EDIT, AND THE PLATFORM'S BACK-TRAYS
+  (2026-11-09, the owner: "the blue '[flashing name]' should be a bigger title
+  and say 'Default [flashing name]' with a drop down menu to save it as a
+  different default ... the other flashings ... have a 'add as default' ...
+  if it's going to replace an existing default ... 'overwrite' or 'cancel'.
+  Then the 'edit' button ... should open that flashings window ... also save
+  all the back-trays as built in so all users have them"). DEFAULTS:
+  `materials_catalog.flashDefaults = {'<profile>|<type>': '<name>'}`, saved with
+  the library (it rides `price_book.__materials_catalog`, so the server's
+  library guard keeps it). `_flashDefaultExplicit(profile, type)` (the
+  profile's entry, then `any|type`) is read by `_jpResolveDefaultDrawing(type,
+  profile, {noPick, exclude})` AFTER a hand pick on this device's Materials
+  picker and BEFORE its own guesses, and by `_matFlashingDrawingHtml` and the
+  Materials print. A card shows a large `.flib-def-sel` "Default <type>" for
+  every slot (`FLASH_DEFAULT_SLOTS`) the resolver gives it for its own profile
+  (`_flashDefaultsResolved`), else a dashed `.flib-add-sel` "+ Add as default";
+  `_flibSetDefault` moves it, pinning the next in line on a slot it leaves
+  (`exclude`), and a slot that already has a different default asks first
+  (`_flibConfirm`, Overwrite / Cancel). EDIT: built-ins carry Edit
+  (`_flibEditBuiltin` → `openFlashEditModal(-1, entry)`, nothing copied until
+  Save) and a saved flashing with the same name and profile hides the built-in
+  (`_getBuiltinFlashings`), so the business's own version is what every lookup
+  by name finds; "Edit copy" is gone. `#flashSketchModal` scrolls from the top
+  (its heading was cut off on a phone). THE BACK-TRAYS: the owner's saved
+  flashings named back-tray (`PLATFORM_FLASH_RE`) are copied by
+  `_platformFlashSync` into platform_state `builtin_flashings` — 70 s after
+  boot, after a Settings save by an ANALYTICS_OWNERS login, and `POST
+  /admin/builtin-flashings/run`; never an empty list over a stored one — and
+  every account reads them from `GET /flashings/builtins` (`?since=` answers
+  `same`) via `_platformFlashLoad`, kept in `localStorage.fr_platform_flash`,
+  merged by `_getBuiltinFlashings` behind the shipped presets. A back-tray the
+  owner draws or edits reaches everyone on his next Settings save.
+  `tests/flashdefaults.mjs` (19, UI), `tests/builtinflash.mjs` (13, API).
 - EXCLUSIONS on the modern proposal: `S.quote.custExcl` (edited beside
   the inclusions in `_qdescOpen`, kind `'x'`; `_qbExclusionLines`). When
   any exist the two lists get "What's included" / "What's excluded"

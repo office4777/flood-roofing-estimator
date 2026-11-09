@@ -5614,6 +5614,7 @@ app.put('/settings', requireAuth, async (req, res) => {
     }
     if (error) return res.status(500).json({ error: error.message });
     res.json(data);
+    try { if (ANALYTICS_OWNERS.indexOf(String((req.user && req.user.email) || '').toLowerCase()) >= 0) _platformFlashSyncSoon(); } catch (e) {}
     try {
       if (_cbBefore && Array.isArray(_cbBefore.items) && _cbBefore.items.length &&
           JSON.stringify(_cbBefore) !== JSON.stringify(_cbAfter))
@@ -9206,6 +9207,91 @@ app.post('/admin/aud-prices/run', async (req, res) => {
 app.post('/admin/paid-since/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _paidSinceBackfill()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+// ── THE PLATFORM'S OWN FLASHINGS (2026-11-09, the owner: "save all the
+// back-trays as built in so all users have them"). The back-tray drawings the
+// pipe penetrations call up by name (`_backTrayNameFor` in the app — "800mm
+// 5-Rib back-tray" and the rest) were drawn once in the owner's own library,
+// so every other business got "No drawing". The owner's saved flashings whose
+// names say back-tray are copied into platform_state `builtin_flashings`, and
+// every signed-in account reads them as built-ins (GET /flashings/builtins).
+// Kept fresh: 70 s after boot, after any settings save by an owner login
+// (ANALYTICS_OWNERS), and POST /admin/builtin-flashings/run. A read that finds
+// none never writes an empty list over a stored one.
+const PLATFORM_FLASH_KEY = 'builtin_flashings';
+const PLATFORM_FLASH_RE = /back\s*-?\s*tray/i;
+let _platformFlashMemo = null;   // { at, value }
+function _platformFlashItem(e){
+  const keep = ['name','profile','flashingType','sketch','polylines','paintedSide','flashGuard',
+                'flashGuards','girthMm','angleChanges','crushFoldCount'];
+  const o = {};
+  keep.forEach(function(k){ if (e[k] !== undefined) o[k] = e[k]; });
+  o.isBuiltin = true; o.platform = true;
+  return o;
+}
+async function _platformFlashSync(){
+  const out = { companies: 0, items: 0, wrote: false };
+  const emails = ANALYTICS_OWNERS.slice();
+  if (!emails.length) return out;
+  const { data: profs } = await supabase.from('profiles').select('id, email, company_id').in('email', emails);
+  const cids = [];
+  for (const p of (profs || [])){
+    if (emails.indexOf(String(p.email || '').toLowerCase()) < 0) continue;
+    let ids = p.company_id ? [String(p.company_id)] : [];
+    try { const m = await _memberCompaniesOf(p.id); if (m) ids = ids.concat(m); } catch (e) {}
+    ids.forEach(function(c){ if (c && cids.indexOf(c) < 0) cids.push(c); });
+  }
+  const byName = {};
+  for (const cid of cids){
+    const row = await _companySettingsRowById(cid);
+    const cat = row && row.price_book && row.price_book.__materials_catalog;
+    const list = (cat && Array.isArray(cat.savedFlashings)) ? cat.savedFlashings : [];
+    if (list.length) out.companies++;
+    list.forEach(function(e){
+      if (!e || !e.name || !PLATFORM_FLASH_RE.test(String(e.name))) return;
+      if (!(Array.isArray(e.polylines) && e.polylines.length) && !e.sketch) return;
+      const k = String(e.name).trim().toLowerCase();
+      if (!byName[k]) byName[k] = _platformFlashItem(e);
+    });
+  }
+  const items = Object.keys(byName).sort().map(function(k){ return byName[k]; });
+  out.items = items.length;
+  if (!items.length) return out;
+  const value = { items: items, at: new Date().toISOString(), from: cids };
+  const prev = await supabase.from('platform_state').select('value').eq('key', PLATFORM_FLASH_KEY).maybeSingle();
+  const pv = prev && prev.data && prev.data.value;
+  if (pv && JSON.stringify(pv.items || []) === JSON.stringify(items)) return out;
+  const up = await supabase.from('platform_state').upsert({ key: PLATFORM_FLASH_KEY, value: value, updated_at: value.at }, { onConflict: 'key' });
+  if (up && up.error) throw new Error(up.error.message);
+  _platformFlashMemo = null;
+  out.wrote = true;
+  return out;
+}
+let _platformFlashSyncT = null;
+function _platformFlashSyncSoon(){
+  if (_platformFlashSyncT) clearTimeout(_platformFlashSyncT);
+  _platformFlashSyncT = setTimeout(function(){
+    _platformFlashSyncT = null;
+    _platformFlashSync().catch(function(e){ console.warn('[flashings] platform sync: ' + e.message); });
+  }, 1500);
+  if (_platformFlashSyncT.unref) _platformFlashSyncT.unref();
+}
+app.get('/flashings/builtins', requireAuth, async (req, res) => {
+  try {
+    if (!_platformFlashMemo || Date.now() - _platformFlashMemo.at > 5 * 60e3){
+      const r = await supabase.from('platform_state').select('value').eq('key', PLATFORM_FLASH_KEY).maybeSingle();
+      if (r && r.error) throw new Error(r.error.message);
+      _platformFlashMemo = { at: Date.now(), value: (r && r.data && r.data.value) || { items: [], at: null } };
+    }
+    const v = _platformFlashMemo.value;
+    if (req.query.since && v.at && String(req.query.since) === String(v.at)) return res.json({ same: true, at: v.at });
+    res.json({ items: v.items || [], at: v.at || null });
+  } catch (e) { res.status(503).json({ error: 'Could not read the built-in flashings', code: 'UPSTREAM_UNAVAILABLE' }); }
+});
+app.post('/admin/builtin-flashings/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _platformFlashSync()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/admin/email-switch-repair/run', async (req, res) => {
@@ -16411,6 +16497,8 @@ app.listen(PORT, () => {
     _emailSwitchRepairOnce().then(function(r){ if (r && r.repaired) _officeOwedTick(); }).catch(function(){});
   }, 45e3);
   if (_esKick.unref) _esKick.unref();
+  const _pfKick = setTimeout(function(){ _platformFlashSync().catch(function(e){ console.warn('[flashings] platform sync: ' + e.message); }); }, 70e3);
+  if (_pfKick.unref) _pfKick.unref();
   // The paid-since dates of businesses that were paying before they were kept.
   const _psKick = setTimeout(function(){ _paidSinceBackfill().catch(function(e){ console.warn('[stripe] paid-since backfill: ' + e.message); }); }, 75e3);
   if (_psKick.unref) _psKick.unref();

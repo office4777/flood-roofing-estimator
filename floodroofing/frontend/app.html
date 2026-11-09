@@ -4199,6 +4199,9 @@ html:is(.print-modern,.pdf-modern) .qd-addopt{ display:none !important; }
 .qb-incl-row:last-child{ border-bottom:none; }
 .qb-incl-row svg{ color:#2e9e57; flex:0 0 auto; margin-top:2px; }
 .flib-chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.flib-def, .flib-adddef{ display:block; margin:0 0 8px; }
+.flib-def-sel{ width:100%; font:inherit; font-size:15px; font-weight:800; color:#075985; background:#e0f2fe url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23075985' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 10px center; border:1.5px solid #7cc4ea; border-radius:9px; padding:7px 30px 7px 10px; -webkit-appearance:none; appearance:none; cursor:pointer; margin:0; }
+.flib-add-sel{ width:100%; font:inherit; font-size:12.5px; font-weight:700; color:#0a1628; background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%230a1628' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 10px center; border:1.5px dashed #94a3b8; border-radius:9px; padding:6px 30px 6px 10px; -webkit-appearance:none; appearance:none; cursor:pointer; margin:0; }
 .flib-chip{ padding:9px 16px; border:2px solid var(--border,#d6dde6); border-radius:10px; background:#fff; color:#0a1628; font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; }
 .flib-chip:hover{ border-color:#0099e0; }
 .flib-chip.on{ background:#0099e0; border-color:#0099e0; color:#fff; }
@@ -5347,7 +5350,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-09T01:39:45Z';
+  window.APP_BUILT_AT = '2026-11-09T06:10:00Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8839,8 +8842,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <!-- Flashing-sketch modal — minimal HTML5 canvas for drawing a custom
      cross-section. The data URL is stored on the flashing record and
      rendered as a thumbnail back on the order form. -->
-<div id="flashSketchModal" style="display:none;position:fixed;inset:0;background:rgba(13,13,12,.55);z-index:9999;align-items:center;justify-content:center;padding:24px">
-  <div style="background:#fff;border-radius:14px;max-width:760px;width:100%;box-shadow:var(--shadow-pop);overflow:hidden">
+<div id="flashSketchModal" style="display:none;position:fixed;inset:0;background:rgba(13,13,12,.55);z-index:9999;align-items:flex-start;justify-content:center;padding:24px;overflow-y:auto">
+  <div style="background:#fff;border-radius:14px;max-width:760px;width:100%;box-shadow:var(--shadow-pop);overflow:hidden;margin:auto 0">
     <div style="padding:14px 20px;display:flex;align-items:center;border-bottom:1px solid var(--border)">
       <div style="font-size:14px;font-weight:600">Sketch custom flashing — <span id="flashSketchTitle" style="color:var(--text2);font-weight:500">Flashing #1</span></div>
       <button onclick="closeFlashSketch()" style="margin-left:auto;background:none;border:none;font-size:20px;color:var(--text2);cursor:pointer;line-height:1">×</button>
@@ -14744,6 +14747,7 @@ async function loadSettings(){
     // Where the business stands — drives the trial countdown on Home. Not
     // awaited: nothing on screen should wait on it.
     try { loadSubscription(); } catch(e2){}
+    try { _platformFlashLoad(); } catch(e2){}
     return S.settings;
   } catch(e) {
     console.warn('settings cloud load failed:', e.message);
@@ -50377,9 +50381,50 @@ function _ensureBuiltinSketch(p){
     _flashSketchState.tool = savedState.tool;
   }
 }
+// THE BUILT-INS ARE THE SHIPPED PRESETS AND THE PLATFORM'S OWN (2026-11-09,
+// the owner: "save all the back-trays as built in so all users have them").
+// The platform list is the owner's back-tray drawings, served by the server
+// (GET /flashings/builtins, `builtin_flashings` in platform_state) and kept
+// on this device between loads. A built-in this account has saved its OWN
+// version of (the same name and profile — "Edit" on a built-in saves one) is
+// left out, so the account's version is the one every lookup by name finds.
+var _PLATFORM_FLASH = null;
+function _platformFlashItems(){
+  if (_PLATFORM_FLASH) return _PLATFORM_FLASH;
+  try {
+    var c = JSON.parse(localStorage.getItem('fr_platform_flash') || 'null');
+    _PLATFORM_FLASH = (c && Array.isArray(c.items)) ? c.items : [];
+  } catch(e){ _PLATFORM_FLASH = []; }
+  return _PLATFORM_FLASH;
+}
+async function _platformFlashLoad(){
+  if (window.__CUSTOMER_MODE || window.__QPV || window.__PLAYGROUND) return;
+  var at = null;
+  try { var c = JSON.parse(localStorage.getItem('fr_platform_flash') || 'null'); at = c && c.at; } catch(e){}
+  var r = null;
+  try { r = await api('GET', '/flashings/builtins' + (at ? ('?since=' + encodeURIComponent(at)) : '')); } catch(e){ return; }
+  if (!r || r.same || !Array.isArray(r.items)) return;
+  _PLATFORM_FLASH = r.items.map(function(x){ return Object.assign({}, x, { isBuiltin: true, platform: true }); });
+  try { localStorage.setItem('fr_platform_flash', JSON.stringify({ at: r.at || null, items: _PLATFORM_FLASH })); } catch(e){}
+  try { if (document.getElementById('flashLibraryGrid')) renderFlashingLibrary(); } catch(e){}
+}
 function _getBuiltinFlashings(){
   _FLASH_BUILTIN_PRESETS.forEach(_ensureBuiltinSketch);
-  return _FLASH_BUILTIN_PRESETS;
+  var saved = [];
+  try { saved = (window.S && S.settings) ? _getSavedFlashings() : []; } catch(e){ saved = []; }
+  var low = function(n){ return String(n || '').trim().toLowerCase(); };
+  var ownExact = {}, ownName = {};
+  saved.forEach(function(x){ if (x && x.name){ ownExact[low(x.name) + '|' + (x.profile || 'any')] = 1; ownName[low(x.name)] = 1; } });
+  var names = {};
+  var out = _FLASH_BUILTIN_PRESETS.filter(function(p){ return !ownExact[low(p.name) + '|' + (p.profile || 'any')]; });
+  _FLASH_BUILTIN_PRESETS.forEach(function(p){ names[low(p.name)] = 1; });
+  _platformFlashItems().forEach(function(p){
+    if (!p || !p.name || names[low(p.name)] || ownName[low(p.name)]) return;
+    names[low(p.name)] = 1;
+    _ensureBuiltinSketch(p);
+    out.push(p);
+  });
+  return out;
 }
 // Returns built-ins + user-saved as a single array, in that order. Used
 // by the library grid and the Materials tab picker so a fresh-from-the-
@@ -51579,13 +51624,15 @@ function openFlashSketch(idx){
 
 // Open the sketch modal in LIBRARY mode — edits an entry on
 // S.settings.materials_catalog.savedFlashings. idx === -1 creates new.
-function openFlashEditModal(libIdx){
+function openFlashEditModal(libIdx, srcEntry){
   _flashSketchState.idx  = libIdx;
   _flashSketchState.mode = 'library';
   var lib = _getSavedFlashings();
-  var entry = (libIdx >= 0) ? lib[libIdx] : null;
+  var entry = srcEntry || ((libIdx >= 0) ? lib[libIdx] : null);
   document.getElementById('flashMetaRow').style.display = 'flex';
-  document.getElementById('flashSketchTitle').textContent = entry ? ('Editing — ' + (entry.name || 'Untitled')) : 'New flashing';
+  document.getElementById('flashSketchTitle').textContent = entry
+    ? ('Editing — ' + (entry.name || 'Untitled') + (srcEntry ? ' (saves as your own version)' : ''))
+    : 'New flashing';
   document.getElementById('flashMetaName').value    = entry ? (entry.name || '') : '';
   document.getElementById('flashMetaProfile').value = entry ? (entry.profile || 'any') : 'any';
   document.getElementById('flashMetaType').value    = entry ? (entry.flashingType || 'custom') : 'custom';
@@ -51834,6 +51881,106 @@ function saveFlashSketch(){
   _renderFlashings();
 }
 
+// ── THE DEFAULT FLASHING OF EACH TYPE (2026-11-09, the owner: "the blue
+// '[flashing name]' should be a bigger title and say 'Default [flashing name]'
+// with a drop down menu to save it as a different default flashing, then the
+// other flashings that aren't a default flashing have a 'add as default' ...
+// if it's going to replace an existing default it should pop-up with a small
+// warning window to 'overwrite' or 'cancel'"). `materials_catalog.flashDefaults`
+// = { '<profile>|<type>': '<flashing name>' }, saved with the library for the
+// whole business. A slot with no entry falls back to the resolver's own guess
+// (`_jpResolveDefaultDrawing`: the type, the profile, "Standard …" first), so
+// the card shows whichever flashing the Job Pack really uses.
+var FLASH_DEFAULT_SLOTS = [
+  ['ridgehip','Ridge / Hip'], ['barge|side','Side barge'], ['barge|starter','Starter barge'],
+  ['barge|finish','Finish barge'], ['barge|head','Head barge'], ['apron|side','Side apron'],
+  ['apron|head','Head apron'], ['changepitch','Change-of-pitch'], ['valley','Valley'], ['drip','Drip edge']
+];
+function _flashSlotLabel(t){ for (var i = 0; i < FLASH_DEFAULT_SLOTS.length; i++) if (FLASH_DEFAULT_SLOTS[i][0] === t) return FLASH_DEFAULT_SLOTS[i][1]; return t; }
+function _flashDefaultsMap(){
+  var c = _ensureCatalog();
+  if (!c.flashDefaults || typeof c.flashDefaults !== 'object' || Array.isArray(c.flashDefaults)) c.flashDefaults = {};
+  return c.flashDefaults;
+}
+function _flashDefaultExplicit(profile, type, exclude){
+  var m; try { m = (window.S && S.settings) ? _flashDefaultsMap() : {}; } catch(e){ return null; }
+  var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  var find = function(n){ if (!n || n === exclude) return null; return all.find(function(e){ return e && e.name === n; }) || null; };
+  return find(m[(profile || 'any') + '|' + type]) || (profile !== 'any' ? find(m['any|' + type]) : null);
+}
+// The default each slot resolves to, per profile — what the cards show.
+function _flashDefaultsResolved(profiles){
+  var out = {};
+  profiles.forEach(function(pf){
+    out[pf] = {};
+    FLASH_DEFAULT_SLOTS.forEach(function(sl){
+      var r = null; try { r = _jpResolveDefaultDrawing(sl[0], pf, { noPick: true }); } catch(e){}
+      if (r && r.entry && r.entry.name) out[pf][sl[0]] = r.entry.name;
+    });
+  });
+  return out;
+}
+function _flibEntryAt(isB, idx){ return (isB ? _getBuiltinFlashings() : _getSavedFlashings())[idx] || null; }
+function _flibSetDefault(isB, idx, from, sel){
+  var e = _flibEntryAt(!!isB, idx); if (!e || !sel) return;
+  var to = sel.value || '';
+  if (to === '__keep') return;
+  if (to === from){ return; }
+  var pe = e.profile || 'any';
+  var m = _flashDefaultsMap();
+  var apply = function(){
+    if (from){
+      if (m[pe + '|' + from] === e.name) delete m[pe + '|' + from];
+      var still = _jpResolveDefaultDrawing(from, pe, { noPick: true });
+      if (still && still.entry && still.entry.name === e.name){
+        var nb = _jpResolveDefaultDrawing(from, pe, { noPick: true, exclude: e.name });
+        if (nb && nb.entry && nb.entry.name) m[pe + '|' + from] = nb.entry.name;
+        else if (!to) try { _siteToast(e.name + ' is the only ' + _flashSlotLabel(from) + ' drawing for ' + _flibProfileLabel(pe) + ', so it stays the default.'); } catch(x){}
+      }
+    }
+    if (to) m[pe + '|' + to] = e.name;
+    try { _persistCatalogSilently(); } catch(x){}
+    try { renderFlashingLibrary(); } catch(x){}
+    try { if (typeof renderMaterialsCutLists === 'function') renderMaterialsCutLists(); } catch(x){}
+  };
+  if (to){
+    var cur = _jpResolveDefaultDrawing(to, pe, { noPick: true });
+    if (cur && cur.entry && cur.entry.name && cur.entry.name !== e.name){
+      _flibConfirm('<b>' + esc(cur.entry.name) + '</b> is the default ' + esc(_flashSlotLabel(to)) +
+        ' for ' + esc(_flibProfileLabel(pe)) + '. Overwrite it with <b>' + esc(e.name) + '</b>?',
+        apply, function(){ try { renderFlashingLibrary(); } catch(x){} });
+      return;
+    }
+  }
+  apply();
+}
+// A small Overwrite / Cancel window.
+function _flibConfirm(html, onYes, onNo){
+  var old = document.getElementById('flibConfirm'); if (old) old.remove();
+  var w = document.createElement('div');
+  w.id = 'flibConfirm';
+  w.setAttribute('style', 'position:fixed;inset:0;z-index:10060;background:rgba(10,22,40,.45);display:flex;align-items:center;justify-content:center;padding:18px');
+  w.innerHTML = '<div style="background:#fff;border-radius:12px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(10,22,40,.3);padding:18px 18px 14px">'+
+    '<div style="font-size:15px;font-weight:800;color:#0a1628;margin-bottom:6px">Replace the default?</div>'+
+    '<div style="font-size:13px;line-height:1.45;color:#334155;margin-bottom:14px">' + html + '</div>'+
+    '<div style="display:flex;gap:8px;justify-content:flex-end">'+
+      '<button type="button" id="flibConfirmNo" class="tool-btn" style="padding:8px 16px;font-size:13px">Cancel</button>'+
+      '<button type="button" id="flibConfirmYes" style="padding:8px 16px;font-size:13px;font-weight:700;border:none;border-radius:8px;background:#0099e0;color:#fff;cursor:pointer">Overwrite</button>'+
+    '</div></div>';
+  document.body.appendChild(w);
+  var done = function(yes){ w.remove(); try { (yes ? onYes : onNo) && (yes ? onYes : onNo)(); } catch(x){} };
+  w.querySelector('#flibConfirmYes').onclick = function(){ done(true); };
+  w.querySelector('#flibConfirmNo').onclick = function(){ done(false); };
+  w.addEventListener('click', function(ev){ if (ev.target === w) done(false); });
+}
+// Edit on a built-in opens the drawing window on it straight away; Save
+// keeps the account's own version (same name = it replaces the built-in
+// here; another name = a new flashing). Cancel leaves nothing behind.
+function _flibEditBuiltin(idx){
+  var e = _getBuiltinFlashings()[idx]; if (!e) return;
+  openFlashEditModal(-1, e);
+}
+
 // ── FLASHING LIBRARY (Settings) ──
 // Renders the grid of saved flashings, filtered by the Profile/Type
 // dropdowns. Each card has Edit + Delete buttons. The +New button at
@@ -51883,6 +52030,9 @@ function renderFlashingLibrary() {
   var groups = {};
   rows.forEach(function(r){ var pk = r.entry.profile || 'any'; (groups[pk] = groups[pk] || []).push(r); });
   var keys = _flibProfileOrder(Object.keys(groups));
+  var _defR = {};
+  try { _defR = _flashDefaultsResolved(keys); } catch(e){ _defR = {}; }
+  typeLabels.__def = _defR;
   grid.innerHTML = keys.map(function(pk){
     var list = groups[pk].slice().sort(function(a, b){ return tRank(a.entry.flashingType) - tRank(b.entry.flashingType) || String(a.entry.name || '').localeCompare(String(b.entry.name || '')); });
     return '<div class="flib-sec" data-flib-profile="'+esc(pk)+'">'+
@@ -51932,7 +52082,7 @@ function _flibCardHtml(r, typeLabels){
       if (r.isBuiltin) {
         // Built-ins are read-only — Edit creates a duplicate first.
         actions =
-          '<button onclick="duplicateBuiltinFlashing('+r.srcIdx+', true)" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit copy</button>'+
+          '<button onclick="_flibEditBuiltin('+r.srcIdx+')" class="tool-btn" style="flex:1;font-size:11px;padding:6px 8px">Edit</button>'+
           '<button onclick="duplicateBuiltinFlashing('+r.srcIdx+')" class="tool-btn" style="font-size:11px;padding:6px 10px">⧉ Duplicate</button>';
       } else {
         actions =
@@ -51954,14 +52104,33 @@ function _flibCardHtml(r, typeLabels){
           'onmouseover="this.style.border=\'1px solid var(--border)\'" '+
           'onmouseout="if(document.activeElement!==this)this.style.border=\'1px solid transparent\'">';
       }
+      var _pe = e.profile || 'any';
+      var _dr = (typeLabels.__def && typeLabels.__def[_pe]) || {};
+      var _slots = FLASH_DEFAULT_SLOTS.filter(function(sl){ return _dr[sl[0]] && _dr[sl[0]] === e.name; }).map(function(sl){ return sl[0]; });
+      var _isB = r.isBuiltin ? 1 : 0;
+      var _opts = function(cur, lead){
+        return lead + FLASH_DEFAULT_SLOTS.map(function(sl){
+          return '<option value="'+esc(sl[0])+'"'+(sl[0] === cur ? ' selected' : '')+'>Default '+esc(sl[1])+'</option>';
+        }).join('');
+      };
+      var defHtml = _slots.length
+        ? _slots.map(function(t){
+            return '<label class="flib-def" title="The '+esc(_flashSlotLabel(t))+' the Job Pack uses for '+esc(_flibProfileLabel(_pe))+' — pick another to move it">'+
+              '<select class="flib-def-sel" data-flib-def="'+esc(t)+'" onchange="_flibSetDefault('+_isB+','+r.srcIdx+',\''+esc(t)+'\',this)">'+
+                _opts(t, '') + '<option value="">Not a default</option>'+
+              '</select></label>';
+          }).join('')
+        : '<label class="flib-adddef"><select class="flib-add-sel" onchange="_flibSetDefault('+_isB+','+r.srcIdx+',\'\',this)">'+
+            _opts('', '<option value="__keep" selected>+ Add as default</option>') + '</select></label>';
       return '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">'+
         thumb +
         '<div style="padding:10px 12px">'+
+          defHtml +
           nameField +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'+
             originBadge +
             '<span style="font-size:10px;background:#f4f4ef;color:#374151;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(e.profile||'any')+'</span>'+
-            '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(typeLabels[e.flashingType] || 'Custom')+'</span>'+
+            (_slots.length ? '' : '<span style="font-size:10px;background:#e0f2fe;color:#075985;padding:2px 7px;border-radius:10px;font-weight:600">'+esc(typeLabels[e.flashingType] || 'Custom')+'</span>')+
           '</div>'+
           '<div style="display:flex;gap:6px;flex-wrap:wrap">'+
             actions +
@@ -73136,15 +73305,24 @@ function _jpRenderFlashingCell(box, bi){
 // Default drawing lookup with prefix fallback.  E.g. `barge|starter`
 // → exact `barge|starter` match first, else any `barge|*`, else any
 // library entry that mentions the parent type.
-function _jpResolveDefaultDrawing(flashingType){
-  var direct = _matSavedFlashingsFor(flashingType);
+function _jpResolveDefaultDrawing(flashingType, profArg, opt){
+  opt = opt || {};
+  var _excl = opt.exclude || null;
+  var _profA = profArg || (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var direct = _matSavedFlashingsFor(flashingType, _profA);
+  if (_excl) direct = direct.filter(function(r){ return !(r.entry && r.entry.name === _excl); });
+  // THE OFFICE'S OWN DEFAULT (2026-11-09, Settings → Flashing library: "Default
+  // Side barge ▾" / "Add as default"): a flashing named the default of this
+  // type for this profile wins over every guess below; only a drawing picked
+  // by hand on this device's Materials picker beats it.
+  var _explicit = _flashDefaultExplicit(_profA, flashingType, _excl);
   // THE ROOF'S OWN PROFILE FIRST, AND THE STANDARD ONE OF IT (2026-11-08, the
   // owner: "for the 5-rib roofing ... the standard apron for 5-rib it was
   // populating was actually for a corrugated roof. We've just made a dedicated
   // 5-rib ... standard apron 5-rib ... make that the ... default apron for
   // 5-rib"). A drawing set to exactly this profile beats one set to "any", and
   // a "Standard …" one beats the rest; the built-ins still lead on a tie.
-  var _prof0 = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var _prof0 = _profA;
   var _rankD = function(r){ var e = r.entry || {}; return ((e.profile || 'any') === _prof0 ? 0 : 2) + (/\bstandard\b/i.test(e.name || '') ? 0 : 1); };
   if (direct && direct.length > 1) direct = direct.map(function(r, i){ return { r: r, i: i }; })
     .sort(function(a, b){ return _rankD(a.r) - _rankD(b.r) || a.i - b.i; }).map(function(x){ return x.r; });
@@ -73155,18 +73333,21 @@ function _jpResolveDefaultDrawing(flashingType){
     // themselves — with their own angle markers on it — could never win
     // over the shipped one.
     var picked = '';
-    try { picked = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || ''; } catch(e){}
+    if (!opt.noPick) try { picked = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || ''; } catch(e){}
     if (picked){
       var hitP = direct.find(function(r){ return r.entry && r.entry.name === picked; });
       if (hitP) return hitP;
     }
+    if (_explicit) return { entry: _explicit };
     return direct[0];
   }
+  if (_explicit) return { entry: _explicit };
   var bits = (flashingType || '').split('|');
   var parent = bits[0], sub = bits[1] || '';
   if (!parent) return null;
-  var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+  var profile = _profA;
   var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
+  if (_excl) all = all.filter(function(e){ return e && e.name !== _excl; });
   // Pass 1 — same profile + prefix + name MATCHES the sub-type
   // (e.g. flashing called "Starter Barge Corro" matches barge|starter).
   if (sub) {
@@ -75030,8 +75211,8 @@ function _matExtrasDelete(typeKey, idx){
 // flashing type. Entries with profile='any' are always included.
 // Returns built-in presets + user-saved entries combined, with libIdx
 // pointing into _getAllFlashings() (built-ins first).
-function _matSavedFlashingsFor(flashingType) {
-  var profile = (document.getElementById('matProfile')||{}).value || 'Corrugate';
+function _matSavedFlashingsFor(flashingType, profArg) {
+  var profile = profArg || (document.getElementById('matProfile')||{}).value || 'Corrugate';
   var all = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
   return all
     .map(function(e, i){ return { entry: e, libIdx: i }; })
@@ -75096,6 +75277,7 @@ function _matFlashingDrawingHtml(flashingType, defaultKind) {
   var savedName = localStorage.getItem('fr_mat_flash_pick_' + flashingType) || '';
   var pick = savedName ? matches.find(function(m){ return m.entry.name === savedName; }) : null;
   if (pick && !pick.entry.sketch) pick = null;   // a sketchless pick shouldn't block the fallback
+  if (!pick){ var _exD = _flashDefaultExplicit((document.getElementById('matProfile')||{}).value || 'Corrugate', flashingType); if (_exD && _exD.sketch) pick = { entry: _exD }; }
   var builtin = _matFlashingDrawing(defaultKind);
   // No usable pick AND no built-in SVG for this type (e.g. valley) →
   // use the first saved sketch of this flashing type as the default so a
@@ -79268,6 +79450,7 @@ function _matBuildPrintOrderDetails(mount) {
     var savedName = localStorage.getItem('fr_mat_flash_pick_' + spec.key) || '';
     var _flashLib = (typeof _getAllFlashings === 'function') ? _getAllFlashings() : [];
     var saved = savedName ? (_flashLib.find(function(e){ return e.name === savedName; }) || null) : null;
+    if (!saved || !saved.sketch){ var _exD = _flashDefaultExplicit((document.getElementById('matProfile')||{}).value || 'Corrugate', spec.key); if (_exD && _exD.sketch) saved = _exD; }
     // No usable pick (missing OR sketchless) + no built-in drawing →
     // default to a saved sketch for this flashing type, so a saved Valley
     // sketch becomes the valley default instead of "No drawing".
