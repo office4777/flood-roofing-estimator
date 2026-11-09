@@ -468,16 +468,30 @@ rules('report 71', r);
 {
   const steel = z => z.tally.reduce((t, x) => t + x.Lmm * x.count, 0) / 1000;
   const blockLen = (z, f) => { const ps = z.pieces.filter(p => p.face === f.id && p.block); const b = ps.length && z.blocks.find(bb => bb.letter === ps[0].block); return b ? b.Lmm : 0; };
-  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = false; });
+  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = false; window.__PZ_RECT_MAIN = false; });
   const r0 = await lay(fx('report85'));
-  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = null; });
+  await pg.evaluate(() => { window.__PZ_NEAR_TMPL = null; window.__PZ_RECT_MAIN = null; });
   r = await lay(fx('report85'));
   const wing = r.faces.find(f => f.lay === 'grid' && f.d[1] > 0.9);
   const T = wing && r.faces.find(f => f.id === wing.template);
   check('report 85: the north wing\'s end is cut from the 5.69 m rectangle\'s north slope, the slope it stands on (was the north-west face\'s 5.14 m sheets)',
     T && blockLen(r, T) === 5690, T ? 'template ' + T.id + ' ' + blockLen(r, T) : 'no template');
-  check('report 85: 54 sheets and under 290 m of steel (57 and 301 m before), every other roof unchanged',
-    nOf(r) <= 54 && steel(r) < 290 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
+  // THE MAIN RECTANGLE LAID WHOLE (rule 3d, the owner on v12: "13.26
+  // divided by 0.762 equals 17.4 ... round it up, it equals 18 sheets ... 18
+  // sheets for the north side of that main rectangle, and then 18 sheets for
+  // that south side"). The rectangle is x 1231–1577 (9.35 + 3.91 m).
+  const LEN = z => { const m = {}; z.blocks.forEach(bb => { m[bb.letter] = bb.Lmm; }); return m; };
+  const lenR = LEN(r);
+  const inRect = p => p.c[0] > 1231 && p.c[0] < 1577;
+  const south = r.faces.find(f => f.d[1] < -0.9);
+  const sRect = r.pieces.filter(p => p.face === south.id && p.c[0] > 1220 && p.c[0] < 1577 && !p.scrap);   // (the 18th lapped at the rectangle's west corner)
+  check('report 85: the rectangle\'s south side is 18 sheets at 5.69 m, one run (was E1–E11 then 5.14 m F sheets)',
+    sRect.length === 18 && sRect.every(p => p.ordered && lenR[p.block] === 5690), sRect.map(p => p.label + (p.ordered ? '' : '(fed)')).join(' '));
+  const north = r.pieces.filter(p => (p.face === T.id || p.face === wing.id) && inRect(p) && p.c[0] > 1345 && !p.scrap);
+  check('report 85: the rectangle\'s north side is its 5.69 m sheets right across, the east corner ones too (was ↺A4 ↺B6 ↺C3 offcuts there), each wing column a sheet or its carried foot',
+    north.length >= 17 && north.every(p => (p.ordered || p.strung) && lenR[p.block] === 5690), north.map(p => p.label).join(' '));
+  check('report 85: 53 sheets, under 293 m (57 and 301 m before), every other roof unchanged',
+    nOf(r) <= 53 && steel(r) < 293 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
   rules('report 85', r);
 }
 // THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's

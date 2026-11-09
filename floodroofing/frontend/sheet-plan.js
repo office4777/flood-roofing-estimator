@@ -7356,6 +7356,19 @@ function _pzWallKind(e, R, tol){
 // the face's gutter line inward through the middle of the face, times its
 // width along the gutter (the given span, else the face's own gutter).
 var PZ_NEAR_TMPL = true;
+// THE MAIN RECTANGLE IS LAID WHOLE (feedback report 85, 2026-11-10, the
+// owner on v12: "the rules of the main rectangle is to take the longer side
+// of the main rectangle, which is 9.35 plus 3.91, which equals 13.26 ... 13.26
+// divided by 0.762 equals 17.4 ... round it up, it equals 18 sheets. So it
+// should be 18 sheets for the north side of that main rectangle, and then 18
+// sheets for that south side"). See _pzRectRanges.
+var PZ_RECT_MAIN = true;
+// (Only a step of up to this much: a lower ridge that shortens the
+// rectangle's own rafters by under 0.8 m — report 85's 0.55 m — not a wing
+// whose slope runs a metre or more lower, which the cookie cutter and rule 5
+// already lay.)
+var _PZ_RECT_STEP_MM = 800;
+function _pzRectMain(){ if (typeof window !== 'undefined' && window.__PZ_RECT_MAIN != null) return !!window.__PZ_RECT_MAIN; return PZ_RECT_MAIN; }
 function _pzNearTmpl(){ if (typeof window !== 'undefined' && window.__PZ_NEAR_TMPL != null) return !!window.__PZ_NEAR_TMPL; return PZ_NEAR_TMPL; }
 var PZ_LONGEST_RECT = true;
 function _pzLongestRect(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_RECT != null) return !!window.__PZ_LONGEST_RECT; return PZ_LONGEST_RECT; }
@@ -7649,7 +7662,7 @@ function _pzBuildKey(opts){
     // thumbnail, a size — lay the same roof.)
     ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay', 'rectArea'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
-      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(), _pzNearTmpl(),
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(), _pzNearTmpl(), _pzRectMain(),
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
     return JSON.stringify([idxs, sigs, o, flags]);
   } catch(e){ return null; }
@@ -8477,6 +8490,50 @@ function _sheetPuzzleFill(pz){
   });
   var gabletHips = {};
   pz.faces.forEach(function(f){ if (f.gablet && f.lay === 'apex') f.edges.forEach(function(e){ if (e.kind === 'hip') gabletHips[_pzEdgeKey(e)] = f; }); });
+  // THE MAIN RECTANGLE'S SLOPES (rule 3d). The slopes whose full strips
+  // reach the roof's deepest ridge — the longest sheets — are the main
+  // rectangle's long sides: the ridge carried on a depth each way (its hips
+  // at 45 degrees) is the rectangle's long side, and every column across it
+  // is one of the rectangle's sheets at that length, cut where the roof's
+  // lines fall (a lower ridge, a wing's hip). Their offcuts feed the rest the
+  // plain hip's way; the optimiser never takes one off the order.
+  var rectR = new Map();
+  if (_pzRectMain()){
+    var lvOf = function(p){ return mmOf(p.sheetLongPx || p.longPx, p.face); };
+    // (A column the cookie cutter strung — a sheet whose foot was carried onto a wing — is a full rafter of the rectangle too.)
+    var topOf = function(p){ return (p.full || p.chainBelow) && !p.viaTemplate && !p.strungTo; };
+    var M = 0;
+    pz.faces.forEach(function(f){ if ((f.lay === 'run' || f.lay === 'barge') && f.hasGutter) f.pieces.forEach(function(p){ if (topOf(p)) M = Math.max(M, lvOf(p)); }); });
+    if (M > 0) pz.faces.forEach(function(f){
+      if (f.lay !== 'run' || !f.hasGutter) return;
+      var top = f.pieces.filter(function(p){ return topOf(p) && lvOf(p) >= M - Math.max(60, M * 0.02); });
+      if (!top.length) return;
+      var a = Math.min.apply(null, top.map(function(p){ return Math.min(p.tA, p.tB); }));
+      var b = Math.max.apply(null, top.map(function(p){ return Math.max(p.tA, p.tB); }));
+      var dep = f.dMax - f.dMin;
+      var lo = Math.max(f.T0 != null ? f.T0 : f.t0, a - dep), hi = Math.min(f.T1 != null ? f.T1 : f.t1, b + dep);
+      if (hi - lo > pz.coverPx * 2) rectR.set(f, { lo: lo, hi: hi, M: M });
+    });
+    // ONLY WHERE THE RECTANGLE IS BROKEN: a slope of the rectangle whose
+    // full strips inside its span stop at a LOWER ridge too (report 85's
+    // south slope: 5.69 m to the main ridge, 5.14 m to the west wing's lower
+    // one), so the plain hip's one run had become two blocks. A roof whose
+    // rectangle is already laid whole is left exactly as it was.
+    var broken = false;
+    rectR.forEach(function(R, f){
+      f.pieces.forEach(function(p){
+        if (!p.full || p.viaTemplate || p.strungTo) return;
+        var a = Math.min(p.tA, p.tB), b = Math.max(p.tA, p.tB);
+        var lv = lvOf(p); if (a > R.lo + pz.tol && b < R.hi - pz.tol && lv < R.M - 150 && lv >= R.M - _PZ_RECT_STEP_MM) broken = true;
+      });
+    });
+    if (!broken) rectR.clear();
+  }
+  var inRectOf = function(f, p){
+    var R = rectR.get(f); if (!R) return false;
+    var a = Math.min(p.tA, p.tB), b = Math.max(p.tA, p.tB);
+    return Math.min(b, R.hi) - Math.max(a, R.lo) > pz.tol;
+  };
   var endFaces = [];
   pz.faces.forEach(function(f){
     var ps = f.pieces.filter(function(p){ return !p.strungTo && !p.viaTemplate; });
@@ -8503,6 +8560,7 @@ function _sheetPuzzleFill(pz){
     var runs = [];
     fulls.forEach(function(p){
       var lv = mmOf(p.longPx, f), cur = runs[runs.length - 1];
+      if (inRectOf(f, p) && lv >= rectR.get(f).M - _PZ_RECT_STEP_MM) lv = rectR.get(f).M;
       if (cur && Math.abs(cur.level - lv) <= Math.max(60, cur.level * 0.04)){ cur.pieces.push(p); cur.k1 = p.k; }
       else runs.push({ level: lv, pieces: [p], k0: p.k, k1: p.k });
     });
@@ -8546,7 +8604,9 @@ function _sheetPuzzleFill(pz){
         });
         r = within || ((before && after) ? (after.level > before.level ? after : before) : (before || after));
         var lv = mmOf(p.sheetLongPx || p.longPx, p.face);
-        var isRect = p.chainBelow || p.viaTemplate;   // the rectangle's own sheet, by the cookie cutter
+        var inR = inRectOf(f, p) && lv <= rectR.get(f).M + Math.max(60, rectR.get(f).M * 0.04) && (!p.full || lv >= rectR.get(f).M - _PZ_RECT_STEP_MM);
+        if (inR){ var mr = runs.reduce(function(m, x){ return (!m || x.level > m.level) ? x : m; }, null); if (mr) r = mr; }
+        var isRect = p.chainBelow || p.viaTemplate || inR;   // the rectangle's own sheet, by the cookie cutter (or the main rectangle's, rule 3d)
         // A sliver — under a third of a sheet each way — is a scrap off the
         // nearest offcut, never a sheet of its own (the 50 mm the junction
         // of a valley and a hip leaves at the end of a column).
@@ -8606,6 +8666,10 @@ function _sheetPuzzleFill(pz){
       addToBlock(r.block, p);
     });
     if (f.endPieces.length) endFaces.push(f);
+    if (rectR.has(f)){
+      var mb = runs.reduce(function(m, x){ return (!m || x.level > m.level) ? x : m; }, null);
+      if (mb) mb.block.pieces.forEach(function(p){ p.rectKeep = true; });
+    }
   });
   // 2. Number the block sheets and pour the offcuts into the pool.
   function offcutOf(pc){
@@ -10156,7 +10220,7 @@ function _pzOptimise(pz){
   });
   // 2. A sheet whose own piece is no longer than a shorter block's sheets
   // on its face is one of those; its offcut's pieces go elsewhere.
-  var tries = sheetPieces.filter(function(pc){ return S.has(pc) && pc.block && !pc.block.extra && !(feetOf.get(pc) || []).length; });
+  var tries = sheetPieces.filter(function(pc){ return S.has(pc) && pc.block && !pc.block.extra && !pc.rectKeep && !(feetOf.get(pc) || []).length; });
   var shortTo = function(pc){
     var sh = S.get(pc), tb = null;
     pz.blocks.forEach(function(b){
@@ -10239,7 +10303,7 @@ function _pzOptimise(pz){
     // (Not P's own face: feeding the strip beside it off P is a swap, not a
     // saving. The extras first, then the longest sheets.)
     // Only the strips of P's own hand: those its offcut feeds with one cut.
-    var xs = cutSheets(roofOf(P)).filter(function(X){ return X !== P && X.face !== P.face && (!X.hand || !P.hand || X.hand === P.hand); })
+    var xs = cutSheets(roofOf(P)).filter(function(X){ return X !== P && X.face !== P.face && !X.rectKeep && (!X.hand || !P.hand || X.hand === P.hand); })
       .sort(function(a, b){ return ((b.block.extra === true) - (a.block.extra === true)) || (lenOf(b) - lenOf(a)); }).slice(0, _PZ_OPT_TRIES);
     xs.forEach(function(X){
       if (log.tried >= _PZ_OPT_PACKS) return;
@@ -10369,7 +10433,7 @@ function _pzOptimise(pz){
       });
       // The receivers: the valley-cut sheets on the other faces, and extras.
       var loose = Array.from(S.keys()).filter(function(pc){
-        if (!S.has(pc) || roofOf(pc) != rk || donorFaces.has(pc.face) || !pc.block) return false;
+        if (!S.has(pc) || roofOf(pc) != rk || donorFaces.has(pc.face) || !pc.block || pc.rectKeep) return false;
         if (pc.full && !pc.block.extra) return false;
         if (narrow && !pc.block.extra && !byValley(pc)) return false;
         return !(feetOf.get(pc) || []).length && !pz.pieces.some(function(q){ return q.strung && q.strungTo === pc; });

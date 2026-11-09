@@ -524,6 +524,25 @@ THE LAY:
    lighter, so rule 10 keeps that. Offered, not built: A 4.86 / D 4.90 are
    40 mm apart and could be one length. `fixtures-report85.json`, 2 pins in
    `sheetlayout.mjs` (447).
+3d. THE MAIN RECTANGLE IS LAID WHOLE, 18 SHEETS EACH SIDE (report 85, the
+   owner on v12: "13.26 divided by 0.762 equals 17.4. So round it up, it
+   equals 18 sheets ... 18 sheets for the north side of that main rectangle,
+   and then 18 sheets for that south side ... they should all be pushed
+   across ... which would replace orange offcut A4, blue offcut B6, purple
+   offcut C3 ... Then use the rest of the rules"). The rectangle is the
+   deepest ridge carried a depth each way (`rectR` in `_sheetPuzzleFill`);
+   every column across it on its two slopes is one of its sheets at the
+   longest length, a lower ridge inside it (report 85's south slope, 5.14 m
+   F sheets) included, and the optimiser never takes one off (`rectKeep`:
+   move 2, move 3 and move 5's loose sheets skip it). ONLY where the
+   rectangle was broken by a step under `_PZ_RECT_STEP_MM` (0.8 m; report
+   85's is 0.55 m) — a wing a metre or more lower (reports 71, 74–77, 82,
+   50) is the cookie cutter's and rule 5's and is left exactly as it was.
+   `PZ_RECT_MAIN` / `window.__PZ_RECT_MAIN`. Report 85: north C1–C18 (C1–C7
+   and the feet ✂C9–✂C13 on the wing's end), south E1–E18 (+E19–E21 the
+   west strip's corner), 53 sheets, 292.6 m (v12 54 / 289.8, live 57 /
+   301.3). Every other fixture and the 37-shape gate identical. Shown as
+   "Sheet layout v13 - report 85 main rectangle"; NOT LIVE until his "go".
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
