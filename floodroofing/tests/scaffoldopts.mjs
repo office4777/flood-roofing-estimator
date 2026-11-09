@@ -44,13 +44,13 @@ v = await pg.evaluate(async () => {
   const sc = S.quote.scaffold;
   const w = document.getElementById('scaffoldWrap');
   return { excl: !!sc.excluded, mode: sc.mode || 'out', price: _scaffoldEff(sc).price,
-    incl: !!w.querySelector('#scIncl'), modeBtns: !!w.querySelector('#scMode'),
+    incl: !!w.querySelector('#scIncl'), modeBtns: !!w.querySelector('#scStrategy'), strat: (w.querySelector('#scStrategy') || {}).value,
     boxes: w.querySelectorAll('input[onchange*="updateScaffold("]').length,
     line: (S.quote.lineItems || []).filter(l => l._base === 'scaffold').map(l => +l.unit) };
 });
 check('a roofing job starts with the scaffold on the quote, outsourced, at the Settings price',
   !v.excl && v.mode === 'out' && v.price === 2500 && v.boxes === 2, JSON.stringify(v));
-check('…and the card carries Scaffolding included / No scaffolding and Do it ourselves / Outsource', v.incl && v.modeBtns, JSON.stringify(v));
+check('…and the card carries ONE Pricing strategy drop-down, on Outsourced — priced in bulk', v.incl && v.modeBtns && v.strat === 'out_flat', JSON.stringify(v));
 
 // ── do it ourselves ──
 v = await pg.evaluate(async () => {
@@ -111,7 +111,7 @@ v = await pg.evaluate(() => {
   const plan = _buildFergusItemisedSections({ base: true });
   const r = { on, off, eff: _scaffoldEff(S.quote.scaffold).price, line: (S.quote.lineItems || []).filter(l => l._base === 'scaffold').length,
     head: (document.getElementById('pxTot_scaffoldCard') || {}).textContent || '', note: !!document.getElementById('scOffNote'),
-    modeBtns: !!document.querySelector('#scaffoldWrap #scMode'),
+    modeBtns: (document.querySelector('#scaffoldWrap #scStrategy') || {}).value !== 'none',
     fg: plan.sections.some(s => s.lineItems.some(li => /scaffold/i.test(li.itemName))),
     uplift: _selScaffoldBasePrice() };
   return r;
@@ -119,7 +119,7 @@ v = await pg.evaluate(() => {
 check('roofing, scaffold on: What we will do opens with Edge-Protection / Scaffolding', /scaffold/i.test(v.on[0]), JSON.stringify(v.on));
 check('No scaffolding: nothing charged and no Scaffolding line on the quote', v.eff === 0 && v.line === 0, JSON.stringify(v));
 check('…What we will do leaves the scaffold out', !v.off.some(l => /scaffold|edge.?protection/i.test(l)) && v.off.length === v.on.length - 1, JSON.stringify(v.off));
-check('…the heading reads Excluded, the card says why, and the do-it-ourselves choice is put away', /Excluded/.test(v.head) && v.note && !v.modeBtns, JSON.stringify(v));
+check('…the heading reads Excluded, the card says why, and the drop-down reads No scaffolding', /Excluded/.test(v.head) && v.note && !v.modeBtns, JSON.stringify(v));
 check('…Fergus gets no scaffolding and a gutter has no platform upgrade to charge', !v.fg && v.uplift === 0, JSON.stringify(v));
 v = await pg.evaluate(() => { _scaffoldSetExcluded(false); return { l: _qbInclusionLines()[0], p: _scaffoldEff(S.quote.scaffold).price }; });
 check('…and Scaffolding included puts it all back', /scaffold/i.test(v.l) && v.p === 2500, JSON.stringify(v));
@@ -163,12 +163,12 @@ v = await pg.evaluate(async () => {
   _pricingState(); calcLabour(); _pxFoldsApply();
   const card = document.getElementById('scaffoldCard');
   return { excl: !!S.quote.scaffold.excluded, folded: card.classList.contains('px-collapsed'),
-    modeBtns: !!document.querySelector('#scaffoldWrap #scMode'), lines: _qbInclusionLines(),
+    modeBtns: !![...document.querySelectorAll('#scaffoldWrap #scStrategy option')].some(o => o.value === 'diy'), lines: _qbInclusionLines(),
     sub: _quoteMoney().sub };
 });
 check('a gutters job starts with No scaffolding', v.excl, JSON.stringify(v));
 check('…and its scaffolding section folded', v.folded, JSON.stringify(v));
-check('…with no Do it ourselves / Outsource choice on a gutters job', !v.modeBtns, JSON.stringify(v));
+check('…with no DIY choice on a gutters job', !v.modeBtns, JSON.stringify(v));
 const gl = v.lines;
 check('What we will do on a gutters job says nothing about scaffolding', !gl.some(l => /scaffold|edge.?protection/i.test(l)), JSON.stringify(gl));
 check('…keeping the downpipes: "Remove existing spouting and take it away"', gl.indexOf('Remove existing spouting and take it away') >= 0 && !gl.some(l => /downpipe/i.test(l)), JSON.stringify(gl));
@@ -214,6 +214,61 @@ v = await pg.evaluate(() => {
   return _scaffoldEff(sc);
 });
 check('a scaffold saved before reads exactly as it did', v.price === 1800 && v.cost === 1500 && !v.excluded && !v.diy, JSON.stringify(v));
+
+// ── THE TICK BOX AND THE PER-METRE OUTSOURCE (2026-11-10, the owner: "can this
+// just be a tick box? ... Scaffolding included in quote ... And then the two
+// buttons between do it ourselves and outsource. And then with the scaffolding
+// cost for outsource, make a linear meter charge. Which would calculate the
+// perimeter of the building in linear meters and then the user inputs their
+// custom price") ──
+v = await pg.evaluate(async () => {
+  _resetQuoteForFreshJob({ client:'Perim Test', addr:'2 Test Road' });
+  _setJobType('roofing');
+  gotoTab('roof'); clearAll(true); setTool('outline');
+  DRAW.currentPts = [[100,100],[500,100],[500,400],[100,400]]; finishCurrent(); DRAW.scaleMetresPerPx = 0.025; autoGenerateRoof('hip');
+  gotoTab('quote'); _openPricingPanel(true); await new Promise(r => setTimeout(r, 300));
+  calcLabour(); await new Promise(r => setTimeout(r, 100));
+  const w = document.getElementById('scaffoldWrap');
+  const sel = w.querySelector('#scStrategy');
+  const pick = async (v) => { const el = document.querySelector('#scaffoldWrap #scStrategy'); el.value = v; el.dispatchEvent(new Event('change')); await new Promise(r => setTimeout(r, 120)); };
+  const out = { sel: !!sel, value: sel && sel.value, options: sel ? [...sel.options].map(o => o.value) : [], oldBtns: w.querySelectorAll('#scMode, #scOutMode, #scInclTick').length, perimDrawn: _scaffoldPerimFor(0) };
+  await pick('none');
+  out.afterUntick = { excl: !!S.quote.scaffold.excluded, price: _scaffoldEff(S.quote.scaffold).price, value: document.querySelector('#scaffoldWrap #scStrategy').value };
+  await pick('out_flat');
+  out.afterTick = { excl: !!S.quote.scaffold.excluded, price: _scaffoldEff(S.quote.scaffold).price };
+  await pick('diy');
+  out.diy = { mode: S.quote.scaffold.mode, table: !!document.querySelector('#scaffoldWrap #scDiyTable') };
+  await pick('out_lm');
+  // per metre (picked above)
+  const sc = S.quote.scaffold;
+  out.lm = { outMode: sc.outMode, perim: sc.lmPerim, rate: sc.lmRate, box: !!document.querySelector('#scaffoldWrap #scLmBox'), price: _scaffoldEff(sc).price };
+  _scaffoldLmUpd('rate', 60); await new Promise(r => setTimeout(r, 100));
+  document.querySelectorAll('#matDefKeep').forEach(b => b.click());
+  _scaffoldLmUpd('cost', 40); await new Promise(r => setTimeout(r, 100));
+  const e = _scaffoldEff(S.quote.scaffold);
+  out.priced = { price: e.price, cost: e.cost, lmTotal: (document.querySelector('#scaffoldWrap #scLmTotal') || {}).textContent,
+    line: (S.quote.lineItems || []).filter(l => l._base === 'scaffold').map(l => +l.unit), onQuote: (document.getElementById('scOnQuote') || {}).textContent };
+  _scaffoldLmUpd('perim', 50); await new Promise(r => setTimeout(r, 100));
+  out.typed = { perim: S.quote.scaffold.lmPerim, manual: !!S.quote.scaffold.lmPerimManual, price: _scaffoldEff(S.quote.scaffold).price };
+  _scaffoldLmUpd('perim', ''); await new Promise(r => setTimeout(r, 100));
+  out.back = { perim: S.quote.scaffold.lmPerim, manual: !!S.quote.scaffold.lmPerimManual };
+  _scaffoldSetOutMode('flat'); await new Promise(r => setTimeout(r, 100));
+  out.flat = { outMode: S.quote.scaffold.outMode || 'flat', boxes: document.querySelectorAll('#scaffoldWrap input[onchange*="updateScaffold("]').length };
+  return out;
+});
+check('ONE Pricing strategy drop-down — bulk, by the metre, DIY hourly, none — on Outsourced in bulk by default, the old buttons gone',
+  v.sel && v.value === 'out_flat' && v.options.join(',') === 'out_flat,out_lm,diy,none' && v.oldBtns === 0, JSON.stringify([v.value, v.options, v.oldBtns]));
+check('No scaffolding takes it off the quote; Outsourced in bulk puts the Settings price back',
+  v.afterUntick.excl && v.afterUntick.price === 0 && v.afterUntick.value === 'none' && !v.afterTick.excl && v.afterTick.price === 2500, JSON.stringify([v.afterUntick, v.afterTick]));
+check('DIY priced hourly shows the crew table', v.diy.mode === 'diy' && v.diy.table, JSON.stringify(v.diy));
+check('the drawing’s perimeter is every wall in metres: 400+300+400+300 px at 0.025 = 35.0 lm', Math.abs(v.perimDrawn - 35) < 0.05, String(v.perimDrawn));
+check('per metre: the perimeter comes off the drawing, nothing charged until a rate is typed',
+  v.lm.outMode === 'lm' && Math.abs(v.lm.perim - 35) < 0.05 && v.lm.rate === 0 && v.lm.box && v.lm.price === 0, JSON.stringify(v.lm));
+check('a $60/lm rate and $40/lm cost price the scaffold at 35 × 60 = $2,100 and cost it at $1,400, on the quote’s line',
+  v.priced.price === 2100 && v.priced.cost === 1400 && /2100\.00/.test(v.priced.lmTotal) && v.priced.line[0] === 2100, JSON.stringify(v.priced));
+check('a typed perimeter wins (50 lm → $3,000) and blank goes back to the drawing',
+  v.typed.perim === 50 && v.typed.manual && v.typed.price === 3000 && !v.back.manual && Math.abs(v.back.perim - 35) < 0.05, JSON.stringify([v.typed, v.back]));
+check('Fixed price brings the two $ boxes back', v.flat.outMode === 'flat' && v.flat.boxes === 2, JSON.stringify(v.flat));
 
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
