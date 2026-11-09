@@ -208,7 +208,33 @@ body[data-tab="feedback"] .content{
   margin-left:0;
   margin-right:0;
 }
-body[data-tab="settings"] .card{ max-width:1080px; }
+/* Settings use the whole content width (2026-11-10, the owner: "nearly every
+   single sub setting is only using a very small amount of the screen space"). */
+body[data-tab="settings"] .card{ max-width:none; }
+body[data-tab="settings"] .content{ max-width:1480px; }
+#tab-settings .settings-sub .f2{ grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+#tab-settings .settings-sub input[type=text], #tab-settings .settings-sub input[type=number], #tab-settings .settings-sub select{ min-height:36px; font-size:13px; }
+.lp-calc{ width:100%; border-collapse:collapse; font-size:13px; }
+.lp-calc th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:6px 8px; border-bottom:1px solid var(--border); }
+.lp-calc td{ padding:8px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text2); }
+.lp-calc td:first-child{ color:var(--text); width:26%; }
+.lp-calc td:last-child{ white-space:nowrap; width:200px; }
+.lp-calc td:last-child input{ width:96px; display:inline-block; text-align:right; }
+.lp-calc td:last-child span{ font-size:11.5px; color:var(--text2); margin-left:4px; }
+/* the Pricing tab's auto-calculation panel, in line */
+.lc-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.lc-table th{ font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:2px 6px; text-align:right; }
+.lc-table th.lc-lab{ text-align:left; }
+.lc-table td{ padding:3px 6px; font-size:11.5px; color:#0a1628; text-align:right; white-space:nowrap; }
+.lc-table td.lc-lab{ text-align:left; }
+.lc-table .lc-q{ width:150px; } .lc-table .lc-r{ width:130px; color:var(--text2); } .lc-table .lc-h{ width:84px; font-weight:600; }
+.lc-table .lc-qty{ width:74px; font-size:11.5px; padding:4px 6px; text-align:right; margin:0; display:inline-block; }
+.lc-table .lc-u{ display:inline-block; width:44px; text-align:left; font-size:10px; color:var(--text2); margin-left:5px; }
+.lc-choices{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 8px; font-size:11.5px; font-weight:600; color:#0a1628; }
+.lc-choices label{ display:inline-flex; align-items:center; gap:6px; }
+.lc-choices select{ font-size:11.5px; padding:3px 6px; width:auto; }
+.lc-choices input[type=checkbox]{ width:14px; height:14px; margin:0; }
+.lc-choices .lc-edit{ margin-left:auto; font-size:11.5px; padding:4px 10px; }
 body[data-tab="feedback"] .card{ max-width:760px; }
 
 /* ── SITE MODE CHROME ───────────────────────────────────────────
@@ -5387,7 +5413,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-09T23:16:34Z';
+  window.APP_BUILT_AT = '2026-11-09T23:33:32Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -10127,13 +10153,21 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         </div>
       </div>
 
-      <div class="set-sec">
+      <!-- LABOUR AUTO-CALCULATIONS (2026-11-10) — the rates behind the Pricing
+           tab's "Show labour auto-calculations". The old "Default hours per
+           scope item" list (the retired scope checklist's hours) came off this
+           page; its stored figures are kept untouched. -->
+      <div class="set-sec" id="lpCalcSec">
         <div class="set-sec-hd">
-          <strong>Default hours per scope item</strong>
-          <span class="set-sec-note">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
-          <button type="button" onclick="addLabourItem()" class="tool-btn" style="margin-left:auto">+ Add item</button>
+          <strong>Labour auto-calculations</strong>
+          <span class="set-sec-note">&mdash; how fast a two-person crew gets through each part of a re-roof</span>
+          <button type="button" onclick="_lpCalcReset()" class="tool-btn" style="margin-left:auto">&#8635; RoofMap&rsquo;s defaults</button>
         </div>
-        <div id="lpItemsList"></div>
+        <div class="set-sec-sub">Each figure is how much the crew does in one hour. The quantities come off the roof you draw; hours = quantity &divide; rate, added up and rounded up, then applied to the Lead Roofer and the Apprentice. Change a rate here and every new calculation uses it.</div>
+        <div id="lpCalcList"></div>
+        <div class="f2" style="margin-top:12px">
+          <div><label>Stripping tiles takes this many times longer than steel</label><input type="number" id="lpStripTileFactor" min="1" step="0.1" placeholder="1.5"></div>
+        </div>
       </div>
     </div>
 
@@ -14672,7 +14706,7 @@ function defaultSettings(){
       // roofers price labour at a rate per square metre of roof and per
       // lineal metre of gutter rather than by the hour. 0 = never set, and
       // the switch in the Pricing tab says so rather than charging nothing.
-      labour_m2: 0, gutter_lm: 0, scaffold_lm: 0,
+      labour_m2: 0, gutter_lm: 0, scaffold_lm: 0, calc_rates: {},
       default_workers: 2,
       default_rate: 55,
       default_complexity: 1,
@@ -15094,7 +15128,19 @@ function collectLabourPricingFromUI(){
   lp.labour_m2 = numOr('lpLabourM2', 0);
   lp.gutter_lm = numOr('lpGutterLm', 0);
   lp.scaffold_lm = numOr('lpScaffoldLm', 0);
+  // The auto-calculation rates: a blank box is RoofMap's default.
+  if (document.getElementById('lpCalcList')){
+    var cr = {};
+    Array.from(document.querySelectorAll('#lpCalcList [data-lp-calc]')).forEach(function(inp){
+      var v = parseFloat(inp.value); if (isFinite(v) && v > 0) cr[inp.getAttribute('data-lp-calc')] = v;
+    });
+    lp.calc_rates = cr;
+    var tf = parseFloat((document.getElementById('lpStripTileFactor') || {}).value);
+    if (isFinite(tf) && tf > 0) lp.strip_tile_factor = tf; else delete lp.strip_tile_factor;
+  }
   var dict = {};
+  // The retired scope-hours list: only read while its box is on the page.
+  if (!document.getElementById('lpItemsList')) dict = (lp.per_item_hours && typeof lp.per_item_hours === 'object') ? lp.per_item_hours : {};
   Array.from(document.querySelectorAll('#lpItemsList > [data-lp-item]')).forEach(function(row){
     var name  = (row.querySelector('input[data-f="name"]')||{}).value || '';
     var hours = parseFloat((row.querySelector('input[data-f="hours"]')||{}).value) || 0;
@@ -15120,6 +15166,27 @@ function renderLabourPricingUI(){
   setN('lpGutterLm', lp.gutter_lm);
   setN('lpScaffoldLm', lp.scaffold_lm);
   renderLabourItemsList(lp.per_item_hours || {});
+  try { _lpCalcRender(lp); } catch(e){}
+}
+function _lpCalcRender(lp){
+  var box = document.getElementById('lpCalcList'); if (!box) return;
+  lp = lp || _lpDefaults();
+  var cr = (lp.calc_rates && typeof lp.calc_rates === 'object') ? lp.calc_rates : {};
+  box.innerHTML = '<table class="lp-calc"><thead><tr><th>Part of the job</th><th>What it covers</th><th>Crew does per hour</th></tr></thead><tbody>'+
+    LABOUR_CALC_DRIVERS.map(function(d){
+      var v = parseFloat(cr[d.key]);
+      return '<tr><td><b>'+esc(d.label)+'</b></td><td>'+esc(d.desc)+'</td>'+
+        '<td><input type="number" min="0" step="0.5" data-lp-calc="'+d.key+'" value="'+((isFinite(v) && v > 0) ? v : '')+'" placeholder="'+LABOUR_CALC_DEFAULT_RATES[d.key]+'"> <span>'+esc(d.unit)+'/hr</span></td></tr>';
+    }).join('')+'</tbody></table>';
+  var tf = document.getElementById('lpStripTileFactor');
+  if (tf) tf.value = (parseFloat(lp.strip_tile_factor) > 0) ? lp.strip_tile_factor : '';
+}
+function _lpCalcReset(){
+  if (!S.settings) return;
+  if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
+  S.settings.labour_pricing.calc_rates = {}; delete S.settings.labour_pricing.strip_tile_factor;
+  _lpCalcRender(S.settings.labour_pricing);
+  try { _scheduleSettingsAutosave(); } catch(e){}
 }
 function renderLabourItemsList(dict){
   var box = document.getElementById('lpItemsList'); if (!box) return;
@@ -18892,7 +18959,48 @@ function _updateRoofLabour(idx, field, val){
 // Scaffolding labour is intentionally excluded. Rates (m/hr) are editable for
 // calibration; quantities auto-fill from the drawing and can be overridden per
 // roof. Drives the Lead + Apprentice hours when enabled.
-var LABOUR_CALC_DEFAULT_RATES = { roof: 14, sheets: 6, cuts: 18, flash: 8, pen: 6 };
+// THE DRIVERS COVER THE WHOLE RE-ROOF (2026-11-10, the owner: "make it more
+// expansive to cover all the aspects of roofing, re-roofing ... strip existing
+// roofing, strip existing tiles, install new purlins, underlay, all that stuff
+// ... strip existing tile roofing should take about 1.5 times longer than
+// existing steel roofing ... put it all into a settings where a roofer can
+// adjust their own calculations"). Each rate is UNITS PER CREW-HOUR. The old
+// single "Roofing 14 m²/hr" is split three ways — strip 28, underlay 56, install
+// & clean-up 56 — whose hours add to exactly what 14 gave (1/28 + 1/56 + 1/56 =
+// 1/14), so no quote's hours moved on the day. Settings → Labour pricing →
+// Labour auto-calculations (`labour_pricing.calc_rates`, `strip_tile_factor`)
+// is the business's own set; a rate typed on a quote (`labourCalc.rates`) is
+// that job's.
+var LABOUR_CALC_DEFAULT_RATES = { strip: 28, underlay: 56, purlins: 30, roof: 56, sheets: 6, cuts: 18, flash: 8, pen: 6 };
+var LABOUR_CALC_TILE_FACTOR = 1.5;
+var LABOUR_CALC_DRIVERS = [
+  { key:'strip',    label:'Strip existing roof',          unit:'m\u00b2', desc:'Taking the old roof off. Tiles take longer \u2014 the factor below.' },
+  { key:'underlay', label:'Underlay',                     unit:'m\u00b2', desc:'Laying the paper and netting.' },
+  { key:'purlins',  label:'New purlins / battens',        unit:'m\u00b2', desc:'Only when the job ticks New purlins.' },
+  { key:'roof',     label:'Roof install & clean-up',      unit:'m\u00b2', desc:'Fixing off, screwing down, the site clean.' },
+  { key:'sheets',   label:'Sheets',                       unit:'sheets',  desc:'Handling and placing each sheet.' },
+  { key:'cuts',     label:'Cuts (ridges, hips, valleys)', unit:'lm',      desc:'Cutting sheets along a ridge, hip or valley.' },
+  { key:'flash',    label:'Flashings',                    unit:'lm',      desc:'Barges, aprons, ridging.' },
+  { key:'pen',      label:'Penetrations',                 unit:'each',    desc:'Pipes, flues and skylights.' }
+];
+function _labourCalcSettingsRates(){ var lp = _lpDefaults(); return (lp && lp.calc_rates && typeof lp.calc_rates === 'object') ? lp.calc_rates : {}; }
+function _labourCalcTileFactor(){ var f = parseFloat(_lpDefaults().strip_tile_factor); return (isFinite(f) && f > 0) ? f : LABOUR_CALC_TILE_FACTOR; }
+// What the job is stripping: steel (the default), tiles, or nothing (a new build).
+function _labourCalcExisting(){ var c = _labourCalcCfg(); return (c.existing === 'tile' || c.existing === 'none') ? c.existing : 'steel'; }
+function _labourCalcPurlins(){ return !!_labourCalcCfg().purlins; }
+function _setLabourCalcExisting(v){
+  var c = _labourCalcCfg(); if (v === 'tile' || v === 'none') c.existing = v; else delete c.existing;
+  try { calcLabour(); } catch(e){} try { refreshQuoteProposal(); } catch(e){} try { _scheduleAutosave(); } catch(e){}
+}
+function _setLabourCalcPurlins(on){
+  var c = _labourCalcCfg(); if (on) c.purlins = true; else delete c.purlins;
+  try { calcLabour(); } catch(e){} try { refreshQuoteProposal(); } catch(e){} try { _scheduleAutosave(); } catch(e){}
+}
+function _labourCalcSettingsGo(){
+  try { gotoTab('settings'); } catch(e){}
+  try { switchSettingsSub('set-labour'); } catch(e){}
+  try { setTimeout(function(){ var el = document.getElementById('lpCalcSec'); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80); } catch(e){}
+}
 var LABOUR_CALC_SHEET_WIDTH_M = 0.762;   // effective sheet cover for the sheet-count estimate
 function _labourCalcCfg(){
   if (!S.quote) return { enabled: false, rates: {} };
@@ -18917,7 +19025,10 @@ function _toggleShowLabourCalc(on){
 }
 function _labourCalcRate(key){
   var v = parseFloat(_labourCalcCfg().rates[key]);
-  return (isFinite(v) && v > 0) ? v : LABOUR_CALC_DEFAULT_RATES[key];
+  if (isFinite(v) && v > 0) return v;
+  var sv = parseFloat(_labourCalcSettingsRates()[key]);
+  if (isFinite(sv) && sv > 0) return sv;
+  return LABOUR_CALC_DEFAULT_RATES[key];
 }
 // Measurement totals for ONE roof (roof-swap like _materialsCostForRoofIdx),
 // plus that roof's penetration count.
@@ -18974,7 +19085,11 @@ function _labourCalcAutoQty(idx){
 function _labourCalcQty(idx){
   var q = _labourCalcAutoQty(idx);
   var ov = (S.quote && S.quote.roofLabourCalc && S.quote.roofLabourCalc[idx]) || {};
-  ['roof','sheets','cuts','flash','pen'].forEach(function(k){
+  // The strip, the underlay and the purlins run over the same m² as the roof.
+  q.strip = (_labourCalcExisting() === 'none') ? 0 : q.roof;
+  q.underlay = q.roof;
+  q.purlins = _labourCalcPurlins() ? q.roof : 0;
+  ['strip','underlay','purlins','roof','sheets','cuts','flash','pen'].forEach(function(k){
     var v = parseFloat(ov[k]);
     if (isFinite(v) && v >= 0) q[k] = v;
   });
@@ -18983,13 +19098,16 @@ function _labourCalcQty(idx){
 // Per-driver hours + the 2-man / 3-man crew totals for one roof.
 function _labourCalcHours(idx){
   var q = _labourCalcQty(idx);
-  var rows = [
-    { key:'roof',   label:'Roofing',                qty:q.roof,   unit:'m²', rate:_labourCalcRate('roof') },
-    { key:'sheets', label:'Sheets',                 qty:q.sheets, unit:'',   rate:_labourCalcRate('sheets') },
-    { key:'cuts',   label:'Cuts (valleys/ridging)', qty:q.cuts,   unit:'lm', rate:_labourCalcRate('cuts') },
-    { key:'flash',  label:'Flashings',              qty:q.flash,  unit:'lm', rate:_labourCalcRate('flash') },
-    { key:'pen',    label:'Penetrations',           qty:q.pen,    unit:'',   rate:_labourCalcRate('pen') }
-  ];
+  var ex = _labourCalcExisting();
+  var rows = LABOUR_CALC_DRIVERS.map(function(d){
+    var rate = _labourCalcRate(d.key), label = d.label;
+    if (d.key === 'strip'){
+      if (ex === 'tile'){ rate = rate / _labourCalcTileFactor(); label = 'Strip existing tiles'; }
+      else if (ex === 'none') label = 'Strip existing roof (none \u2014 new build)';
+      else label = 'Strip existing steel';
+    }
+    return { key:d.key, label:label, qty:q[d.key] || 0, unit:(d.unit === 'sheets' || d.unit === 'each') ? '' : d.unit, rate:rate, optional:(d.key === 'purlins' && !_labourCalcPurlins()) };
+  }).filter(function(r){ return !r.optional; });
   var sum = 0;
   rows.forEach(function(r){ r.hours = (r.rate > 0) ? (r.qty / r.rate) : 0; sum += r.hours; });
   var h2 = Math.ceil(sum);
@@ -19085,21 +19203,32 @@ function _labourCalcPanelHtml(ri){
   if (!show) {
     return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+'</div>';
   }
-  var rateInput = function(r){ return '<input type="number" step="0.5" min="0" value="'+r.rate+'" onchange="_setLabourCalcRate(\''+r.key+'\',this.value)" style="width:54px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
-  var qtyInput  = function(r){ return '<input type="number" step="0.1" min="0" value="'+r.qty+'" onchange="_setLabourCalcQty('+ri+',\''+r.key+'\',this.value)" style="width:66px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
+  // THE QUANTITIES IN LINE (2026-11-10, the owner: "tidy up the quantities,
+  // make them in line so it looks tidier"): fixed columns, one box width, the
+  // unit inside the column, the rate read-only here — rates are the
+  // business's and are edited in Settings ("Edit auto-calculations").
+  var ex = _labourCalcExisting();
+  var qtyInput  = function(r){ return '<input type="number" step="0.1" min="0" value="'+r.qty+'" onchange="_setLabourCalcQty('+ri+',\''+r.key+'\',this.value)" class="lc-qty" data-lc-qty="'+r.key+'">'; };
   var rows = calc.rows.map(function(r){
     return '<tr>'+
-      '<td style="padding:3px 6px;font-size:11.5px;color:#0a1628">'+esc(r.label)+'</td>'+
-      '<td style="padding:3px 6px;text-align:right">'+qtyInput(r)+' <span style="font-size:10px;color:var(--text2)">'+esc(r.unit)+'</span></td>'+
-      '<td style="padding:3px 3px;text-align:center;color:var(--text2);font-size:11px">÷</td>'+
-      '<td style="padding:3px 6px;text-align:right">'+rateInput(r)+' <span style="font-size:10px;color:var(--text2)">/hr</span></td>'+
-      '<td style="padding:3px 6px;text-align:right;font-weight:600;font-size:11.5px">'+r.hours.toFixed(2)+' hr</td>'+
+      '<td class="lc-lab">'+esc(r.label)+'</td>'+
+      '<td class="lc-q">'+qtyInput(r)+'<span class="lc-u">'+esc(r.unit)+'</span></td>'+
+      '<td class="lc-r">\u00f7 '+(Math.round(r.rate * 100) / 100)+' <span class="lc-u">'+(r.unit ? esc(r.unit) + '/hr' : '/hr')+'</span></td>'+
+      '<td class="lc-h">'+r.hours.toFixed(2)+' hr</td>'+
     '</tr>';
   }).join('');
-  return '<div style="margin-bottom:12px;padding:10px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+
-    '<table style="width:100%;border-collapse:collapse">'+
-      '<thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">'+
-        '<th style="text-align:left;padding:2px 6px">Driver</th><th style="text-align:right;padding:2px 6px">Quantity</th><th></th><th style="text-align:right;padding:2px 6px">Rate</th><th style="text-align:right;padding:2px 6px">Hours</th></tr></thead>'+
+  var choices = '<div class="lc-choices">'+
+      '<label>Existing roof <select onchange="_setLabourCalcExisting(this.value)" data-lc-existing>'+
+        '<option value="steel"'+(ex === 'steel' ? ' selected' : '')+'>Steel</option>'+
+        '<option value="tile"'+(ex === 'tile' ? ' selected' : '')+'>Tiles (\u00d7'+_labourCalcTileFactor()+' to strip)</option>'+
+        '<option value="none"'+(ex === 'none' ? ' selected' : '')+'>None \u2014 new build</option>'+
+      '</select></label>'+
+      '<label><input type="checkbox" '+(_labourCalcPurlins() ? 'checked' : '')+' onchange="_setLabourCalcPurlins(this.checked)" data-lc-purlins> New purlins / battens</label>'+
+      '<button type="button" class="tool-btn lc-edit" onclick="_labourCalcSettingsGo()" title="The rates behind these hours live in Settings \u2192 Labour pricing">\u270e Edit auto-calculations</button>'+
+    '</div>';
+  return '<div style="margin-bottom:12px;padding:10px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+choices+
+    '<table class="lc-table">'+
+      '<thead><tr><th class="lc-lab">Driver</th><th class="lc-q">Quantity</th><th class="lc-r">Rate</th><th class="lc-h">Hours</th></tr></thead>'+
       '<tbody>'+rows+'</tbody>'+
     '</table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:7px 10px;background:#0a1628;border-radius:7px;color:#fff">'+

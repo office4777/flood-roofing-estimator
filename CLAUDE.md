@@ -1657,6 +1657,51 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   merged by `_getBuiltinFlashings` behind the shipped presets. A back-tray the
   owner draws or edits reaches everyone on his next Settings save.
   `tests/flashdefaults.mjs` (19, UI), `tests/builtinflash.mjs` (13, API).
+- THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
+  ... the roof section combines the labor and materials ... separate them into
+  separate sections ... hide any explanations, maybe hide them behind an info
+  button ... Use less different coloring"; then "make their like some sort of
+  master drop-down button, call it pricing strategy ... no scaffolding ... DIY
+  priced hourly ... outsource priced by the meter, or outsource priced in
+  bulk"). `#roofPriceTile` is the ROOF LABOUR card (its id kept for the tour
+  and the suites) and `#roofMaterialCard` the ROOF MATERIAL card, each with its
+  own banner figure (`_pxHeadTotals`, in `_pxFoldsApply`). Every in-card total
+  is `.px-sum` (hidden on screen, back under `html.print-scope`), every
+  explanation `.px-note` (shown only while the banner's ⓘ `_pxInfo` lights
+  `.px-info-on`; an inline `display:block` is beaten with !important); the
+  mode buttons (`_labourModeBtnHtml`) and the gutter / profit figures are
+  navy. THE SCAFFOLD is one drop-down `#scStrategy` (`_scaffoldStrategy`,
+  `_scaffoldSetStrategy`: out_flat default, out_lm, diy, none) over the same
+  fields — `excluded`, `mode:'diy'`, and the new `outMode:'lm'`: the
+  building's outline perimeter in lineal metres (`_scaffoldPerimFor`, every
+  wall of the roof and the roofs folded into it, `lmPerim`, typed =
+  `lmPerimManual`) × `lmRate` ($/lm, `labour_pricing.scaffold_lm` the default,
+  `_labourRateAskDefault` offers to keep a typed one) and `lmCost`; `_scaffoldEff`
+  reads it, `_scaffoldLmSync` keeps the perimeter on the drawing (from
+  `calcLabour`). `tests/scaffoldopts.mjs` (49) pins the drop-down, the
+  perimeter (35 lm on a 400 × 300 px outline at 0.025) and the $/lm price.
+- LABOUR AUTO-CALCULATIONS COVER THE RE-ROOF AND LIVE IN SETTINGS (2026-11-10,
+  the owner: "make it more expansive to cover all the aspects of roofing,
+  re-roofing ... strip existing tile roofing should take about 1.5 times longer
+  than existing steel roofing ... put it all into a settings where a roofer can
+  adjust their own calculations ... tidy up the quantities, make them in line
+  ... a edit auto calculations button"). `LABOUR_CALC_DRIVERS`: strip,
+  underlay, purlins (only while the job ticks New purlins, `labourCalc.purlins`),
+  roof install & clean-up, sheets, cuts, flashings, penetrations; rates are
+  UNITS PER CREW-HOUR, `LABOUR_CALC_DEFAULT_RATES` = 28 / 56 / 30 / 56 / 6 / 18
+  / 8 / 6 — the old single Roofing 14 m²/hr split so 1/28 + 1/56 + 1/56 = 1/14
+  and NO quote's hours moved. `labourCalc.existing` steel (default) | tile
+  (strip rate ÷ `strip_tile_factor`, 1.5) | none (new build, no strip).
+  `_labourCalcRate`: the job's typed rate → Settings
+  `labour_pricing.calc_rates[key]` → the default. Settings → Labour pricing →
+  Labour auto-calculations (`#lpCalcSec`, `_lpCalcRender`, blank = default,
+  `_lpCalcReset`) replaced the retired "Default hours per scope item" list
+  (`per_item_hours` is still stored and merged, its collector only reads a box
+  that is on the page). The Pricing tab's panel (`_labourCalcPanelHtml`,
+  `.lc-table`) has one quantity column, read-only rates, Existing roof / New
+  purlins, and "✎ Edit auto-calculations" (`_labourCalcSettingsGo`). SETTINGS
+  USE THE WIDTH: the settings card's 1080px cap is gone, `.content` 1480px on
+  that tab, `.f2` auto-fits 300px columns. `tests/labourcalc.mjs` (13, UI).
 - COLOUR OPTIONS (2026-11-09, the owner: "add a button next to the roof colour
   called 'Edit Colours' ... a big window showing all the colour options for that
   steel selection, then in the settings tab, add a sub-tab called 'Colour
