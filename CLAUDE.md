@@ -1680,6 +1680,35 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   reads it, `_scaffoldLmSync` keeps the perimeter on the drawing (from
   `calcLabour`). `tests/scaffoldopts.mjs` (49) pins the drop-down, the
   perimeter (35 lm on a 400 × 300 px outline at 0.025) and the $/lm price.
+- THE DRAWER'S SECOND PASS, THE DOWNPIPES AND THE GP CONTROLS (2026-11-10, the
+  owner on the first pass: the strategy "doesn't really look like it would be a
+  button", the mode buttons "the same color as the section header ... looks
+  confusing", the drawer's background "too much the same", the per-metre boxes
+  "all in one row"; the gutter's "new downpipes tick box ... shouldn't be a tick
+  box because the customer should get to include the gutters or not ... optional
+  downpipe price ... quantity of downpipes and then the price per downpipe.
+  Default the price per downpipe to $100 ... one downpipe every 20 meters"; and
+  "add a plus or minus on the gross profit percentage ... let the user click to
+  enter ... 40 and then click enter"). `#quotePricingPanel` is #e9edf2 with
+  white cards 16px apart; the mode buttons are #0099e0 when on; the Pricing
+  strategy is one button-shaped `.sc-strat` with the drop-down in it; the
+  per-metre boxes are a `.sc-lm-row`. DOWNPIPES: the office tick is gone (the
+  customer's `downpipes` pick stays theirs); `_downpipeQty()` = typed
+  `S.quote.downpipeQty`, else ceil(gutter lm / `DOWNPIPE_EVERY_M` 20), never
+  under 1; `_downpipeEach()` = typed `downpipeEach`, else `DOWNPIPE_EACH_DEFAULT`
+  $100 (the price book's `downpipe_ea` and `SEL_DOWNPIPE_PER_LINE` $150 no
+  longer feed it); `_downpipeTotal()` = the typed total (`downpipePriceOverride`,
+  kept) else qty × each, read by `_selDownpipeDelta`, `_qpBuildPriced` and the
+  pricing CSV. `pricegold.json` regenerated: ONLY the dp card and the
+  downpipes-taken totals moved (768 of 1024 rows, dp 300 on the fixture's 46 m
+  run), checked field by field. GP: the GP % tile has − / + (one point,
+  `_profitNudge('gppct')`) and both GP % and GP / hr figures are click-to-type
+  (`_profitEditStart` → `_profitTarget`, Enter commits, Esc cancels);
+  `_profitSpread(deltaPrice, g)` is the one place a dollar of revenue goes onto
+  the rates (the gutter's on a gutters job, the $/m² by area, else every hourly
+  rate). `tests/gphr.mjs` (26) pins the ± and both typed targets; `scaffoldopts`
+  the strategy; `flashdefaults` caught the Settings input rule shrinking the
+  library's title select, which now excludes `.flib-def-sel`.
 - LABOUR AUTO-CALCULATIONS COVER THE RE-ROOF AND LIVE IN SETTINGS (2026-11-10,
   the owner: "make it more expansive to cover all the aspects of roofing,
   re-roofing ... strip existing tile roofing should take about 1.5 times longer

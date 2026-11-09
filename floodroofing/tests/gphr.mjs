@@ -86,7 +86,7 @@ check('…and labour/m² is a box carrying the real rate',
 // ── nudge GP/hr up a dollar ──
 const before = v;
 const btns = await pg.evaluate(() => document.querySelectorAll('#profitWrap button[onclick*="_profitNudge"]').length);
-check('there are − and + buttons on GP/hr and on labour/m²', btns === 4, btns + ' buttons');
+check('there are − and + buttons on GP %, GP/hr and labour/m²', btns === 6, btns + ' buttons');
 await pg.evaluate(() => document.getElementById('profitGpHr').nextElementSibling.querySelectorAll('button')[1].click());
 await pg.waitForTimeout(400);
 v = await read();
@@ -105,6 +105,40 @@ check('− on labour/m² lands exactly one whole dollar down', Math.abs(v.labM2 
 check('…taking area × $1-ish off the labour charge and the rates with it', v.labour < mid.labour && v.lead < mid.lead, '$' + mid.labour.toFixed(2) + ' → $' + v.labour.toFixed(2));
 check('…and GP/hr moved the other way', v.gpHr < mid.gpHr, mid.gpHr.toFixed(2) + ' → ' + v.gpHr.toFixed(2));
 check('the rates are now this job’s own, not the settings default', await pg.evaluate(() => S.quote.labourRatesCustom === true));
+// ── GP % AS A CONTROL, AND TYPING A TARGET (2026-11-10, the owner: "add a plus
+// or minus on the gross profit percentage ... type in 40 and then click enter,
+// and the GP percentage will change to 40%. Which would also increase the gross
+// profit per hour") ──
+const gpOf = () => pg.evaluate(() => { const g = _profitFigures(_profitView()); const gp = g.revenue - g.cost; return { pct: gp / g.revenue * 100, hr: gp / g.hrsAll, lead: S.quote.labour.leadPrice,
+  pctShown: (document.getElementById('profitGpPct') || {}).textContent, btns: document.getElementById('profitGpPct') ? document.getElementById('profitGpPct').nextElementSibling.querySelectorAll('button').length : 0 }; });
+let g0 = await gpOf();
+check('the GP % tile carries − / + and shows the figure', g0.btns === 2 && /\d%$/.test(g0.pctShown), JSON.stringify(g0));
+await pg.evaluate(() => document.getElementById('profitGpPct').nextElementSibling.querySelectorAll('button')[1].click());
+await pg.waitForTimeout(400);
+let g1 = await gpOf();
+check('+ on GP % lands one whole point up, raising the rates and GP/hr with it', Math.abs(g1.pct - (Math.round(g0.pct) + 1)) < 0.05 && g1.lead > g0.lead && g1.hr > g0.hr, g0.pct.toFixed(2) + ' → ' + g1.pct.toFixed(2));
+await pg.evaluate(() => { document.getElementById('profitGpPct').click(); });
+await pg.waitForTimeout(150);
+const typed = await pg.evaluate(async () => {
+  const inp = document.querySelector('#profitGpPct input[data-pf-edit="gppct"]'); if (!inp) return { inp: false };
+  inp.value = '40'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await new Promise(r => setTimeout(r, 400));
+  const g = _profitFigures(_profitView()); const gp = g.revenue - g.cost;
+  return { inp: true, pct: gp / g.revenue * 100, shown: (document.getElementById('profitGpPct') || {}).textContent, hr: gp / g.hrsAll };
+});
+check('clicking the GP % opens a box; typing 40 and Enter puts the job at 40.0% GP', typed.inp && Math.abs(typed.pct - 40) < 0.05 && /^40\.0%$/.test(typed.shown), JSON.stringify(typed));
+check('…and GP/hr rose with it', typed.hr > g1.hr, g1.hr.toFixed(2) + ' → ' + (typed.hr || 0).toFixed(2));
+await pg.evaluate(() => { document.getElementById('profitGpHr').click(); });
+await pg.waitForTimeout(150);
+const typedHr = await pg.evaluate(async () => {
+  const inp = document.querySelector('#profitGpHr input[data-pf-edit="gphr"]'); if (!inp) return { inp: false };
+  inp.value = '150'; inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  await new Promise(r => setTimeout(r, 400));
+  const g = _profitFigures(_profitView()); const gp = g.revenue - g.cost;
+  return { inp: true, hr: gp / g.hrsAll, shown: (document.getElementById('profitGpHr') || {}).textContent };
+});
+check('typing 150 into GP/hr and Enter puts the job at $150 an hour', typedHr.inp && Math.abs(typedHr.hr - 150) < 0.05 && /\$150/.test(typedHr.shown), JSON.stringify(typedHr));
+
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();
 const bad = results.filter(x => !x).length;

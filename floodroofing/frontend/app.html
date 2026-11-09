@@ -213,7 +213,7 @@ body[data-tab="feedback"] .content{
 body[data-tab="settings"] .card{ max-width:none; }
 body[data-tab="settings"] .content{ max-width:1480px; }
 #tab-settings .settings-sub .f2{ grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
-#tab-settings .settings-sub input[type=text], #tab-settings .settings-sub input[type=number], #tab-settings .settings-sub select{ min-height:36px; font-size:13px; }
+#tab-settings .settings-sub input[type=text], #tab-settings .settings-sub input[type=number], #tab-settings .settings-sub select:not(.flib-def-sel):not(.flib-add-sel){ min-height:36px; font-size:13px; }
 .lp-calc{ width:100%; border-collapse:collapse; font-size:13px; }
 .lp-calc th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:6px 8px; border-bottom:1px solid var(--border); }
 .lp-calc td{ padding:8px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text2); }
@@ -221,6 +221,20 @@ body[data-tab="settings"] .content{ max-width:1480px; }
 .lp-calc td:last-child{ white-space:nowrap; width:200px; }
 .lp-calc td:last-child input{ width:96px; display:inline-block; text-align:right; }
 .lp-calc td:last-child span{ font-size:11.5px; color:var(--text2); margin-left:4px; }
+/* the profit tiles' click-to-type figures */
+#profitWrap .pf-edit{ cursor:text; border-bottom:1px dashed rgba(10,22,40,.35); }
+#profitWrap .pf-edit-inp{ width:72px; font:inherit; font-size:15px; font-weight:700; padding:1px 4px; border:1px solid #0099e0; border-radius:5px; }
+/* the scaffold's Pricing strategy: one button-shaped control with a drop-down */
+.sc-strat{ display:inline-flex; align-items:center; gap:0; border:1.5px solid #b9c7d8; border-radius:9px; background:#eef3f9; color:#0a1628; cursor:pointer; overflow:hidden; max-width:100%; }
+.sc-strat-k{ font-size:11.5px; font-weight:700; padding:7px 10px; border-right:1.5px solid #b9c7d8; background:#e1e9f2; white-space:nowrap; }
+.sc-strat select{ appearance:none; -webkit-appearance:none; border:none; background:transparent; font:inherit; font-size:12.5px; font-weight:700; color:#0a1628; padding:7px 4px 7px 10px; cursor:pointer; width:auto; min-width:0; }
+.sc-strat select:focus{ outline:none; }
+.sc-strat-ch{ font-size:12px; padding:0 10px 0 2px; color:#0a1628; pointer-events:none; }
+/* the per-metre scaffold: perimeter, price and cost on one row */
+.sc-lm-row{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
+.sc-lm-row > div{ flex:0 1 150px; min-width:120px; }
+.sc-lm-row label{ display:block; font-size:11px; color:var(--text2); margin-bottom:4px; white-space:nowrap; }
+.sc-lm-row input{ width:100%; font-size:12.5px; padding:6px 8px; }
 /* the Pricing tab's auto-calculation panel, in line */
 .lc-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
 .lc-table th{ font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:2px 6px; text-align:right; }
@@ -1331,7 +1345,8 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
    emoji went 2026-09-21 — the owner called them childish. */
 #tab-scope .card{
   padding:0 14px 14px;
-  margin-bottom:12px;
+  margin-bottom:16px;
+  background:#fff;
   border:1px solid var(--border);
   border-radius:10px;
   box-shadow:0 1px 2px rgba(10,22,40,.04);
@@ -2369,7 +2384,7 @@ html.site-mode body[data-tab="roof"] .global-top-bar{ display:none; }
      70px put the drawer's own header over the taller Email quote button. */
   position:fixed; top:calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 60px) + 14px); right:0; bottom:16px;
   width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:70;
-  background:#fff; border:1px solid var(--border); border-right:none;
+  background:#e9edf2; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
   transform:translateX(100%); transition:transform .28s ease;
   display:none; flex-direction:column;
@@ -5413,7 +5428,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-09T23:33:32Z';
+  window.APP_BUILT_AT = '2026-11-09T23:57:21Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -18808,7 +18823,7 @@ function _labourModeBtnHtml(onclick, label, sub, on){
   // Navy when on, the banners' own colour (2026-11-10, "use less different
   // coloring"); the explanation is the button's tooltip and a note behind "i".
   return '<button type="button" onclick="'+onclick+'" title="'+esc(sub)+'" style="flex:1;min-width:0;padding:9px 10px;border-radius:9px;cursor:pointer;text-align:center;font-family:inherit;'+
-    'border:1.5px solid '+(on?'#0a1628':'var(--border,#d6dbe2)')+';background:'+(on?'#0a1628':'#fff')+';color:'+(on?'#fff':'#0a1628')+'">'+
+    'border:1.5px solid '+(on?'#0099e0':'var(--border,#d6dbe2)')+';background:'+(on?'#0099e0':'#fff')+';color:'+(on?'#fff':'#0a1628')+'">'+
     '<div style="font-size:12.5px;font-weight:700;line-height:1.2">'+label+'</div>'+
     '<div class="px-note" style="font-size:10.5px;font-weight:600;margin:2px 0 0;padding:0;border:none;background:none;color:inherit;opacity:'+(on?'.85':'.6')+'">'+sub+'</div>'+
   '</button>';
@@ -27719,19 +27734,19 @@ function calcLabour(){
     var _scOpt = function(v, label){ return '<option value="'+v+'"'+(_scStrat === v ? ' selected' : '')+'>'+label+'</option>'; };
     var _scHead =
       '<div id="scIncl" style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'+
-        '<label for="scStrategy" style="font-size:12px;font-weight:700;color:#0a1628;white-space:nowrap">Pricing strategy</label>'+
-        '<select id="scStrategy" onchange="_scaffoldSetStrategy(this.value)" style="flex:1;font-size:12.5px;font-weight:600;padding:7px 9px;border:1.5px solid var(--border,#d6dbe2);border-radius:9px;background:#fff;color:#0a1628">'+
+        '<label for="scStrategy" class="sc-strat"><span class="sc-strat-k">Pricing strategy</span>'+
+        '<select id="scStrategy" onchange="_scaffoldSetStrategy(this.value)">'+
           _scOpt('out_flat', 'Outsourced \u2014 priced in bulk')+
           _scOpt('out_lm', 'Outsourced \u2014 priced by the metre')+
           (_scDiyOk ? _scOpt('diy', 'DIY \u2014 priced hourly') : '')+
           _scOpt('none', 'No scaffolding')+
-        '</select>'+
+        '</select><span class="sc-strat-ch">\u25be</span></label>'+
       '</div>';
     var _scLmHtml = '';
     if (_scLm){
       var _per = f(scR.lmPerim), _rate = f(scR.lmRate), _lcost = f(scR.lmCost), _drawn = _scaffoldPerimFor(ri);
       _scLmHtml =
-        '<div class="f2" id="scLmBox">'+
+        '<div class="sc-lm-row" id="scLmBox">'+
           '<div><label>Perimeter (lm)</label><input type="number" step="0.1" min="0" value="'+_per+'" data-sclm="perim" onchange="_scaffoldLmUpd(\'perim\',this.value)"></div>'+
           '<div><label>Price ($/lm)</label><input type="number" step="0.5" min="0" value="'+_rate+'" data-sclm="rate" placeholder="'+(_scaffoldLmRateDefault() || 'set a rate')+'" onchange="_scaffoldLmUpd(\'rate\',this.value)"></div>'+
           '<div><label>Cost ($/lm)</label><input type="number" step="0.5" min="0" value="'+_lcost+'" data-sclm="cost" onchange="_scaffoldLmUpd(\'cost\',this.value)"></div>'+
@@ -27977,7 +27992,7 @@ function renderGutterDownpipePricing(){
   var bufferedMat = matBase + bufAmt;
   var mkPct = _gutterMatMarkupPct(gtype), mkAmt = bufferedMat * (mkPct/100);
   var matCharge = bufferedMat + mkAmt;
-  var gComputed = matCharge + labCharge, dComputed = _downpipeUnitPrice() * lines;
+  var gComputed = matCharge + labCharge, dComputed = _downpipeQty() * _downpipeEach();
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
   var dOn = p.downpipes === 'yes';
@@ -28079,9 +28094,19 @@ function renderGutterDownpipePricing(){
         '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#0a1628">'+money(matCharge)+'</td></tr>'+
       '</tfoot>'+
     '</table>'+
-    '<div style="margin-top:12px">'+
-      '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
-        '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div class="px-note" style="font-size:10.5px;margin-top:2px;padding:0;border:none;background:none">computed '+money(dComputed)+'</div></div>'+
+    // OPTIONAL DOWNPIPE PRICE (2026-11-10, the owner: "it shouldn't be a tick
+    // box because the customer should get to include the gutters or not ...
+    // change the words from new downpipes to optional downpipe price ... the
+    // quantity of downpipes and then the price per downpipe. Default the price
+    // per downpipe to $100 ... one downpipe every 20 meters"). The customer
+    // picks downpipes on their quote; this is what that pick costs.
+    '<div style="margin-top:12px" id="gdDownpipes">'+
+      '<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">Optional downpipe price <span class="px-note" style="display:inline;font-weight:400;color:var(--text3);padding:0;border:none;background:none">\u00b7 added when the customer takes new downpipes</span></div>'+
+      '<div class="sc-lm-row">'+
+        '<div><label>Downpipes (qty)</label><input type="number" step="1" min="0" value="'+_downpipeQty()+'" data-dp="qty" onchange="_setDownpipeQty(this.value)"></div>'+
+        '<div><label>Price each ($)</label><input type="number" step="1" min="0" value="'+_downpipeEach()+'" data-dp="each" onchange="_setDownpipeEach(this.value)"></div>'+
+        '<div><label>Downpipes total ($)</label><input type="number" step="1" min="0" value="'+dVal.toFixed(2)+'" data-dp="total" onchange="_setDownpipePriceOverride(this.value)"><div class="px-note" style="font-size:10.5px;margin-top:2px;padding:0;border:none;background:none">computed '+money(dComputed)+'</div></div>'+
+      '</div>'+
     '</div>'+
     (scUp > 0 ?
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;margin-top:8px;font-size:12px;color:var(--text2)">'+
@@ -28106,6 +28131,29 @@ function _gdChanged(){
 function _setGutterPriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.gutterPriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
 function _setDownpipePriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipePriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
 function _toggleDownpipesPricing(on){ if(!S.quote) return; if(!S.quote.proposalOptions) S.quote.proposalOptions={}; S.quote.proposalOptions.downpipes=on?'yes':'no'; _gdChanged(); }
+// One downpipe every 20 m of gutter (never none), unless the office types a count;
+// $100 each unless the office types a price. The total is qty × each, or the
+// typed total (the old override, kept).
+var DOWNPIPE_EVERY_M = 20, DOWNPIPE_EACH_DEFAULT = 100;
+function _downpipeQty(){
+  var q = (window.S && S.quote) || {};
+  var t = parseFloat(q.downpipeQty); if (isFinite(t) && t >= 0) return t;
+  var lm = 0; try { lm = _selGutterLm(); } catch(e){}
+  return Math.max(1, Math.ceil((lm || 0) / DOWNPIPE_EVERY_M));
+}
+function _downpipeEach(){
+  var q = (window.S && S.quote) || {};
+  var e = parseFloat(q.downpipeEach); if (isFinite(e) && e >= 0) return e;
+  return DOWNPIPE_EACH_DEFAULT;
+}
+function _downpipeTotal(){
+  var q = (window.S && S.quote) || {};
+  var ov = parseFloat(q.downpipePriceOverride);
+  if (isFinite(ov) && ov >= 0) return ov;
+  return _downpipeQty() * _downpipeEach();
+}
+function _setDownpipeQty(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipeQty=(isFinite(f)&&f>=0)?f:null; S.quote.downpipePriceOverride=null; _gdChanged(); }
+function _setDownpipeEach(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipeEach=(isFinite(f)&&f>=0)?f:null; S.quote.downpipePriceOverride=null; _gdChanged(); }
 function _clearGutterDownpipeOverrides(){ if(!S.quote) return; S.quote.gutterPriceOverride=null; S.quote.downpipePriceOverride=null; _gdChanged(); }
 
 // Job profitability dashboard.
@@ -28567,7 +28615,7 @@ function renderProfitability(){
     // Compact so all four tiles fit on one row even on a phone.
     return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 9px;min-width:0">'+
       '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'+
-      '<div style="font-size:17px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:3px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+val+'</div>'+
+      '<div style="font-size:17px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:3px;letter-spacing:-.02em;display:flex;align-items:center;flex-wrap:wrap;gap:2px 0;min-width:0">'+val+'</div>'+
       (sub?'<div class="px-note" style="font-size:9.5px;margin-top:2px;padding:0;border:none;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div>':'')+
     '</div>';
   }
@@ -28591,8 +28639,14 @@ function renderProfitability(){
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">'+
       stat('Job revenue', fmtMoney(revenue), 'ex GST · everything in the list below') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
-      stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
-      stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', g.hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates') +
+      // GP % AND GP / hr ARE CONTROLS (2026-11-10, the owner: "add a plus or
+      // minus on the gross profit percentage ... let the user click to enter
+      // their actual numbers ... type in 40 and then click enter, and the GP
+      // percentage will change to 40%. Which would also increase the gross
+      // profit per hour"). Click the figure, type, Enter: the charge-out rates
+      // move so the job lands there (_profitTarget); ± steps one point / $1.
+      stat('GP %', '<span id="profitGpPct" class="pf-edit" title="Click to type a target GP %" onclick="_profitEditStart(this,\'gppct\')">' + gpPct.toFixed(1) + '%</span>' + nudge('gppct', g.hrs > 0), 'gross profit ÷ revenue · click to set', gpColor) +
+      stat('GP / hr', '<span id="profitGpHr" class="pf-edit" title="Click to type a target GP per hour" onclick="_profitEditStart(this,\'gphr\')">' + whole(gpHr) + '</span>' + nudge('gphr', g.hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates · click to set') +
     '</div>'+
     itemsHtml+
     // Per square metre sits apart from the job figures, under a rule.
@@ -28676,6 +28730,11 @@ function _profitNudge(kind, dir){
   if (kind === 'gphr'){
     var cur = gp / hrsAll, target = Math.round(cur) + (dir > 0 ? 1 : -1);
     deltaPrice = (target - cur) * hrsAll;
+  } else if (kind === 'gppct'){
+    // One percentage point of GP: the revenue that puts (rev − cost) / rev there.
+    var curP = g.revenue > 0 ? gp / g.revenue * 100 : 0, tP = Math.round(curP) + (dir > 0 ? 1 : -1);
+    if (tP >= 99 || tP < 0) return;
+    deltaPrice = g.cost / (1 - tP / 100) - g.revenue;
   } else {
     var area = g.area;
     if (!(area > 0)) return;
@@ -28695,6 +28754,79 @@ function _profitNudge(kind, dir){
   S.quote.labourRatesCustom = true;   // this job's rates, not the settings default
   calcLabour();
   try { refreshQuoteProposal(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
+}
+// CLICK A FIGURE, TYPE THE TARGET (GP % or GP / hr), ENTER. The gap to the
+// target in dollars goes onto the charge-out rates exactly as the ± does.
+function _profitEditStart(el, kind){
+  if (!el || el.querySelector('input')) return;
+  var g = _profitFigures(_profitView());
+  var gp = g.revenue - g.cost;
+  var cur = kind === 'gppct' ? (g.revenue > 0 ? gp / g.revenue * 100 : 0) : (g.hrsAll > 0 ? gp / g.hrsAll : 0);
+  var inp = document.createElement('input');
+  inp.type = 'number'; inp.step = kind === 'gppct' ? '0.1' : '1'; inp.min = '0';
+  inp.value = String(Math.round(cur * 10) / 10);
+  inp.className = 'pf-edit-inp'; inp.setAttribute('data-pf-edit', kind);
+  var done = false;
+  var finish = function(commit){
+    if (done) return; done = true;
+    if (commit) _profitTarget(kind, inp.value); else { try { renderProfitability(); } catch(e){} }
+  };
+  inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); finish(true); } else if (ev.key === 'Escape'){ finish(false); } });
+  inp.addEventListener('blur', function(){ finish(true); });
+  el.textContent = ''; el.appendChild(inp);
+  try { inp.focus(); inp.select(); } catch(e){}
+}
+function _profitTarget(kind, val){
+  var n = parseFloat(val);
+  if (!isFinite(n) || n < 0){ try { renderProfitability(); } catch(e){} return; }
+  if (!S.quote) return;
+  var g = _profitFigures(_profitView());
+  var gp = g.revenue - g.cost, deltaPrice = 0;
+  if (kind === 'gppct'){
+    if (n >= 99){ try { renderProfitability(); } catch(e){} return; }
+    deltaPrice = g.cost / (1 - n / 100) - g.revenue;
+  } else {
+    if (!(g.hrsAll > 0)){ try { renderProfitability(); } catch(e){} return; }
+    deltaPrice = n * g.hrsAll - gp;
+  }
+  if (Math.abs(deltaPrice) < 0.005){ try { renderProfitability(); } catch(e){} return; }
+  _profitSpread(deltaPrice, g);
+}
+// Put a dollar change in revenue onto the labour charge-out rates — the gutter's
+// on a gutters job, the $/m² when charged by area, else every hourly rate — so
+// the GP tiles land where they were asked to.
+function _profitSpread(deltaPrice, g){
+  var f = function(v){ return parseFloat(v) || 0; };
+  if (_isGutterJob()){
+    var glm = 0; try { glm = f(_selGutterLm()); } catch(e){}
+    if (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0 && glm > 0){
+      _setGutterLabourLm(Math.max(0, Math.round((_gutterLmRate() + deltaPrice / glm) * 10000) / 10000), false);
+    } else {
+      var st = _gutterLabourState(glm), ghrs = f(st.leadHrs) + f(st.appHrs);
+      if (!(ghrs > 0)) return;
+      var gper = deltaPrice / ghrs;
+      if (!S.quote.gutterLabour || typeof S.quote.gutterLabour !== 'object') S.quote.gutterLabour = {};
+      S.quote.gutterLabour.leadPrice = Math.max(0, Math.round((f(st.leadPrice) + gper) * 100) / 100);
+      S.quote.gutterLabour.appPrice  = Math.max(0, Math.round((f(st.appPrice)  + gper) * 100) / 100);
+      _gdChanged();
+    }
+  } else {
+    if (!S.quote.labour) return;
+    var byArea = (_labourMode() === 'm2' && _labourM2Rate() > 0 && g.area > 0);
+    if (byArea){ _setLabourM2(Math.max(0, Math.round((_labourM2Rate() + deltaPrice / g.area) * 10000) / 10000), false); return; }
+    var hrs = g.hrs; if (!(hrs > 0)) return;
+    var perHr = deltaPrice / hrs, L = S.quote.labour;
+    var bump = function(v){ return Math.max(0, Math.round((f(v) + perHr) * 100) / 100); };
+    L.leadPrice = bump(L.leadPrice); L.appPrice = bump(L.appPrice);
+    (L.extras || []).forEach(function(x){ x.price = bump(x.price); });
+    S.quote.labourRatesCustom = true;
+    calcLabour();
+  }
+  try { resyncQuoteLines(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
@@ -32565,9 +32697,7 @@ function _selDownpipeDelta(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
-  var ov = parseFloat(q.downpipePriceOverride);
-  if (isFinite(ov) && ov >= 0) return ov;
-  return _downpipeUnitPrice() * _selGutterLineCount();
+  return _downpipeTotal();
 }
 
 // ── "Selections" page pricing (page 4) ──────────────────────────
@@ -32721,9 +32851,7 @@ function _qpBuildPriced(){
     // gates them on a gutter being chosen instead.
     downpipes: (function(){
       if (_gutterExcluded()) return 0;
-      var ov = parseFloat(q.downpipePriceOverride);
-      if (isFinite(ov) && ov >= 0) return ov;
-      return _downpipeUnitPrice() * _selGutterLineCount();
+      return _downpipeTotal();
     })(),
     extraRoof: (q.extraRoofs || []).map(function(rr){ return parseFloat(rr.price) || 0; }),
     extraRoofLabel: (q.extraRoofs || []).map(function(rr, i){ return rr.name || ('Roof ' + (i + 2)); }),
@@ -77434,8 +77562,8 @@ function _scopePricingRows(){
       if (scUp) put('Guttering', 'Platform scaffolding upgrade', '25% of the scaffold', null, null, null, scUp);
       var gDown = 0;
       if (((S.quote || {}).proposalOptions || {}).downpipes === 'yes'){
-        gDown = _downpipeUnitPrice() * glines;
-        put('Guttering', 'Downpipes', '', glines, 'ea', _downpipeUnitPrice(), gDown);
+        gDown = _downpipeTotal();
+        put('Guttering', 'Downpipes', '', _downpipeQty(), 'ea', _downpipeEach(), gDown);
       }
       put('Guttering', 'Guttering total', gOwn ? 'this roof\u2019s share' : '', null, null, null,
           gOwn ? (gBuffered * (1 + gMk / 100) + _gutterLabourCharge(glm) + gDown) : window._gdCardTotal);
