@@ -3490,6 +3490,19 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
   border-radius:5px; z-index:2; pointer-events:none; }
 .sched-row.sched-fold .sched-info{ cursor:grab; }
 .sched-cell.hd[data-tip]{ cursor:pointer; }
+/* The grip on a header cell's right edge: drag it to widen the column. */
+.sched-colrz{ position:absolute; top:0; bottom:0; right:-3px; width:7px; cursor:col-resize; z-index:8; }
+.sched-colrz:hover, .sched-colrz:active{ background:rgba(0,153,204,.35); }
+@media (max-width:900px){ #schedInfoModal .sched-info-body{ grid-template-columns:1fr !important; } #schedInfoJob{ display:none; } }
+/* The job half of the job-details window. */
+.sij-h{ font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:#334155; margin:0 0 6px; }
+.sij-card{ background:#fff; border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:12px; }
+.sij-row{ display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-bottom:1px solid #eef1f4; font-size:12.5px; }
+.sij-row:last-child{ border-bottom:none; }
+.sij-row.tot{ font-weight:800; font-size:14px; border-top:2px solid #0a1628; margin-top:4px; padding-top:8px; }
+.sij-pick{ display:flex; justify-content:space-between; gap:12px; padding:3px 0; font-size:12px; }
+.sij-pick b{ color:#0a1628; text-align:right; }
+.sij-pick span{ color:#64748b; }
 /* The job button: a proper badge, not a thin text glyph. */
 .sched-i{ display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%;
   background:#0099cc; color:#fff; font-weight:900; font-size:11px; font-family:Georgia,'Times New Roman',serif; font-style:italic;
@@ -5430,7 +5443,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T01:10:25Z';
+  window.APP_BUILT_AT = '2026-11-10T02:40:46Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8045,14 +8058,21 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 
   <!-- Job details: everything the sheet's admin columns used to hold -->
   <div id="schedInfoOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedInfoClose()"></div>
-  <div id="schedInfoModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-width:94vw;max-height:88vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+  <!-- THE WINDOW IS BIG AND SHOWS THE JOB (2026-11-10, the owner: "a much
+       bigger pop-up window and show the canvas roof, the detailed roof map,
+       and the quote summary ... the customer selections for that job"):
+       the details form on the left, the job's roof map and the quote the
+       customer accepted on the right (_schedInfoJobLoad), read off the saved
+       job itself. -->
+  <div id="schedInfoModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:1180px;max-width:96vw;max-height:92vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
     <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
       <strong id="schedInfoTitle" style="flex:1;font-size:14px">Job details</strong>
       <span id="schedInfoIcons" style="display:flex;gap:9px;font-size:15px;line-height:1"></span>
       <span id="schedInfoNo" style="font-size:12px;opacity:.85"></span>
       <button onclick="_schedInfoClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
-    <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px">
+    <div class="sched-info-body" style="display:grid;grid-template-columns:minmax(0,440px) minmax(0,1fr);gap:0;overflow:hidden;min-height:0">
+    <div style="padding:14px 18px;overflow-y:auto;font-size:12.5px;border-right:1px solid var(--border)">
       <div style="display:grid;grid-template-columns:110px 1fr;gap:8px 10px;align-items:center">
         <label style="color:var(--text2)">Client</label><input type="text" data-iedit="client_name" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Job no.</label><input type="text" data-iedit="job_ref" placeholder="e.g. 8801 — shows in the Job column" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
@@ -8094,6 +8114,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
         <button onclick="_schedInfoMail()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email the customer</button>
       </div>
+    </div>
+    <div id="schedInfoJob" style="padding:14px 18px;overflow-y:auto;font-size:12.5px;background:#f8fafc"></div>
     </div>
   </div>
 
@@ -11095,15 +11117,29 @@ function _schedZoomWheel(e){
   _schedRender();
   scroll.scrollLeft = Math.max(0, dayAt * next + _SCHED.infoW - xIn);
 }
+// Column widths the office has dragged, per device. Blank = the shipped width.
+function _schedColW(){
+  if (_SCHED.colW) return _SCHED.colW;
+  var o = {};
+  try { o = JSON.parse(localStorage.getItem('fr_sched_colw') || '{}') || {}; } catch(e){ o = {}; }
+  _SCHED.colW = (o && typeof o === 'object') ? o : {};
+  return _SCHED.colW;
+}
 function _schedRender(){
   var grid = document.getElementById('schedGrid');
   if (!grid || !_SCHED.data) return;
+  // A legend open over a header that is about to be rebuilt would be left
+  // behind (its cell's mouseleave never fires) — a column drag re-renders
+  // under the pointer.
+  try { _schedTipHide(); } catch(e){}
   var days = _schedDayList();
   var dayIdx = {}; days.forEach(function(d, i){ dayIdx[d] = i; });
   // border-box everywhere in this app: a cell's rendered width IS c.w, so
   // the sticky left offsets are the plain running sum. (+13/col overshot
   // and shoved the last info cells over the day strip.)
-  var cols = _SCHED.compact ? _SCHED_COLS_MIN : _SCHED_COLS;
+  var _cw = _schedColW();
+  var cols = (_SCHED.compact ? _SCHED_COLS_MIN : _SCHED_COLS).map(function(c){
+    return _cw[c.key] ? Object.assign({}, c, { w: _cw[c.key] }) : c; });
   var infoW = 0, lefts = [];
   cols.forEach(function(c){ lefts.push(infoW); infoW += c.w; });
   _SCHED.infoW = infoW; _SCHED.dayIdx = dayIdx; _SCHED.days = days;
@@ -11154,7 +11190,8 @@ function _schedRender(){
   var hcells = '';
   cols.forEach(function(c, i){
     hcells += '<div class="sched-cell hd sched-info"' + (c.tip ? ' data-tip="' + esc(c.tip) + '"' : '') +
-      ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + c.hd + '</div>';
+      ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px;position:sticky">' + c.hd +
+      (c.key === 'handle' ? '' : '<span class="sched-colrz" data-colrz="' + c.key + '" title="Drag to resize this column"></span>') + '</div>';
   });
   h += '<div class="sched-hd-row" style="top:20px">' + hcells +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
@@ -11217,16 +11254,13 @@ function _schedRender(){
         ' title="Open this job — drag to reorder">i</span>';
       if (c.key === 'jobno'){
         var _fno = r.job_ref || r.fergus_no || r.fergus_id || '';
-        var _url = _schedFergusUrl(r);
         var _lbl = _fno || r.job_no || '';
-        inner = _url
-          ? '<a href="' + esc(_url) + '" target="_blank" rel="noopener" data-fergus="1"' +
-            ' title="Open Fergus job ' + esc(_fno) + ' — ' + esc(r.client_name) + '"' +
-            ' style="color:#0099cc;font-weight:700;text-decoration:underline">' + esc(_lbl) + '</a>'
-          // No Fergus job linked: show whatever names this row and still open
-          // the popup, rather than a blank cell that looks broken.
-          : '<span data-rowmenu="' + r.id + '" title="' + esc(r.client_name) + '"' +
-            ' style="cursor:pointer;font-weight:700">' + esc(_lbl || r.client_name) + '</span>';
+        // NO LINK TO FERGUS (2026-11-10, the owner: "remove the hyper link to
+        // the fergus job as it doesn't really work (makes me log into fergus
+        // every time because it opens a chrome tab i'm not signed into)").
+        // The number opens the job window, the same as the i button.
+        inner = '<span data-info="' + r.id + '" title="' + esc(r.client_name) + ' — job details"' +
+          ' style="cursor:pointer;font-weight:700;color:#0099cc">' + esc(_lbl || r.client_name) + '</span>';
       }
       if (c.key === 'info') inner = '<span class="sched-i" data-info="' + r.id + '" title="Job details">i</span>';
       if (c.key === 'job'){
@@ -11368,13 +11402,38 @@ function _schedWire(grid){
       if (moved !== onto) _schedFolderMove(moved, onto);
     });
   });
-  // Hover half a second over a column icon and a legend says what it means.
+  // Hover a column icon and a legend says what it means AT ONCE (2026-11-10,
+  // the owner: "can those little information explanation ... pop up
+  // instantly? Just for those symbols at the top"). The tick boxes in the
+  // rows keep the browser's own tooltip and its delay.
   grid.querySelectorAll('[data-tip]').forEach(function(el){
-    var t = null;
-    el.addEventListener('mouseenter', function(){
-      t = setTimeout(function(){ _schedTipShow(el, el.getAttribute('data-tip')); }, 500);
+    el.addEventListener('mouseenter', function(){ _schedTipShow(el, el.getAttribute('data-tip')); });
+    el.addEventListener('mouseleave', function(){ _schedTipHide(); });
+  });
+  // THE COLUMNS RESIZE LIKE A SPREADSHEET'S (the same message: "when I hover
+  // my mouse over to the edge of that column, can you let me click and hold
+  // and drag that across so I can see more of the address"). A grip on the
+  // right edge of each header cell; the width is kept per column on this
+  // device (fr_sched_colw) and the board re-lays as the mouse moves.
+  grid.querySelectorAll('[data-colrz]').forEach(function(g){
+    g.addEventListener('mousedown', function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      var key = g.getAttribute('data-colrz'), x0 = ev.clientX;
+      var w0 = _schedColW()[key] || (_SCHED_COLS.find(function(c){ return c.key === key; }) || {}).w || 60;
+      var raf = 0;
+      var move = function(e){
+        var w = Math.max(26, Math.min(420, w0 + (e.clientX - x0)));
+        var all = _schedColW(); all[key] = Math.round(w); _SCHED.colW = all;
+        if (!raf) raf = requestAnimationFrame(function(){ raf = 0; _schedRender(); });
+      };
+      var up = function(){
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+        document.body.style.cursor = '';
+        try { localStorage.setItem('fr_sched_colw', JSON.stringify(_schedColW())); } catch(e){}
+      };
+      document.body.style.cursor = 'col-resize';
+      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
     });
-    el.addEventListener('mouseleave', function(){ clearTimeout(t); _schedTipHide(); });
   });
   var ct = grid.querySelector('[data-coltoggle]');
   if (ct) ct.onclick = function(){
@@ -11704,6 +11763,7 @@ var _schedInfoId = null;
 function _schedInfoOpen(rowId){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
   if (!r) return;
+  try { _schedCloseMenus(); _schedTipHide(); } catch(e){}
   _schedInfoId = rowId;
   var m = document.getElementById('schedInfoModal');
   document.getElementById('schedInfoTitle').textContent = r.client_name || 'Job details';
@@ -11801,6 +11861,86 @@ function _schedInfoOpen(rowId){
   }
   document.getElementById('schedInfoOverlay').style.display = 'block';
   m.style.display = 'flex';
+  _schedInfoJobLoad(r);
+}
+// THE RIGHT-HAND HALF: the roof map and the quote off the saved job. The
+// job's own quote is swapped under the quote renderers for the moment they
+// run (the map, the summary rows, the picks all read S.quote), in customer
+// mode so a sent quote's FROZEN prices are what is shown — never this
+// screen's live take-off, which belongs to whatever job is open on the Map
+// Roof tab. Everything is put back in a finally, whatever happens.
+var _SCHED_JOB_CACHE = {};
+function _schedInfoJobLoad(r){
+  var box = document.getElementById('schedInfoJob');
+  if (!box) return;
+  if (!r || !r.job_id){
+    box.innerHTML = '<div class="sij-card" style="color:var(--text2)">This row was added by hand, so there is no saved RoofMap job to show. ' +
+      'Add the job from <b>+ Add job → From your saved jobs</b> to see its roof and quote here.</div>';
+    return;
+  }
+  var id = r.job_id, rowId = r.id;
+  var paint = function(job){
+    if (_schedInfoId !== rowId) return;
+    box.innerHTML = _schedInfoJobHtml(job, r);
+  };
+  if (_SCHED_JOB_CACHE[id]){ paint(_SCHED_JOB_CACHE[id]); return; }
+  box.innerHTML = '<div class="sij-card" style="color:var(--text2)">Loading the roof and the quote…</div>';
+  api('GET', '/jobs/' + encodeURIComponent(id)).then(function(job){
+    if (job && job.id) _SCHED_JOB_CACHE[id] = job;
+    paint(job);
+  }).catch(function(e){
+    if (_schedInfoId !== rowId) return;
+    box.innerHTML = '<div class="sij-card" style="color:#b91c1c">Could not read the job: ' +
+      String((e && e.message) || e).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>';
+  });
+}
+function _schedInfoJobHtml(job, r){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var st = job && job.draw_state && job.draw_state.state;
+  var q = st && st.quote;
+  if (!q) return '<div class="sij-card" style="color:var(--text2)">The saved job carries no quote yet.</div>';
+  var keepQ = S.quote, keepCust = window.__CUSTOMER_MODE, keepView = S._qvViewing;
+  var map = '', rows = [], picks = [], total = '', err = '';
+  var sent = !!(q.share && q.share.priced);
+  try {
+    S.quote = q; window.__CUSTOMER_MODE = true; S._qvViewing = null;
+    try { map = _qpRoofMapSvg({ readOnly:true, noModes:true, showBg:true, mapKey:'sched', maxH:420 }); } catch(e){ map = ''; }
+    if (sent){
+      try { rows = _custBarRows(); } catch(e){ rows = []; err = e && e.message; }
+      try { total = fmtMoney(_custBarTotalValue()); } catch(e){ total = ''; }
+      try { picks = _qbPicks(); } catch(e){ picks = []; }
+    }
+  } finally {
+    S.quote = keepQ; window.__CUSTOMER_MODE = keepCust; S._qvViewing = keepView;
+  }
+  var h = '';
+  h += '<div class="sij-card"><div class="sij-h">Roof map</div>' +
+    (map ? '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">' + map + '</div>'
+         : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') + '</div>';
+  var acc = q.accepted;
+  var when = function(d){ try { return new Date(d).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); } catch(e){ return ''; } };
+  h += '<div class="sij-card"><div class="sij-h">Quote summary' + (q.ref ? ' · ' + esc(q.ref) : '') + '</div>';
+  if (!sent){
+    h += '<div style="color:var(--text2)">The quote has not been sent to the customer yet, so there are no selections to show.</div>';
+  } else {
+    h += '<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px">' +
+      (acc ? ('Accepted ' + (acc.by || acc.name ? 'by ' + esc(acc.by || acc.name) + ' ' : '') + (acc.at ? 'on ' + when(acc.at) : '')) :
+       (q.share && q.share.sentAt ? 'Sent ' + when(q.share.sentAt) + ' — not accepted yet' : 'Sent')) + '</div>';
+    rows.forEach(function(x){
+      h += '<div class="sij-row' + (x.kind === 'total' ? ' tot' : '') + '"><span>' + esc(x.label) + '</span><b>' + esc(x.value) + '</b></div>';
+    });
+    if (!rows.some(function(x){ return x.kind === 'total'; }) && total)
+      h += '<div class="sij-row tot"><span>Total incl. GST</span><b>' + esc(total) + '</b></div>';
+    if (err) h += '<div style="color:#b91c1c;font-size:11px">' + esc(err) + '</div>';
+    h += '</div>';
+    h += '<div class="sij-card"><div class="sij-h">What the customer chose</div>';
+    if (picks.length) picks.forEach(function(p){ h += '<div class="sij-pick"><span>' + esc(p[0]) + '</span><b>' + esc(p[1]) + '</b></div>'; });
+    else h += '<div style="color:var(--text2)">No selections recorded.</div>';
+  }
+  h += '</div>';
+  var d = String(r.description || '').trim();
+  if (d) h += '<div class="sij-card"><div class="sij-h">The job</div><div style="line-height:1.4;white-space:pre-wrap">' + esc(d) + '</div></div>';
+  return h;
 }
 function _schedInfoClose(){
   document.getElementById('schedInfoOverlay').style.display = 'none';

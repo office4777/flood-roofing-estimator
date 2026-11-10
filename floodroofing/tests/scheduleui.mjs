@@ -119,11 +119,10 @@ async function boot(opts){
     !g.heads.some(h => /Acc|Len|Notes|%/.test(h)), JSON.stringify(g.heads));
   check('…and still carries the four milestones', 
     ['💰','🤝','📦','🚚'].every(i => g.heads.indexOf(i) >= 0), JSON.stringify(g.heads));
-  check('the job column is the Fergus number, as a link into Fergus',
-    /app\.fergus\.com\/jobs\/view\/8801/.test(g.job) && /FR-2996|8801/.test(g.job), g.job.slice(0, 160));
-  check('…drawn as a link, not plain text', /<a /.test(g.job) && /underline/.test(g.job), g.job.slice(0, 120));
-  check('…opening in a new tab, so the board is not navigated away from',
-    /target="_blank"/.test(g.job) && /rel="noopener"/.test(g.job), g.job.slice(0, 160));
+  check('the job column is the Fergus number, opening the job window (no Fergus link, 2026-11-10)',
+    /data-info="r1"/.test(g.job) && /FR-2996|8801/.test(g.job) && !/fergus\.com/.test(g.job), g.job.slice(0, 160));
+  check('…drawn as a button, not a hyperlink', !/<a /.test(g.job), g.job.slice(0, 120));
+  check('…and never a new tab', !/target="_blank"/.test(g.job), g.job.slice(0, 160));
   check('the site column is the street on its own',
     g.site.trim() === 'Horeke Road', JSON.stringify(g.site));
   check('…with the whole address, and who it is for, on hover',
@@ -144,7 +143,7 @@ async function boot(opts){
   });
   check('a job with no Fergus job linked still names itself',
     !!g.text && !/<a /.test(g.html), g.html.slice(0, 140));
-  check('…and still opens its details', /data-rowmenu/.test(g.html), g.html.slice(0, 140));
+  check('…and still opens its details', /data-info/.test(g.html), g.html.slice(0, 140));
   // The street reader, on the shapes a NZ address comes in.
   const st = await p0.evaluate(() => ['23, Don Buck Road, Massey', '148 Horeke Road , Okaihau',
     '10/1 Ash Grove Circle, Haruru', '1156 SH12, Oue', 'Kemp House', ''].map(a => _schedStreet(a)));
@@ -514,12 +513,30 @@ check('typing into it creates the job', !!v && v[1].client_name === 'Lizzie Camp
 
 // Hover half a second over a column icon → a legend says what it means.
 await pg.hover('.sched-hd-row [data-tip]:nth-of-type(4)');
-await pg.waitForTimeout(200);
-v = await pg.evaluate(() => document.querySelectorAll('.sched-tip').length);
-check('no legend before half a second', v === 0, v + ' tips at 200ms');
-await pg.waitForTimeout(500);
+await pg.waitForTimeout(60);
 v = await pg.evaluate(() => (document.querySelector('.sched-tip') || {}).textContent || '');
-check('…and after it, the legend for that icon', /Deposit/.test(v), v);
+check('the legend for a column icon pops up at once (2026-11-10)', /Deposit/.test(v), v);
+// The job number opens the job window (no Fergus link any more), and the
+// Site column widens by dragging its header's grip like a spreadsheet's.
+v = await pg.evaluate(() => ({ fg: document.querySelectorAll('[data-fergus]').length,
+  no: document.querySelectorAll('.sched-row [data-info]').length,
+  grips: document.querySelectorAll('.sched-hd-row [data-colrz]').length }));
+check('no job number links out to Fergus', v.fg === 0, JSON.stringify(v));
+check('the job numbers open the job window', v.no >= 2, JSON.stringify(v));
+check('every header column carries a resize grip', v.grips >= 7, JSON.stringify(v));
+{
+  const w0 = await pg.evaluate(() => document.querySelector('.sched-hd-row [data-colrz="site"]').parentElement.getBoundingClientRect().width);
+  const gb = await pg.locator('.sched-hd-row [data-colrz="site"]').boundingBox();
+  await pg.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+  await pg.mouse.down(); await pg.mouse.move(gb.x + 80, gb.y + 5, { steps: 4 }); await pg.mouse.up();
+  await pg.waitForTimeout(150);
+  const w1 = await pg.evaluate(() => document.querySelector('.sched-hd-row [data-colrz="site"]').parentElement.getBoundingClientRect().width);
+  const kept = await pg.evaluate(() => JSON.parse(localStorage.getItem('fr_sched_colw') || '{}').site);
+  check('dragging the Site grip widens the column', w1 > w0 + 50, w0 + ' -> ' + w1);
+  check('…and the width is kept on this device', kept === Math.round(w1), kept + ' vs ' + w1);
+  // Back to the shipped widths so the pins below land where they always did.
+  await pg.evaluate(() => { localStorage.removeItem('fr_sched_colw'); _SCHED.colW = null; _schedRender(); });
+}
 await pg.mouse.move(5, 5);
 await pg.waitForTimeout(100);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-tip').length);
@@ -641,7 +658,7 @@ await ctx.close();
   // A job number typed by hand shows in the Job column and links to Fergus.
   await pg.evaluate(() => { const r = _SCHED.data.rows.find(x => x.id === 'r2'); r.job_ref = '9123'; _schedRender(); });
   v = await pg.evaluate(() => (document.querySelector('[data-rowzone="r2"] .sched-cell:nth-child(2)') || {}).innerHTML || '');
-  check('a hand-typed Fergus number shows as the Job link', /app\.fergus\.com\/jobs\/view\/9123/.test(v) && /9123/.test(v), v.slice(0, 120));
+  check('a hand-typed Fergus number shows in the Job column, no link out', !/fergus\.com/.test(v) && /9123/.test(v) && /data-info/.test(v), v.slice(0, 120));
   await pg.evaluate(() => _schedFolderMove('', 'poleshed'));
   await pg.waitForTimeout(200);
   v = await pg.evaluate(() => Array.from(document.querySelectorAll('[data-fold]')).map(e => e.getAttribute('data-fold')).join('|'));

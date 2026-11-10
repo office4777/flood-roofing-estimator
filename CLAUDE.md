@@ -1680,6 +1680,26 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   reads it, `_scaffoldLmSync` keeps the perimeter on the drawing (from
   `calcLabour`). `tests/scaffoldopts.mjs` (49) pins the drop-down, the
   perimeter (35 lm on a 400 × 300 px outline at 0.025) and the $/lm price.
+- THE SCHEDULE BOARD'S JOB WINDOW SHOWS THE JOB (2026-11-10, the owner: "when I
+  click on the information symbol, can it pop up with a much bigger pop-up
+  window and show the canvas roof, the detailed roof map, and the quote
+  summary ... the customer selections"; "remove the hyper link to the fergus
+  job as it doesn't really work (makes me log into fergus every time)"; the
+  Site column to drag wider "like a column in the Excel spreadsheet"; the
+  header icons' legends "pop up instantly", the tick boxes' delay kept).
+  `#schedInfoModal` is 1180px, two columns: the details form on the left and
+  `#schedInfoJob` on the right — `_schedInfoJobLoad(r)` reads `GET /jobs/:id`
+  (cached per job in `_SCHED_JOB_CACHE`) and `_schedInfoJobHtml` draws the roof
+  map (`_qpRoofMapSvg`, readOnly), the summary rows (`_custBarRows`), the total
+  and the picks (`_qbPicks`) by SWAPPING THE JOB'S QUOTE UNDER `S.quote` with
+  `__CUSTOMER_MODE` on for the moment they run (put back in a finally), so a
+  SENT quote's frozen `share.priced` is what shows and never this screen's
+  live take-off; a quote never sent shows the map and says so; a hand-typed
+  row says there is no saved job. The Job column is a `data-info` span (no
+  `<a>`, no `_schedFergusUrl` call — the function stays for `nofergus`). Column
+  widths: a `.sched-colrz` grip on each header cell (`data-colrz`), dragged
+  widths in `localStorage.fr_sched_colw` (`_schedColW`), re-laid per frame;
+  `_schedRender` hides a stale legend first. `tests/scheduleui.mjs` (87).
 - THE DRAWER'S SECOND PASS, THE DOWNPIPES AND THE GP CONTROLS (2026-11-10, the
   owner on the first pass: the strategy "doesn't really look like it would be a
   button", the mode buttons "the same color as the section header ... looks
