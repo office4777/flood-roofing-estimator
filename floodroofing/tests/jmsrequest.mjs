@@ -96,8 +96,8 @@ await ctx.close();
 
 // ── the JMS section ───────────────────────────────────────────────
 ({ ctx, pg, errs } = await open({ company_name:'Acme Roofing Ltd' }));
-check('the settings tab is called Job Management Software',
-  await pg.evaluate(() => (document.getElementById('jmsSubTabBtn')||{}).textContent.trim() === 'Job Management Software'),
+check('the settings tab is called Fergus',
+  await pg.evaluate(() => (document.getElementById('jmsSubTabBtn')||{}).textContent.trim() === 'Fergus'),
   await pg.evaluate(() => (document.getElementById('jmsSubTabBtn')||{}).textContent));
 
 v = await pg.evaluate(() => ({

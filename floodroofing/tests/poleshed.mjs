@@ -1551,8 +1551,13 @@ const pdfLook = await pg.evaluate(async () => {
     '<section class="qd-sec qd-sec-' + x.key + '" data-qd-sec="' + x.key + '">' +
     x.html() + '</section>').join('');
   document.body.appendChild(host);
-  await Promise.all([...host.querySelectorAll('img')].map(i => new Promise(r => {
-    if (i.complete && i.naturalWidth) return r(); i.onload = r; i.onerror = r; })));
+  // Capped: a headless Chromium that never fires load on the data: SVG (seen
+  // on a CI shard and in a cloud container, 2026-11-10) used to hang the suite
+  // to the runner's 600 s limit; now it is a plain red on the height pin.
+  await Promise.race([
+    Promise.all([...host.querySelectorAll('img')].map(i => new Promise(r => {
+      if (i.complete && i.naturalWidth) return r(); i.onload = r; i.onerror = r; }))),
+    new Promise(r => setTimeout(r, 20000))]);
   const on = () => document.documentElement.classList.add('pdf-modern');
   const off = () => document.documentElement.classList.remove('pdf-modern');
   const vis = (sel) => { const e = host.querySelector(sel);
