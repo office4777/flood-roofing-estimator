@@ -3550,6 +3550,20 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; text-shadow:0 1px 1px rgba(0,0,0,.35); }
 .sched-block .rz{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; }
 .sched-block.dragging{ opacity:.75; cursor:grabbing; z-index:3; }
+/* LIVE PRESENCE (2026-11-11): a block somebody else is holding wears their
+   colour and their name; the pill at the top right says who else is here. */
+.sched-block.held{ outline:3px solid var(--held,#f59e0b); outline-offset:1px; box-shadow:0 0 0 5px rgba(255,255,255,.7); cursor:not-allowed; z-index:2; }
+.sched-block.held::after{ content:attr(data-held); position:absolute; right:3px; top:50%; transform:translateY(-50%); background:var(--held,#f59e0b); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; white-space:nowrap; line-height:14px; }
+.sched-row.held-row .sched-cell.sched-info{ box-shadow:inset 3px 0 0 var(--held,#f59e0b); }
+.sched-who{ display:inline-flex; gap:5px; align-items:center; font-size:11.5px; color:var(--text2); white-space:nowrap }
+.sched-who .sw-dot{ display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; color:#fff; font-weight:700; font-size:11px }
+.sched-updating{ display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:#0a1628; background:#e0f2fe; border:1px solid #9bd5f0; border-radius:999px; padding:4px 11px; white-space:nowrap }
+.sched-spin{ width:12px; height:12px; border:2px solid #9bd5f0; border-top-color:#0a1628; border-radius:50%; animation:spin .8s linear infinite }
+.sched-addrow-btn{ width:100%; height:100%; border:none; background:transparent; color:#0099e0; font-weight:700; font-size:12.5px; cursor:pointer; text-align:left; padding:0 6px }
+.sched-addrow-btn:hover{ background:#e0f2fe }
+.sched-addbig .sched-addrow{ font-size:15px; padding:12px 14px }
+.sched-addbig .sched-addrow small, .sched-addbig .sched-addrow .hb-sub{ font-size:13px }
+.sched-addbig .hb-row{ font-size:15px; padding:12px 14px }
 /* The envelopes were 11px and half-faded — small enough to miss on a board
    this dense, and they are the buttons that send the customer their emails. */
 /* IN THE MIDDLE OF THE DAY BOX (2026-11-10, the owner: "it's right on the
@@ -5552,7 +5566,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T18:59:46Z';
+  window.APP_BUILT_AT = '2026-11-10T19:31:13Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8125,7 +8139,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <button class="sched-chip" id="schedArchBtn" onclick="_schedToggleArchived()">Archive</button>
         <button class="sched-chip" onclick="_schedSettingsOpen()" title="Crews, capacity, shutdowns, calendar feed">⚙</button>
       </span>
-      <span id="schedMsg" style="width:100%;font-size:11.5px;color:var(--text2)"></span>
+      <span id="schedMsg" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
+      <span id="schedWho" class="sched-who"></span>
+      <span id="schedUpdating" class="sched-updating" style="display:none"><span class="sched-spin"></span>Updating…</span>
     </div>
     <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
     <div style="font-size:11px;color:var(--text3);margin-top:6px">Click an empty day (or hold and drag across days) and pick the pencil or a crew from the popup — or pick one up top first and click. The job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Type a client name into a blank row to start one; drag a folder heading to move it down the board. Ctrl + scroll zooms the calendar.</div>
@@ -8153,37 +8169,31 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 
   <!-- Add a job to the board -->
   <div id="schedAddOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedAddClose()"></div>
-  <div id="schedAddModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:560px;max-width:94vw;max-height:86vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
+  <div id="schedAddModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:1120px;max-width:96vw;max-height:92vh;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden;flex-direction:column">
     <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
-      <strong style="flex:1;font-size:14px">Add a job to the schedule</strong>
+      <strong style="flex:1;font-size:18px">Add a job to the schedule</strong>
       <button onclick="_schedAddClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
-    <div style="padding:14px 18px;overflow-y:auto">
+    <div style="padding:18px 24px;overflow-y:auto">
       <!-- ACCEPTED JOBS, NEWEST FIRST (2026-11-11, the owner: "it should just
            show the accepted jobs, and it should show the most recent accepted
            job at the top ... a little symbol to show if it's already been added
            to the schedule ... then at the bottom, have a search ... just like
            the home search"). _schedAddOpen fills the list; the search box
            under it drops a Home-style list over EVERY saved job. -->
-      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Accepted jobs — newest first</div>
-      <div id="schedJobPick" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px"></div>
-      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Find any job</div>
+      <!-- TWICE THE SIZE, NO QUICK ROW (2026-11-11, the owner: "make the attached
+           screen pop-up window bigger ... like twice as big. And delete the
+           quick row"): a job on the board is a quoted job; the list's "+ Add
+           row" opens this window too. -->
+      <div style="font-size:15px;font-weight:700;color:#0a1628;margin-bottom:8px">Accepted jobs — newest first</div>
+      <div id="schedJobPick" class="sched-addbig" style="max-height:52vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:16px"></div>
+      <div style="font-size:15px;font-weight:700;color:#0a1628;margin-bottom:8px">Find any job</div>
       <div style="position:relative;margin-bottom:14px">
         <input type="text" id="schedJobSearch" placeholder="Search by client, address or job number…" autocomplete="off" oninput="_schedAddSearch()" onfocus="_schedAddSearch()"
-          style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-        <div id="schedJobSearchDrop" class="hb-drop sched-jsdrop" style="display:none"></div>
+          style="width:100%;box-sizing:border-box;padding:13px 15px;border:1px solid #cbd5e1;border-radius:10px;font-size:16px">
+        <div id="schedJobSearchDrop" class="hb-drop sched-jsdrop sched-addbig" style="display:none"></div>
       </div>
-      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Or a quick row — for work that never went through quoting</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <input type="text" id="schedQClient" placeholder="Client" style="flex:1;min-width:130px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-        <input type="text" id="schedQSite" placeholder="Site address" style="flex:1.4;min-width:150px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-        <input type="number" id="schedQLen" placeholder="Days" min="1" max="120" value="3" style="width:76px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-        <input type="email" id="schedQEmail" placeholder="Customer email (for updates)" style="flex:1;min-width:170px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
-        <button onclick="_schedQuickAdd()" style="padding:8px 18px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer">Add row</button>
-      </div>
-      <div id="schedAddMsg" style="font-size:12px;color:#b91c1c;margin-top:8px"></div>
+      <div id="schedAddMsg" style="font-size:13px;color:#b91c1c;margin-top:8px"></div>
     </div>
   </div>
 
@@ -10792,6 +10802,7 @@ function gotoTab(t) {
   if(t==='roof'){ try{ _syncSheetTextScaleUi(); }catch(e){} try{ _scaleStateShow(); }catch(e){} }
   if(t==='feedback'){ try{ _syncFeedbackReplyTo(); }catch(e){} try{ _fbPreviewShow(_fbPreviewKind); }catch(e){ console.warn('feedback preview:', e); } }
   if(t==='schedule'){ try{ _schedEnter(); }catch(e){ console.warn('schedule:', e); } }
+  else { try{ if (typeof _schedPresStop === 'function') _schedPresStop(); }catch(e){} }
   if(t==='tender'){ try{ if (typeof _tenderTabOpen === 'function') _tenderTabOpen(); }catch(e){ console.warn('tender:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
   if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
@@ -11105,21 +11116,129 @@ function _schedExtToggle(force){
   var b = document.getElementById('schedExtBtn');
   if (b) b.textContent = on ? '✕ Exit extended view' : '⛶ Extended view';
 }
+// THE LAST SCHEDULE IS ON SCREEN AT ONCE (2026-11-11, the owner: "when I
+// first click into the schedule ... just see the old schedule and just see a
+// little loading symbol ... saying updating"): the last answer from
+// GET /schedule is kept on the device (`fr_sched_last`) and drawn the moment
+// the tab opens, with an "Updating…" pill spinning at the top right until the
+// fresh one lands; then the pill goes. A board drawn from the copy is not
+// touched until the fresh copy is here.
+function _schedLastKey(){ var c = {}; try { c = _companyBrief() || {}; } catch(e){} return 'fr_sched_last_' + (c.id || 'co'); }
 function _schedEnter(){
   var locked = document.getElementById('schedLockedCard');
   var wrap = document.getElementById('schedWrap');
   if (!_schedCanUse()){ if (locked) locked.style.display=''; if (wrap) wrap.style.display='none'; return; }
   if (locked) locked.style.display='none';
   if (wrap) wrap.style.display='';
+  if (!_SCHED.data && !_SCHED.archived){
+    try {
+      var last = JSON.parse(localStorage.getItem(_schedLastKey()) || 'null');
+      if (last && last.rows){ _SCHED.data = last; _SCHED.nonwork = {}; (last.nonwork || []).forEach(function(d){ _SCHED.nonwork[d] = 1; }); _SCHED.fromCopy = true; _schedRender(); }
+    } catch(e){}
+  }
+  _schedUpdating(true);
   _schedLoad();
+  _schedPresStart();
 }
-async function _schedLoad(){
+// WHO IS DOING WHAT (2026-11-11, the owner: "it needs to be live ... show
+// which user's doing what ... so there's no doubling up"). While the Schedule
+// tab is open, a heartbeat every 1.5 s (`POST /schedule/presence`) says what
+// this person is holding — the block being dragged or with its menu open,
+// the row whose window is open — and brings back everyone else's hold and
+// the board's version; a version that moved reloads the board quietly, a
+// held block is drawn in that person's colour with their name on it and
+// cannot be grabbed. The server forgets a tab that has not spoken for 8 s.
+var _SCHED_PRES = { timer:null, ver:null, users:[], hold:null, info:'', colours:{} };
+var _SCHED_PRES_MS = 1500;
+var _SCHED_PRES_PALETTE = ['#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#0ea5e9'];
+function _schedPresName(){
+  try { var u = JSON.parse(localStorage.getItem('fr_user') || '{}'); return String(u.name || u.full_name || (u.email || '').split('@')[0] || ''); } catch(e){ return ''; }
+}
+function _schedHold(what, block, row){
+  _SCHED_PRES.hold = what ? { what: what, block: block || '', row: row || '' } : null;
+  _schedPresBeat();
+}
+function _schedPresStart(){
+  if (_SCHED_PRES.timer) return;
+  _SCHED_PRES.timer = setInterval(_schedPresBeat, _SCHED_PRES_MS);
+  _schedPresBeat();
+}
+function _schedPresStop(){
+  if (!_SCHED_PRES.timer) return;
+  clearInterval(_SCHED_PRES.timer); _SCHED_PRES.timer = null;
+  _SCHED_PRES.users = []; _schedPresPaint();
+  try { api('POST', '/schedule/presence', { leave: true }).catch(function(){}); } catch(e){}
+}
+var _schedPresBusy = false;
+async function _schedPresBeat(){
+  if (_schedPresBusy || document.body.getAttribute('data-tab') !== 'schedule') return;
+  if (document.visibilityState === 'hidden') return;
+  _schedPresBusy = true;
   try {
-    _SCHED.data = await api('GET', '/schedule' + (_SCHED.archived ? '?archived=1' : ''));
+    var a = await api('POST', '/schedule/presence', { name: _schedPresName(), hold: _SCHED_PRES.hold, info: _SCHED_PRES.info || '' });
+    if (!a || typeof a !== 'object') return;
+    _SCHED_PRES.users = Array.isArray(a.users) ? a.users : [];
+    if (_SCHED_PRES.ver != null && a.ver != null && a.ver !== _SCHED_PRES.ver && !_SCHED.fromCopy) _schedLoad({ quiet: true });
+    if (a.ver != null) _SCHED_PRES.ver = a.ver;
+    _schedPresPaint();
+  } catch(e){}
+  finally { _schedPresBusy = false; }
+}
+function _schedPresColour(uid){
+  var c = _SCHED_PRES.colours;
+  if (!c[uid]) c[uid] = _SCHED_PRES_PALETTE[Object.keys(c).length % _SCHED_PRES_PALETTE.length];
+  return c[uid];
+}
+function _schedHeldBy(blockId){
+  for (var i = 0; i < _SCHED_PRES.users.length; i++){ var u = _SCHED_PRES.users[i]; if (u.hold && u.hold.block === blockId) return u; }
+  return null;
+}
+function _schedPresPaint(){
+  var who = document.getElementById('schedWho');
+  var esc = function(t){ return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); };
+  if (who){
+    who.innerHTML = _SCHED_PRES.users.length ? ('Also here: ' + _SCHED_PRES.users.map(function(u){
+      var doing = u.hold ? (u.hold.what === 'drag' ? ' · moving a block' : u.hold.what === 'menu' ? ' · on a block' : u.hold.what === 'paint' ? ' · booking days' : '') : (u.info ? ' · in a job window' : '');
+      return '<span class="sw-dot" style="background:' + _schedPresColour(u.id) + '">' + esc(u.name || 'Someone') + esc(doing) + '</span>';
+    }).join('')) : '';
+  }
+  var grid = document.getElementById('schedGrid');
+  if (!grid) return;
+  grid.querySelectorAll('.sched-block.held').forEach(function(el){ el.classList.remove('held'); el.removeAttribute('data-held'); el.style.removeProperty('--held'); });
+  grid.querySelectorAll('.sched-row.held-row').forEach(function(el){ el.classList.remove('held-row'); el.style.removeProperty('--held'); });
+  _SCHED_PRES.users.forEach(function(u){
+    var col = _schedPresColour(u.id);
+    if (u.hold && u.hold.block){
+      var el = grid.querySelector('[data-block="' + u.hold.block + '"]');
+      if (el){ el.classList.add('held'); el.setAttribute('data-held', u.name || 'Someone'); el.style.setProperty('--held', col); }
+    }
+    var rid = (u.hold && u.hold.row) || u.info;
+    if (rid){
+      var st = grid.querySelector('[data-strip="' + rid + '"]');
+      var row = st && st.closest ? st.closest('.sched-row') : null;
+      if (row){ row.classList.add('held-row'); row.style.setProperty('--held', col); }
+    }
+  });
+}
+function _schedUpdating(on){
+  var el = document.getElementById('schedUpdating');
+  if (el) el.style.display = on ? 'inline-flex' : 'none';
+}
+async function _schedLoad(opts){
+  opts = opts || {};
+  try {
+    var fresh = await api('GET', '/schedule' + (_SCHED.archived ? '?archived=1' : ''));
+    // A quiet reload from the presence loop never lands mid-drag: the block
+    // under the pointer would jump. It is picked up on the next beat.
+    if (opts.quiet && _SCHED.dragging){ _SCHED.needLoad = true; return; }
+    _SCHED.data = fresh; _SCHED.fromCopy = false;
     _SCHED.nonwork = {};
     (_SCHED.data.nonwork || []).forEach(function(d){ _SCHED.nonwork[d] = 1; });
+    if (!_SCHED.archived){ try { localStorage.setItem(_schedLastKey(), JSON.stringify(fresh)); } catch(e){} }
+    _schedUpdating(false);
     _schedRender();
   } catch(e){
+    _schedUpdating(false);
     if (/Business/i.test(String(e && e.message))){ 
       var lc=document.getElementById('schedLockedCard'), w=document.getElementById('schedWrap');
       if (lc) lc.style.display=''; if (w) w.style.display='none'; return;
@@ -11432,7 +11551,7 @@ function _schedRender(){
       if (c.key === 'site') return;
       if (c.key === 'jobno' || c.key === 'job'){
         w += siteW;
-        inner = '<input type="text" value="" data-newclient="add-' + esc(fid) + '" data-newfolder="' + esc(fid) + '" placeholder="+ Add row" title="Type a client name to add a job here">';
+        inner = '<button type="button" class="sched-addrow-btn" data-addjob="' + esc(fid) + '" title="Add an accepted job to the schedule">+ Add row</button>';
       }
       cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + w + 'px">' + inner + '</div>';
     });
@@ -11564,8 +11683,7 @@ function _schedRender(){
     var pcells = '';
     cols.forEach(function(c, i){
       var inner = '';
-      if (c.key === 'jobno' || c.key === 'job') inner = '<input type="text" value="" data-newclient="' + p + '" title="Type a client name here to start a job">';
-      if (c.key === 'site') inner = '<input type="text" value="" data-newsite="' + p + '">';
+      if (c.key === 'jobno' || c.key === 'job') inner = '';
       pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
     h += '<div class="sched-row pad">' + pcells +
@@ -11581,6 +11699,7 @@ function _schedRender(){
   grid.innerHTML = h;
   _schedRenderPalette();
   _schedWire(grid);
+  try { _schedPresPaint(); } catch(e){}
   _schedZoomBarSync();
 }
 function _schedRenderPalette(){
@@ -11696,6 +11815,9 @@ function _schedWire(grid){
         });
     };
   });
+  grid.querySelectorAll('[data-addjob]').forEach(function(el){
+    el.onclick = function(){ _SCHED.addFolder = el.getAttribute('data-addjob') || ''; _schedAddOpen(); };
+  });
   grid.querySelectorAll('[data-mail]').forEach(function(el){
     el.onclick = function(){ _schedMailPick(el.getAttribute('data-mail'), el); };
   });
@@ -11755,6 +11877,10 @@ function _schedStripDown(ev, strip){
     if (bId && bId.indexOf('tmp-') === 0) return;   // still saving — a beat later it has a real id
     var b = (_SCHED.data.blocks || []).find(function(x){ return x.id === bId; });
     if (!b) return;
+    var heldBy = _schedHeldBy(bId);
+    if (heldBy){ _schedMsg((heldBy.name || 'Someone else') + ' has that block at the moment', true); return; }
+    _SCHED.dragging = true;
+    _schedHold('drag', bId, b.row_id);
     var resizing = ev.target.classList && ev.target.classList.contains('rz');
     var startDay = day, moved = false;
     var span0 = _schedSpan(b), i0 = _SCHED.dayIdx[span0.from];
@@ -11775,7 +11901,11 @@ function _schedStripDown(ev, strip){
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       blockEl.classList.remove('dragging');
+      _SCHED.dragging = false;
+      if (_SCHED.needLoad){ _SCHED.needLoad = false; setTimeout(function(){ _schedLoad({ quiet: true }); }, 400); }
       var d2 = Math.max(0, Math.min(_SCHED.days.length - 1, Math.floor((up.clientX - rect.left) / _SCHED.dayW)));
+      if (!moved && !(_SCHED.sel && _SCHED.sel !== 'pencil') && !(_SCHED.sel === 'pencil' && b.kind === 'crew')) _schedHold('menu', bId, b.row_id);
+      else _schedHold(null);
       if (moved){
         if (resizing){
           // New length = working days from the block's start to the day dropped on.
@@ -11911,6 +12041,7 @@ function _schedTipShow(el, text){
   document.body.appendChild(d);
 }
 function _schedCloseMenus(){
+  try { if (_SCHED_PRES.hold && _SCHED_PRES.hold.what === 'menu') _schedHold(null); } catch(e){}
   document.querySelectorAll('.sched-menu').forEach(function(m){ m.remove(); });
   document.querySelectorAll('.sched-selbox').forEach(function(m){ m.remove(); });
 }
@@ -12044,6 +12175,7 @@ function _schedInfoOpen(rowId){
   if (!r) return;
   try { _schedCloseMenus(); _schedTipHide(); } catch(e){}
   _schedInfoId = rowId;
+  try { _SCHED_PRES.info = rowId; _schedPresBeat(); } catch(e){}
   var m = document.getElementById('schedInfoModal');
   document.getElementById('schedInfoTitle').textContent = r.client_name || 'Job details';
   var _fno = r.job_ref || r.fergus_no || '';
@@ -12338,6 +12470,7 @@ function _schedInfoHoursHtml(q){
   return h;
 }
 function _schedInfoClose(){
+  try { _SCHED_PRES.info = ''; _schedPresBeat(); } catch(e){}
   document.getElementById('schedInfoOverlay').style.display = 'none';
   document.getElementById('schedInfoModal').style.display = 'none';
 }
@@ -12739,7 +12872,8 @@ function _schedAddBind(root){
         return;
       }
       try {
-        var row = await _schedApi('POST', '/schedule/rows', { job_id: id });
+        var row = await _schedApi('POST', '/schedule/rows', { job_id: id, folder: _SCHED.addFolder || '' });
+        _SCHED.addFolder = '';
         _SCHED.data.rows.push(row); _schedAddClose(); _schedRender();
       } catch(e){}
     };
@@ -12789,21 +12923,6 @@ function _schedAddSearch(){
 function _schedAddClose(){
   document.getElementById('schedAddOverlay').style.display = 'none';
   document.getElementById('schedAddModal').style.display = 'none';
-}
-async function _schedQuickAdd(){
-  var msg = document.getElementById('schedAddMsg');
-  try {
-    var row = await api('POST', '/schedule/rows', {
-      client_name: document.getElementById('schedQClient').value.trim(),
-      site_address: document.getElementById('schedQSite').value.trim(),
-      length_days: parseInt(document.getElementById('schedQLen').value, 10) || 1,
-      email: document.getElementById('schedQEmail').value.trim(),
-    });
-    _SCHED.data.rows.push(row);
-    document.getElementById('schedQClient').value = ''; document.getElementById('schedQSite').value = '';
-    document.getElementById('schedQEmail').value = '';
-    _schedAddClose(); _schedRender();
-  } catch(e){ msg.textContent = (e && e.message) || 'Could not add the row'; }
 }
 // ── settings ──
 var _schedCfgDraft = null;

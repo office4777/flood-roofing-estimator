@@ -10771,6 +10771,35 @@ function _schedLabourDays(lab){
   const h = Math.max(parseFloat(lab.leadHrs) || 0, parseFloat(lab.appHrs) || 0);
   return h > 0 ? Math.max(1, Math.ceil(h / 8)) : 0;
 }
+// WHO IS ON THE BOARD, AND WHAT CHANGED (2026-11-11, the owner: "it needs to
+// be live ... show which user's doing what ... so there's no doubling up").
+// In-memory per company: each signed-in person's last heartbeat with what
+// they are holding (a block being dragged or with its menu open, a row whose
+// window is open), and a VERSION bumped by every write to the board, so a
+// tab polling every second or two reloads only when something moved. One
+// process serves everything, so memory is enough; a restart only forgets
+// who was here, and the next heartbeat says again.
+const _SCHED_PRES = {};        // companyId -> { ver, users: { userId: {...} } }
+const _SCHED_PRES_TTL_MS = 8000;
+function _schedPres(cid){ return _SCHED_PRES[cid] || (_SCHED_PRES[cid] = { ver: Date.now(), users: {} }); }
+function _schedBump(req){ try { _schedPres(req.companyId).ver = Date.now(); } catch (e) {} }
+app.post('/schedule/presence', ..._schedGate, async (req, res) => {
+  try {
+    const P = _schedPres(req.companyId);
+    const b = req.body || {};
+    const uid = String(req.user.id || req.user.email || '');
+    const name = String(b.name || '').slice(0, 60) || String(req.user.email || '').split('@')[0];
+    const hold = b.hold && typeof b.hold === 'object' ? {
+      block: String(b.hold.block || '').slice(0, 60), row: String(b.hold.row || '').slice(0, 60),
+      what: String(b.hold.what || '').slice(0, 20) } : null;
+    if (b.leave) delete P.users[uid];
+    else P.users[uid] = { id: uid, name, email: String(req.user.email || ''), hold, info: String(b.info || '').slice(0, 60), at: Date.now() };
+    const now = Date.now();
+    Object.keys(P.users).forEach(k => { if (now - P.users[k].at > _SCHED_PRES_TTL_MS) delete P.users[k]; });
+    res.json({ ver: P.ver, me: uid, users: Object.values(P.users).filter(u => u.id !== uid) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.use('/schedule', (req, res, next) => { if (req.method !== 'GET' && req.path !== '/presence') res.on('finish', () => { if (res.statusCode < 300) _schedBump(req); }); next(); });
 app.get('/schedule', ..._schedGate, async (req, res) => {
   try {
     const cfg = await _schedCfg(req);

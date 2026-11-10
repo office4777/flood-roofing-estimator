@@ -321,22 +321,22 @@ const sent = calls.find(c => c[0] === 'send');
 check('…and Send posts exactly what the office approved',
   !!sent && sent[1].to === 'b@l.nz' && /late October/.test(sent[1].body), JSON.stringify(sent && sent[1]).slice(0, 90));
 
-// Typing a client name into a blank row creates the row inline — exactly
-// how the office types into the spreadsheet today.
-calls.length = 0;
-await pg.fill('[data-newclient="0"]', 'Lizzie Campbell');
-await pg.keyboard.press('Tab');
-await pg.waitForTimeout(500);
-const made = calls.find(c => c[0] === 'POST rows');
-check('typing a client name into a blank row creates the row inline',
-  !!made && made[1].client_name === 'Lizzie Campbell', JSON.stringify(made && made[1]));
+// NO QUICK ROW ANYWHERE (2026-11-11): a blank line is blank, and "+ Add row"
+// under the jobs opens the same Add job window the toolbar button does.
 v = await pg.evaluate(() => ({
+  padInputs: document.querySelectorAll('.sched-row.pad input').length,
   all: document.querySelectorAll('.sched-row').length,
-  real: document.querySelectorAll('.sched-row:not(.pad):not(.sched-add):not(.sched-gap)').length,
-  named: /Lizzie Campbell/.test(document.getElementById('schedGrid').textContent),
+  btn: !!document.querySelector('.sched-row.sched-add .sched-addrow-btn'),
+  quick: !!document.getElementById('schedQClient'),
 }));
-check('…and the new row takes a blank line — the board stays 20 deep',
-  v.all === 20 && v.real === 3 && v.named, JSON.stringify(v));
+check('blank rows carry no inputs and the quick-row form is gone', v.padInputs === 0 && v.all === 20 && v.btn && !v.quick, JSON.stringify(v));
+await pg.click('.sched-row.sched-add .sched-addrow-btn');
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({ open: document.getElementById('schedAddModal').style.display,
+  w: document.getElementById('schedAddModal').getBoundingClientRect().width,
+  fs: parseFloat(getComputedStyle(document.getElementById('schedJobSearch')).fontSize) }));
+check('"+ Add row" opens the Add job window, twice the size it was', v.open === 'flex' && v.w >= 1000 && v.fs >= 15, JSON.stringify(v));
+await pg.evaluate(() => _schedAddClose());
 
 // The « toggle folds the job columns down to the client column, handing
 // the width to the calendar — and remembers the choice.
@@ -352,7 +352,7 @@ v = await pg.evaluate(() => ({
   info: !!document.querySelector('[data-info="r1"]'),
 }));
 check('the « toggle collapses the info panel to job number + short address + ⓘ',
-  v.hd === 3 && v.strips >= 3 && v.job && v.info && v.stored === '1', JSON.stringify(v));
+  v.hd === 3 && v.strips >= 2 && v.job && v.info && v.stored === '1', JSON.stringify(v));
 
 // The ⓘ opens the details popup: full address, title, and the sheet's
 // admin columns — ticking Handover done saves it.
@@ -522,28 +522,18 @@ await ctx.close();
 
 // ── the batch from the phone screenshots ──────────────────────────
 ({ ctx, pg, calls } = await boot());
-// Blank rows no longer say "Client name" nineteen times over.
+// Blank rows are blank; under the last job sits one "+ Add row" button.
 v = await pg.evaluate(() => ({
   ph: Array.from(document.querySelectorAll('.sched-row.pad input')).filter(i => i.placeholder).length,
-  inputs: document.querySelectorAll('.sched-row.pad [data-newclient]').length,
-}));
-check('blank rows carry no "Client name" placeholder', v.ph === 0 && v.inputs > 0, JSON.stringify(v));
-// Under the last job sits one "+ Add row" line; typing into it starts a job.
-v = await pg.evaluate(() => ({
   adds: document.querySelectorAll('.sched-row.sched-add').length,
-  ph: (document.querySelector('.sched-row.sched-add [data-newclient]') || {}).placeholder,
+  btn: (document.querySelector('.sched-row.sched-add .sched-addrow-btn') || {}).textContent,
   pointer: getComputedStyle(document.querySelector('.sched-hd-row [data-tip]')).cursor,
   badge: getComputedStyle(document.querySelector('[data-rowzone="r1"] .sched-i')).borderRadius,
 }));
-check('one "+ Add row" line sits under the jobs', v.adds === 1 && v.ph === '+ Add row', JSON.stringify(v));
+check('blank rows carry no "Client name" placeholder', v.ph === 0, JSON.stringify(v));
+check('one "+ Add row" button sits under the jobs', v.adds === 1 && v.btn === '+ Add row', JSON.stringify(v));
 check('the column icons show a pointer finger', v.pointer === 'pointer', v.pointer);
 check('the job button is a round badge', /50%/.test(v.badge), v.badge);
-calls.length = 0;
-await pg.fill('.sched-row.sched-add [data-newclient]', 'Lizzie Campbell');
-await pg.press('.sched-row.sched-add [data-newclient]', 'Enter');
-await pg.waitForTimeout(300);
-v = calls.find(c => c[0] === 'POST rows');
-check('typing into it creates the job', !!v && v[1].client_name === 'Lizzie Campbell' && v[1].folder === '', JSON.stringify(v && v[1]));
 
 // Hover half a second over a column icon → a legend says what it means.
 await pg.hover('.sched-hd-row [data-tip]:nth-of-type(4)');
@@ -707,16 +697,21 @@ await ctx.close();
   v = await pg.evaluate(() => {
     const kinds = Array.from(document.querySelectorAll('#schedGrid .sched-row')).map(e =>
       e.classList.contains('sched-fold') ? 'F' : e.classList.contains('sched-add') ? 'A' : e.classList.contains('sched-gap') ? '_' : e.classList.contains('pad') ? 'p' : 'r');
-    return { seq: kinds.join('').replace(/p+$/, ''), folders: Array.from(document.querySelectorAll('[data-newfolder]')).map(e => e.getAttribute('data-newfolder')) };
+    return { seq: kinds.join('').replace(/p+$/, ''), folders: Array.from(document.querySelectorAll('[data-addjob]')).map(e => e.getAttribute('data-addjob')) };
   });
   check('each section ends with an add row, and a blank line before the next heading', v.seq === 'FrA_FrA', v.seq);
   check('…and the add row knows its section', v.folders.join('|') === 'poleshed|', v.folders.join('|'));
   calls.length = 0;
-  await pg.fill('[data-newclient="add-poleshed"]', 'Shed job');
-  await pg.press('[data-newclient="add-poleshed"]', 'Enter');
+  await pg.click('[data-addjob="poleshed"]');
+  await pg.waitForTimeout(200);
+  // The pick goes through the window's own binding, so the row lands in THAT section.
+  await pg.evaluate(() => { var pick = document.getElementById('schedJobPick');
+    pick.innerHTML = _schedAddRowHtml({ head: { id: 'jshed', client_name: 'Shed job' }, rows: [{ id: 'jshed' }], accepted: '2026-11-01T00:00:00Z' }, {});
+    _schedAddBind(pick); });
+  await pg.click('#schedJobPick [data-pickjob="jshed"]');
   await pg.waitForTimeout(300);
   const made = calls.find(c => c[0] === 'POST rows');
-  check('a job typed under Pole Sheds is created in Pole Sheds', !!made && made[1].folder === 'poleshed', JSON.stringify(made && made[1]));
+  check('a job picked under Pole Sheds is created in Pole Sheds', !!made && made[1].job_id === 'jshed' && made[1].folder === 'poleshed', JSON.stringify(made && made[1]));
   // A job number typed by hand shows in the Job column and links to Fergus.
   await pg.evaluate(() => { const r = _SCHED.data.rows.find(x => x.id === 'r2'); r.job_ref = '9123'; _schedRender(); });
   v = await pg.evaluate(() => (document.querySelector('[data-rowzone="r2"] .sched-cell:nth-child(2)') || {}).innerHTML || '');
@@ -731,6 +726,95 @@ await ctx.close();
 }
 
 // ── locked plan ───────────────────────────────────────────────────
+// ── live: the last schedule at once, and who is doing what (2026-11-11) ──
+{
+  const ctx2 = await b.newContext({ viewport: { width: 1700, height: 1000 } });
+  const pg2 = await ctx2.newPage();
+  pg2.on('pageerror', e => console.log('PAGEERROR', e.message));
+  const pres = { users: [], ver: 1 }; const beats = [];
+  let schedHold = null;   // null = answer at once; a function = hold the GET
+  let getCount = 0;
+  await pg2.route('**/flood-roofing-estimator-production.up.railway.app/**', r => {
+    const u = r.request().url(), m = r.request().method();
+    if (/\/schedule\/presence$/.test(u)){ beats.push(JSON.parse(r.request().postData() || '{}'));
+      return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pres) }); }
+    if (/\/schedule(\?|$)/.test(u) && m === 'GET'){ getCount++;
+      const done = () => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(mkSched()) });
+      if (schedHold) return schedHold(done); return done(); }
+    if (/\/schedule\/blocks\//.test(u) && m === 'PATCH') return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (/\/schedule\//.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
+  await pg2.addInitScript(() => {
+    localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.setItem('fr_settings', 'null');
+    localStorage.setItem('fr_user', JSON.stringify({ name: 'Paula', email: 'paula@x.nz' }));
+    localStorage.setItem('fr_company', JSON.stringify({ id: 'co', role: 'owner', plan: 'team', limits: { schedule: true } }));
+    sessionStorage.setItem('fr_coach_seen', '1');
+  });
+  await pg2.goto('file://' + DIR + '/app.html'); await pg2.waitForFunction(() => typeof _schedEnter === 'function');
+  await pg2.evaluate(() => gotoTab('schedule'));
+  await pg2.waitForFunction(() => _SCHED.data && document.querySelectorAll('.sched-block').length > 0);
+  await pg2.waitForTimeout(400);
+  let w = await pg2.evaluate(() => ({ copy: !!localStorage.getItem('fr_sched_last_co'), pill: document.getElementById('schedUpdating').style.display }));
+  check('the fresh schedule is kept on the device and the Updating pill is off', w.copy && w.pill === 'none', JSON.stringify(w));
+  // Leave and come back with the server slow: the board is drawn from the copy
+  // at once, the pill spins, and the fresh answer takes the pill away.
+  let release = null; schedHold = (done) => { release = done; };
+  await pg2.evaluate(() => { gotoTab('home'); _SCHED.data = null; });
+  await pg2.waitForTimeout(100);
+  const beatsBefore = beats.length;
+  await pg2.evaluate(() => gotoTab('schedule'));
+  await pg2.waitForTimeout(250);
+  w = await pg2.evaluate(() => ({ blocks: document.querySelectorAll('.sched-block').length, pill: document.getElementById('schedUpdating').style.display,
+    spin: getComputedStyle(document.querySelector('.sched-spin')).animationName, copy: _SCHED.fromCopy }));
+  check('coming back, the last schedule is on screen at once with "Updating…" spinning', w.blocks > 0 && w.pill === 'inline-flex' && /spin/.test(w.spin) && w.copy === true, JSON.stringify(w));
+  release(); schedHold = null;
+  await pg2.waitForFunction(() => document.getElementById('schedUpdating').style.display === 'none' && !_SCHED.fromCopy);
+  check('…and the pill goes once the fresh one lands', true);
+  // Heartbeats carry the name and run while the tab is open.
+  await pg2.waitForTimeout(1700);
+  w = { n: beats.length - beatsBefore, name: (beats[beats.length - 1] || {}).name };
+  check('the tab heartbeats every second or two with the person\'s name', w.n >= 2 && w.name === 'Paula', JSON.stringify(w));
+  // Somebody else holding block b1: it wears their name, and a grab is refused.
+  pres.users = [{ id: 'u2', name: 'Hannah', hold: { what: 'drag', block: 'b1', row: 'r1' }, info: '' }];
+  await pg2.waitForFunction(() => document.querySelector('.sched-block.held'), null, { timeout: 5000 });
+  w = await pg2.evaluate(() => { const el = document.querySelector('[data-block="b1"]');
+    return { held: el.classList.contains('held'), who: el.getAttribute('data-held'), strip: document.getElementById('schedWho').textContent,
+      outline: getComputedStyle(el).outlineWidth, label: getComputedStyle(el, '::after').content }; });
+  check('a block somebody else is moving wears their name in their colour', w.held && w.who === 'Hannah' && /Hannah/.test(w.strip) && /moving/.test(w.strip) && w.outline === '3px' && /Hannah/.test(w.label), JSON.stringify(w));
+  const bb = await pg2.locator('[data-block="b1"]').boundingBox();
+  await pg2.mouse.move(bb.x + 10, bb.y + 8); await pg2.mouse.down(); await pg2.mouse.move(bb.x + 90, bb.y + 8, { steps: 4 }); await pg2.mouse.up();
+  await pg2.waitForTimeout(200);
+  w = await pg2.evaluate(() => ({ msg: document.getElementById('schedMsg').textContent, hold: _SCHED_PRES.hold }));
+  check('…and grabbing it is refused with their name', /Hannah/.test(w.msg) && !w.hold, JSON.stringify(w));
+  // My own drag is reported as a hold on that block, then released.
+  pres.users = [];
+  await pg2.waitForFunction(() => !document.querySelector('.sched-block.held'), null, { timeout: 5000 });
+  const b2 = await pg2.locator('[data-block="b2"]').boundingBox();
+  await pg2.mouse.move(b2.x + 10, b2.y + 8); await pg2.mouse.down();
+  await pg2.waitForTimeout(80);
+  w = await pg2.evaluate(() => JSON.parse(JSON.stringify(_SCHED_PRES.hold)));
+  await pg2.mouse.move(b2.x + 60, b2.y + 8, { steps: 4 }); await pg2.mouse.up();
+  await pg2.waitForTimeout(80);
+  const after = await pg2.evaluate(() => _SCHED_PRES.hold);
+  check('my own drag is reported as a hold on that block and released on drop', w && w.what === 'drag' && w.block === 'b2' && after === null, JSON.stringify([w, after]));
+  const sentHold = beats.some(x => x.hold && x.hold.block === 'b2');
+  check('…and the server heard it', sentHold);
+  // The board's version moved on the server (someone else saved): a quiet reload.
+  getCount = 0;
+  pres.ver = 2;
+  await pg2.waitForTimeout(2200);
+  w = await pg2.evaluate(() => _SCHED_PRES.ver);
+  check('a change by somebody else reloads the board quietly within two seconds', w === 2 && getCount >= 1, JSON.stringify({ ver: w, getCount }));
+  // Leaving the tab stops the heartbeat and says goodbye.
+  const nb = beats.length;
+  await pg2.evaluate(() => gotoTab('home'));
+  await pg2.waitForTimeout(1800);
+  w = { leave: beats.slice(nb).some(x => x.leave), extra: beats.slice(nb).filter(x => !x.leave).length };
+  check('leaving the tab says goodbye and stops the heartbeat', w.leave && w.extra === 0, JSON.stringify(w));
+  await ctx2.close();
+}
+
 ({ ctx, pg, calls } = await boot({ lockedPlan: true }));
 v = await pg.evaluate(() => ({
   teaser: getComputedStyle(document.getElementById('schedLockedCard')).display !== 'none',

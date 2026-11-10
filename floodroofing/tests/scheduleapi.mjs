@@ -227,6 +227,28 @@ body = await j(await as(A, '/schedule'));
 check('a hand-typed Fergus job number saves on the row', r.status === 200 && (body.rows || []).some(x => x.id === rowQ.id && x.job_ref === '9123'),
   JSON.stringify((body.rows || []).map(x => x.job_ref)));
 
+// ── live presence (2026-11-11) ──────────────────────────────────
+// A heartbeat says what this person holds and hears who else is here (same
+// company only) and the board's version, which every write moves.
+const A2 = { user: 'user-a2', company: 'company-a' };
+r = await as(A, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Paula', hold: { what: 'drag', block: 'blk-1', row: rowQ.id } }) });
+body = await j(r);
+const ver0 = body.ver;
+check('a heartbeat answers the board version and nobody else yet', r.status === 200 && typeof ver0 === 'number' && body.users.length === 0, JSON.stringify(body));
+body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
+check('a colleague hears who holds what', body.users.length === 1 && body.users[0].name === 'Paula' && body.users[0].hold.block === 'blk-1', JSON.stringify(body.users));
+body = await j(await as(B, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Rival' }) }));
+check('the rival next door hears nobody', body.users.length === 0, JSON.stringify(body.users));
+body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
+check('heartbeats never move the version', body.ver === ver0, body.ver + ' vs ' + ver0);
+await new Promise(res => setTimeout(res, 5));
+r = await as(A, '/schedule/rows/' + rowQ.id, { method: 'PATCH', body: JSON.stringify({ notes: 'moved' }) });
+body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
+check('a write to the board moves the version', r.status === 200 && body.ver > ver0, body.ver + ' vs ' + ver0);
+body = await j(await as(A, '/schedule/presence', { method: 'POST', body: JSON.stringify({ leave: true }) }));
+body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
+check('leaving takes the person off the list', body.users.length === 0, JSON.stringify(body.users));
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);

@@ -1812,7 +1812,33 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   the board first, newest acceptance first, a "📅 On the schedule" chip
   (`.sched-onboard`) on the rest; `#schedJobSearch` → `_schedAddSearch`
   drops a Home-style list over EVERY saved job (`#schedJobSearchDrop`); a
-  pick POSTs the row. `scheduleui` (118), `jobsearch` (21).
+  pick POSTs the row. `scheduleui` (118), `jobsearch` (21). THE BOARD IS LIVE,
+  THE LAST ONE IS ON SCREEN AT ONCE, AND THE QUICK ROW IS GONE (2026-11-11, the
+  owner: "make the attached screen pop-up window bigger ... twice as big. And
+  delete the quick row ... when I first click into the schedule ... just see
+  the old schedule and ... a little loading symbol ... it needs to be live ...
+  show which user's doing what ... the add row button ... should just pop up
+  the same window as the add job does"). `#schedAddModal` is 1120px with
+  16px rows (`.sched-addbig`); the quick-row form and `_schedQuickAdd` are
+  gone, the pad rows carry no inputs, and the list's "+ Add row"
+  (`.sched-addrow-btn`, `data-addjob` = the folder, kept in `_SCHED.addFolder`
+  for the pick's POST) opens the same window. THE COPY: `_schedLoad` keeps the
+  fresh GET /schedule in `localStorage.fr_sched_last_<cid>`; `_schedEnter`
+  draws it before the GET answers (`_SCHED.fromCopy`) with the `#schedUpdating`
+  pill spinning (`.sched-spin`) until the fresh one lands. PRESENCE: `POST
+  /schedule/presence` (server.js, in memory per company, 8 s TTL; a `ver`
+  bumped by every non-GET /schedule write except the heartbeat, through an
+  `app.use('/schedule')` finish hook) — every 1.5 s while the tab is open
+  (`_schedPresStart` / `_schedPresBeat` / `_schedPresStop` on leaving, which
+  sends `leave`) the tab says its name (`fr_user`), its `hold` (`_schedHold`:
+  'drag' from `_schedStripDown`, 'menu' until `_schedCloseMenus`) and the row
+  whose window is open (`_SCHED_PRES.info`); back comes everyone else's and
+  the version — moved, the board reloads quietly (`_schedLoad({quiet:true})`,
+  deferred past a drag by `_SCHED.dragging` / `needLoad`). `_schedPresPaint`
+  draws "Also here: Hannah · moving a block" (`#schedWho`, a colour a person
+  from `_SCHED_PRES_PALETTE`), a held block `.sched-block.held` in that colour
+  with the name on it, its row `.held-row`, and `_schedStripDown` refuses to
+  grab a held block with their name. `scheduleui` (127), `scheduleapi` (52).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info
