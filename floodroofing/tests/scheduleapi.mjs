@@ -227,6 +227,13 @@ body = await j(await as(A, '/schedule'));
 check('a hand-typed Fergus job number saves on the row', r.status === 200 && (body.rows || []).some(x => x.id === rowQ.id && x.job_ref === '9123'),
   JSON.stringify((body.rows || []).map(x => x.job_ref)));
 
+// ── a Fergus-only row (2026-11-11) ──────────────────────────────
+r = await as(A, '/schedule/rows', { method: 'POST', body: JSON.stringify({ fergus_job_id: '15590001', job_ref: '3275', client_name: 'Alfred Crawford', site_address: '1622F Matauri Bay Road', email: 'alf@x.nz', length_days: 1 }) });
+const fgRow = await j(r);
+body = await j(await as(A, '/schedule'));
+const fgOut = (body.rows || []).find(x => x.id === fgRow.id);
+check('a Fergus-only row keeps its Fergus id and answers it as fergus_id with its number', r.status === 200 && fgOut && fgOut.fergus_id === '15590001' && fgOut.fergus_no === '3275' && fgOut.job_ref === '3275' && !fgOut.job_id, JSON.stringify(fgOut));
+
 // ── live presence (2026-11-11) ──────────────────────────────────
 // A heartbeat says what this person holds and hears who else is here (same
 // company only) and the board's version, which every write moves.

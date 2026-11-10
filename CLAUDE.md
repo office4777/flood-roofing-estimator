@@ -1839,6 +1839,33 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   from `_SCHED_PRES_PALETTE`), a held block `.sched-block.held` in that colour
   with the name on it, its row `.held-row`, and `_schedStripDown` refuses to
   grab a held block with their name. `scheduleui` (127), `scheduleapi` (52).
+  A FERGUS-ONLY JOB GOES ON THE BOARD (2026-11-11, the owner on job 3275, a
+  small job quoted in Fergus alone: "is there a way for when I search that
+  number for it to show up as a Fergus job? Possibly marked as not in RoofMap
+  ... I'd rather just be able to add it to the schedule ... pull the data from
+  the accepted quote ... show the allocated hours and the quote line items and
+  the quote description ... 'this is a Fergus only job (not in RoofMap yet)'").
+  THE SEARCH (`_schedAddSearch`): after the RoofMap matches it asks Fergus the
+  Home search's way (`_schedAddSearchFergus`: `filterSearchText`, and
+  `filterJobNo` for digits, through `fergusCall`; `_SCHED_FG_SEARCH`), only
+  with Fergus connected; a Fergus job no saved job links to (`linked_job` /
+  `linked_no` off GET /jobs) is listed with an amber "Fergus only — not in
+  RoofMap" chip (`.sched-fgrow`, `data-pickfergus`), the typed number first,
+  "On the schedule" once it is. THE ROW: `schedule_rows.fergus_job_id` (boot
+  DDL, in `SCHED_ROW_WRITABLE`); the pick POSTs it with `job_ref` (the Fergus
+  number), the customer, the site and the email read off the Fergus job
+  (`_fergJobView`); GET /schedule answers it as `fergus_id` / `fergus_no`
+  where no RoofMap job stands in. THE WINDOW (`_schedRowIsFergusOnly` →
+  `_schedInfoFergusLoad` / `_schedInfoFergusHtml`, `.sij-fgbanner`): the
+  facts as plain text, then `/jobs/{id}/quotes` — the accepted version, else
+  the newest not voided; `/jobs/quotes/{id}` when the list carries no sections
+  — the quote's title, total and description (`notes`), ALLOCATED HOURS
+  (`.sij-fghrs`: every line in a section named labour / scaffold, or priced by
+  the hour, its `itemQuantity` the hours, a combined total) and every line
+  item by section (`.sij-fglines`); kept per job for the sitting
+  (`_SCHED_FG_CACHE`). The search drop-down sits in the window's flow
+  (`.sched-jsdrop` static) so it is never clipped by the modal. `scheduleui`
+  (137), `scheduleapi` (53).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

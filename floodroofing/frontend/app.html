@@ -3562,6 +3562,10 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-addrow-btn{ width:100%; height:100%; border:none; background:transparent; color:#0099e0; font-weight:700; font-size:12.5px; cursor:pointer; text-align:left; padding:0 6px }
 .sched-addrow-btn:hover{ background:#e0f2fe }
 .sched-addbig .sched-addrow{ font-size:15px; padding:12px 14px }
+.sched-fgonly{ background:#fef3c7; color:#92400e }
+.sched-fgrow-note{ padding:10px 14px; font-size:12.5px; color:var(--text2); border-top:1px dashed var(--border) }
+.sij-fgbanner{ background:#fef3c7; border:1px solid #fcd34d; color:#92400e; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:700; margin-bottom:10px }
+.sij-fgdesc{ white-space:pre-wrap; font-size:12.5px; color:#334155 }
 .sched-addbig .sched-addrow small, .sched-addbig .sched-addrow .hb-sub{ font-size:13px }
 .sched-addbig .hb-row{ font-size:15px; padding:12px 14px }
 /* The envelopes were 11px and half-faded — small enough to miss on a board
@@ -3603,7 +3607,7 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-addrow:hover{ background:#f8fafc; }
 .sched-addrow.on{ color:#64748b; }
 .sched-addrow .sched-onboard{ background:#fef3c7; color:#92400e; }
-.sched-jsdrop{ position:absolute; left:0; right:0; top:100%; z-index:5; max-height:260px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 28px rgba(10,22,40,.18); }
+.sched-jsdrop{ position:static; margin-top:8px; max-height:40vh; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 28px rgba(10,22,40,.18); }
 /* The legend that appears after half a second over a column icon — the
    native tooltip is too slow and too small to read what 💰 means. */
 .sched-tip{ position:fixed; z-index:9999; background:#0a1628; color:#fff; font-size:12px; line-height:1.4;
@@ -5566,7 +5570,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T19:31:13Z';
+  window.APP_BUILT_AT = '2026-11-10T20:03:50Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -12182,7 +12186,7 @@ function _schedInfoOpen(rowId){
   document.getElementById('schedInfoNo').textContent = [r.job_no ? ('Job ' + r.job_no) : '', _fno ? ('Fergus ' + _fno) : ''].filter(Boolean).join(' · ');
   // Plain facts on a saved job; a hand-typed row (no job behind it) keeps
   // its inputs, because there is nowhere else to type them.
-  var _saved = !!r.job_id;
+  var _saved = !!r.job_id || _schedRowIsFergusOnly(r);   // a Fergus-only row's facts came from Fergus
   var _facts = { client_name: r.client_name || '', job_no: r.job_no || _fno || '', site_address: r.site_address || '', email: r.email || '' };
   m.querySelectorAll('#schedInfoFacts .sii-show').forEach(function(sp){
     sp.textContent = _facts[sp.getAttribute('data-ishow')] || '—';
@@ -12298,9 +12302,75 @@ function _schedInfoHistoryHtml(r){
       '<span>' + esc(e.what) + (e.sub ? '<span style="display:block;font-size:11px;color:var(--text2)">' + esc(e.sub) + '</span>' : '') + '</span></div>';
   }).join('');
 }
+function _schedRowIsFergusOnly(r){ return !!(r && !r.job_id && r.fergus_id); }
+// THE WINDOW OF A FERGUS-ONLY JOB READS THE ACCEPTED FERGUS QUOTE (2026-11-11,
+// the owner: "it could just pull the data from the quote, the accepted quote
+// ... show the allocated hours and the quote line items and the quote
+// description ... at the top ... 'this is a Fergus only job (not in RoofMap
+// yet)'"). `/jobs/{id}/quotes` through the proxy; the accepted version, else
+// the newest that is not voided; then the quote's own description and
+// sections. HOURS are the lines in a section named for labour or scaffolding,
+// or priced by the hour — their quantity is the hours.
+var _SCHED_FG_CACHE = {};
+function _schedInfoFergusLoad(r){
+  var box = document.getElementById('schedInfoJob');
+  var fid = String(r.fergus_id), rowId = r.id;
+  var paint = function(q, err){ if (_schedInfoId !== rowId) return; box.innerHTML = _schedInfoFergusHtml(q, r, err); };
+  if (_SCHED_FG_CACHE[fid]){ paint(_SCHED_FG_CACHE[fid]); return; }
+  box.innerHTML = _schedInfoFergusHtml(null, r, '') + '<div class="sij-card" style="color:var(--text2)">Reading the accepted quote from Fergus…</div>';
+  (async function(){
+    try {
+      var lr = await fergusCall('GET', '/jobs/' + encodeURIComponent(fid) + '/quotes');
+      if (!lr.ok) throw new Error('Fergus answered ' + lr.status);
+      var list = await lr.json();
+      var quotes = (Array.isArray(list) ? list : (list && (list.data || list.value || list.quotes))) || [];
+      var live = quotes.filter(function(q){ return q && !q.voidedAt && !q.isVoided && !/void/i.test(String(q.status || '')); });
+      var acc = live.filter(function(q){ return q.isAccepted || q.acceptedAt || /accept/i.test(String(q.status || '')); });
+      var pick = (acc.length ? acc : live).sort(function(a, b){ return String(b.acceptedAt || b.updatedAt || b.createdAt || '').localeCompare(String(a.acceptedAt || a.updatedAt || a.createdAt || '')); })[0];
+      if (!pick){ paint(null, 'This Fergus job has no quote yet.'); return; }
+      var full = pick;
+      if (!(pick.sections && pick.sections.length)){
+        try { var dr = await fergusCall('GET', '/jobs/quotes/' + encodeURIComponent(pick.id)); if (dr.ok){ var d = await dr.json(); full = (d && d.data) || d || pick; } } catch(e){}
+      }
+      full._accepted = acc.length > 0;
+      _SCHED_FG_CACHE[fid] = full;
+      paint(full);
+    } catch(e){ paint(null, (e && e.message) || String(e)); }
+  })();
+}
+function _schedInfoFergusHtml(q, r, err){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var money = function(n){ return '$' + (Math.round((+n || 0) * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var h = '<div class="sij-fgbanner">Fergus-only job (not in RoofMap yet)' + (r && (r.job_ref || r.fergus_no) ? ' · Fergus #' + esc(r.job_ref || r.fergus_no) : '') + '</div>';
+  if (err) return h + '<div class="sij-card" style="color:#b91c1c">' + esc(err) + '</div>';
+  if (!q) return h;
+  var secs = q.sections || q.quoteSections || [];
+  var items = [];
+  secs.forEach(function(s){ (s.lineItems || s.items || []).forEach(function(it){ items.push({ sec: s.name || s.title || '', it: it }); }); });
+  var isHrs = function(x){ var u = String(x.it.unitOfMeasureSell || x.it.unitOfMeasure || x.it.unit || '').toLowerCase(); return /labour|labor|scaffold/i.test(x.sec) || /^h(ou)?rs?$/.test(u); };
+  var hrs = items.filter(isHrs), tot = 0;
+  var hrows = hrs.map(function(x){ var n = +(x.it.itemQuantity != null ? x.it.itemQuantity : x.it.quantity) || 0; tot += n;
+    return '<tr><td>' + esc(x.sec ? x.sec + ' — ' : '') + esc(x.it.itemName || x.it.name || x.it.description) + '</td><td style="text-align:right">' + n + '</td></tr>'; });
+  h += '<div class="sij-card"><div class="sij-h">Quote' + (q._accepted ? ' — accepted' : '') + (q.title ? ' · ' + esc(q.title) : '') + '</div>' +
+    (q.total != null ? '<div style="font-size:13px;margin-bottom:6px"><b>Total ' + money(q.total) + '</b> incl. GST</div>' : '') +
+    ((q.notes || q.description) ? '<div class="sij-fgdesc">' + esc(q.notes || q.description) + '</div>' : '<div style="color:var(--text2);font-size:12px">No quote description.</div>') + '</div>';
+  h += '<div class="sij-card"><div class="sij-h">Allocated hours</div>' + (hrows.length ?
+    '<table class="sij-hrs sij-fghrs"><thead><tr><th>Line</th><th style="text-align:right">Hours</th></tr></thead><tbody>' + hrows.join('') +
+    '</tbody><tfoot><tr><td><b>Total combined hours</b></td><td style="text-align:right"><b>' + (Math.round(tot * 100) / 100) + '</b></td></tr></tfoot></table>' :
+    '<div style="color:var(--text2);font-size:12px">No labour lines on the quote.</div>') + '</div>';
+  h += '<div class="sij-card"><div class="sij-h">Quote line items</div>' + (items.length ?
+    '<table class="sij-hrs sij-fglines"><thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Each</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
+    secs.map(function(s){ var li = s.lineItems || s.items || []; if (!li.length) return '';
+      return '<tr><td colspan="4" style="font-weight:700;color:#0a1628;background:#f8fafc">' + esc(s.name || s.title || 'Section') + '</td></tr>' + li.map(function(it){
+        var n = +(it.itemQuantity != null ? it.itemQuantity : it.quantity) || 0, p = +(it.itemPrice != null ? it.itemPrice : it.price) || 0;
+        return '<tr><td>' + esc(it.itemName || it.name || it.description) + '</td><td style="text-align:right">' + n + '</td><td style="text-align:right">' + money(p) + '</td><td style="text-align:right">' + money(n * p) + '</td></tr>'; }).join(''); }).join('') +
+    '</tbody></table>' : '<div style="color:var(--text2);font-size:12px">No line items.</div>') + '</div>';
+  return h;
+}
 function _schedInfoJobLoad(r){
   var box = document.getElementById('schedInfoJob');
   if (!box) return;
+  if (_schedRowIsFergusOnly(r)){ _schedInfoFergusLoad(r); return; }
   if (!r || !r.job_id){
     box.innerHTML = '<div class="sij-card" style="color:var(--text2)">This row was added by hand, so there is no saved RoofMap job to show. ' +
       'Add the job from <b>+ Add job → From your saved jobs</b> to see its roof and quote here.</div>';
@@ -12864,6 +12934,24 @@ function _schedAddGroups(q){
   return groups;
 }
 function _schedAddBind(root){
+  root.querySelectorAll('[data-pickfergus]').forEach(function(el){
+    el.onclick = async function(){
+      var fid = el.getAttribute('data-pickfergus');
+      if (((_SCHED.data && _SCHED.data.rows) || []).some(function(r){ return String(r.fergus_id || '') === String(fid); })){
+        document.getElementById('schedAddMsg').textContent = 'That job is already on the schedule.';
+        return;
+      }
+      try {
+        var row = await _schedApi('POST', '/schedule/rows', {
+          fergus_job_id: fid, job_ref: el.getAttribute('data-fgno') || '',
+          client_name: el.getAttribute('data-fgclient') || '', site_address: el.getAttribute('data-fgsite') || '',
+          email: el.getAttribute('data-fgemail') || '', length_days: 1, folder: _SCHED.addFolder || '' });
+        _SCHED.addFolder = '';
+        if (row && !row.fergus_id) row.fergus_id = fid;
+        _SCHED.data.rows.push(row); _schedAddClose(); _schedRender();
+      } catch(e){}
+    };
+  });
   root.querySelectorAll('[data-pickjob]').forEach(function(el){
     el.onclick = async function(){
       var id = el.getAttribute('data-pickjob');
@@ -12907,6 +12995,15 @@ async function _schedAddOpen(){
 }
 // The search box: the Home search's own matcher over every saved job
 // (client, address, job number, a Fergus number), a drop-down as you type.
+// A FERGUS-ONLY JOB IS FOUND BY ITS NUMBER (2026-11-11, the owner on job
+// 3275: "Some jobs I'm still quoting in Fergus ... I'd rather just be able
+// to add it to the schedule ... show up as a Fergus job, possibly marked as
+// not in RoofMap"). The search lists the RoofMap matches first, then asks
+// Fergus the way the Home search does (`filterJobNo` for digits,
+// `filterSearchText` for words); a Fergus job no saved job is linked to is
+// offered as "Fergus only — not in RoofMap", and picking it makes a row
+// carrying its Fergus id (`fergus_job_id`), its number and its customer.
+var _SCHED_FG_SEARCH = { seq: 0, q: '', rows: null, err: '' };
 function _schedAddSearch(){
   var sb = document.getElementById('schedJobSearch'), sd = document.getElementById('schedJobSearchDrop');
   if (!sb || !sd) return;
@@ -12916,9 +13013,54 @@ function _schedAddSearch(){
   var onBoard = _schedAddOnBoard();
   var groups = _schedAddGroups(q).slice(0, 10);
   sd.style.display = 'block';
-  sd.innerHTML = groups.length ? groups.map(function(g){ return _schedAddRowHtml(g, onBoard); }).join('')
-    : '<div style="padding:10px;font-size:12px;color:var(--text2)">No job matches "' + String(q).replace(/</g, '&lt;') + '".</div>';
+  var fgOn = !!(S.fergConnected || (typeof _jmsCompanyKey === 'function' && _jmsCompanyKey()));
+  var fgHtml = '';
+  if (fgOn){
+    if (_SCHED_FG_SEARCH.q !== q){ _SCHED_FG_SEARCH.q = q; _SCHED_FG_SEARCH.rows = null; _SCHED_FG_SEARCH.err = ''; _schedAddSearchFergus(q); }
+    fgHtml = _schedAddFergusHtml(groups, onBoard);
+  }
+  sd.innerHTML = (groups.length ? groups.map(function(g){ return _schedAddRowHtml(g, onBoard); }).join('')
+    : (fgHtml ? '' : '<div style="padding:10px;font-size:12px;color:var(--text2)">No job matches "' + String(q).replace(/</g, '&lt;') + '".</div>')) + fgHtml;
   _schedAddBind(sd);
+}
+function _schedAddFergusHtml(groups, onBoard){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  var F = _SCHED_FG_SEARCH;
+  if (F.rows === null) return '<div class="sched-fgrow-note">Also checking Fergus…</div>';
+  if (F.err) return '<div class="sched-fgrow-note">Fergus: ' + esc(F.err) + '</div>';
+  // a Fergus job a saved RoofMap job already links to is that job, not a second row
+  var linked = {};
+  (_SCHED_ADD_JOBS || []).forEach(function(j){ var lj = j.linked_job || j.linked_id; if (lj) linked[String(lj)] = 1; if (j.linked_no) linked['no:' + String(j.linked_no)] = 1; });
+  var rows = (F.rows || []).filter(function(j){ return j && j.id && !linked[String(j.id)] && !linked['no:' + j.displayNo]; }).slice(0, 8);
+  if (!rows.length) return groups.length ? '' : '<div class="sched-fgrow-note">Nothing in Fergus matches either.</div>';
+  var onFg = {};
+  ((_SCHED.data && _SCHED.data.rows) || []).forEach(function(r){ if (r.fergus_id) onFg[String(r.fergus_id)] = 1; });
+  return rows.map(function(j){
+    var on = !!onFg[String(j.id)];
+    return '<div class="sched-addrow sched-fgrow' + (on ? ' on' : '') + '" data-pickfergus="' + esc(j.id) + '" data-fgno="' + esc(j.displayNo) + '" data-fgclient="' + esc(j.customer) + '" data-fgsite="' + esc(j.address) + '" data-fgemail="' + esc(j.email) + '">' +
+      '<div style="flex:1;min-width:0"><strong>' + esc(j.customer || 'Untitled') + '</strong>' +
+      (j.displayNo ? ' <span style="color:#0a1628;font-weight:600">· ' + esc(j.displayNo) + '</span>' : '') +
+      ' <span style="color:var(--text2)">' + esc(j.address || j.title || '') + '</span></div>' +
+      '<span class="hb-drop-ticks"><span class="hb-drop-tick sched-fgonly" title="Quoted in Fergus; there is no RoofMap job for it">Fergus only — not in RoofMap</span>' +
+      (on ? '<span class="hb-drop-tick sched-onboard" title="Already on the schedule">\uD83D\uDCC5 On the schedule</span>' : '') +
+      '</span></div>';
+  }).join('');
+}
+async function _schedAddSearchFergus(q){
+  var seq = ++_SCHED_FG_SEARCH.seq;
+  try {
+    var proms = [fergusCall('GET', '/jobs?pageSize=20&filterSearchText=' + encodeURIComponent(q)).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; }).catch(function(){ return []; })];
+    if (/^\d+$/.test(q)) proms.push(fergusCall('GET', '/jobs?pageSize=20&filterJobNo=' + encodeURIComponent(q)).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ return d ? (d.value || d.jobs || d.data || []) : []; }).catch(function(){ return []; }));
+    var batches = await Promise.all(proms);
+    if (seq !== _SCHED_FG_SEARCH.seq) return;
+    var seen = {}, out = [];
+    [].concat.apply([], batches).forEach(function(j){ var v = _fergJobView(j); if (v.id && !seen[v.id]){ seen[v.id] = 1; out.push(v); } });
+    // a number typed is that number first
+    out.sort(function(a, b){ return (b.displayNo === q ? 1 : 0) - (a.displayNo === q ? 1 : 0); });
+    _SCHED_FG_SEARCH.rows = out;
+  } catch(e){ if (seq !== _SCHED_FG_SEARCH.seq) return; _SCHED_FG_SEARCH.rows = []; _SCHED_FG_SEARCH.err = (e && e.message) || 'could not search'; }
+  var sb = document.getElementById('schedJobSearch');
+  if (sb && (sb.value || '').trim() === q) _schedAddSearch();
 }
 function _schedAddClose(){
   document.getElementById('schedAddOverlay').style.display = 'none';
