@@ -1911,6 +1911,34 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   "Public holiday · <name>" down it (`.sched-shade.hol`): GET /schedule sends
   `holidays: [{date, name}]` (`_nzHolidayList`, `_schedHolidaysIn`; Matariki to
   2035 from MBIE's table). `scheduleui` (161), `scheduleapi` (61).
+  THE HEADINGS STAY, A CUSTOMER COLUMN, THE WINDOW TIDIED, AND THE BOARD LIVE
+  (2026-11-11, the owner: "If I scroll down, I lose the job, site, and
+  symbols"; "the customer name ... click the site to collapse the site or ...
+  the customer name"; "collapse the quote summary ... keep what the customer
+  chose ... and the allocated hours open"; the roofs map "quite zoomed out ...
+  let me zoom in and out of and drag"; "if I move something, it doesn't show
+  until about 3 seconds after ... make it live"; "Ethan ... keeps his
+  preferred Zoom"). The headings were always sticky inside `#schedScroll`, but
+  a board taller than the room made the PAGE scroll: `_schedFitHeight` (every
+  render, resize) ends the board at the window's foot (≥320px) and
+  `overscroll-behavior:contain`. A `cust` column (the customer's name) beside
+  `site`; both carry `fold:true` and a click on the heading (`data-colfold`,
+  `_schedColFold`) folds it to a 22px tab (`_SCHED_COL_SHUT_W`), again opens
+  it. PER PERSON: the text and calendar zooms, column widths and folds are
+  `localStorage` `<key>:<fr_user id>` (`_schedPrefGet/_schedPrefSet`, the old
+  device-wide key read until the person sets their own) — never the server.
+  THE WINDOW: Quote summary is a closed `<details class="sij-fold">` with the
+  total on its heading; the customer's roofs map is `_qpRoofMapSvg({fitRoofs})`
+  (the roofs' own bounds, not the canvas's framing) in `.sij-mapzoom`
+  (`_sijMapZoomWire`: wheel zooms the viewBox about the pointer, drag pans,
+  double-click fits). LIVE: the presence beat is a setTimeout loop
+  (`_schedPresTick`), 250 ms (`_SCHED_PRES_FAST_MS`) while this tab drags,
+  anyone else holds something, or for 3 s after somebody lets go
+  (`fastUntil`); a drag sends where it is (`_schedHoldMove`, ≤ every 150 ms:
+  `hold.start` / `to` / `len`, kept by the server); another person's held
+  block is drawn there as it moves (`_schedPresPlace`, `.held-live`), and on
+  their drop it is put there at once (`_schedPresDrops`) ahead of the reload.
+  `scheduleui` (178), `scheduleapi` (63).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

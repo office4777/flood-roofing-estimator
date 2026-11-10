@@ -3497,6 +3497,15 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 }
 .sched-topbar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:7px 12px; }
 .sij-mapsw{ display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; text-transform:none; letter-spacing:0; }
+.sij-mapzoom{ border:1px solid var(--border); border-radius:8px; overflow:hidden; background:#fff; cursor:grab; touch-action:none; }
+.sij-mapzoom.grabbing{ cursor:grabbing; }
+.sij-mapzoom svg{ border:0 !important; border-radius:0 !important; }
+details.sij-fold > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; margin:0; }
+details.sij-fold > summary::-webkit-details-marker{ display:none; }
+details.sij-fold > summary::before{ content:'\25b8'; color:#64748b; font-size:11px; }
+details.sij-fold[open] > summary::before{ content:'\25be'; }
+details.sij-fold[open] > summary{ margin-bottom:6px; }
+.sij-fold-tot{ margin-left:auto; font-weight:800; color:#0a1628; }
 .sij-mapsw button{ border:0; background:#fff; color:#334155; font-size:12px; font-weight:600; padding:5px 11px; cursor:pointer; font-family:inherit; }
 .sij-mapsw button + button{ border-left:1px solid #cbd5e1; }
 .sij-mapsw button.on{ background:#0a1628; color:#fff; }
@@ -3514,7 +3523,7 @@ html.print-modern .qb-gauge-edit, html.pdf-modern .qb-gauge-edit{ display:none !
 .sched-chip .dot{ width:11px; height:11px; border-radius:3px; }
 .sched-chip.on{ border-color:#0a1628; box-shadow:0 0 0 1.5px #0a1628 inset; }
 .sched-scroll{ overflow:auto; max-height:calc(100vh - 200px); position:relative; background:#fff;
-  border:1px solid var(--border); border-radius:10px; }
+  border:1px solid var(--border); border-radius:10px; overscroll-behavior:contain; }
 .sched-hd-row, .sched-row{ display:flex; width:max-content; }
 /* A folder heading on the board. Reads as a divider, not as a job. */
 .sched-row.sched-fold .sched-info{ background:#eef2f7; color:#0a1628; font-size:11px;
@@ -3570,6 +3579,12 @@ html.print-modern .qb-gauge-edit, html.pdf-modern .qb-gauge-edit{ display:none !
 /* LIVE PRESENCE (2026-11-11): a block somebody else is holding wears their
    colour and their name; the pill at the top right says who else is here. */
 .sched-block.held{ outline:3px solid var(--held,#f59e0b); outline-offset:1px; box-shadow:0 0 0 5px rgba(255,255,255,.7); cursor:not-allowed; z-index:2; }
+.sched-colfold{ cursor:pointer; user-select:none; }
+.sched-colfold i{ font-style:normal; color:#94a3b8; font-weight:800; margin-left:2px; }
+.sched-colfold:hover{ color:#0099cc; } .sched-colfold:hover i{ color:#0099cc; }
+.sched-colfold.shut{ display:block; text-align:center; font-weight:900; color:#0099cc; font-size:15px; }
+.sched-cell.sched-shut{ padding:3px 0; background:#f1f5f9; }
+.sched-block.held-live{ transition:left .16s linear, width .16s linear, transform .16s linear; opacity:.9; z-index:7; }
 .sched-block.held::after{ content:attr(data-held); position:absolute; right:3px; top:50%; transform:translateY(-50%); background:var(--held,#f59e0b); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; white-space:nowrap; line-height:14px; }
 .sched-row.sched-row-hi > .sched-cell{ background-color:#dbeafe !important; }
 .sched-row.sched-row-hi > .sched-strip{ background-color:rgba(59,130,246,.13); box-shadow:inset 0 2px 0 #60a5fa, inset 0 -2px 0 #60a5fa; }
@@ -5595,7 +5610,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T23:00:37Z';
+  window.APP_BUILT_AT = '2026-11-10T23:42:24Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -11203,7 +11218,7 @@ function _openJmsLink(){
 // solid-booked. The server owns the truth (and the tier gate); this
 // renders it and turns clicks into row/block mutations.
 var _SCHED = { data:null, sel:null, archived:false, drag:null, infoW:0,
-  dayW: (function(){ try { var v = parseInt(localStorage.getItem('fr_sched_dayw'), 10);
+  dayW: (function(){ try { var v = parseInt(_schedPrefGet('fr_sched_dayw'), 10);
     if (v >= 6 && v <= 48) return v; } catch(e){} return 24; })(),
   compact: (function(){ try { var v = localStorage.getItem('fr_sched_compact');
     if (v === '1') return true; if (v === '0') return false; } catch(e){}
@@ -11253,41 +11268,97 @@ function _schedEnter(){
 // the board's version; a version that moved reloads the board quietly, a
 // held block is drawn in that person's colour with their name on it and
 // cannot be grabbed. The server forgets a tab that has not spoken for 8 s.
-var _SCHED_PRES = { timer:null, ver:null, users:[], hold:null, info:'', colours:{} };
+var _SCHED_PRES = { timer:null, ver:null, users:[], hold:null, info:'', colours:{}, last:{}, fastUntil:0 };
 var _SCHED_PRES_MS = 1500;
+// LIVE WHILE ANYONE IS HOLDING SOMETHING (2026-11-11, the owner: "if I move
+// something, it doesn't show until about 3 seconds after I've moved it ...
+// if I'm dragging something, it can show that I've selected it and I'm
+// dragging it. So the other user can see it live"). The beat drops to a
+// quarter of a second while this tab drags or anyone else holds a block,
+// and for three seconds after somebody lets go, so their drop lands here
+// almost as it lands there; the drag's day and row ride in the hold.
+var _SCHED_PRES_FAST_MS = 250;
 var _SCHED_PRES_PALETTE = ['#f59e0b', '#8b5cf6', '#10b981', '#ef4444', '#0ea5e9'];
 function _schedPresName(){
   try { var u = JSON.parse(localStorage.getItem('fr_user') || '{}'); return String(u.name || u.full_name || (u.email || '').split('@')[0] || ''); } catch(e){ return ''; }
 }
-function _schedHold(what, block, row){
-  _SCHED_PRES.hold = what ? { what: what, block: block || '', row: row || '' } : null;
+function _schedHold(what, block, row, extra){
+  _SCHED_PRES.hold = what ? Object.assign({ what: what, block: block || '', row: row || '' }, extra || {}) : null;
   _schedPresBeat();
+}
+// Where a drag has got to — sent at most every 150 ms, the last one always.
+var _schedPresMoveT = null;
+function _schedHoldMove(extra){
+  var h = _SCHED_PRES.hold; if (!h) return;
+  Object.assign(h, extra || {});
+  if (_schedPresMoveT) return;
+  _schedPresMoveT = setTimeout(function(){ _schedPresMoveT = null; _schedPresBeat(); }, 150);
+}
+function _schedPresFast(){
+  if (_SCHED.dragging) return true;
+  if (Date.now() < (_SCHED_PRES.fastUntil || 0)) return true;
+  return _SCHED_PRES.users.some(function(u){ return !!u.hold; });
+}
+function _schedPresTick(){
+  if (!_SCHED_PRES.timer) return;
+  _schedPresBeat();
+  _SCHED_PRES.timer = setTimeout(_schedPresTick, _schedPresFast() ? _SCHED_PRES_FAST_MS : _SCHED_PRES_MS);
 }
 function _schedPresStart(){
   if (_SCHED_PRES.timer) return;
-  _SCHED_PRES.timer = setInterval(_schedPresBeat, _SCHED_PRES_MS);
-  _schedPresBeat();
+  _SCHED_PRES.timer = setTimeout(_schedPresTick, 0);
 }
 function _schedPresStop(){
   if (!_SCHED_PRES.timer) return;
-  clearInterval(_SCHED_PRES.timer); _SCHED_PRES.timer = null;
+  clearTimeout(_SCHED_PRES.timer); _SCHED_PRES.timer = null;
   _SCHED_PRES.users = []; _schedPresPaint();
   try { api('POST', '/schedule/presence', { leave: true }).catch(function(){}); } catch(e){}
 }
-var _schedPresBusy = false;
+var _schedPresBusy = false, _schedPresAgain = false;
 async function _schedPresBeat(){
-  if (_schedPresBusy || document.body.getAttribute('data-tab') !== 'schedule') return;
+  if (document.body.getAttribute('data-tab') !== 'schedule') return;
   if (document.visibilityState === 'hidden') return;
+  if (_schedPresBusy){ _schedPresAgain = true; return; }
   _schedPresBusy = true;
   try {
     var a = await api('POST', '/schedule/presence', { name: _schedPresName(), hold: _SCHED_PRES.hold, info: _SCHED_PRES.info || '' });
     if (!a || typeof a !== 'object') return;
-    _SCHED_PRES.users = Array.isArray(a.users) ? a.users : [];
+    var users = Array.isArray(a.users) ? a.users : [];
+    _schedPresDrops(users);
+    _SCHED_PRES.users = users;
     if (_SCHED_PRES.ver != null && a.ver != null && a.ver !== _SCHED_PRES.ver && !_SCHED.fromCopy) _schedLoad({ quiet: true });
     if (a.ver != null) _SCHED_PRES.ver = a.ver;
     _schedPresPaint();
   } catch(e){}
-  finally { _schedPresBusy = false; }
+  finally {
+    _schedPresBusy = false;
+    if (_schedPresAgain){ _schedPresAgain = false; setTimeout(_schedPresBeat, 0); }
+  }
+}
+// Somebody let go of a block they were dragging: put it where they dropped it
+// at once, ahead of the reload that confirms it (a refused move is put back
+// by that reload).
+function _schedPresDrops(users){
+  var now = {}, prev = _SCHED_PRES.last || {}, moved = false;
+  users.forEach(function(u){ now[u.id] = u.hold || null; });
+  Object.keys(prev).forEach(function(uid){
+    var h = prev[uid];
+    if (!h || h.what !== 'drag' || !h.block) return;
+    var n = now[uid];
+    if (n && n.what === 'drag' && n.block === h.block) return;
+    _SCHED_PRES.fastUntil = Date.now() + 3000;
+    if (!h.start || !_SCHED.data) return;
+    var b = (_SCHED.data.blocks || []).find(function(x){ return x.id === h.block; });
+    if (!b) return;
+    if (h.len) b.work_days = h.len;
+    else {
+      b.start_date = h.start;
+      if (h.to && (_SCHED.data.rows || []).some(function(r){ return r.id === h.to; })) b.row_id = h.to;
+    }
+    moved = true;
+  });
+  _SCHED_PRES.last = now;
+  if (moved && !_SCHED.dragging){ try { _schedRender(); } catch(e){} }
 }
 function _schedPresColour(uid){
   var c = _SCHED_PRES.colours;
@@ -11309,13 +11380,21 @@ function _schedPresPaint(){
   }
   var grid = document.getElementById('schedGrid');
   if (!grid) return;
-  grid.querySelectorAll('.sched-block.held').forEach(function(el){ el.classList.remove('held'); el.removeAttribute('data-held'); el.style.removeProperty('--held'); });
+  grid.querySelectorAll('.sched-block.held').forEach(function(el){
+    el.classList.remove('held', 'held-live'); el.removeAttribute('data-held'); el.style.removeProperty('--held');
+    if (el.hasAttribute('data-l0')){ el.style.left = el.getAttribute('data-l0'); el.style.width = el.getAttribute('data-w0'); el.style.transform = '';
+      el.removeAttribute('data-l0'); el.removeAttribute('data-w0'); }
+  });
   grid.querySelectorAll('.sched-row.held-row').forEach(function(el){ el.classList.remove('held-row'); el.style.removeProperty('--held'); });
   _SCHED_PRES.users.forEach(function(u){
     var col = _schedPresColour(u.id);
     if (u.hold && u.hold.block){
       var el = grid.querySelector('[data-block="' + u.hold.block + '"]');
-      if (el){ el.classList.add('held'); el.setAttribute('data-held', u.name || 'Someone'); el.style.setProperty('--held', col); }
+      if (el){
+        el.classList.add('held'); el.setAttribute('data-held', u.name || 'Someone'); el.style.setProperty('--held', col);
+        // …and where they have it right now.
+        try { _schedPresPlace(grid, el, u.hold); } catch(e){}
+      }
     }
     var rid = (u.hold && u.hold.row) || u.info;
     if (rid){
@@ -11324,6 +11403,26 @@ function _schedPresPaint(){
       if (row){ row.classList.add('held-row'); row.style.setProperty('--held', col); }
     }
   });
+}
+function _schedPresPlace(grid, el, h){
+  if (!h || h.what !== 'drag' || !h.start || !_SCHED.dayIdx) return;
+  var b = (_SCHED.data.blocks || []).find(function(x){ return x.id === h.block; });
+  if (!b) return;
+  var start = h.len ? b.start_date : h.start;
+  var sp = _schedSpan({ start_date: start, work_days: h.len || b.work_days });
+  var i = _SCHED.dayIdx[sp.from], j = _SCHED.dayIdx[sp.to];
+  if (i == null) return;
+  if (j == null) j = _SCHED.days.length - 1;
+  if (!el.hasAttribute('data-l0')){ el.setAttribute('data-l0', el.style.left || ''); el.setAttribute('data-w0', el.style.width || ''); }
+  el.classList.add('held-live');
+  el.style.left = (i * _SCHED.dayW) + 'px';
+  el.style.width = ((j - i + 1) * _SCHED.dayW - 2) + 'px';
+  var dy = 0;
+  if (h.to && h.to !== b.row_id){
+    var from = grid.querySelector('[data-strip="' + b.row_id + '"]'), to = grid.querySelector('[data-strip="' + h.to + '"]');
+    if (from && to) dy = to.getBoundingClientRect().top - from.getBoundingClientRect().top;
+  }
+  el.style.transform = dy ? 'translateY(' + dy + 'px)' : '';
 }
 function _schedUpdating(on){
   var el = document.getElementById('schedUpdating');
@@ -11454,7 +11553,13 @@ function _schedFoldToggle(id){
 var _SCHED_COLS = [
   { key:'open', w:26, hd:'', tip:'Open this job — drag to reorder' },
   { key:'jobno', w:70, hd:'Job', tip:'The job number' },
-  { key:'site', w:104, hd:'Site', tip:'The street this job is on' },
+  { key:'site', w:104, hd:'Site', tip:'The street this job is on — click the heading to fold the column away', fold:true },
+  // THE CUSTOMER BESIDE THE SITE (2026-11-11, the owner: "can there also be
+  // the customer name ... allow it to be like a pop-out tab ... click the site
+  // to collapse the site or ... the customer name to collapse the customer
+  // name and then click it again to open it"). A folded column is a narrow
+  // tab (_SCHED_COL_SHUT_W) and the calendar moves left with it.
+  { key:'cust', w:118, hd:'Customer', tip:'The customer — click the heading to fold the column away', fold:true },
   // "Dep", "Ord" and "Del" in a 26px column came out as one letter and a
   // guess. An icon carries further at that size, and the tooltip says what
   // it means — the header and the popup use the same four.
@@ -11524,7 +11629,7 @@ function _schedRowFlags(r){
 // well over a year of forward work.
 function _schedTextZoom(){
   var v = parseFloat(_SCHED.textZoom);
-  if (!(isFinite(v) && v > 0)){ try { v = parseFloat(localStorage.getItem('fr_sched_tz')); } catch(e){} }
+  if (!(isFinite(v) && v > 0)){ try { v = parseFloat(_schedPrefGet('fr_sched_tz')); } catch(e){} }
   if (!(isFinite(v) && v > 0)) v = 1;
   _SCHED.textZoom = Math.max(0.8, Math.min(1.8, v));
   return _SCHED.textZoom;
@@ -11533,13 +11638,13 @@ function _schedRowH(){ return Math.round(30 * Math.max(1, _schedTextZoom())); }
 function _schedSetTextZoom(v){
   var z = Math.max(0.8, Math.min(1.8, Math.round(parseFloat(v) * 20) / 20 || 1));
   _SCHED.textZoom = z;
-  try { localStorage.setItem('fr_sched_tz', String(z)); } catch(e){}
+  _schedPrefSet('fr_sched_tz', z);
   _schedRender(); _schedZoomBarSync();
 }
 function _schedSetDayW(v){
   var next = Math.max(6, Math.min(48, parseInt(v, 10) || 24));
   _SCHED.dayW = next;
-  try { localStorage.setItem('fr_sched_dayw', String(next)); } catch(e){}
+  _schedPrefSet('fr_sched_dayw', next);
   _schedRender(); _schedZoomBarSync();
 }
 function _schedZoomBarSync(){
@@ -11564,15 +11669,44 @@ function _schedZoomWheel(e){
   var xIn = e.clientX - rect.left;
   var dayAt = (scroll.scrollLeft + xIn - _SCHED.infoW) / old;
   _SCHED.dayW = next;
-  try { localStorage.setItem('fr_sched_dayw', String(next)); } catch(err){}
+  _schedPrefSet('fr_sched_dayw', next);
   _schedRender(); _schedZoomBarSync();
   scroll.scrollLeft = Math.max(0, dayAt * next + _SCHED.infoW - xIn);
 }
-// Column widths the office has dragged, per device. Blank = the shipped width.
+// EACH PERSON KEEPS THEIR OWN VIEW (2026-11-11, the owner: "whatever Zoom
+// like the text or the calendar Zoom I'm working on ... Ethan, he just keeps
+// his preferred Zoom ... they're not like synced"). The zooms, column widths
+// and folded columns never go to the server; on top of that they are kept per
+// signed-in person, so two people sharing one office computer keep theirs.
+// An older device-wide figure is read until the person sets their own.
+function _schedPrefUser(){
+  try { var u = JSON.parse(localStorage.getItem('fr_user') || '{}') || {};
+    return String(u.id || u.email || '').toLowerCase().replace(/[^a-z0-9@._-]/g, '').slice(0, 80); } catch(e){ return ''; }
+}
+function _schedPrefKey(base){ var u = _schedPrefUser(); return u ? base + ':' + u : base; }
+function _schedPrefGet(base){
+  try { var v = localStorage.getItem(_schedPrefKey(base)); if (v == null) v = localStorage.getItem(base); return v; } catch(e){ return null; }
+}
+function _schedPrefSet(base, v){ try { localStorage.setItem(_schedPrefKey(base), String(v)); } catch(e){} }
+var _SCHED_COL_SHUT_W = 22;
+function _schedColShut(){
+  if (_SCHED.colShut) return _SCHED.colShut;
+  var o = {};
+  try { o = JSON.parse(_schedPrefGet('fr_sched_colshut') || '{}') || {}; } catch(e){ o = {}; }
+  _SCHED.colShut = (o && typeof o === 'object') ? o : {};
+  return _SCHED.colShut;
+}
+function _schedColFold(key){
+  var o = _schedColShut();
+  if (o[key]) delete o[key]; else o[key] = 1;
+  _schedPrefSet('fr_sched_colshut', JSON.stringify(o));
+  _schedRender();
+}
+// Column widths the office has dragged, per person on this device. Blank = the shipped width.
 function _schedColW(){
   if (_SCHED.colW) return _SCHED.colW;
   var o = {};
-  try { o = JSON.parse(localStorage.getItem('fr_sched_colw') || '{}') || {}; } catch(e){ o = {}; }
+  try { o = JSON.parse(_schedPrefGet('fr_sched_colw') || '{}') || {}; } catch(e){ o = {}; }
   _SCHED.colW = (o && typeof o === 'object') ? o : {};
   return _SCHED.colW;
 }
@@ -11588,8 +11722,9 @@ function _schedRender(){
   // border-box everywhere in this app: a cell's rendered width IS c.w, so
   // the sticky left offsets are the plain running sum. (+13/col overshot
   // and shoved the last info cells over the day strip.)
-  var _cw = _schedColW(), _tz = _schedTextZoom();
+  var _cw = _schedColW(), _tz = _schedTextZoom(), _shut = _schedColShut();
   var cols = (_SCHED.compact ? _SCHED_COLS_MIN : _SCHED_COLS).map(function(c){
+    if (c.fold && _shut[c.key]) return Object.assign({}, c, { w: _SCHED_COL_SHUT_W, shut: true });
     var w = _cw[c.key] ? _cw[c.key] : c.w;
     return Object.assign({}, c, { w: Math.round(w * _tz) }); });
   var rh = _schedRowH();
@@ -11652,9 +11787,13 @@ function _schedRender(){
   });
   var hcells = '';
   cols.forEach(function(c, i){
-    hcells += '<div class="sched-cell hd sched-info"' + (c.tip ? ' data-tip="' + esc(c.tip) + '"' : '') +
-      ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px;position:sticky">' + c.hd +
-      (c.key === 'handle' ? '' : '<span class="sched-colrz" data-colrz="' + c.key + '" title="Drag to resize this column"></span>') + '</div>';
+    var _hd = c.hd;
+    if (c.fold) _hd = c.shut
+      ? '<span class="sched-colfold shut" data-colfold="' + c.key + '" title="Show the ' + esc(c.hd) + ' column">\u203a</span>'
+      : '<span class="sched-colfold" data-colfold="' + c.key + '" title="Fold the ' + esc(c.hd) + ' column away">' + esc(c.hd) + ' <i>\u2039</i></span>';
+    hcells += '<div class="sched-cell hd sched-info' + (c.shut ? ' sched-shut' : '') + '"' + (c.tip && !c.shut ? ' data-tip="' + esc(c.tip) + '"' : '') +
+      ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px;position:sticky">' + _hd +
+      (c.key === 'handle' || c.shut ? '' : '<span class="sched-colrz" data-colrz="' + c.key + '" title="Drag to resize this column"></span>') + '</div>';
   });
   h += '<div class="sched-hd-row cols" style="top:20px">' + hcells +
        '<div class="sched-strip" style="width:' + stripW + 'px;height:26px;background:none">' + dayNums + '</div></div>';
@@ -11732,9 +11871,11 @@ function _schedRender(){
           '<div data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700;font-size:calc(9.5px * var(--sched-tz, 1));white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.client_name) + '">' + esc(r.job_no || r.client_name) + '</div>' +
           '<div style="font-size:calc(9px * var(--sched-tz, 1));color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.site_address) + '">' + esc(_short) + '</div></div>';
       }
-      if (c.key === 'site') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer"' +
+      if (c.key === 'site' && !c.shut) inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer"' +
         ' title="' + esc(r.site_address) + (r.client_name ? (' — ' + esc(r.client_name)) : '') + '">' +
         esc(_schedStreet(r.site_address)) + '</span>';
+      if (c.key === 'cust' && !c.shut) inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer" title="' + esc(r.client_name) + '">' +
+        esc(r.client_name) + '</span>';
       if (c.key === 'dep') inner = '<input type="checkbox"' + (r.deposit_paid ? ' checked' : '') + ' data-edit="deposit_paid" data-row="' + r.id + '" title="Deposit paid' + (r.auto && r.auto.deposit_paid != null ? ' (auto-filled — ticking overrides)' : '') + '">';
       if (c.key === 'hand') inner = '<input type="checkbox"' + (r.handover_done ? ' checked' : '') + ' data-edit="handover_done" data-row="' + r.id + '" title="Hand-over complete">';
       if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
@@ -11820,11 +11961,29 @@ function _schedRender(){
   grid.style.setProperty('--sched-dayw', _SCHED.dayW + 'px');
   grid.style.setProperty('--sched-tz', String(_tz));
   grid.innerHTML = h;
+  try { _schedFitHeight(); } catch(e){}
   _schedRenderPalette();
   _schedWire(grid);
   try { _schedPresPaint(); } catch(e){}
   _schedZoomBarSync();
 }
+// THE HEADINGS NEVER SCROLL AWAY (2026-11-11, the owner: "If I scroll down, I
+// lose the job, site, and symbols. So freeze those"). They are sticky inside
+// the board's own scroller, so they only stay put while the BOARD scrolls —
+// and a board taller than the room left under the toolbar made the PAGE
+// scroll instead, taking the headings with it. The board is sized to end at
+// the foot of the window (never under 320px), and a wheel that reaches its
+// end does not carry on into the page (overscroll-behavior).
+function _schedFitHeight(){
+  var sc = document.getElementById('schedScroll');
+  if (!sc || !sc.offsetParent) return;
+  var top = sc.getBoundingClientRect().top + (window.scrollY || 0);
+  var hint = sc.nextElementSibling, below = 0;
+  if (hint && hint.offsetParent) below = Math.min(60, hint.getBoundingClientRect().height + 8);
+  var hgt = Math.max(320, Math.floor((window.innerHeight || 900) - top - below - 10));
+  sc.style.maxHeight = hgt + 'px';
+}
+window.addEventListener('resize', function(){ try { if (document.body.getAttribute('data-tab') === 'schedule') _schedFitHeight(); } catch(e){} });
 function _schedRenderPalette(){
   var pal = document.getElementById('schedPalette');
   if (!pal || !_SCHED.data) return;
@@ -11894,6 +12053,9 @@ document.addEventListener('pointerdown', function(ev){
   } catch(e){}
 }, true);
 function _schedWire(grid){
+  grid.querySelectorAll('[data-colfold]').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); _schedColFold(el.getAttribute('data-colfold')); };
+  });
   if (_SCHED.hiRow){
     var _hr = grid.querySelector('.sched-row[data-rowzone="' + _SCHED.hiRow + '"]');
     if (_hr) _hr.classList.add('sched-row-hi');
@@ -11956,7 +12118,7 @@ function _schedWire(grid){
       var up = function(){
         document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
         document.body.style.cursor = '';
-        try { localStorage.setItem('fr_sched_colw', JSON.stringify(_schedColW())); } catch(e){}
+        _schedPrefSet('fr_sched_colw', JSON.stringify(_schedColW()));
       };
       document.body.style.cursor = 'col-resize';
       document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
@@ -12089,6 +12251,9 @@ function _schedStripDown(ev, strip){
       if (resizing){
         var wPx = Math.max(_SCHED.dayW, (d2 - i0 + 1) * _SCHED.dayW - 2);
         blockEl.style.width = wPx + 'px';
+        var nn = 0;
+        for (var kk = i0; kk <= Math.max(i0, d2); kk++){ if (!_SCHED.nonwork[_SCHED.days[kk]]) nn++; }
+        _schedHoldMove({ start: b.start_date, len: Math.max(1, nn) });
       } else {
         blockEl.style.left = ((i0 + (d2 - startDay)) * _SCHED.dayW) + 'px';
         var st = rowUnder(mv);
@@ -12097,6 +12262,8 @@ function _schedStripDown(ev, strip){
           blockEl.style.transform = 'translateY(' + (st.getBoundingClientRect().top - rect.top) + 'px)';
         }
         lightRow(targetRow);
+        var ni0 = Math.max(0, Math.min(_SCHED.days.length - 1, i0 + (d2 - startDay)));
+        _schedHoldMove({ start: _schedSnapStart(_SCHED.days[ni0]), to: targetRow });
       }
     };
     var onUp = function(up){
@@ -12596,6 +12763,44 @@ function _schedInfoJobLoad(r){
       String((e && e.message) || e).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</div>';
   });
 }
+// ZOOM AND DRAG INSIDE THE BOX (2026-11-11, the owner: "when I hover my mouse
+// over, let me zoom in and out of and drag the image around inside that
+// picture box"). The wheel zooms the SVG's viewBox about the pointer (never
+// out past the fitted view's double), a drag pans it, a double-click fits it.
+function _sijMapZoomWire(box){
+  var svg = box && box.querySelector('svg');
+  if (!svg || box._zw) return;
+  box._zw = true;
+  var vb0 = (svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+  if (vb0.length !== 4 || !(vb0[2] > 0)) return;
+  var vb = vb0.slice();
+  var set = function(){ svg.setAttribute('viewBox', vb.join(' ')); };
+  var pt = function(ev){
+    var r = svg.getBoundingClientRect();
+    // preserveAspectRatio meet: the drawn area is centred in the box.
+    var s = Math.min(r.width / vb[2], r.height / vb[3]);
+    var ox = (r.width - vb[2] * s) / 2, oy = (r.height - vb[3] * s) / 2;
+    return { x: vb[0] + (ev.clientX - r.left - ox) / s, y: vb[1] + (ev.clientY - r.top - oy) / s, s: s };
+  };
+  box.addEventListener('wheel', function(ev){
+    ev.preventDefault();
+    var p = pt(ev), k = ev.deltaY < 0 ? 0.85 : 1 / 0.85;
+    var w = Math.max(vb0[2] / 12, Math.min(vb0[2] * 2, vb[2] * k));
+    k = w / vb[2];
+    vb = [p.x - (p.x - vb[0]) * k, p.y - (p.y - vb[1]) * k, vb[2] * k, vb[3] * k];
+    set();
+  }, { passive: false });
+  box.addEventListener('pointerdown', function(ev){
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    var s = pt(ev).s, x0 = ev.clientX, y0 = ev.clientY, v0 = vb.slice();
+    box.classList.add('grabbing');
+    var mv = function(e){ vb = [v0[0] - (e.clientX - x0) / s, v0[1] - (e.clientY - y0) / s, v0[2], v0[3]]; set(); };
+    var up = function(){ box.classList.remove('grabbing'); document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  });
+  box.addEventListener('dblclick', function(){ vb = vb0.slice(); set(); });
+}
 function _schedInfoJobHtml(job, r){
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
   var st = job && job.draw_state && job.draw_state.state;
@@ -12617,7 +12822,7 @@ function _schedInfoJobHtml(job, r){
   var sent = !!(qa.share && qa.share.priced) || !!(q.share && q.share.priced);
   try {
     S.quote = qa; window.__CUSTOMER_MODE = true; S._qvViewing = null;
-    try { map = _qpRoofMapSvg({ readOnly:true, noModes:true, showBg:true, mapKey:'sched', maxH:420 }); } catch(e){ map = ''; }
+    try { map = _qpRoofMapSvg({ readOnly:true, noModes:true, showBg:true, mapKey:'sched', maxH:420, fitRoofs:true }); } catch(e){ map = ''; }
     if (sent){
       try { rows = _custBarRows(); } catch(e){ rows = []; err = e && e.message; }
       try { total = fmtMoney(_custBarTotalValue()); } catch(e){ total = ''; }
@@ -12649,10 +12854,11 @@ function _schedInfoJobHtml(job, r){
       '<button type="button" data-sijmap="detail" class="' + (mode === 'detail' ? 'on' : '') + '">Detailed map</button></span>' : '') +
     '</div><div id="sijMap" data-job="' + esc(job.id) + '">' +
     '<div class="sij-mapq"' + (mode === 'detail' ? ' style="display:none"' : '') + '>' +
-    (map ? '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">' + map + '</div>'
+    (map ? '<div class="sij-mapzoom" title="Scroll to zoom, drag to move — double-click to fit">' + map + '</div>'
          : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') + '</div>' +
     (hasDraw ? '<div class="sij-mapd"' + (mode === 'detail' ? '' : ' style="display:none"') + '><div class="sij-wait" style="font-size:12px;color:var(--text2);padding:30px 0;text-align:center">Drawing the detailed map with its aerial\u2026</div></div>' : '') +
     '</div></div>';
+  setTimeout(function(){ try { _sijMapZoomWire(document.querySelector('#sijMap .sij-mapzoom')); } catch(e){} }, 0);
   if (hasDraw) setTimeout(function(){
     var box0 = document.getElementById('sijMap');
     var card = box0 && box0.closest('.sij-card');
@@ -12678,9 +12884,15 @@ function _schedInfoJobHtml(job, r){
   }, 0);
   var acc = q.accepted;
   var when = function(d){ try { return new Date(d).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); } catch(e){ return ''; } };
-  h += '<div class="sij-card"><div class="sij-h">Quote summary' + (q.ref ? ' · ' + esc(q.ref) : '') + '</div>';
+  // FOLDED BY DEFAULT (2026-11-11, the owner: "collapse the quote summary in
+  // the job pop-up information window ... keep the what the customer chose
+  // open, as well as the allocated hours open"). Its heading carries the total.
+  var _sumTot = '';
+  if (sent){ rows.forEach(function(x){ if (x.kind === 'total') _sumTot = x.value; }); if (!_sumTot) _sumTot = total; }
+  h += '<details class="sij-card sij-fold"><summary class="sij-h">Quote summary' + (q.ref ? ' · ' + esc(q.ref) : '') +
+    (_sumTot ? '<span class="sij-fold-tot">' + esc(_sumTot) + '</span>' : '') + '</summary>';
   if (!sent){
-    h += '<div style="color:var(--text2)">The quote has not been sent to the customer yet, so there are no selections to show.</div>';
+    h += '<div style="color:var(--text2)">The quote has not been sent to the customer yet, so there are no selections to show.</div></details><div>';
   } else {
     h += '<div style="font-size:11.5px;color:var(--text2);margin-bottom:6px">' +
       (acc ? ('Accepted ' + (acc.by || acc.name ? 'by ' + esc(acc.by || acc.name) + ' ' : '') + (acc.at ? 'on ' + when(acc.at) : '')) :
@@ -12691,7 +12903,7 @@ function _schedInfoJobHtml(job, r){
     if (!rows.some(function(x){ return x.kind === 'total'; }) && total)
       h += '<div class="sij-row tot"><span>Total incl. GST</span><b>' + esc(total) + '</b></div>';
     if (err) h += '<div style="color:#b91c1c;font-size:11px">' + esc(err) + '</div>';
-    h += '</div>';
+    h += '</details>';
     h += '<div class="sij-card"><div class="sij-h">What the customer chose</div>';
     if (picks.length) picks.forEach(function(p){ h += '<div class="sij-pick"><span>' + esc(p[0]) + '</span><b>' + esc(p[1]) + '</b></div>'; });
     else h += '<div style="color:var(--text2)">No selections recorded.</div>';
@@ -44279,7 +44491,10 @@ function _qpRoofMapSvg(opts){
   // corner before publishing must not be able to cause that. On a normal view,
   // where the canvas already shows the whole building, this changes nothing
   // and the framing is the canvas's exactly.
-  if (g.view && g.bg && opts.showBg !== false &&
+  // opts.fitRoofs (the schedule board's job window, 2026-11-11, the owner:
+  // "make it fit more to the picture box, because it's quite zoomed out"):
+  // the roofs' own bounds, whatever the canvas was zoomed to.
+  if (!opts.fitRoofs && g.view && g.bg && opts.showBg !== false &&
       g.view.w > 1 && g.view.h > 1){
     // EXACTLY the canvas view. Nothing added, nothing widened.
     //

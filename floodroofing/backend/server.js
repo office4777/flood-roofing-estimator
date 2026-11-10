@@ -10805,7 +10805,14 @@ app.post('/schedule/presence', ..._schedGate, async (req, res) => {
     const name = String(b.name || '').slice(0, 60) || String(req.user.email || '').split('@')[0];
     const hold = b.hold && typeof b.hold === 'object' ? {
       block: String(b.hold.block || '').slice(0, 60), row: String(b.hold.row || '').slice(0, 60),
-      what: String(b.hold.what || '').slice(0, 20) } : null;
+      what: String(b.hold.what || '').slice(0, 20),
+      // WHERE IT IS BEING DRAGGED TO (2026-11-11, the owner: "if I'm dragging
+      // something, it can show that I've selected it and I'm dragging it. So
+      // the other user can see it live"): the day it would land on and the
+      // row under the pointer, sent several times a second while it moves.
+      start: /^\d{4}-\d{2}-\d{2}$/.test(String(b.hold.start || '')) ? String(b.hold.start) : '',
+      to: String(b.hold.to || '').slice(0, 60),
+      len: Math.max(0, Math.min(400, parseInt(b.hold.len, 10) || 0)) } : null;
     if (b.leave) delete P.users[uid];
     else P.users[uid] = { id: uid, name, email: String(req.user.email || ''), hold, info: String(b.info || '').slice(0, 60), at: Date.now() };
     const now = Date.now();
