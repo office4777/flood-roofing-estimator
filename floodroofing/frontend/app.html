@@ -3502,6 +3502,10 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sij-mapsw button.on{ background:#0a1628; color:#fff; }
 body.sched-noselect, body.sched-noselect *{ -webkit-user-select:none !important; user-select:none !important; }
 .sched-strip.sched-droprow{ background:rgba(0,153,224,.10) !important; box-shadow:inset 0 0 0 2px rgba(0,153,224,.55); }
+.qb-gauge-edit{ display:inline-flex; align-items:center; gap:6px; margin:0 0 12px; padding:7px 13px; border:1.5px solid #0099e0; border-radius:9px;
+  background:#fff; color:#0369a1; font:600 12.5px/1.2 inherit; cursor:pointer; }
+.qb-gauge-edit:hover{ background:#f0f9ff; }
+html.print-modern .qb-gauge-edit, html.pdf-modern .qb-gauge-edit{ display:none !important; }
 .sched-mailgrp{ display:flex; gap:8px; align-items:flex-start; }
 .sched-mailgrp > span{ flex:0 0 112px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; padding-top:6px; }
 .sched-mailgrp > div{ display:flex; gap:6px; flex-wrap:wrap; flex:1; }
@@ -5591,7 +5595,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T22:50:57Z';
+  window.APP_BUILT_AT = '2026-11-10T22:57:20Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -33402,9 +33406,44 @@ function _selGradePctOf(id){
   return (g && isFinite(parseFloat(g.pct))) ? parseFloat(g.pct) : 0;
 }
 // Does this profile force a steel gauge? '' / undefined = no.
+// THE QUOTE MAY BYPASS IT (2026-11-11, the owner: "add an edit ... thickness
+// button ... so I could bypass my rule of locking 5 rib to ... 0.55 gauge"):
+// `S.quote.gaugeLockOff` lets the customer choose the gauge on this quote,
+// whatever the profile says. Every gauge decision comes through here — the
+// sections, the summary, the frozen customer copy, the Fergus push.
 function _selProfileLocksGauge(id){
+  if (window.S && S.quote && S.quote.gaugeLockOff) return '';
+  return _selProfileLocksGaugeRaw(id);
+}
+function _selProfileLocksGaugeRaw(id){
   var p = _selProfileOf(id);
   return (p && p.locksGauge) ? String(p.locksGauge) : '';
+}
+function _gaugeLockEditable(){
+  return !window.__CUSTOMER_MODE && !window.__PRINTING_QUOTE && !(window.S && S.quote && S.quote.accepted);
+}
+function _qGaugeUnlock(){
+  if (!_gaugeLockEditable()) return;
+  S.quote.gaugeLockOff = true;
+  if (!S.quote.proposalOptions) S.quote.proposalOptions = {};
+  S.quote.proposalOptions.steelThickness = '40';   // the standard; the 0.55 is theirs to choose
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _qGaugeRelock(){
+  if (!_gaugeLockEditable()) return;
+  delete S.quote.gaugeLockOff;
+  var p = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  var lk = _selProfileLocksGaugeRaw(p.profile);
+  if (lk) p.steelThickness = lk;
+  try { refreshQuoteProposal(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _gaugeLockBtnHtml(lockedNow, profName){
+  if (!_gaugeLockEditable()) return '';
+  return lockedNow
+    ? '<button type="button" class="qb-gauge-edit no-print" onclick="event.stopPropagation();_qGaugeUnlock()">\u270E Edit thickness \u2014 let the customer choose the gauge</button>'
+    : '<button type="button" class="qb-gauge-edit no-print" onclick="event.stopPropagation();_qGaugeRelock()">\u21BA Lock ' + esc2(profName || 'this profile') + ' to its gauge again</button>';
 }
 // Kept so anything still reading the old constant sees the live values.
 var SEL_GRADE_PCT = (function(){
@@ -35779,7 +35818,7 @@ function _qvBackToDraft(opts){
 // a template or a new job's default (tplFresh → tplFp); prices that follow
 // the roof are not counted. A draft with no baseline (an older one) counts as
 // worked on: an extra saved draft is better than lost work.
-var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
+var Q_CONTENT_KEYS = ['gaugeLockOff','coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
   'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','selShow','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
   'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras','optNotes','recLabel','recColour','recOff'];
@@ -39485,20 +39524,29 @@ function _qbRibGeometry(){
 function _qbThickness(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var CD = _qbDeltas();
-  // 5-Rib is rolled in 0.55 only, so there is nothing to choose.
-  if (p.profile === '5rib'){
+  // A profile rolled in one gauge only (5-Rib in 0.55, by default) leaves
+  // nothing to choose — the PROFILE's own setting says so (Settings →
+  // Products → Locks gauge), never its name; "No" there means the customer
+  // chooses (2026-11-11, the owner: "I ... selected no for locks gauge, the
+  // quote still locks the gauge").
+  var _lk = _selProfileLocksGauge(p.profile);
+  var _pnm = ((_selProfileOf(p.profile) || {}).name) || 'this profile';
+  if (_lk){
+    var _g = '0.' + _lk;
     return '<div class="qb-body">'+
         '<span class="qb-eyebrow">The steel itself</span>'+
         '<h2 class="qb-h2">Steel thickness</h2>'+
-        '<p class="qb-para">You have chosen 5-Rib, which is rolled in 0.55 gauge only — the heavier steel that resists denting. There is nothing to choose here, and it is included in your price.</p>'+
+        '<p class="qb-para">You have chosen ' + esc2(_pnm) + ', which is rolled in ' + _g + ' gauge only' + (_lk === '55' ? ' — the heavier steel that resists denting' : '') + '. There is nothing to choose here, and it is included in your price.</p>'+
+        _gaugeLockBtnHtml(true, _pnm) +
         '<div class="qb-opts"><div class="qb-opt on qb-opt-static">'+
           '<span class="qb-tick"><svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'+
-          '<span class="qb-opt-txt">'+_qbOptPills('steelThickness', { id:'0.55' })+'<b>0.55 gauge <em class="qb-lock">Locked for 5-Rib</em></b>'+
-            '<span class="qb-opt-desc">Switch back to Corrugate on the previous page if you would rather choose 0.40 gauge.</span>'+_qbOptNoteLink('steelThickness', { id:'0.55' })+'</span>'+
+          '<span class="qb-opt-txt">'+_qbOptPills('steelThickness', { id:_g })+'<b>' + _g + ' gauge <em class="qb-lock">Locked for ' + esc2(_pnm) + '</em></b>'+
+            '<span class="qb-opt-desc">Choose another roof profile on the previous page if you would rather choose the gauge.</span>'+_qbOptNoteLink('steelThickness', { id:_g })+'</span>'+
           '<span class="qb-opt-price"><span class="qb-inc">Included</span></span>'+
         '</div></div>'+
       '</div>';
   }
+  var _relock = (S.quote && S.quote.gaugeLockOff && _selProfileLocksGaugeRaw(p.profile)) ? _gaugeLockBtnHtml(false, _pnm) : '';
   var items = [];
   try {
     items = _qbRecMark(_selFixed('thickness', [
@@ -39506,11 +39554,12 @@ function _qbThickness(){
       { id:'55', label:'0.55 gauge', delta:_qbIncl(CD.gauge), desc:'Heavier steel — better against hail and falling branches, and a little stiffer underfoot.' }
     ]), 'steelThickness', '40');
   } catch(e){}
-  return _qpOptPageWrap('thickness', {
+  var _pg = _qpOptPageWrap('thickness', {
     eyebrow:'The steel itself', title:'Steel thickness', group:'steelThickness', set:'_setProposalOption_thickness',
     current:p.steelThickness || '40', items:items,
     blurb:'How thick the steel is. Both are long-life roofs; the heavier gauge is the one to pick if the roof takes a beating from trees or hail.'
   });
+  return _relock ? _pg.replace('<div class="qb-opts', _relock + '<div class="qb-opts') : _pg;
 }
 // THE SECTION DESCRIPTIONS ARE THE OFFICE'S TO WORD (2026-10-18, the owner:
 // "make the rest of the sections descriptions editable just like you have
@@ -41248,6 +41297,16 @@ function _custBarRows(){
   // scaffold inside its price; that part moves to the Scaffolding row and out
   // of the roof's own line. The same money, row for row; the total never moves.
   var _chgAll = _qpSelectionChanges();
+  // A PROFILE'S COMPULSORY GAUGE IS PART OF THE JOB, NOT AN EXTRA (2026-11-11,
+  // the owner: "when the gauge is locked, can you not show the quote summary
+  // the extra cost for 0.55 gauge? ... the customer might say, oh no, I don't
+  // want to pay extra for the thicker gauge ... just combine it to the main
+  // scope of work price"). The locked line's money goes into the main line;
+  // a 0.55 the customer CHOSE still reads as its own upgrade. Same total.
+  _chgAll = _chgAll.filter(function(c){
+    if (c && /\(supplied in 0\.\d+ gauge\)$/.test(String(c.label || ''))){ baseSub += (+c.delta || 0); return false; }
+    return true;
+  });
   var _roofSc = 0;
   if (!mainOpt && !_qpScaffoldHidden()){
     _chgAll.forEach(function(c){ var sc = (c && c.split && +c.split.scaffold) || 0; if (sc > 0 && c.delta > sc){ _roofSc += sc; c._scMoved = sc; } });
@@ -48982,16 +49041,16 @@ function refreshQuoteProposal(){
             selPanel('Steel grade', selCard('steelGrade', GRADES, pOpts.steelGrade || 'maxam', '_setProposalOption_grade', { flat: true, noWarranty: true }))+
             // 5-Rib forces + locks 0.55 gauge (no 0.40 5-Rib on offer). Show a
             // locked 0.55 row then; Corrugate shows the normal thickness picker.
-            selPanel('Steel thickness', (pOpts.profile === '5rib')
+            selPanel('Steel thickness', _selProfileLocksGauge(pOpts.profile)
               ? '<div style="padding:3px 12px 6px 11px;border-left:3px solid var(--ed-accent);background:var(--ed-paper-2)">'+
                   '<div style="display:flex;align-items:flex-start;gap:9px">'+
                     '<div style="width:15px;height:15px;border-radius:50%;border:2px solid var(--ed-accent);background:var(--ed-accent);flex-shrink:0;margin-top:2px"></div>'+
                     '<div style="flex:1;min-width:0">'+
                       '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">'+
-                        '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">0.55 gauge <span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:3px;margin-left:2px">🔒 Locked for 5-Rib</span></div>'+
+                        '<div class="ed-serif" style="font-size:14px;font-style:italic;color:var(--ed-ink);line-height:1.2">0.'+_selProfileLocksGauge(pOpts.profile)+' gauge <span style="font-family:var(--ed-sans);font-size:8.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:3px;margin-left:2px">🔒 Locked for '+esc2(((_selProfileOf(pOpts.profile)||{}).name)||'this profile')+'</span></div>'+
                         '<div class="ed-serif" style="font-size:13px;white-space:nowrap;flex-shrink:0">'+_selPriceTag({ delta: 0 })+'</div>'+
                       '</div>'+
-                      '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">5-Rib is supplied in 0.55 gauge only — the heavier steel resists denting. Switch to Corrugate to choose 0.40 gauge.</div>'+
+                      '<div class="ed-body" style="font-size:10.5px;color:var(--ed-ink-2);margin-top:1px;line-height:1.3">'+esc2(((_selProfileOf(pOpts.profile)||{}).name)||'This profile')+' is supplied in 0.'+_selProfileLocksGauge(pOpts.profile)+' gauge only. Choose another profile to choose the gauge.</div>'+(_gaugeLockEditable() ? '<div class="no-print" style="margin-top:5px">'+_gaugeLockBtnHtml(true, ((_selProfileOf(pOpts.profile)||{}).name))+'</div>' : '')+
                     '</div>'+
                   '</div>'+
                 '</div>'
@@ -50331,7 +50390,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','selShow','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes','recOff',
+var Q_FRESH_DROP = ['gaugeLockOff','dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','selShow','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes','recOff',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;
