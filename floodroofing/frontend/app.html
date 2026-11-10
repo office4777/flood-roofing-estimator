@@ -5443,7 +5443,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T02:41:41Z';
+  window.APP_BUILT_AT = '2026-11-10T02:50:37Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5485,6 +5485,13 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     _cq = 'preview';
     window.__QPV = true;
   }
+  // THE MAP-SHOT FRAME (2026-11-10): the schedule board's job window opens
+  // this page hidden with ?mapshot=1, hands it a saved job by message, and
+  // gets back the DETAILED ROOF MAP over its aerial — the Map Roof canvas of
+  // THAT job, drawn here where it cannot disturb the job open on screen.
+  // The frame reads as the office (same sign-in) and WRITES NOTHING: api()
+  // refuses anything but a GET, autosave is off (`__MAPSHOT`).
+  try { window.__MAPSHOT = new URLSearchParams(location.search).get('mapshot') === '1' && window.parent && window.parent !== window; } catch(e){ window.__MAPSHOT = false; }
   if (_cq) {
     window.__CUSTOMER_TOKEN = _cq;
     try { window.__CUSTOMER_JOB = (new URLSearchParams(location.search).get('i') || '').replace(/[^A-Za-z0-9\-]/g,''); } catch(e){}
@@ -11914,9 +11921,26 @@ function _schedInfoJobHtml(job, r){
     S.quote = keepQ; window.__CUSTOMER_MODE = keepCust; S._qvViewing = keepView;
   }
   var h = '';
-  h += '<div class="sij-card"><div class="sij-h">Roof map</div>' +
+  // THE DETAILED ROOF MAP OVER THE AERIAL (2026-11-10, the owner: "I want the
+  // detailed roof map over the aerial background image from the canvas, not
+  // the basic roof map in that pop-up window"): the Map Roof canvas of that
+  // job, drawn by the hidden frame (_schedMapshot) and put in #sijMap when
+  // it lands; the quote's plain map stands in while it draws.
+  var hasDraw = !!(job.draw_state && job.draw_state.draw && (job.draw_state.draw.outline || []).length);
+  h += '<div class="sij-card"><div class="sij-h">Detailed roof map</div><div id="sijMap" data-job="' + esc(job.id) + '">' +
     (map ? '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">' + map + '</div>'
-         : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') + '</div>';
+         : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') +
+    (hasDraw ? '<div class="sij-wait" style="font-size:11px;color:var(--text2);margin-top:6px">Drawing the detailed map with its aerial…</div>' : '') + '</div></div>';
+  if (hasDraw) setTimeout(function(){
+    _schedMapshot(job).then(function(src){
+      var box = document.getElementById('sijMap');
+      if (!box || box.getAttribute('data-job') !== String(job.id)) return;
+      box.innerHTML = '<img src="' + src + '" alt="Detailed roof map" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
+    }).catch(function(e){
+      var w = document.querySelector('#sijMap .sij-wait');
+      if (w) w.textContent = 'Could not draw the detailed map (' + ((e && e.message) || e) + ') — the quote\'s map is shown.';
+    });
+  }, 0);
   var acc = q.accepted;
   var when = function(d){ try { return new Date(d).toLocaleDateString('en-NZ', { day:'numeric', month:'short', year:'numeric' }); } catch(e){ return ''; } };
   h += '<div class="sij-card"><div class="sij-h">Quote summary' + (q.ref ? ' · ' + esc(q.ref) : '') + '</div>';
@@ -14360,6 +14384,7 @@ async function api(method, path, body) {
   // The office's customer preview frame (?qpv=1) talks to nobody: it renders
   // the quote it was handed and records nothing.
   if (window.__QPV){ var _qe = new Error('Preview only'); _qe.status = 0; _qe.preview = true; throw _qe; }
+  if (window.__MAPSHOT && String(method || 'GET').toUpperCase() !== 'GET'){ var _me = new Error('Map-shot frame: read only'); _me.status = 0; throw _me; }
   var tok = localStorage.getItem('fr_token') || '';
   var opts = { method: method, headers: { 'Authorization': 'Bearer ' + tok } };
   if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
@@ -21547,6 +21572,7 @@ function _retiredUpdateSidebarJobChip(){
 // local job id or a Fergus link). Skips the chrome (sidebar, modals)
 // so opening the Select Job modal doesn't trigger a phantom save.
 function _scheduleAutosave(){
+  if (window.__MAPSHOT) return;         // the schedule board's hidden render frame never writes
   if (window._QT && _QT.open) return;   // the template editor works on a copy, never the job
   // Locked: nothing is written. Quietly — this fires from renders and from
   // typing anywhere in the app (report 44: the question popped up while
@@ -22796,6 +22822,7 @@ function _jobWriteQueued(fn){
 }
 async function saveCurrentJob(){
   var _opts = arguments[0];
+  if (window.__MAPSHOT) return;
   if (_jobWrite.waiting){
     // One save is running and one is already waiting behind it: this call
     // rides on the waiting one (a force joins it).
@@ -71694,9 +71721,11 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
   });
   try {
     window._hideCalibrationOverlay = true;
-    window._matRoofMapHideBg = true;
+    // The Job Pack's map has no aerial behind it; the schedule board's job
+    // window asks for the canvas AS IT IS, aerial and all (opts.keepBg).
+    window._matRoofMapHideBg = !(opts && opts.keepBg);
     window._matRoofMapHideGrid = true;
-    window._matRoofMapHideCanvasBg = true;
+    window._matRoofMapHideCanvasBg = !(opts && opts.keepBg);
     // Per-roof capture: focus that roof as the SOLE active roof + turn
     // off show-all so non-active roofs don't render alongside it.
     if (roofIdx >= 0 && DRAW.roofs && DRAW.roofs[roofIdx]) {
@@ -89350,6 +89379,89 @@ function _syncInstallBtn(){
   var b = document.getElementById('navInstallBtn');
   if (!b) return;
   b.style.display = (window.__frInstallPrompt && !_frStandalone()) ? '' : 'none';
+}
+// ── The map-shot frame (see __MAPSHOT) ──────────────────────────────────
+// INSIDE the frame: on {mapshot:'job', id, job} load the job onto the canvas,
+// wait for its aerial, capture the detailed map and post it back.
+if (window.__MAPSHOT) (function(){
+  var busy = false;
+  window.addEventListener('message', function(e){
+    if (e.source !== window.parent || !e.data || e.data.mapshot !== 'job') return;
+    var id = e.data.id, job = e.data.job;
+    var reply = function(src, err){ try { window.parent.postMessage({ mapshot:'pic', id: id, src: src || '', err: err || '' }, '*'); } catch(x){} };
+    if (busy){ reply('', 'busy'); return; }
+    busy = true;
+    try { window.parent.postMessage({ mapshot:'ack', id: id }, '*'); } catch(x){}
+    try {
+      try { if (typeof _releaseJobContent === 'function') _releaseJobContent(); } catch(x){}
+      restoreFromJob(job);
+      try { gotoTab('roof'); } catch(x){}
+      try { fitCanvasToWrap(); } catch(x){}
+    } catch(x){ busy = false; reply('', 'restore: ' + (x && x.message)); return; }
+    var t0 = Date.now();
+    (function wait(){
+      // The aerial arrives on its own time; up to 15 s, then whatever is drawn.
+      if (DRAW._bgLoading && Date.now() - t0 < 15000){ setTimeout(wait, 120); return; }
+      setTimeout(function(){
+        try {
+          try { fitCanvasToWrap(); } catch(x){}
+          try { redrawAll(); } catch(x){}
+          var src = _jpCaptureDetailed(-1, { keepBg:true });
+          busy = false; reply(src || '', src ? '' : 'no picture');
+        } catch(x){ busy = false; reply('', 'capture: ' + (x && x.message)); }
+      }, 350);
+    })();
+  });
+  try { window.parent.postMessage({ mapshot:'ready' }, '*'); } catch(x){}
+  window.addEventListener('load', function(){ try { window.parent.postMessage({ mapshot:'ready' }, '*'); } catch(x){} });
+})();
+// FROM THE OFFICE WINDOW: _schedMapshot(job) → Promise<dataURL>. One hidden
+// frame for the session, one job at a time, 40 s a job before giving up.
+var _MAPSHOT = { frame:null, ready:false, q:[], cur:null, cache:{} };
+function _schedMapshot(job){
+  var id = job && job.id;
+  if (!id) return Promise.reject(new Error('no job'));
+  if (_MAPSHOT.cache[id]) return Promise.resolve(_MAPSHOT.cache[id]);
+  return new Promise(function(res, rej){
+    _MAPSHOT.q.push({ id:id, job:job, res:res, rej:rej });
+    _mapshotPump();
+  });
+}
+function _mapshotFrame(){
+  if (_MAPSHOT.frame) return _MAPSHOT.frame;
+  var f = document.createElement('iframe');
+  f.id = 'schedMapFrame'; f.setAttribute('aria-hidden', 'true'); f.tabIndex = -1;
+  f.style.cssText = 'position:fixed;left:-4000px;top:0;width:1400px;height:900px;border:0;opacity:0;pointer-events:none';
+  var u = location.pathname + '?mapshot=1';
+  f.src = u;
+  document.body.appendChild(f);
+  _MAPSHOT.frame = f;
+  window.addEventListener('message', function(e){
+    if (e.source !== f.contentWindow || !e.data || !e.data.mapshot) return;
+    if (e.data.mapshot === 'ready'){ _MAPSHOT.ready = true; _mapshotPump(); return; }
+    if (e.data.mapshot === 'ack'){ if (_MAPSHOT.cur && _MAPSHOT.cur.id === e.data.id) _MAPSHOT.cur.acked = true; return; }
+    if (e.data.mapshot === 'pic'){
+      var c = _MAPSHOT.cur; if (!c || c.id !== e.data.id) return;
+      clearTimeout(c.timer); clearInterval(c.poke); _MAPSHOT.cur = null;
+      if (e.data.src){ _MAPSHOT.cache[c.id] = e.data.src; c.res(e.data.src); }
+      else c.rej(new Error(e.data.err || 'no picture'));
+      _mapshotPump();
+    }
+  });
+  return f;
+}
+function _mapshotPump(){
+  var f = _mapshotFrame();
+  if (!_MAPSHOT.ready || _MAPSHOT.cur || !_MAPSHOT.q.length) return;
+  var c = _MAPSHOT.q.shift(); _MAPSHOT.cur = c; c.acked = false;
+  var send = function(){ try { f.contentWindow.postMessage({ mapshot:'job', id:c.id, job:c.job }, '*'); } catch(e){} };
+  send();
+  // The frame may still be booting when 'ready' fired: re-send until acked.
+  c.poke = setInterval(function(){ if (c.acked) clearInterval(c.poke); else send(); }, 700);
+  c.timer = setTimeout(function(){
+    clearInterval(c.poke);
+    if (_MAPSHOT.cur === c){ _MAPSHOT.cur = null; c.rej(new Error('timed out')); _mapshotPump(); }
+  }, 40000);
 }
 function _frInstallApp(){
   var p = window.__frInstallPrompt;

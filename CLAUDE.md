@@ -1699,7 +1699,20 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   `<a>`, no `_schedFergusUrl` call — the function stays for `nofergus`). Column
   widths: a `.sched-colrz` grip on each header cell (`data-colrz`), dragged
   widths in `localStorage.fr_sched_colw` (`_schedColW`), re-laid per frame;
-  `_schedRender` hides a stale legend first. `tests/scheduleui.mjs` (87).
+  `_schedRender` hides a stale legend first. THE DETAILED MAP OVER THE AERIAL
+  (the same day: "I want the detailed roof map over the aerial background
+  image from the canvas, not the basic roof map in that pop-up window"): the
+  Map Roof canvas is drawn from DRAW, so another job's cannot be captured on
+  the office's screen — `_schedMapshot(job)` opens ONE hidden iframe of
+  app.html with `?mapshot=1` (`#schedMapFrame`, `__MAPSHOT`: `api()` refuses
+  every non-GET, `_scheduleAutosave` and `saveCurrentJob` return), posts it the
+  job, and the frame runs `restoreFromJob`, waits for `DRAW._bgLoading`, and
+  answers `_jpCaptureDetailed(-1, {keepBg:true})` (the Job Pack's capture with
+  the aerial LEFT ON — `opts.keepBg` is the only change to it) by postMessage;
+  `#sijMap` shows the quote's plain map until it lands (~2 s), cached per job
+  for the sitting, 40 s then "could not draw". `tests/scheduleui.mjs` (94)
+  builds the job in a page of its own (`mkJob`) and pins the frame's picture,
+  the screen untouched and nothing written.
 - THE DRAWER'S SECOND PASS, THE DOWNPIPES AND THE GP CONTROLS (2026-11-10, the
   owner on the first pass: the strategy "doesn't really look like it would be a
   button", the mode buttons "the same color as the section header ... looks

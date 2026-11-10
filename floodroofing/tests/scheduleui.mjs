@@ -47,6 +47,31 @@ function mkSched(){
   return s;
 }
 
+// The saved job behind r1: a 12.6 x 8.1 m hip with a sent, accepted quote
+// (the frozen customer copy the window reads), drawn once in a page of its
+// own and kept for every boot.
+let JOB_J1 = null;
+async function mkJob(){
+  const pg = await (await b.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
+  pg.on('dialog', d => d.accept());
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: /settings/.test(r.request().url()) ? JSON.stringify({ user_id:'u1', branding:{ company_name:'Flood Roofing Ltd' }, quote_defaults:{}, jms_keys:{}, labour_pricing:{ lead_price:180, lead_cost:45, app_price:70, app_cost:25, scaffold_price:2500, scaffold_cost:2000 } }) : '[]' }));
+  await pg.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.removeItem('fr_settings'); });
+  await pg.goto('file://' + DIR + '/app.html'); await pg.waitForTimeout(2600);
+  JOB_J1 = await pg.evaluate(() => {
+    gotoTab('roof'); clearAll(true); setTool('outline');
+    DRAW.currentPts = [[140,160],[560,160],[560,430],[140,430]]; finishCurrent(); DRAW.scaleMetresPerPx = 0.03; autoGenerateRoof('hip');
+    document.querySelectorAll('#_rsModal,.rs-drop').forEach(e => e.remove());
+    gotoTab('quote'); S.quote.ref = 'FR-2996'; S.quote.client = 'Brian Lewis';
+    try { calcLabour(); } catch(e){} try { refreshQuoteProposal(); } catch(e){} try { _qpStashRoofGeom(false); } catch(e){}
+    try { _qpBuildPriced(); } catch(e){} try { _qStampCustomerCopy(); } catch(e){}
+    S.quote.share = Object.assign({}, S.quote.share || {}, { sentAt: '2026-08-20T02:00:00Z', status: 'accepted' });
+    S.quote.accepted = { by: 'Brian Lewis', at: '2026-08-27T09:00:00Z' };
+    return { id: 'j1', draw_state: snapshotCurrentJob() };
+  });
+  await pg.context().close();
+}
+await mkJob();
+
 async function boot(opts){
   opts = opts || {};
   const ctx = await b.newContext({ viewport: { width: 1700, height: 1000 } });
@@ -80,6 +105,7 @@ async function boot(opts){
     if (/\/schedule\/rows\/[^/]+\/send$/.test(u)){ calls.push(['send', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }
     if (/\/schedule\//.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (/\/jobs\/j1$/.test(u) && m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(JOB_J1) });
     if (/fergus/i.test(u)) return r.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
     r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
   });
@@ -536,6 +562,34 @@ check('every header column carries a resize grip', v.grips >= 7, JSON.stringify(
   check('…and the width is kept on this device', kept === Math.round(w1), kept + ' vs ' + w1);
   // Back to the shipped widths so the pins below land where they always did.
   await pg.evaluate(() => { localStorage.removeItem('fr_sched_colw'); _SCHED.colW = null; _schedRender(); });
+}
+// THE JOB WINDOW SHOWS THE JOB (2026-11-10): r1 has a saved job behind it,
+// so the right-hand half reads GET /jobs/j1 and draws its roof, its accepted
+// quote and the picks — and the hidden map-shot frame hands back the
+// detailed map with the aerial. r2 was typed by hand and says so.
+{
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(700);
+  v = await pg.evaluate(() => ({
+    w: document.getElementById('schedInfoModal').getBoundingClientRect().width,
+    txt: (document.getElementById('schedInfoJob') || {}).textContent || '',
+    hasSvg: !!document.querySelector('#sijMap svg'),
+    frame: !!document.getElementById('schedMapFrame') }));
+  check('the job window is the big one', v.w > 1000, v.w + 'px');
+  check('…with the saved job\'s quote summary and the picks on the right', /Quote summary/.test(v.txt) && /What the customer chose/.test(v.txt) && /Steel grade/.test(v.txt), v.txt.slice(0, 160));
+  check('…and the map straight away, the hidden render frame opened for the detailed one', v.hasSvg && v.frame, JSON.stringify({ svg: v.hasSvg, frame: v.frame }));
+  let img = false;
+  try { await pg.waitForSelector('#sijMap img', { timeout: 45000 }); img = true; } catch(e){}
+  check('the detailed roof map lands from the frame', img, (await pg.evaluate(() => (document.querySelector('#sijMap .sij-wait') || {}).textContent)) || 'no img');
+  v = await pg.evaluate(() => ({ roofs: (DRAW.roofs || []).length, tab: document.body.getAttribute('data-tab'), posts: 0 }));
+  check('…and the office\'s own screen is untouched by it', v.roofs === 0 && v.tab === 'schedule', JSON.stringify(v));
+  check('…the frame wrote nothing', !calls.some(c => /^(POST|PATCH|PUT) /.test(c[0]) && !/rows|blocks|config/.test(c[0])), JSON.stringify(calls.map(c => c[0])));
+  await pg.evaluate(() => _schedInfoClose());
+  await pg.evaluate(() => _schedInfoOpen('r2'));
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => (document.getElementById('schedInfoJob') || {}).textContent || '');
+  check('a hand-typed row says there is no saved job behind it', /no saved RoofMap job/.test(v), v.slice(0, 120));
+  await pg.evaluate(() => _schedInfoClose());
 }
 await pg.mouse.move(5, 5);
 await pg.waitForTimeout(100);
