@@ -82,6 +82,21 @@ let row = (v.body || []).find(j => String(j.id) === String(JOB));
 check('the jobs list carries the Fergus link and whether the quote went out',
   !!row && row.linked_job === 'F-3303' && row.linked_no === '3303' && !!row.quote_sent && row.job_no === '06121',
   JSON.stringify(row && { no: row.job_no, linked: row.linked_job, fno: row.linked_no, sent: row.quote_sent }));
+check('…and no accepted date on a quote nobody has accepted', !!row && row.quote_accepted === '', JSON.stringify(row && row.quote_accepted));
+// ACCEPTED, THEN A DRAFT MADE OFF IT (the schedule's Add job, 2026-11-11): the
+// live quote has lost `accepted`; the frozen Accepted version keeps it, and
+// the list reads it from there.
+{
+  const S2 = JSON.parse(JSON.stringify(JOB_STATE));
+  S2.state.quote.ref = '06122'; delete S2.state.quote.share;
+  delete S2.state.linkedJobId; delete S2.state.linkedJobNo; S2.form = { jobClient: 'Kay Other', jobAddr: '9 Elsewhere Lane', jobNo: '06122' };
+  S2.state.quote.versions = { accepted: { id: 'v1', quote: { ref: '06122', accepted: { by: 'Dot', at: '2026-10-20T03:00:00.000Z' } } }, media: {} };
+  const c = await call('POST', '/jobs', { client_name: 'Kay Other', site_address: '9 Elsewhere Lane', draw_state: S2, settings: {} });
+  const l = await call('GET', '/jobs');
+  const r2 = (l.body || []).find(j => String(j.id) === String(c.body.id));
+  check('the jobs list reads the accepted date off the frozen Accepted version when the draft has none',
+    !!r2 && r2.quote_accepted === '2026-10-20T03:00:00.000Z', JSON.stringify(r2 && r2.quote_accepted));
+}
 
 // ── (f) a new version is blank, and named for its number ─────────
 const BLANK = { state: { linkedJobId: 'F-3303', linkedJobNo: '3303',
@@ -178,7 +193,7 @@ const search = await pg.evaluate(async () => {
     verNames: rows.filter(r => r.hasAttribute('data-job-version')).map(r => r.textContent.replace(/\s+/g, ' ').trim()),
   };
 });
-check('the whole group is in the cache (three rows in the database)', search.cached === 3, JSON.stringify(search));
+check('the whole group is in the cache (three rows of it in the database, plus the unrelated job)', search.cached === 4, JSON.stringify(search));
 check('searching 3303 shows ONE job, not three',
   search.heads === 1 && search.fergus === 0, JSON.stringify(search));
 check('…found by its FERGUS number, though its own number is 06121',

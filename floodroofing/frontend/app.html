@@ -3580,6 +3580,16 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-menu .sched-menu-sub{ border:1px solid #9bd5f0; border-top:none; border-radius:0 0 7px 7px; margin:-2px 0 4px; padding:4px; background:#fff; }
 .sched-menu .sched-menu-sub button{ padding:6px 12px 6px 18px; }
 .sched-menu .sched-menu-on{ color:#15803d; font-weight:700; margin-left:4px; }
+.sij-hrs{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.sij-hrs th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:4px 6px; border-bottom:1px solid var(--border); }
+.sij-hrs td{ padding:6px 6px; border-bottom:1px solid #f1f5f9; }
+.sij-hrs th:not(:first-child), .sij-hrs td:not(:first-child){ text-align:right; white-space:nowrap; }
+.sij-hrs tfoot td{ font-weight:800; border-top:2px solid #0a1628; border-bottom:none; }
+.sched-addrow{ display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid #f1f5f9; cursor:pointer; font-size:12.5px; }
+.sched-addrow:hover{ background:#f8fafc; }
+.sched-addrow.on{ color:#64748b; }
+.sched-addrow .sched-onboard{ background:#fef3c7; color:#92400e; }
+.sched-jsdrop{ position:absolute; left:0; right:0; top:100%; z-index:5; max-height:260px; overflow-y:auto; background:#fff; border:1px solid var(--border); border-radius:8px; box-shadow:0 10px 28px rgba(10,22,40,.18); }
 /* The legend that appears after half a second over a column icon — the
    native tooltip is too slow and too small to read what 💰 means. */
 .sched-tip{ position:fixed; z-index:9999; background:#0a1628; color:#fff; font-size:12px; line-height:1.4;
@@ -5542,7 +5552,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T18:12:47Z';
+  window.APP_BUILT_AT = '2026-11-10T18:59:46Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8149,8 +8159,20 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <button onclick="_schedAddClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
     <div style="padding:14px 18px;overflow-y:auto">
-      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">From your saved jobs</div>
-      <div id="schedJobPick" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:14px"></div>
+      <!-- ACCEPTED JOBS, NEWEST FIRST (2026-11-11, the owner: "it should just
+           show the accepted jobs, and it should show the most recent accepted
+           job at the top ... a little symbol to show if it's already been added
+           to the schedule ... then at the bottom, have a search ... just like
+           the home search"). _schedAddOpen fills the list; the search box
+           under it drops a Home-style list over EVERY saved job. -->
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Accepted jobs — newest first</div>
+      <div id="schedJobPick" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px"></div>
+      <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Find any job</div>
+      <div style="position:relative;margin-bottom:14px">
+        <input type="text" id="schedJobSearch" placeholder="Search by client, address or job number…" autocomplete="off" oninput="_schedAddSearch()" onfocus="_schedAddSearch()"
+          style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
+        <div id="schedJobSearchDrop" class="hb-drop sched-jsdrop" style="display:none"></div>
+      </div>
       <div style="font-size:12px;font-weight:700;color:#0a1628;margin-bottom:6px">Or a quick row — for work that never went through quoting</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input type="text" id="schedQClient" placeholder="Client" style="flex:1;min-width:130px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:12.5px">
@@ -12174,19 +12196,32 @@ function _schedInfoJobHtml(job, r){
   var q = st && st.quote;
   if (!q) return '<div class="sij-card" style="color:var(--text2)">The saved job carries no quote yet.</div>';
   var keepQ = S.quote, keepCust = window.__CUSTOMER_MODE, keepView = S._qvViewing;
-  var map = '', rows = [], picks = [], total = '', err = '';
-  var sent = !!(q.share && q.share.priced);
+  var map = '', rows = [], picks = [], total = '', err = '', hours = '';
+  // THE ACCEPTED VERSION IS WHAT THE WINDOW SHOWS (feedback report 88,
+  // 2026-11-11, job 3349: the garage and the second roof read "Not included"
+  // on the map while the summary listed them as taken). A draft made off an
+  // accepted quote resets the customer's roof picks on the LIVE quote; the
+  // frozen Accepted copy keeps them, so that is the quote laid under S.quote
+  // here — its picks, its roofs, its hours.
+  var qa = q;
   try {
-    S.quote = q; window.__CUSTOMER_MODE = true; S._qvViewing = null;
+    var V = q.versions && q.versions.accepted;
+    if (V && V.quote){ S.quote = q; qa = _qvQuoteOf(V); if (!qa.versions) qa.versions = q.versions; }
+  } catch(e){ qa = q; }
+  var sent = !!(qa.share && qa.share.priced) || !!(q.share && q.share.priced);
+  try {
+    S.quote = qa; window.__CUSTOMER_MODE = true; S._qvViewing = null;
     try { map = _qpRoofMapSvg({ readOnly:true, noModes:true, showBg:true, mapKey:'sched', maxH:420 }); } catch(e){ map = ''; }
     if (sent){
       try { rows = _custBarRows(); } catch(e){ rows = []; err = e && e.message; }
       try { total = fmtMoney(_custBarTotalValue()); } catch(e){ total = ''; }
       try { picks = _qbPicks(); } catch(e){ picks = []; }
     }
+    try { hours = _schedInfoHoursHtml(qa); } catch(e){ hours = ''; }
   } finally {
     S.quote = keepQ; window.__CUSTOMER_MODE = keepCust; S._qvViewing = keepView;
   }
+  q = qa;
   var h = '';
   // THE DETAILED ROOF MAP OVER THE AERIAL (2026-11-10, the owner: "I want the
   // detailed roof map over the aerial background image from the canvas, not
@@ -12229,6 +12264,77 @@ function _schedInfoJobHtml(job, r){
     else h += '<div style="color:var(--text2)">No selections recorded.</div>';
   }
   h += '</div>';
+  if (hours) h += hours;
+  return h;
+}
+// THE ALLOCATED HOURS (2026-11-11, the owner: "the allocated hours on the job
+// and list each allocated hours ... scaffolding, like if it was DIY
+// scaffolding ... each individual roof ... any gutters that were included ...
+// a row for the number of guys, so 2 guys, and then the hours per guy, say 30
+// hours each, and then the total hours will be 60 hours for each of those
+// items. And then at the bottom, a total combined hours"). Read off the quote
+// laid under S.quote by the caller (the accepted version where there is one):
+// the DIY scaffold's crew, each roof the quote sells (the main with the roofs
+// folded into it, a separate roof once the customer took it), the gutter's
+// crew when a gutter is on the quote. A line is "who" × "hours each".
+function _schedInfoHoursHtml(q){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var f = function(v){ return parseFloat(v) || 0; };
+  var items = [];
+  // the crew as [hours per person…], dropping anyone with no hours
+  var crew = function(lead, app, extras){
+    var h = [];
+    if (f(lead) > 0) h.push(f(lead));
+    if (f(app) > 0) h.push(f(app));
+    (Array.isArray(extras) ? extras : []).forEach(function(x){ if (f(x && x.hrs) > 0) h.push(f(x.hrs)); });
+    return h;
+  };
+  var add = function(label, h){
+    if (!h.length) return;
+    var tot = h.reduce(function(a, b){ return a + b; }, 0);
+    var same = h.every(function(x){ return Math.abs(x - h[0]) < 0.05; });
+    items.push({ label: label, guys: h.length, each: same ? h[0] : null, list: h, total: tot });
+  };
+  try {
+    var sc = _scaffoldEff(q.scaffold || {});
+    if (sc.diy && sc.hrs > 0) add('Scaffolding (own crew)', crew(sc.d.leadHrs, sc.d.appHrs, null));
+  } catch(e){}
+  var geom = (q.roofMapGeom && Array.isArray(q.roofMapGeom.roofs)) ? q.roofMapGeom.roofs : [];
+  var sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+  var byIdx = {}; geom.forEach(function(r){ if (r) byIdx[r.idx] = r; });
+  var name = function(i){ var r = byIdx[i]; return (r && r.name) || (i === 0 ? 'Main Roof' : 'Roof ' + (i + 1)); };
+  var folded = geom.filter(function(r){ return r && r.idx > 0 && r.mode === 'folded'; }).map(function(r){ return name(r.idx); });
+  var L = q.labour || {};
+  add(name(0) + (folded.length ? ' (incl. ' + folded.join(', ') + ')' : ''), crew(L.leadHrs, L.appHrs, L.extras));
+  var rlAll = (q.roofLabour && typeof q.roofLabour === 'object') ? q.roofLabour : {};
+  geom.forEach(function(r){
+    if (!r || !(r.idx >= 1)) return;
+    if (r.mode === 'folded' || r.mode === 'excluded') return;
+    if (r.mode === 'separate' && !(r.extraPos != null && sel[r.extraPos] === true)) return;
+    var rl = rlAll[r.idx] || {};
+    add(name(r.idx), crew(rl.leadHrs, rl.appHrs, rl.extras));
+  });
+  try {
+    var gt = q.proposalOptions && q.proposalOptions.gutterType;
+    var hasGutter = q.quoteKind === 'gutters' || (gt && gt !== 'none');
+    if (hasGutter && !q.gutterExcluded){
+      var lm = _selGutterLm();
+      if (lm > 0){
+        var g = _gutterLabourState(lm);
+        add('Guttering' + (lm ? ' (' + lm.toFixed(1) + ' m)' : ''), crew(g.leadHrs, g.appHrs, null));
+      }
+    }
+  } catch(e){}
+  if (!items.length) return '';
+  var grand = items.reduce(function(a, it){ return a + it.total; }, 0);
+  var n = function(v){ return (Math.round(v * 10) / 10).toString(); };
+  var h = '<div class="sij-card" id="sijHours"><div class="sij-h">Allocated hours</div>' +
+    '<table class="sij-hrs"><thead><tr><th>Item</th><th>Guys</th><th>Hours each</th><th>Total</th></tr></thead><tbody>';
+  items.forEach(function(it){
+    h += '<tr><td>' + esc(it.label) + '</td><td>' + it.guys + '</td><td>' +
+      (it.each != null ? n(it.each) : it.list.map(n).join(' / ')) + '</td><td>' + n(it.total) + '</td></tr>';
+  });
+  h += '</tbody><tfoot><tr><td>Total combined hours</td><td></td><td></td><td>' + n(grand) + '</td></tr></tfoot></table></div>';
   return h;
 }
 function _schedInfoClose(){
@@ -12590,31 +12696,95 @@ async function _schedMailSend(){
   btn.disabled = false; btn.textContent = '📤 Send';
 }
 // ── add a job ──
+var _SCHED_ADD_JOBS = null;
+function _schedAddOnBoard(){
+  var on = {};
+  ((_SCHED.data && _SCHED.data.rows) || []).forEach(function(r){ if (r.job_id) on[r.job_id] = 1; });
+  return on;
+}
+// One row of either list: the client, the address, the job number and the
+// ticks the Home search shows, plus "On the schedule" when it already is.
+function _schedAddRowHtml(g, onBoard){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var j = g.head, on = !!onBoard[j.id];
+  var acc = g.accepted ? new Date(g.accepted) : null;
+  var when = (acc && !isNaN(acc)) ? acc.toLocaleDateString('en-NZ', { day:'numeric', month:'short' }) : '';
+  return '<div class="sched-addrow' + (on ? ' on' : '') + '" data-pickjob="' + esc(j.id) + '">' +
+    '<div style="flex:1;min-width:0"><strong>' + esc(j.client_name || 'Untitled') + '</strong>' +
+    (g.jobNo ? ' <span style="color:#0a1628;font-weight:600">· ' + esc(g.jobNo) + '</span>' : '') +
+    ' <span style="color:var(--text2)">' + esc(j.site_address || '') + '</span></div>' +
+    '<span class="hb-drop-ticks">' +
+    (when ? '<span class="hb-drop-tick" style="background:#dcfce7;color:#15803d">\u2713 Accepted ' + esc(when) + '</span>' : (g.sent ? '<span class="hb-drop-tick" style="background:#e0f2fe;color:#0369a1">Quote sent</span>' : '')) +
+    (on ? '<span class="hb-drop-tick sched-onboard" title="Already on the schedule">\uD83D\uDCC5 On the schedule</span>' : '') +
+    '</span></div>';
+}
+// The groups (one row a job, its versions folded under the head) with the
+// accepted date read off any version — the frozen Accepted copy keeps it
+// when a draft has since been made.
+function _schedAddGroups(q){
+  var groups = _jobGroupsOf(_SCHED_ADD_JOBS || [], q);
+  groups.forEach(function(g){
+    var acc = '';
+    g.rows.forEach(function(x){ if (x.quote_accepted && String(x.quote_accepted) > acc) acc = String(x.quote_accepted); });
+    g.accepted = acc;
+  });
+  return groups;
+}
+function _schedAddBind(root){
+  root.querySelectorAll('[data-pickjob]').forEach(function(el){
+    el.onclick = async function(){
+      var id = el.getAttribute('data-pickjob');
+      if (_schedAddOnBoard()[id]){
+        document.getElementById('schedAddMsg').textContent = 'That job is already on the schedule.';
+        return;
+      }
+      try {
+        var row = await _schedApi('POST', '/schedule/rows', { job_id: id });
+        _SCHED.data.rows.push(row); _schedAddClose(); _schedRender();
+      } catch(e){}
+    };
+  });
+}
 async function _schedAddOpen(){
   document.getElementById('schedAddOverlay').style.display = 'block';
   document.getElementById('schedAddModal').style.display = 'flex';
   document.getElementById('schedAddMsg').textContent = '';
   var pick = document.getElementById('schedJobPick');
+  var sb = document.getElementById('schedJobSearch'), sd = document.getElementById('schedJobSearchDrop');
+  if (sb) sb.value = ''; if (sd){ sd.style.display = 'none'; sd.innerHTML = ''; }
   pick.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--text2)">Loading your jobs…</div>';
   try {
     var jobs = await api('GET', '/jobs');
-    var onBoard = {};
-    ((_SCHED.data && _SCHED.data.rows) || []).forEach(function(r){ if (r.job_id) onBoard[r.job_id] = 1; });
-    var list = (Array.isArray(jobs) ? jobs : (jobs.jobs || [])).filter(function(j){ return !onBoard[j.id]; });
-    pick.innerHTML = list.length ? list.slice(0, 80).map(function(j){
-      return '<div data-pickjob="' + j.id + '" style="padding:8px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;font-size:12.5px">' +
-        '<strong>' + String(j.client_name || 'Untitled').replace(/</g, '&lt;') + '</strong>' +
-        ' <span style="color:var(--text2)">' + String(j.site_address || '').replace(/</g, '&lt;') + '</span></div>';
-    }).join('') : '<div style="padding:12px;font-size:12px;color:var(--text2)">Every saved job is already on the board.</div>';
-    pick.querySelectorAll('[data-pickjob]').forEach(function(el){
-      el.onclick = async function(){
-        try {
-          var row = await _schedApi('POST', '/schedule/rows', { job_id: el.getAttribute('data-pickjob') });
-          _SCHED.data.rows.push(row); _schedAddClose(); _schedRender();
-        } catch(e){}
-      };
+    _SCHED_ADD_JOBS = Array.isArray(jobs) ? jobs : (jobs.jobs || []);
+    var onBoard = _schedAddOnBoard();
+    // Accepted jobs only: the ones not yet on the board first, newest
+    // acceptance at the top; then the ones already on it, the same way.
+    var groups = _schedAddGroups('').filter(function(g){ return !!g.accepted; });
+    var isOn = function(g){ return g.rows.some(function(x){ return onBoard[x.id]; }); };
+    groups.sort(function(a, b){
+      var ao = isOn(a) ? 1 : 0, bo = isOn(b) ? 1 : 0;
+      if (ao !== bo) return ao - bo;
+      return String(b.accepted).localeCompare(String(a.accepted));
     });
+    pick.innerHTML = groups.length ? groups.slice(0, 60).map(function(g){ return _schedAddRowHtml(g, onBoard); }).join('')
+      : '<div style="padding:12px;font-size:12px;color:var(--text2)">No accepted quotes yet — search for any job below.</div>';
+    _schedAddBind(pick);
   } catch(e){ pick.innerHTML = '<div style="padding:12px;font-size:12px;color:#b91c1c">Could not load jobs</div>'; }
+}
+// The search box: the Home search's own matcher over every saved job
+// (client, address, job number, a Fergus number), a drop-down as you type.
+function _schedAddSearch(){
+  var sb = document.getElementById('schedJobSearch'), sd = document.getElementById('schedJobSearchDrop');
+  if (!sb || !sd) return;
+  var q = (sb.value || '').trim();
+  if (!q){ sd.style.display = 'none'; sd.innerHTML = ''; return; }
+  if (!_SCHED_ADD_JOBS){ sd.style.display = 'block'; sd.innerHTML = '<div style="padding:10px;font-size:12px;color:var(--text2)">Loading your jobs…</div>'; return; }
+  var onBoard = _schedAddOnBoard();
+  var groups = _schedAddGroups(q).slice(0, 10);
+  sd.style.display = 'block';
+  sd.innerHTML = groups.length ? groups.map(function(g){ return _schedAddRowHtml(g, onBoard); }).join('')
+    : '<div style="padding:10px;font-size:12px;color:var(--text2)">No job matches "' + String(q).replace(/</g, '&lt;') + '".</div>';
+  _schedAddBind(sd);
 }
 function _schedAddClose(){
   document.getElementById('schedAddOverlay').style.display = 'none';

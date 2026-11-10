@@ -1788,7 +1788,31 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   `.sii-show` spans on a saved job (`r.job_id`), the inputs shown only on a
   hand-typed row; the Quote accepted and Colour rows are gone (`#schedInfoAccepted`,
   `#schedInfoColour` no longer exist); the label column is 96px, 4px row gap.
-  `scheduleui` (112).
+  `scheduleui` (112). THE WINDOW SHOWS THE ACCEPTED VERSION, THE ALLOCATED
+  HOURS, AND ADD JOB LISTS ACCEPTED JOBS (feedback report 88, 2026-11-11, job
+  3349: the map read "Not included" on the garage and the second roof the
+  customer had taken — a draft made off the acceptance resets the LIVE quote's
+  roof picks, and the window's fallback map read those; the owner: "the
+  allocated hours on the job ... scaffolding, like if it was DIY ... each
+  individual roof ... any gutters ... number of guys ... hours per guy ...
+  total ... a total combined hours"; "it should just show the accepted jobs
+  ... most recent accepted job at the top ... a little symbol to show if it's
+  already been added ... at the bottom, have a search ... just like the home
+  search"). `_schedInfoJobHtml` lays the frozen `versions.accepted` quote
+  (`_qvQuoteOf`) under `S.quote` where there is one, so the map, the summary,
+  the picks and the hours are the acceptance's; `_schedInfoHoursHtml(q)`
+  (`#sijHours`, `.sij-hrs`): the DIY scaffold's crew, the main roof (naming
+  the roofs folded into it) off `q.labour`, each separate roof the customer
+  took off `q.roofLabour[idx]`, the gutter's crew (`_gutterLabourState` over
+  `_selGutterLm`) when a gutter is on the quote — Guys × Hours each = Total, a
+  total combined at the foot. GET /jobs carries `quote_accepted` (the live
+  quote's `accepted.at`, else the frozen Accepted version's). ADD JOB
+  (`_schedAddOpen`): `_schedAddGroups` (the Home search's `_jobGroupsOf`, the
+  accepted date off any version) filtered to accepted jobs, the ones not on
+  the board first, newest acceptance first, a "📅 On the schedule" chip
+  (`.sched-onboard`) on the rest; `#schedJobSearch` → `_schedAddSearch`
+  drops a Home-style list over EVERY saved job (`#schedJobSearchDrop`); a
+  pick POSTs the row. `scheduleui` (118), `jobsearch` (21).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

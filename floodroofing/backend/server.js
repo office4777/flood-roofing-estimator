@@ -3991,7 +3991,12 @@ app.get('/jobs', requireAuth, async (req, res) => {
   const JNO  = ', job_no:draw_state->state->quote->ref' +
                ', linked_job:draw_state->state->linkedJobId' +
                ', linked_no:draw_state->state->linkedJobNo' +
-               ', quote_sent:draw_state->state->quote->share->sentAt';
+               ', quote_sent:draw_state->state->quote->share->sentAt' +
+               // When the customer accepted — on the live quote, or on the frozen
+               // Accepted version when a draft has since been made off it (the
+               // schedule's Add job lists accepted jobs, newest first, 2026-11-11).
+               ', quote_accepted:draw_state->state->quote->accepted->>at' +
+               ', quote_vaccepted:draw_state->state->quote->versions->accepted->quote->accepted->>at';
   const COLS = 'id, client_name, site_address, created_at, updated_at, status, user_id, order_sent, version_of, version_name' + JNO;
   const LEAN = 'id, client_name, site_address, created_at, updated_at, status, user_id' + JNO;
   // A LIMIT, which this never had. Without one the read has to find EVERY
@@ -4038,11 +4043,14 @@ app.get('/jobs', requireAuth, async (req, res) => {
   const me = (req.user.name || String(req.user.email || '').split('@')[0] || '');
   res.json((data || []).map(function (j) {
     const os = j.order_sent && typeof j.order_sent === 'object' ? j.order_sent : null;
+    const acc = String(j.quote_accepted || j.quote_vaccepted || '');
+    delete j.quote_vaccepted;
     return Object.assign({}, j, {
       job_no: (j.job_no == null) ? '' : String(j.job_no),
       linked_job: (j.linked_job == null) ? '' : String(j.linked_job),
       linked_no: (j.linked_no == null) ? '' : String(j.linked_no),
       quote_sent: (j.quote_sent == null) ? '' : String(j.quote_sent),
+      quote_accepted: acc,
       created_by: names[j.user_id] || (j.user_id === req.user.id ? me : ''),
       order_sent: os ? Object.assign({}, os, { by_name: names[os.by] || '' }) : (j.order_sent || null),
     });

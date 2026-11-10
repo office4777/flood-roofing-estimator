@@ -105,7 +105,8 @@ async function boot(opts){
     if (/\/schedule\/rows\/[^/]+\/send$/.test(u)){ calls.push(['send', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }
     if (/\/schedule\//.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-    if (/\/jobs\/j1$/.test(u) && m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(JOB_J1) });
+    if (/\/jobs\/j1$/.test(u) && m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.job || JOB_J1) });
+    if (/\/jobs(\?|$)/.test(u) && m === 'GET' && opts.jobs) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.jobs) });
     if (/fergus/i.test(u)) return r.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
     r.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
   });
@@ -855,6 +856,65 @@ await ctx.close();
     return { h: strip.height, fz: parseFloat(getComputedStyle(hd).fontSize), dfz: parseFloat(getComputedStyle(dn).fontSize), dlh: parseFloat(getComputedStyle(dn).lineHeight) };
   });
   check('the column / day-number header row is 26px with its words and numbers scaled up', Math.abs(v.h - 26) < 1 && v.fz >= 13 && v.dfz >= 12 && Math.abs(v.dlh - 26) < 1, JSON.stringify(v));
+  await ctx.close();
+}
+
+// ── feedback report 88 (2026-11-11): the job window shows the ACCEPTED version,
+// an Allocated hours table, and Add job lists accepted jobs with a search ──
+{
+  // a draft made off the acceptance: the live quote lost `accepted` and reads
+  // a new ref; the frozen Accepted copy keeps both
+  const job = JSON.parse(JSON.stringify(JOB_J1));
+  const live = job.draw_state.state.quote;
+  const frozen = JSON.parse(JSON.stringify(live));
+  frozen.ref = 'FR-ACC'; delete frozen.versions;
+  live.versions = { accepted: { id: 'v1', quote: frozen }, media: {} };
+  delete live.accepted; live.ref = 'FR-DRAFT';
+  live.scaffold = { mode: 'diy', diy: { leadHrs: 4, appHrs: 4, leadPrice: 180, appPrice: 70, leadCost: 45, appCost: 25 } };
+  frozen.scaffold = JSON.parse(JSON.stringify(live.scaffold));
+  frozen.labour = Object.assign({}, frozen.labour || {}, { leadHrs: 30, appHrs: 30 });
+  const jobs = [
+    { id: 'j1', client_name: 'Brian Lewis', site_address: '148 Horeke Road, Okaihau', job_no: 'FR-2996', quote_sent: '2026-08-20T02:00:00Z', quote_accepted: '2026-08-27T09:00:00Z', updated_at: '2026-08-28' },
+    { id: 'j5', client_name: 'Kristina Skododa', site_address: '1213A SH10, Kerikeri', job_no: '3351', quote_sent: '2026-09-01T02:00:00Z', quote_accepted: '2026-09-03T09:00:00Z', updated_at: '2026-09-03' },
+    { id: 'j6', client_name: 'Arran Simpson', site_address: '136 McIntyres Road', job_no: '3352', quote_sent: '2026-09-05T02:00:00Z', quote_accepted: '2026-09-02T09:00:00Z', updated_at: '2026-09-05' },
+    { id: 'j7', client_name: 'Jude Kenyon', site_address: '818 Kerikeri Inlet Road', job_no: '3360', quote_sent: '2026-09-09T02:00:00Z', quote_accepted: '', updated_at: '2026-09-09' },
+    { id: 'j8', client_name: 'Untitled', site_address: '', job_no: '', quote_sent: '', quote_accepted: '', updated_at: '2026-09-10' },
+  ];
+  const { ctx, pg, calls } = await boot({ job, jobs });
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(700);
+  v = await pg.evaluate(() => {
+    const txt = (document.getElementById('schedInfoJob') || {}).textContent || '';
+    const rows = [...document.querySelectorAll('#sijHours tbody tr')].map(tr => [...tr.children].map(td => td.textContent.trim()));
+    const foot = (document.querySelector('#sijHours tfoot td:last-child') || {}).textContent;
+    return { txt, rows, foot };
+  });
+  check('the job window reads the frozen ACCEPTED version, not the draft made off it', /FR-ACC/.test(v.txt) && !/FR-DRAFT/.test(v.txt) && /Accepted by Brian Lewis/.test(v.txt), v.txt.slice(0, 200));
+  check('…with an Allocated hours table: the DIY scaffold, then each roof, guys × hours each = total',
+    v.rows.length === 2 && v.rows[0][0].startsWith('Scaffolding') && v.rows[0][1] === '2' && v.rows[0][2] === '4' && v.rows[0][3] === '8' &&
+    /Main Roof/.test(v.rows[1][0]) && v.rows[1][1] === '2' && v.rows[1][2] === '30' && v.rows[1][3] === '60', JSON.stringify(v.rows));
+  check('…and the total combined hours at the foot', v.foot === '68', v.foot);
+  await pg.evaluate(() => _schedInfoClose());
+  // Add job
+  await pg.evaluate(() => _schedAddOpen());
+  await pg.waitForTimeout(500);
+  v = await pg.evaluate(() => ({
+    rows: [...document.querySelectorAll('#schedJobPick [data-pickjob]')].map(el => ({ id: el.getAttribute('data-pickjob'), on: el.classList.contains('on'), chip: !!el.querySelector('.sched-onboard'), acc: /Accepted/.test(el.textContent) })),
+    search: !!document.getElementById('schedJobSearch'),
+  }));
+  check('Add job lists the ACCEPTED jobs only, newest acceptance first, the one already on the board last with a chip',
+    v.rows.map(r => r.id).join(',') === 'j5,j6,j1' && v.rows.every(r => r.acc) && !v.rows[0].on && v.rows[2].on && v.rows[2].chip && !v.rows[0].chip && v.search, JSON.stringify(v));
+  await pg.fill('#schedJobSearch', '3360'); await pg.waitForTimeout(150);
+  v = await pg.evaluate(() => ({
+    shown: getComputedStyle(document.getElementById('schedJobSearchDrop')).display !== 'none',
+    hits: [...document.querySelectorAll('#schedJobSearchDrop [data-pickjob]')].map(el => el.getAttribute('data-pickjob')),
+  }));
+  check('…the search box drops every matching job, a job number included, like the Home search', v.shown && v.hits.join(',') === 'j7', JSON.stringify(v));
+  calls.length = 0;
+  await pg.evaluate(() => document.querySelector('#schedJobSearchDrop [data-pickjob]').click());
+  await pg.waitForTimeout(400);
+  const added = calls.find(c => c[0] === 'POST rows');
+  check('…and a pick from the search adds that job to the board', !!added && added[1].job_id === 'j7', JSON.stringify(added));
   await ctx.close();
 }
 
