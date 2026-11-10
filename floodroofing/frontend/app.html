@@ -5570,7 +5570,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T20:03:50Z';
+  window.APP_BUILT_AT = '2026-11-10T20:28:16Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -26511,6 +26511,7 @@ function _openAerialModal(){
   // asked for here, the first time it matters, never on page load.
   try { _imageryConfigLoad(); } catch(e){}
   try { _aerialHomeApply(); } catch(e){}
+  try { _stateOptSync(); } catch(e){}
   // The finder is written inside the Map Roof panel. Once an aerial is on the
   // canvas, the roof card sits above it and the popup opened BEHIND the
   // drawing (report 43). Hoisted onto <body> the first time it opens, so no
@@ -89997,9 +89998,8 @@ function _nearmapUpsell(open){
 function _stateOptSync(){
   var so = document.getElementById('imgSrcState'); if (!so) return;
   var sp = _stateImagery();
-  var any = !!sp;
-  if (!any){ try { var m = window._aerialMap, c = m && m.getCenter && m.getCenter(); any = !!(c && _auStateSrc(_auRegionAt(c.lat, c.lng))); } catch(e){} }
-  so.hidden = !any; so.disabled = !any;
+  if (!sp){ try { var m = window._aerialMap, c = m && m.getCenter && m.getCenter(); sp = c ? _auStateSrc(_auRegionAt(c.lat, c.lng)) : null; } catch(e){} }
+  so.hidden = !sp; so.disabled = !sp;
   if (sp) so.textContent = sp.name + ' (sharpest for ' + sp.region + ')';
 }
 // "YOU ARE NOW IN …" (2026-11-11). After every move the map's centre is placed
@@ -90011,6 +90011,7 @@ var _REGION_NO = {};
 function _aerialRegionCheck(){
   var card = document.getElementById('aerialRegionAsk');
   var map = window._aerialMap, sel = document.getElementById('imagerySource');
+  try { _stateOptSync(); } catch(e){}
   if (!card || !map || !sel) return;
   var hide = function(){ card.style.display = 'none'; card.dataset.go = ''; };
   try { if (!_isAU()) return hide(); } catch(e){ return hide(); }

@@ -143,7 +143,11 @@ async function signedIn(company){
   await pg.waitForTimeout(2500);
   return { ctx, pg, errs, state };
 }
-async function finder(pg){
+// `at` puts a stub map over that point first, so the answer does not hang on
+// whether Mapbox loaded on this machine (the option follows the map's state).
+async function finder(pg, at){
+  if (at) await pg.evaluate(([lat, lng]) => { window._aerialMap = { getCenter: () => ({ lat, lng }), getZoom: () => 13, isStyleLoaded: () => true,
+    getLayer: () => null, getSource: () => null, removeLayer(){}, removeSource(){}, addSource(){}, addLayer(){}, moveLayer(){}, jumpTo(){}, resize(){}, on(){}, once(){} }; window._stateSrcKey = null; }, at);
   await pg.evaluate(() => { gotoTab('roof'); _openAerialModal(); });
   await pg.waitForTimeout(700);
   return pg.evaluate(() => {
@@ -329,7 +333,7 @@ async function capture(pg, src){
   const v = await pg.evaluate(() => ({ brief: _companyBrief().state, note: document.getElementById('brStateNote').textContent }));
   check('the owner picking another state saves it', state.puts.length === 1 && state.puts[0].country === 'AU' && state.puts[0].state === 'VIC' && v.brief === 'VIC', JSON.stringify({ puts: state.puts, v }));
   check('…and the note says Victoria has no free government photos, so Mapbox', /Mapbox/.test(v.note) && /Victoria/.test(v.note), v.note);
-  const f2 = await finder(pg);
+  const f2 = await finder(pg, [-37.81, 144.96]);
   check('…and the map finder no longer offers the NSW photos', f2.sel === 'mapbox' && !f2.stateShown, JSON.stringify(f2));
   check('no page errors for a NSW business', errs.length === 0, errs.join(' | '));
   await ctx.close();
@@ -349,8 +353,10 @@ async function capture(pg, src){
   const { ctx, pg, errs } = await signedIn({ id: 'co-au', name: 'Old Aussie', role: 'owner', country: 'AU' });
   const n = await pg.evaluate(() => { _countrySyncUI(); return document.getElementById('brStateNote').textContent; });
   check('an Australian business that has not said its state is asked for it in Settings', /Pick your state/.test(n), n);
-  const f = await finder(pg);
-  check('…and stays on Mapbox until it does', f.sel === 'mapbox' && !f.stateShown, JSON.stringify(f));
+  const f = await finder(pg, [-37.81, 144.96]);
+  check('…and stays on Mapbox until it does (a map over Melbourne offers no state photos)', f.sel === 'mapbox' && !f.stateShown, JSON.stringify(f));
+  const fSyd = await finder(pg, [-33.87, 151.21]);
+  check('…and over Sydney it offers the NSW photos without switching to them unasked', fSyd.sel === 'mapbox' && fSyd.stateShown && /NSW Government aerial/.test(fSyd.stateText), JSON.stringify(fSyd));
   check('no page errors for an Australian business with no state', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }
