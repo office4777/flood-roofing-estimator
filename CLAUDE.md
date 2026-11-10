@@ -2155,9 +2155,9 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   as `country`; changed by the OWNER only on Settings → Branding (`#brCountry`
   → `PUT /company/country`, `_countrySet` reloads). THE APP: `_country()`
   (customer mode → `S.quote.country`, else the signed-in company, else the
-  host — roofmap.com is AU), `_isAU()`, `_defaultGstRate()` (10 / 15),
+  host — roofmap.net is AU), `_isAU()`, `_defaultGstRate()` (10 / 15),
   `_curP()` ('A$79'). On AU: GST 10 % as the default, quote links on
-  roofmap.com (`CUSTOMER_QUOTE_BASE` is a getter; no company subdomains), the
+  roofmap.net (`CUSTOMER_QUOTE_BASE` is a getter; no company subdomains), the
   address search in Australia, LINZ off, the products `_defaultSelectablesAU()`
   (COLORBOND® steel / Ultra / Zincalume — the grade percentages are starting
   guesses for the owner to set; Custom Orb, Trimdek, Klip-Lok 700, Spandek;
@@ -2168,23 +2168,30 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   approval, 0.40/0.55 → 0.42/0.48 BMT, GST number → ABN, "/month + GST" →
   "/month AUD". A quote stamps `country:'AU'` so the customer's copy reads
   Australian too. THE SERVER: `_publicUrlFor(country)` (PUBLIC_APP_URL_AU,
-  default https://roofmap.com) for every link it sends — verify, invite, trial
+  default https://roofmap.net) for every link it sends — verify, invite, trial
   ended, win-back (sent in two batches, NZ and AU); `/subscription` answers
   `country` and `currency`; an AU checkout asks Stripe for `currency=aud` on
   the SAME price (its AUD currency option, A$ at the NZD numbers, added by
   `_ensureAudCurrencyOptions` a minute after boot and `POST
   /admin/aud-prices/run`; an `STRIPE_PRICE_<PLAN>[_ANNUAL]_AUD` price wins
-  where set) and lands back on roofmap.com; a currency refusal sells in NZD and
+  where set) and lands back on roofmap.net; a currency refusal sells in NZD and
   pages (`aud-checkout`). RoofMap is not GST-registered in Australia, so an AUD
   invoice reads "RoofMap — invoice", "No GST charged", no GST number
-  (`_subInvoiceNumbers.noGst`). THE SITE: roofmap.com is the SAME Vercel
+  (`_subInvoiceNumbers.noGst`). THE SITE: roofmap.net is the SAME Vercel
   project; `vercel.json` sends that host's core pages to `frontend/au/*.html`
   (quote, reset and invite links first), built by `tools/build-au-site.mjs`
   from the NZ pages — NEVER hand-edit `frontend/au/`; change the NZ page or a
   rule there (a rule that no longer matches THROWS) and rerun it
   (`sitemap-dates.mjs` calls it). hreflang en-NZ / en-AU pairs, an AU sitemap
-  and robots. NEEDS THE OWNER: roofmap.com added to the Vercel project (the
-  MCP is refused, 403) and its DNS at Network Solutions pointed at Vercel.
+  and robots. THE DOMAIN IS roofmap.net (2026-11-10): roofmap.com was never his — Crazy
+  Domains held only a BACKORDER on it, its DNS was the real owner's at Network
+  Solutions — so every AU link pointed at a stranger's domain. He chose
+  roofmap.net; every roofmap.com became roofmap.net (server, app, vercel.json,
+  build-au-site, tests). NEEDS THE OWNER: buy roofmap.net (Crazy Domains), add
+  it and www.roofmap.net (308 to the apex, NOT "redirect apex to www" — the
+  host rules match the apex) to the Vercel project (the MCP is refused, 403),
+  and set its nameservers to ns1/ns2.vercel-dns.com. CHECK A DOMAIN IS HIS
+  before building on it.
   `tests/australia.mjs` (UI), `aucountry.mjs` (API), `ausite.mjs` (UI),
   `signup.mjs`.
 - AN AUSTRALIAN BUSINESS SAYS ITS STATE, AND NSW GETS ITS GOVERNMENT'S OWN

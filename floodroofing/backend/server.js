@@ -135,7 +135,7 @@ const VERCEL_PROJECT_PREFIXES = [
 const APP_DOMAINS = [
   'floodroofing.co.nz',   // quote.floodroofing.co.nz — our own roofing company's
   'roofmap.co.nz',        // the product, New Zealand
-  'roofmap.com',          // the product, Australia (2026-11-04) — roofmap.com and www.roofmap.com
+  'roofmap.net',          // the product, Australia (2026-11-04) — roofmap.net and www.roofmap.net
 ];
 
 function isAllowedOrigin(origin) {
@@ -1601,9 +1601,9 @@ const PUBLIC_APP_URL = (process.env.PUBLIC_APP_URL || 'https://roofmap.co.nz').r
 // `companies.country`, 'NZ' or 'AU', and a missing or unknown value is NZ —
 // every business that existed before this is a New Zealand one, and an old
 // database without the column reads exactly as it always has. Australia is
-// sold on roofmap.com, so an Australian business's emailed links go there
+// sold on roofmap.net, so an Australian business's emailed links go there
 // (PUBLIC_APP_URL_AU), and it pays in AUD at the same numbers as NZD.
-const PUBLIC_APP_URL_AU = (process.env.PUBLIC_APP_URL_AU || 'https://roofmap.com').replace(/\/+$/, '');
+const PUBLIC_APP_URL_AU = (process.env.PUBLIC_APP_URL_AU || 'https://roofmap.net').replace(/\/+$/, '');
 function _normCountry(v){ return String(v == null ? '' : v).trim().toUpperCase() === 'AU' ? 'AU' : 'NZ'; }
 function _publicUrlFor(country){ return _normCountry(country) === 'AU' ? PUBLIC_APP_URL_AU : PUBLIC_APP_URL; }
 function _currencyFor(country){ return _normCountry(country) === 'AU' ? 'aud' : 'nzd'; }
@@ -2794,7 +2794,7 @@ function _cleanPhone(p){
 function _verifyRequired(){ return EMAIL_ENABLED && process.env.VERIFY_EMAIL !== 'false'; }
 async function _sendVerifyMail(userId, email, name, country){
   const t = jwt.sign({ id: userId, email, purpose: 'verify' }, JWT_SECRET, { expiresIn: '3d' });
-  // The site they signed up on: roofmap.com for Australia, roofmap.co.nz otherwise.
+  // The site they signed up on: roofmap.net for Australia, roofmap.co.nz otherwise.
   if (country === undefined) country = await _countryOfUser(userId);
   const link = _publicUrlFor(country) + '/app?verify=' + encodeURIComponent(t);
   const hi = name ? 'Hi ' + String(name).split(/\s+/)[0] + ',' : 'Hi,';
@@ -3201,7 +3201,7 @@ const WINBACK_SUBJECT = 'RoofMap has come a long way since you tried it — have
 const WINBACK_VIDEO = PUBLIC_APP_URL + '/media/roofmap-demo.mp4';
 const WINBACK_THUMB = PUBLIC_APP_URL + '/media/roofmap-demo-email.jpg';
 const WINBACK_RESTART = PUBLIC_APP_URL + '/app?restart=trial';
-// An Australian business gets the same email pointed at roofmap.com, and a
+// An Australian business gets the same email pointed at roofmap.net, and a
 // footer that does not tell it RoofMap is a New Zealand product.
 function _winbackLinks(country){
   if (_normCountry(country) !== 'AU') return { video: WINBACK_VIDEO, thumb: WINBACK_THUMB, restart: WINBACK_RESTART, home: PUBLIC_APP_URL, au: false };
@@ -3356,7 +3356,7 @@ app.post('/admin/winback/send', async (req, res) => {
     if (up.error) throw new Error(up.error.message);
     // Resend takes 50 addresses a message; the owner's own copy is the To.
     // New Zealand first, exactly as before; an Australian business gets its
-    // own copy pointed at roofmap.com, in batches of its own.
+    // own copy pointed at roofmap.net, in batches of its own.
     for (const ctry of ['NZ', 'AU']){
       const emails = list.filter(r => _normCountry(r.country) === ctry).map(r => r.email);
       for (let i = 0; i < emails.length; i += 45){
@@ -8827,7 +8827,7 @@ async function _reminderQuoteLink(job, share){
       } catch (e) {}
     }
   }
-  // No domain or address of its own: the business's site — roofmap.com for
+  // No domain or address of its own: the business's site — roofmap.net for
   // an Australian business, roofmap.co.nz otherwise.
   if (!base) base = _publicUrlFor(await _companyCountry(job.company_id));
   let link = base + '/?q=' + share.token;

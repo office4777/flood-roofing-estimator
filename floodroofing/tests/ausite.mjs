@@ -1,4 +1,4 @@
-// THE AUSTRALIAN SITE (2026-11-04). roofmap.com serves Australian versions of
+// THE AUSTRALIAN SITE (2026-11-04). roofmap.net serves Australian versions of
 // the core public pages from frontend/au/, built by tools/build-au-site.mjs
 // out of the New Zealand pages; roofmap.co.nz is untouched apart from an
 // hreflang pair. What this suite holds:
@@ -8,10 +8,10 @@
 //   - the pages speak Australian: AUD at the plan prices, no Colorsteel /
 //     Marley / spouting / LINZ / RANZ / "+ GST", no link back to roofmap.co.nz
 //     or to the NZ-only guides;
-//   - vercel.json sends the roofmap.com host to them, ahead of the generic
+//   - vercel.json sends the roofmap.net host to them, ahead of the generic
 //     rules, while /app and the /?q= / ?reset= / ?invite= links stay the app's
 //     on both hosts;
-//   - roofmap.com has its own sitemap and robots.txt;
+//   - roofmap.net has its own sitemap and robots.txt;
 //   - the pages render, and the sign-up form starts on Australia.
 import { fileURLToPath as _f, pathToFileURL } from 'node:url';
 import { dirname as _d, join as _j, extname } from 'node:path';
@@ -86,7 +86,7 @@ const heads = INDEXED.map(([path]) => {
 });
 const badHead = heads.filter(x => !(x.lang === 'en-AU' && x.canonical === AU_SITE + x.path && x.ogUrl === x.canonical &&
   x.ogLocale === 'en_AU' && x.auAlt === x.canonical && x.nzAlt === NZ_SITE + x.path));
-check('every indexable Australian page is en-AU, canonical on roofmap.com, and names its NZ twin with hreflang',
+check('every indexable Australian page is en-AU, canonical on roofmap.net, and names its NZ twin with hreflang',
   badHead.length === 0, badHead.map(x => x.path + ' ' + JSON.stringify(x).slice(0, 160)).join(' | '));
 check('…with a title a search result shows whole (30–65 chars)', heads.every(x => x.title.length >= 30 && x.title.length <= 65),
   heads.filter(x => x.title.length < 30 || x.title.length > 65).map(x => x.path + '=' + x.title.length).join(' '));
@@ -94,7 +94,7 @@ check('…a description that fits too (70–160 chars)', heads.every(x => x.desc
   heads.filter(x => x.desc.length < 70 || x.desc.length > 160).map(x => x.path + '=' + x.desc.length).join(' '));
 check('…no two the same', new Set(heads.map(x => x.title)).size === heads.length && new Set(heads.map(x => x.desc)).size === heads.length);
 const badLd = heads.filter(x => x.ld.some(s => { try { JSON.parse(s); return /roofmap\.co\.nz\//.test(s); } catch (e) { return true; } }));
-check('…and structured data that parses and points at roofmap.com', badLd.length === 0, badLd.map(x => x.path).join(' '));
+check('…and structured data that parses and points at roofmap.net', badLd.length === 0, badLd.map(x => x.path).join(' '));
 const nzHeads = INDEXED.filter(([path, p]) => !read(p.file).includes('<link rel="canonical" href="' + NZ_SITE + path + '">\n' + gen.hreflangBlock(path)));
 check('every NZ twin keeps its own canonical, with the hreflang pair right under it', nzHeads.length === 0, nzHeads.map(([p]) => p).join(' '));
 const su = au['/signup'];
@@ -119,24 +119,24 @@ check('every internal link on an Australian page goes to an Australian page, the
   strays.length === 0, strays.slice(0, 6).join(' , '));
 const leaving = Object.entries(au).flatMap(([p, h]) => Array.from(h.matchAll(/<a\b[^>]*\bhref="(https?:\/\/(?:www\.)?roofmap\.[^"]*)"/g))
   .map(m => [p, m[1]])).filter(([, u]) => !u.startsWith(AU_SITE + '/'));
-check('…and no link on an Australian page leaves roofmap.com for another RoofMap site', leaving.length === 0, leaving.map(x => x.join(' → ')).slice(0, 4).join(' , '));
+check('…and no link on an Australian page leaves roofmap.net for another RoofMap site', leaving.length === 0, leaving.map(x => x.join(' → ')).slice(0, 4).join(' , '));
 
-// ── vercel.json: roofmap.com is routed to them ───────────────────────
+// ── vercel.json: roofmap.net is routed to them ───────────────────────
 const cfg = JSON.parse(read('vercel.json'));
 const rw = cfg.rewrites || [];
-const isAuHost = r => (r.has || []).some(h => h.type === 'host' && h.value === 'roofmap.com');
+const isAuHost = r => (r.has || []).some(h => h.type === 'host' && h.value === 'roofmap.net');
 const routeBad = [];
 for (const [path, p] of Object.entries(AU_PAGES)){
   const i = rw.findIndex(r => r.source === path && isAuHost(r));
   const g = rw.findIndex(r => r.source === path && !r.has);
-  if (i < 0 || rw[i].destination !== '/au/' + p.file) routeBad.push(path + ' has no roofmap.com rewrite to /au/' + p.file);
+  if (i < 0 || rw[i].destination !== '/au/' + p.file) routeBad.push(path + ' has no roofmap.net rewrite to /au/' + p.file);
   else if (g < 0 || i > g) routeBad.push(path + ' rewrite is not ahead of the generic one');
   if (!existsSync(_j(DIR, 'au', p.file))) routeBad.push('au/' + p.file + ' missing');
 }
-check('vercel.json sends each roofmap.com page to its au/ file, ahead of the NZ rule for the same path', routeBad.length === 0, routeBad.join(' | '));
+check('vercel.json sends each roofmap.net page to its au/ file, ahead of the NZ rule for the same path', routeBad.length === 0, routeBad.join(' | '));
 const auRoot = rw.findIndex(r => r.source === '/' && isAuHost(r));
 const qIdx = ['q', 'reset', 'invite'].map(k => rw.findIndex(r => r.source === '/' && (r.has || []).some(h => h.type === 'query' && h.key === k)));
-check('…but a quote link, a reset link and an invite on roofmap.com still open the app (those rules come first)',
+check('…but a quote link, a reset link and an invite on roofmap.net still open the app (those rules come first)',
   qIdx.every(i => i >= 0 && i < auRoot && rw[i].destination === '/app.html'), qIdx.join(',') + ' vs ' + auRoot);
 const appRw = rw.filter(r => r.source === '/app');
 check('…and /app is the app on both hosts (one rule, no host condition)',
@@ -149,16 +149,16 @@ const smRd = rd.find(r => r.source === '/sitemap.xml' && isAuHost(r));
 const smRw = rw.find(r => r.source === AU_SITEMAP_PATH && isAuHost(r));
 // robots.txt and sitemap.xml exist as files, and Vercel serves a file before
 // any rewrite — so the host is sent elsewhere with a redirect, which runs first.
-check('roofmap.com\'s /robots.txt and /sitemap.xml are redirected to its own (files outrank rewrites)',
+check('roofmap.net\'s /robots.txt and /sitemap.xml are redirected to its own (files outrank rewrites)',
   robotsRd && robotsRd.destination === '/au/robots.txt' && robotsRd.permanent === false &&
   smRd && smRd.destination === AU_SITEMAP_PATH && smRw && smRw.destination === '/au/sitemap.xml');
-check('…and roofmap.com is the only host given a rule', [...rw, ...rd].every(r => !(r.has || []).some(h => h.type === 'host') || isAuHost(r)));
+check('…and roofmap.net is the only host given a rule', [...rw, ...rd].every(r => !(r.has || []).some(h => h.type === 'host') || isAuHost(r)));
 
 // ── the sitemap and robots.txt ───────────────────────────────────────
 const sm = readAu('sitemap.xml') || '';
 const locs = Array.from(sm.matchAll(/<loc>([^<]+)<\/loc>/g)).map(m => m[1]);
 const want = INDEXED.map(([p]) => AU_SITE + p).sort();
-check('au/sitemap.xml lists every indexable Australian page, on roofmap.com, and nothing else',
+check('au/sitemap.xml lists every indexable Australian page, on roofmap.net, and nothing else',
   JSON.stringify([...locs].sort()) === JSON.stringify(want) && locs.every(u => u.startsWith(AU_SITE + '/')), locs.length + ' listed');
 const nzSm = read('sitemap.xml');
 const dateOf = (xml, loc) => (new RegExp('<loc>' + loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '</loc>\\s*<lastmod>([^<]+)</lastmod>').exec(xml) || [])[1];

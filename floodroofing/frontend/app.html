@@ -5246,16 +5246,16 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <!-- Google Maps API - Replace YOUR_MAPS_API_KEY with your actual key -->
   <script>
     // ── THE COUNTRY: NEW ZEALAND OR AUSTRALIA (2026-11-04, the owner: "I'll
-    // only advertise roofmap.com in Australia and roofmap.co.nz in nz, and make
+    // only advertise roofmap.net in Australia and roofmap.co.nz in nz, and make
     // the user enter their country ... all the terminology and products need
     // tweaking to suit Australian roofers"). A signed-in business's country is
     // the company's own (`fr_company.country`, set at sign-up, changed in
     // Settings → Branding); a business saved before that has none and is NZ.
     // The customer's quote page reads the country stamped on the quote. With
-    // neither, the site they are on decides: roofmap.com is Australia.
+    // neither, the site they are on decides: roofmap.net is Australia.
     function _hostCountry(){
       var h = String((location && location.hostname) || '').toLowerCase();
-      return /(^|\.)roofmap\.com$/.test(h) ? 'AU' : 'NZ';
+      return /(^|\.)roofmap\.net$/.test(h) ? 'AU' : 'NZ';
     }
     function _country(){
       try {
@@ -5443,7 +5443,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T02:40:46Z';
+  window.APP_BUILT_AT = '2026-11-10T02:41:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5735,7 +5735,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   };
   // THE COUNTRY ON SIGN-UP (2026-11-04): New Zealand or Australia, the same
   // question signup.html asks. Pre-picked from the site they came in on
-  // (roofmap.com = Australia), else New Zealand; one is always ticked.
+  // (roofmap.net = Australia), else New Zealand; one is always ticked.
   window._suCountryHints=function(){
     var au=((document.querySelector('input[name=su-country]:checked')||{}).value==='AU');
     var em=document.getElementById('su-email'), ph=document.getElementById('su-phone');
@@ -10529,9 +10529,9 @@ function _auTermsPass(root){
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
-// Australia's links are on roofmap.com (2026-11-04).
+// Australia's links are on roofmap.net (2026-11-04).
 try { Object.defineProperty(window, 'CUSTOMER_QUOTE_BASE', { configurable:true,
-  get:function(){ return _isAU() ? 'https://roofmap.com' : 'https://roofmap.co.nz'; } }); } catch(e){}
+  get:function(){ return _isAU() ? 'https://roofmap.net' : 'https://roofmap.co.nz'; } }); } catch(e){}
 var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],files:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
@@ -35139,8 +35139,8 @@ function _companyQuoteBase(){
   var own = String(c.domain || '').trim().toLowerCase();
   if (own) return 'https://' + own;
   var slug = String(c.slug || '').trim().toLowerCase();
-  // No business subdomains on roofmap.com yet (its DNS is not Vercel's, so a
-  // wildcard cannot be served): an Australian link is plain roofmap.com.
+  // No business subdomains on roofmap.net yet (its DNS is not Vercel's, so a
+  // wildcard cannot be served): an Australian link is plain roofmap.net.
   if (_isAU()) return '';
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }

@@ -297,13 +297,13 @@
     msg.textContent = text || '';
     msg.style.color = kind === 'bad' ? '#b91c1c' : kind === 'good' ? '#15803d' : 'var(--muted)';
   }
-  // THE COUNTRY (2026-11-04): New Zealand or Australia. roofmap.com is the
+  // THE COUNTRY (2026-11-04): New Zealand or Australia. roofmap.net is the
   // Australian site, roofmap.co.nz the New Zealand one; the form's own
   // data-default-country says which this copy of the page is.
   (function(){
     var host = String(location.hostname || '').toLowerCase();
     var def = (form.getAttribute('data-default-country') || 'NZ').toUpperCase();
-    if (/(^|\.)roofmap\.com$/.test(host)) def = 'AU';
+    if (/(^|\.)roofmap\.net$/.test(host)) def = 'AU';
     if (/(^|\.)roofmap\.co\.nz$/.test(host)) def = 'NZ';
     var sel = document.getElementById('suCountry');
     if (sel) sel.value = (def === 'AU' ? 'AU' : 'NZ');

@@ -120,7 +120,7 @@ check('trust proxy is set to exactly one hop, not blanket-true',
 // marketing landing page, so a reset or invite link on "/" opened the home
 // page with the token ignored (2026-10-22, tyler@tgmroofing.co.nz: "This
 // keeps just taking me back to the home page"). Both links point at /app —
-// on the business's own site since 2026-11-04 (_publicUrlFor: roofmap.com for
+// on the business's own site since 2026-11-04 (_publicUrlFor: roofmap.net for
 // Australia, PUBLIC_APP_URL otherwise), so either base is accepted here.
 check('the password-reset link points at /app, where the token is read, never the landing page',
   /(PUBLIC_APP_URL|_publicUrlFor\([^)]*\)\)?) \+ '\/app\?reset='/.test(src) && !/\+ '\/\?reset='/.test(src));

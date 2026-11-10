@@ -35,8 +35,8 @@ for (const o of [
   'https://roofmap.co.nz',
   'https://www.roofmap.co.nz',
   'https://quote.roofmap.co.nz',
-  'https://roofmap.com',
-  'https://www.roofmap.com',
+  'https://roofmap.net',
+  'https://www.roofmap.net',
 ]) check('the backend accepts ' + o, await allowed(o));
 
 check('the existing Flood Roofing domain still works', await allowed('https://quote.floodroofing.co.nz'));

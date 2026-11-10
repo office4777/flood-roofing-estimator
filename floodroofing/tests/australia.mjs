@@ -1,9 +1,9 @@
 // AUSTRALIA (2026-11-04). RoofMap is sold to Australian roofers on
-// roofmap.com, from the same Stripe account, in AUD at the same numbers as
+// roofmap.net, from the same Stripe account, in AUD at the same numbers as
 // NZD (A$79 / A$149 / A$299 a month). A business carries a country (NZ or AU,
 // null = NZ); a sign-up names it; the app is told it; the owner may change
 // it; an Australian checkout asks Stripe for AUD and comes back to
-// roofmap.com; every price is given an AUD currency option; an AUD invoice
+// roofmap.net; every price is given an AUD currency option; an AUD invoice
 // says "No GST charged"; emailed links go to the business's own site; and a
 // New Zealand business reads exactly as it did before any of this.
 // Stripe and the mail relay are local stand-ins; signatures are real HMACs.
@@ -175,14 +175,14 @@ const body = (m) => String((m && (m.text || m.body)) || '') + '\n' + String((m &
   prices.price_measure_79.unit_amount = 7900; prices.price_measure_79.currency_options = { nzd: {}, aud: { unit_amount: 7900 } };
 }
 
-// ── CORS: roofmap.com and www.roofmap.com ─────────────────────────
-for (const o of ['https://roofmap.com', 'https://www.roofmap.com', 'https://roofmap.co.nz']){
+// ── CORS: roofmap.net and www.roofmap.net ─────────────────────────
+for (const o of ['https://roofmap.net', 'https://www.roofmap.net', 'https://roofmap.co.nz']){
   const r = await fetch(B + '/health', { headers: { Origin: o } });
   check('CORS lets ' + o + ' call the API', r.headers.get('access-control-allow-origin') === o, String(r.headers.get('access-control-allow-origin')));
 }
 {
-  const r = await fetch(B + '/health', { headers: { Origin: 'https://roofmap.com.evil.example' } });
-  check('…and not a look-alike host', r.headers.get('access-control-allow-origin') !== 'https://roofmap.com.evil.example');
+  const r = await fetch(B + '/health', { headers: { Origin: 'https://roofmap.net.evil.example' } });
+  check('…and not a look-alike host', r.headers.get('access-control-allow-origin') !== 'https://roofmap.net.evil.example');
 }
 
 // ── what the app is told ─────────────────────────────────────────
@@ -230,9 +230,9 @@ const lastCheckout = () => stripeCalls.filter(c => c.path === '/v1/checkout/sess
     JSON.stringify(Object.keys(r.body)) === '["url"]', [...c.body.keys()].sort().join(','));
   r = await call('POST', '/billing/checkout', { plan: 'team' }, TAU);
   c = lastCheckout();
-  check('an Australian checkout asks for AUD on the same price, and comes back to roofmap.com', r.status === 200 && c.body.get('currency') === 'aud' &&
-    c.body.get('line_items[0][price]') === 'price_team_299' && c.body.get('success_url') === 'https://roofmap.com/index.html?billing=success' &&
-    c.body.get('cancel_url') === 'https://roofmap.com/index.html?billing=cancelled' && r.body.currency === 'aud', JSON.stringify(Object.fromEntries(c.body)));
+  check('an Australian checkout asks for AUD on the same price, and comes back to roofmap.net', r.status === 200 && c.body.get('currency') === 'aud' &&
+    c.body.get('line_items[0][price]') === 'price_team_299' && c.body.get('success_url') === 'https://roofmap.net/index.html?billing=success' &&
+    c.body.get('cancel_url') === 'https://roofmap.net/index.html?billing=cancelled' && r.body.currency === 'aud', JSON.stringify(Object.fromEntries(c.body)));
   check('…with Stripe Tax and the tax-id collection still on, and the country in the metadata', c.body.get('automatic_tax[enabled]') === 'true' &&
     c.body.get('tax_id_collection[enabled]') === 'true' && c.body.get('metadata[country]') === 'AU');
   // (Trade is one person, so the one-person Australian business buys it.)
@@ -293,7 +293,7 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   const co = prof && db.companies.find(c => c.id === prof.company_id);
   check('a sign-up naming AU makes an Australian business', r.status === 200 && co && co.country === 'AU', JSON.stringify({ s: r.status, j, co }));
   const v = mailTo(/mick@sydneyroofs/).find(m => /Confirm your email/.test(m.subject || ''));
-  check('…and its confirmation link opens roofmap.com', v && /https:\/\/roofmap\.com\/app\?verify=/.test(all(v)) && !/roofmap\.co\.nz\/app\?verify/.test(all(v)), v ? '' : JSON.stringify(mails.map(m => m.subject)));
+  check('…and its confirmation link opens roofmap.net', v && /https:\/\/roofmap\.net\/app\?verify=/.test(all(v)) && !/roofmap\.co\.nz\/app\?verify/.test(all(v)), v ? '' : JSON.stringify(mails.map(m => m.subject)));
   const al = mailTo(/signups@roofmap\.test/).find(m => /Sydney Roofs/.test(m.subject || ''));
   check('…and the owner\'s signup alert names the country', al && /\(Australia\)/.test(al.subject) && /Country: Australia/.test(all(al)), al ? al.subject : 'no alert');
 
@@ -324,7 +324,7 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   await call('POST', '/auth/verify/resend', { email: 'mick@sydneyroofs.com.au' }, null, { 'X-Forwarded-For': '203.0.113.200' });
   await settle(400);
   const rs = mails.slice(before).find(m => /mick@sydneyroofs/.test(m.to || ''));
-  check('a resent confirmation for an Australian business opens roofmap.com', rs && /https:\/\/roofmap\.com\/app\?verify=/.test(all(rs)), rs ? '' : 'not sent');
+  check('a resent confirmation for an Australian business opens roofmap.net', rs && /https:\/\/roofmap\.net\/app\?verify=/.test(all(rs)), rs ? '' : 'not sent');
 }
 
 // ── emailed links ────────────────────────────────────────────────
@@ -334,14 +334,14 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   await call('POST', '/auth/forgot', { email: 'sam@kauri.co.nz' }, null, { 'X-Forwarded-For': '203.0.113.211' });
   await settle(400);
   const au = mails.slice(before).find(m => /bruce@/.test(m.to || '')), nz = mails.slice(before).find(m => /sam@kauri/.test(m.to || ''));
-  check('a password reset for an Australian business links to roofmap.com', au && /https:\/\/roofmap\.com\/app\?reset=/.test(all(au)), au ? '' : 'none');
-  check('…a New Zealand one to roofmap.co.nz', nz && /https:\/\/roofmap\.co\.nz\/app\?reset=/.test(all(nz)) && !/roofmap\.com\//.test(all(nz)));
+  check('a password reset for an Australian business links to roofmap.net', au && /https:\/\/roofmap\.net\/app\?reset=/.test(all(au)), au ? '' : 'none');
+  check('…a New Zealand one to roofmap.co.nz', nz && /https:\/\/roofmap\.co\.nz\/app\?reset=/.test(all(nz)) && !/roofmap\.net\//.test(all(nz)));
 
   before = mails.length;
   let r = await call('POST', '/team/invites', { email: 'newbie@bondiroofing.com.au' }, TAU);
   await settle(200);
   const inv = mails.slice(before).find(m => /newbie@/.test(m.to || ''));
-  check('a team invite from an Australian business links to roofmap.com', r.status === 200 && inv && /https:\/\/roofmap\.com\/app\?invite=/.test(all(inv)), JSON.stringify(r.body).slice(0, 200));
+  check('a team invite from an Australian business links to roofmap.net', r.status === 200 && inv && /https:\/\/roofmap\.net\/app\?invite=/.test(all(inv)), JSON.stringify(r.body).slice(0, 200));
   before = mails.length;
   r = await call('POST', '/team/invites', { email: 'newbie@kauri.co.nz' }, TNZ);
   await settle(200);
@@ -354,9 +354,9 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   await settle(200);
   const te = mails.slice(before);
   const teAu = te.find(m => /bruce@/.test(m.to || '')), teNz = te.find(m => /sam@kauri/.test(m.to || ''));
-  check('the trial-ended email to an Australian business points at roofmap.com', teAu && /https:\/\/roofmap\.com\/app\?billing=plans/.test(all(teAu)) &&
-    /https:\/\/roofmap\.com\/trial-ended\?t=/.test(all(teAu)) && !/roofmap\.co\.nz/.test(body(teAu)), JSON.stringify(r.body));
-  check('…and to a New Zealand one at roofmap.co.nz', teNz && /https:\/\/roofmap\.co\.nz\/app\?billing=plans/.test(all(teNz)) && !/roofmap\.com\//.test(body(teNz)));
+  check('the trial-ended email to an Australian business points at roofmap.net', teAu && /https:\/\/roofmap\.net\/app\?billing=plans/.test(all(teAu)) &&
+    /https:\/\/roofmap\.net\/trial-ended\?t=/.test(all(teAu)) && !/roofmap\.co\.nz/.test(body(teAu)), JSON.stringify(r.body));
+  check('…and to a New Zealand one at roofmap.co.nz', teNz && /https:\/\/roofmap\.co\.nz\/app\?billing=plans/.test(all(teNz)) && !/roofmap\.net\//.test(body(teNz)));
 
   // The trial drip's first day.
   db.subscriptions.find(s => s.id === 's3').trial_drip = null;
@@ -364,7 +364,7 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   r = await call('POST', '/admin/trial-drip/run', {}, null, { 'x-admin-token': ADMIN });
   await settle(200);
   const d1 = mails.slice(before).find(m => /kylie@/.test(m.to || ''));
-  check('the trial drip to an Australian business links to roofmap.com/app', d1 && /https:\/\/roofmap\.com\/app/.test(all(d1)) && !/roofmap\.co\.nz/.test(body(d1)), JSON.stringify(r.body));
+  check('the trial drip to an Australian business links to roofmap.net/app', d1 && /https:\/\/roofmap\.net\/app/.test(all(d1)) && !/roofmap\.co\.nz/.test(body(d1)), JSON.stringify(r.body));
 }
 
 // ── the win-back email ───────────────────────────────────────────
@@ -372,20 +372,20 @@ const register = (body) => fetch(B + '/auth/register', { method: 'POST',
   let r = await call('GET', '/admin/winback', undefined, null, { 'x-admin-token': ADMIN });
   const rowAu = (r.body.list || []).find(x => /dazza@/.test(x.email));
   check('the win-back list names each business\'s country', r.status === 200 && rowAu && rowAu.country === 'AU', JSON.stringify((r.body.list || []).map(x => [x.email, x.country])));
-  check('…the New Zealand copy is the one it always was (Whangarei, roofmap.co.nz)', /Whangarei, New Zealand/.test(r.body.html) && !/roofmap\.com\//.test(r.body.html));
-  check('…and the Australian copy points at roofmap.com and never says New Zealand', /https:\/\/roofmap\.com\/app\?restart=trial/.test(r.body.html_au) && !/New Zealand|roofmap\.co\.nz/.test(r.body.html_au));
+  check('…the New Zealand copy is the one it always was (Whangarei, roofmap.co.nz)', /Whangarei, New Zealand/.test(r.body.html) && !/roofmap\.net\//.test(r.body.html));
+  check('…and the Australian copy points at roofmap.net and never says New Zealand', /https:\/\/roofmap\.net\/app\?restart=trial/.test(r.body.html_au) && !/New Zealand|roofmap\.co\.nz/.test(r.body.html_au));
   const before = mails.length;
   r = await call('POST', '/admin/winback/test', { to: 'aron@roofmap.test', country: 'AU' }, null, { 'x-admin-token': ADMIN });
   await settle(200);
   const t = mails.slice(before)[0];
-  check('a test of the Australian copy can be sent', r.status === 200 && t && /roofmap\.com\/app\?restart=trial/.test(all(t)) && !/New Zealand/.test(body(t)), JSON.stringify(r.body));
+  check('a test of the Australian copy can be sent', r.status === 200 && t && /roofmap\.net\/app\?restart=trial/.test(all(t)) && !/New Zealand/.test(body(t)), JSON.stringify(r.body));
   const b2 = mails.length;
   r = await call('POST', '/admin/winback/send', { subs: ['s4'] }, null, { 'x-admin-token': ADMIN });
   await settle(200);
   const w = mails.slice(b2);
   // (The relay stand-in does not carry BCC; the batch record says who it was for.)
   check('the win-back send gives an Australian business its own copy, in a batch of its own', r.status === 200 && r.body.ok && w.length === 1 &&
-    /roofmap\.com\/app\?restart=trial/.test(body(w[0])) && !/New Zealand/.test(body(w[0])) &&
+    /roofmap\.net\/app\?restart=trial/.test(body(w[0])) && !/New Zealand/.test(body(w[0])) &&
     r.body.batches.length === 1 && r.body.batches[0].country === 'AU', JSON.stringify(r.body) + ' ' + JSON.stringify(w.map(m => ({ to: m.to, bcc: m.bcc, k: Object.keys(m) }))));
 }
 

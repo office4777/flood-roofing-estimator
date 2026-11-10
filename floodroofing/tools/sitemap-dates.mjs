@@ -46,7 +46,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]){
   const { out, changed } = stamp(readFileSync(p, 'utf8'));
   writeFileSync(p, out);
   console.log('sitemap: ' + changed + ' date' + (changed === 1 ? '' : 's') + ' updated');
-  // The Australian sitemap (roofmap.com) carries each NZ twin's date, so it
+  // The Australian sitemap (roofmap.net) carries each NZ twin's date, so it
   // is rebuilt from the one just written. tests/ausite.mjs checks they agree.
   const { buildSitemap, AU_DIR } = await import('./build-au-site.mjs');
   const auP = join(AU_DIR, 'sitemap.xml'), auXml = buildSitemap(out);
