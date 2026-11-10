@@ -1779,7 +1779,16 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   then every crew with its colour dot, the block's own ticked — and a pick
   PATCHes the block's kind / crew_id. The second header row is
   `.sched-hd-row.cols`, 26px (was 20), its words 13.5px × the text zoom and
-  the day numbers 12.5px; the shade layer starts at 46px. `scheduleui` (111).
+  the day numbers 12.5px; the shade layer starts at 46px. `scheduleui` (111). THE JOB WINDOW'S FACTS ARE
+  PLAIN TEXT (the same morning: "narrow up shorten up the client, the job
+  number, the site address, customer email, remove the quote accepted date
+  ... the colour ... no need to make those editable text boxes ... keep the
+  day length, the progress percentage and the special notes"): `#schedInfoFacts`
+  shows client / job no (`job_no`, else the Fergus no) / site / email as
+  `.sii-show` spans on a saved job (`r.job_id`), the inputs shown only on a
+  hand-typed row; the Quote accepted and Colour rows are gone (`#schedInfoAccepted`,
+  `#schedInfoColour` no longer exist); the label column is 96px, 4px row gap.
+  `scheduleui` (112).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

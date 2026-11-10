@@ -361,12 +361,19 @@ v = await pg.evaluate(() => ({
   shown: getComputedStyle(document.getElementById('schedInfoModal')).display !== 'none',
   title: document.getElementById('schedInfoTitle').textContent,
   no: document.getElementById('schedInfoNo').textContent,
-  site: document.querySelector('#schedInfoModal [data-iedit="site_address"]').value,
+  site: document.querySelector('#schedInfoModal [data-ishow="site_address"]').textContent,
+  siteInputHidden: document.querySelector('#schedInfoModal [data-iedit="site_address"]').offsetParent === null,
+  jobNo: document.querySelector('#schedInfoModal [data-ishow="job_no"]').textContent,
+  noAccepted: !document.getElementById('schedInfoAccepted'), noColour: !document.getElementById('schedInfoColour'),
+  lenEditable: document.querySelector('#schedInfoModal [data-iedit="length_days"]').offsetParent !== null,
+  notesEditable: document.querySelector('#schedInfoModal [data-iedit="notes"]').offsetParent !== null,
   dep: document.querySelector('#schedInfoModal [data-iedit="deposit_paid"]').checked,
 }));
 check('ⓘ opens the job-details popup with the full address and title',
   v.shown && v.title === 'Brian Lewis' && /FR-2996/.test(v.no) &&
   v.site === '148 Horeke Road, Okaihau' && v.dep === true, JSON.stringify(v));
+check('…on a saved job the client, job no, site and email are plain text, no accepted date or colour row, length and notes still edit',
+  v.siteInputHidden && /FR-2996/.test(v.jobNo) && v.noAccepted && v.noColour && v.lenEditable && v.notesEditable, JSON.stringify(v));
 calls.length = 0;
 await pg.evaluate(() => {
   const cb = document.querySelector('#schedInfoModal [data-iedit="handover_done"]');
