@@ -69,7 +69,9 @@ async function open(role){
 
 // ── owner ──
 let { ctx, pg } = await open('owner');
-let t = await pg.evaluate(() => (document.getElementById('teamWrap').textContent||'').replace(/\s+/g,' '));
+// The business's RoofMap address renders into Emails' #emAddressHost since
+// 2026-11-10 (renderTeam still writes it); it is read beside the Team text.
+let t = await pg.evaluate(() => ((document.getElementById('teamWrap').textContent||'') + ' ' + ((document.getElementById('emAddressHost')||{}).textContent||'')).replace(/\s+/g,' '));
 check('the Team screen lists everyone in the business', /Aaron/.test(t) && /Ethan/.test(t) && /2 people/.test(t), t.slice(0,120));
 check('…marks which one is you', /Aaron \(you\)/.test(t));
 check('…shows the pending invitation', /matt@floodroofing\.co\.nz/.test(t) && /Invitations waiting/.test(t));
@@ -102,7 +104,9 @@ check('…and a stale typed domain from the retired Settings box is ignored',
   link.startsWith('https://floodroofing.roofmap.co.nz/?q='), link);
 await pg.evaluate(() => { S.settings.quote_defaults = {}; });
 
-// availability check
+// availability check — the address block is on Quotes & emails → Emails now
+await pg.evaluate(() => switchSettingsSub('set-email'));
+await pg.waitForTimeout(200);
 await pg.fill('#teamSlug', 'acmeroofing');
 await pg.waitForTimeout(800);
 check('an address another business has is called out',
@@ -111,7 +115,7 @@ await pg.fill('#teamSlug', 'floodroofingnz');
 await pg.waitForTimeout(800);
 check('…and a free one is confirmed with the full address',
   /floodroofingnz\.roofmap\.co\.nz is free/.test(await pg.evaluate(() => document.getElementById('teamSlugMsg').textContent)));
-await pg.click('#teamWrap button[onclick^="saveTeamSlug"]');
+await pg.click('#emAddressHost button[onclick^="saveTeamSlug"]');
 await pg.waitForTimeout(700);
 check('saving the address posts it', calls.some(c => /\/team\/slug$/.test(c.u) && c.body.slug === 'floodroofingnz'), JSON.stringify(calls.map(c=>c.u.split('/').pop())));
 check('…and quote links follow it immediately',
@@ -119,6 +123,7 @@ check('…and quote links follow it immediately',
   await pg.evaluate(() => _customerLinkString()));
 
 // inviting
+await pg.evaluate(() => switchSettingsSub('set-team'));
 await pg.fill('#teamInviteEmail', 'matt2@floodroofing.co.nz');
 await pg.click('#teamWrap button[onclick^="inviteTeamMember"]');
 await pg.waitForTimeout(900);
@@ -142,31 +147,32 @@ await pg.click('#teamWrap button[onclick^="removeTeamMember"]');
 await pg.waitForTimeout(800);
 check('removing a teammate is posted', calls.some(c => /members\/u2$/.test(c.u) && c.m === 'DELETE'));
 
-// ── connecting your own domain ──
+// ── connecting your own domain (on Emails) ──
+await pg.evaluate(() => switchSettingsSub('set-email'));
 await pg.fill('#teamDomainInput', 'quote.acmeroofing.co.nz');
-await pg.click('#teamWrap button[onclick^="addTeamDomain"]');
+await pg.click('#emAddressHost button[onclick^="addTeamDomain"]');
 await pg.waitForTimeout(900);
-let dt = await pg.evaluate(() => (document.getElementById('teamWrap').textContent||'').replace(/\s+/g,' '));
+let dt = await pg.evaluate(() => (document.getElementById('emAddressHost').textContent||'').replace(/\s+/g,' '));
 check('connecting a domain posts it', calls.some(c => /\/team\/domains$/.test(c.u) && c.body.domain === 'quote.acmeroofing.co.nz'));
 check('…and the owner is shown the one DNS record to add',
   /Waiting for DNS/.test(dt) && /CNAME/.test(dt) && /cname\.vercel-dns\.com/.test(dt), dt.slice(dt.indexOf('Your own domain'), dt.indexOf('Your own domain')+220));
 check('…and quote links do NOT move to it until it verifies',
   (await pg.evaluate(() => _customerLinkString())).indexOf('acmeroofing.co.nz') < 0,
   await pg.evaluate(() => _customerLinkString()));
-await pg.locator('#set-team').screenshot({ path: S+'/team_domain_pending.png' });
-await pg.click('#teamWrap button[onclick^="checkTeamDomain"]');
+await pg.locator('#emAddressHost').screenshot({ path: S+'/team_domain_pending.png' });
+await pg.click('#emAddressHost button[onclick^="checkTeamDomain"]');
 await pg.waitForTimeout(1000);
-dt = await pg.evaluate(() => (document.getElementById('teamWrap').textContent||'').replace(/\s+/g,' '));
+dt = await pg.evaluate(() => (document.getElementById('emAddressHost').textContent||'').replace(/\s+/g,' '));
 check('checking it flips to connected', /✓ Connected/.test(dt), dt.slice(dt.indexOf('Your own domain'), dt.indexOf('Your own domain')+200));
 check('…and quote links move onto it', (await pg.evaluate(() => _customerLinkString())).startsWith('https://quote.acmeroofing.co.nz/?q='),
   await pg.evaluate(() => _customerLinkString()));
-await pg.locator('#set-team').screenshot({ path: S+'/team_domain_ok.png' });
+await pg.locator('#emAddressHost').screenshot({ path: S+'/team_domain_ok.png' });
 // the retired manual override must be dead here too: a stale stored value
 // changes neither the screen nor the links
 await pg.evaluate(() => { S.settings = S.settings || {}; S.settings.quote_defaults = { quote_domain:'https://old.example.com' }; renderTeam(); });
 await pg.waitForTimeout(300);
 check('a stale manual quote-domain neither warns nor wins — the verified domain holds',
-  !/overrides everything here/.test(await pg.evaluate(() => document.getElementById('teamWrap').textContent)) &&
+  !/overrides everything here/.test(await pg.evaluate(() => document.getElementById('emAddressHost').textContent)) &&
   (await pg.evaluate(() => _customerLinkString())).startsWith('https://quote.acmeroofing.co.nz/?q='));
 await pg.evaluate(() => { S.settings.quote_defaults = {}; renderTeam(); });
 

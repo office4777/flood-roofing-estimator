@@ -89,8 +89,8 @@ v = await pg.evaluate(() => ({
 check('the free-text domain box is gone', !v.input, '');
 check('…replaced by a line showing where links actually go',
   /https:\/\/roofmap\.co\.nz\/\?q=/.test(v.info), v.info);
-check('…that says it is automatic and points at the Team screen for a custom domain',
-  /Set automatically/.test(v.blurb) && /Team/.test(v.blurb), v.blurb.slice(0, 160));
+check('…that says it is automatic and points at the Emails screen for a custom domain',
+  /Set automatically/.test(v.blurb) && /Emails/.test(v.blurb), v.blurb.slice(0, 160));
 await pg.locator('#set-quote').screenshot({ path: S+'/quotedomain.png' });
 
 // ── saving Settings heals a stale stored value ──
