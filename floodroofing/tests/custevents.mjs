@@ -408,8 +408,10 @@ await post('/q/tok-fg/accept-email?job=j-fg', {
 await settle(1200);
 const _accFile = fergus.files.find(f => /^Quote 3310/.test(f.name)) || {};
 const _selFile = fergus.files.find(f => /^Customer selections/.test(f.name)) || {};
-check('the accepted quote PDF is uploaded to the Fergus job',
-  fergus.files.length === 2 && /attachments/.test(_accFile.url || '') && _accFile.entityId === 'FJ-77',
+// THE PRICED QUOTE IS NOT (2026-11-11, the owner: "i don't want my roofers to
+// see the price") — only the selections PDF goes into the job's files.
+check('the accepted quote PDF (it carries the price) is NOT uploaded to the Fergus job',
+  fergus.files.length === 1 && !_accFile.name && !shareOf('j-fg').fergusAcceptFileAt,
   JSON.stringify(fergus.files.map(f => f.name)));
 // "can the customer selections be uploaded to the job files in a small PDF
 // showing the customer's selections?" (2026-11-06)
@@ -426,8 +428,6 @@ check('…listing what they chose and who accepted it, NO PRICE anywhere (the ow
 check('…and the share records both, so neither is uploaded twice',
   !!shareOf('j-fg').fergusAcceptSelAt && (shareOf('j-fg').fergusAccept || {}).sel && shareOf('j-fg').fergusAccept.sel.ok === true,
   JSON.stringify(shareOf('j-fg').fergusAccept || {}));
-check('…and the share records it, so it cannot be uploaded twice',
-  !!shareOf('j-fg').fergusAcceptFileAt, JSON.stringify(shareOf('j-fg').fergusAccept || {}));
 const desc = fergus.desc[fergus.desc.length - 1] || '';
 check('the job description carries every choice the customer made',
   /Steel grade: Colorsteel MAXAM/.test(desc) && /Roof profile: Corrugate/.test(desc) &&
