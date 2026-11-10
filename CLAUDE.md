@@ -2477,6 +2477,47 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   options are Nearmap (built, `NEARMAP_ON` false, needs privacy notice and each
   business's own subscription) or a state service whose licence allows
   business use — put to the owner.
+  MORE STATES, A QUESTION AT THE BORDER, THE EDGE OF THE PHOTOS SHADED
+  (2026-11-11, the owner: "find more of the free state government photos",
+  "add all the available free maps your finding", "it should prompt the user,
+  you are now in whatever territory ... the suggestion to switch maps", "actual
+  lines to show that the user is ... past the high definition zone").
+  `AU_STATE_IMAGERY` carries NSW, ACT (ACTmapi's `ACT_Aerial_Imagery_Current_3857`
+  on tiles.arcgis.com, CC BY 4.0, Dec 2025 + Mar 2026 captures, tiles come as
+  application/octet-stream — the plain service is MGA zone 55 and cannot be
+  laid on the map) and QLD (`LatestStateProgram_AllUsers`, 15 cm in Brisbane to
+  level 20, CC BY-SA per its item info, imagery three years old or more, its
+  licence asks for the State's no-warranty statement on anything containing it
+  — so its credit, stamped into every capture, says "the State gives no warranty
+  for this data"; `AU_QLD_ON`). Re-checked 2026-11-11: VIC licensed (fee), TAS
+  non-commercial, SA none of its own, WA paid, NT not open. `_auStateSrc(st)`
+  is the source a state offers; `_stateImagery()` follows `window._stateSrcKey`
+  (the region last switched into) before the business's state, so the 'state'
+  option is offered to ANY Australian business whose map is over a covered
+  state (`_stateOptSync` names it). `_auRegionAt(lat, lng)` places a point in a
+  state — coarse lines (NSW–QLD along 29°S and the rivers, NSW–VIC down the
+  Murray and to Cape Howe, an ACT outline), a few km out at the rivers.
+  `_aerialRegionCheck` on `moveend`: where the state under the centre has a
+  better map than the one on, `#aerialRegionAsk` asks "You're now in
+  Queensland. Switch to the Queensland Government aerial?"; on a state's photos
+  in a state with none, "You're now in Victoria — outside the NSW Government
+  aerial. Switch to the standard satellite map?"; Yes switches
+  (`_aerialRegionAnswer`), No is remembered for that state + map for the
+  sitting (`_REGION_NO`); never over Nearmap or below zoom 9.
+  `_stateCoverCheck` on `moveend` (zoom 13+): a 6 × 4 grid over the view, each
+  cell's middle asked for a level-19 tile (`_coverTileHas`, cached per tile);
+  a cell with none is shaded navy with a dashed orange edge (`rm-cover-fill` /
+  `rm-cover-line`, kept above the imagery) and `#aerialCoverNote` under the map
+  says "You're outside the NSW Government aerial's high-detail photos here" (or
+  "Shaded areas are outside …"). The depth probe accepts any non-text answer
+  (the ACT's octet-stream). THE NEARMAP UPGRADE BUTTON (`#nearmapUpsellBtn` →
+  `#nearmapUpsellCard`, "a separate subscription with Nearmap", a link to
+  nearmap.com) is built and OFF (`NEARMAP_UPSELL`, `window.__NEARMAP_UPSELL`)
+  until the owner's go on the screenshots — and its "add your key in Settings"
+  line only holds once `NEARMAP_ON` is on, which needs the privacy notice.
+  Privacy v1.5 (in force 11 Nov) names the ACT and Queensland Governments;
+  `legal.mjs` pins both. The cloud environment allows tiles.arcgis.com and
+  spatial-img.information.qld.gov.au. `austate.mjs` (47).
 - THE SCAFFOLD: ON THE QUOTE OR NOT, OURS OR OUTSOURCED (2026-11-04, the owner:
   "have a button to click to exclude scaffold from this quote ... in the gutter
   job type, always default the scaffold to not included and collapse the

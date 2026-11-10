@@ -6609,10 +6609,29 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
                  was taken down (2026-09-24: "doesn't take me to the correct page"). -->
             <a href="https://basemaps.linz.govt.nz/" target="_blank" rel="noopener" title="Opens LINZ Basemaps — your free key is under 'Individual API keys' on the right" style="font-size:11px;color:#0066cc">Get free key ↗</a>
           </div>
+          <button type="button" id="nearmapUpsellBtn" onclick="_nearmapUpsell(true)" style="display:none;margin-left:auto;padding:5px 12px;border-radius:999px;border:1px solid #d4a017;background:linear-gradient(180deg,#fff8e1,#ffecb3);color:#7a5a00;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap">&#10024; Upgrade to ultra-HD (Nearmap)</button>
+        </div>
+        <div id="nearmapUpsellCard" style="display:none;margin:8px 0 4px;padding:12px 14px;border:1px solid #f3d27a;background:#fffbeb;border-radius:10px;font-size:12.5px;color:#3f3a2b;line-height:1.5">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+            <div><strong style="font-size:13.5px;color:#0a1628">Nearmap &mdash; ultra-high-definition aerial photos</strong><br>
+              Nearmap flies most Australian and New Zealand cities several times a year, at about 5&ndash;7&nbsp;cm a pixel &mdash; sharp enough to count sheets and see every flashing.
+              It is a separate subscription with Nearmap, not part of your RoofMap plan.</div>
+            <button type="button" onclick="_nearmapUpsell(false)" aria-label="Close" style="background:none;border:none;font-size:16px;color:#7a5a00;cursor:pointer">&#10005;</button>
+          </div>
+          <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+            <a id="nearmapUpsellLink" href="https://www.nearmap.com/" target="_blank" rel="noopener" style="padding:7px 14px;background:#0a1628;color:#fff;border-radius:7px;font-weight:700;text-decoration:none">See Nearmap plans &#8599;</a>
+            <span style="align-self:center;color:#6b5e3a">Already subscribed? Add your Nearmap API key in Settings and it appears in this list.</span>
+          </div>
         </div>
         <div id="aerialHint" style="font-size:12px;color:#888;margin-top:4px">Enter a NZ address, then <strong>zoom in until individual rooftops are clearly visible</strong> before clicking "Use this view".</div>
-        <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible">
+        <div id="aerialMapWrap" style="margin-top:10px;border-radius:8px;border:1px solid #ddd;display:block;overflow:visible;position:relative">
+          <div id="aerialRegionAsk" style="display:none;position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:5;width:min(560px,92%);background:#fff;border:1px solid #f59e0b;border-left:5px solid #f59e0b;border-radius:10px;box-shadow:0 8px 24px rgba(10,22,40,.28);padding:10px 12px;gap:10px;align-items:center;font-size:13px;color:#0a1628">
+            <div class="ara-msg" style="flex:1;line-height:1.4"></div>
+            <button type="button" id="aerialRegionYes" onclick="_aerialRegionAnswer(true)" style="padding:7px 14px;background:#0a1628;color:#fff;border:none;border-radius:7px;font-weight:700;cursor:pointer;font-size:12.5px">Yes, switch</button>
+            <button type="button" id="aerialRegionNo" onclick="_aerialRegionAnswer(false)" style="padding:7px 12px;background:#fff;color:#334155;border:1px solid #cbd5e1;border-radius:7px;font-weight:600;cursor:pointer;font-size:12.5px">No</button>
+          </div>
           <div id="aerialLeafletMap2" style="width:100%;height:460px;min-height:340px;background:#e8e8e8;border-radius:8px 8px 0 0"></div>
+          <div id="aerialCoverNote" style="display:none;background:#fff7ed;color:#9a3412;border-top:1px solid #fed7aa;padding:7px 12px;font-size:12.5px;line-height:1.4"></div>
           <div style="background:#f5f5f3;padding:8px 12px;border-top:1px solid #ddd;border-radius:0 0 8px 8px;display:flex;justify-content:flex-end">
             <button id="aerialUseBtn" onclick="useAerialView()" style="padding:8px 20px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px">📸 Use this view</button>
           </div>
@@ -89796,24 +89815,90 @@ var LINZ_ATTRIBUTION = '\u00a9 LINZ CC BY 4.0 \u00a9 Imagery Basemap contributor
 // subscription; the ACT's and the NT's licences are not stated. A state with
 // no entry is on Mapbox, exactly as before. Add a state here only with a
 // licence that allows a business to use it, and its credit.
+// THE ACT (2026-11-11, the owner: "find more of the free state government
+// photos"): ACTmapi's "ACT Aerial Imagery Current", CC BY 4.0, the Dec 2025
+// full capture with the Mar 2026 urban one, served as Web Mercator tiles in
+// its `_3857` copy (the plain service is in MGA zone 55 and cannot be laid on
+// this map). Tiles come as application/octet-stream, not image/*.
+// QUEENSLAND (the same day, the owner: "add all the available free maps your
+// finding"): the public basemap, sharp (15 cm in Brisbane, measured) but
+// CC BY-SA, three years old or more, and its licence asks for the State's
+// no-warranty statement on anything containing it — so its credit carries
+// that statement, stamped into every captured picture. Its rural fill is a
+// Planet satellite mosaic. `AU_QLD_ON` false takes it off again.
+var AU_QLD_ON = true;
 var AU_STATE_IMAGERY = {
-  NSW: { key: 'nsw', name: 'NSW Government aerial', short: 'NSW Government',
+  NSW: { key: 'nsw', name: 'NSW Government aerial', short: 'NSW Government', region: 'NSW',
          url: 'https://maps.six.nsw.gov.au/arcgis/rest/services/public/NSW_Imagery/MapServer/tile/{z}/{y}/{x}',
-         credit: '\u00a9 State of New South Wales (Spatial Services)', maxZ: 21 }
+         credit: '\u00a9 State of New South Wales (Spatial Services)', maxZ: 21 },
+  ACT: { key: 'act', name: 'ACT Government aerial', short: 'ACT Government', region: 'ACT',
+         url: 'https://tiles.arcgis.com/tiles/E5n4f1VY84i0xSjy/arcgis/rest/services/ACT_Aerial_Imagery_Current_3857/MapServer/tile/{z}/{y}/{x}',
+         credit: '\u00a9 Australian Capital Territory and Aerometrex, CC BY 4.0', maxZ: 22 },
+  QLD: { key: 'qld', name: 'Queensland Government aerial', short: 'Queensland Government', region: 'QLD', off: true,
+         url: 'https://spatial-img.information.qld.gov.au/arcgis/rest/services/Basemaps/LatestStateProgram_AllUsers/ImageServer/tile/{z}/{y}/{x}',
+         credit: '\u00a9 State of Queensland, CC BY-SA \u00b7 the State gives no warranty for this data', maxZ: 20 }
 };
+function _auStateSrc(st){
+  var p = st && AU_STATE_IMAGERY[st];
+  if (!p) return null;
+  if (p.off && !(st === 'QLD' && (AU_QLD_ON || window.__AU_QLD))) return null;
+  return p;
+}
 var AU_STATE_NAMES = { NSW: 'New South Wales', VIC: 'Victoria', QLD: 'Queensland', SA: 'South Australia',
   WA: 'Western Australia', TAS: 'Tasmania', ACT: 'the ACT', NT: 'the Northern Territory' };
+// Which government's photos the 'state' source shows: the region the map was
+// last switched into (`_stateSrcKey`), else the business's own state.
 function _stateImagery(){
-  try { var st = _auState(); return (st && AU_STATE_IMAGERY[st]) || null; } catch(e){ return null; }
+  try {
+    if (!_isAU()) return null;
+    var k = window._stateSrcKey;
+    if (k && _auStateSrc(k)) return _auStateSrc(k);
+    return _auStateSrc(_auState());
+  } catch(e){ return null; }
+}
+// WHICH STATE A POINT IS IN (2026-11-11, the owner: "when the user goes
+// outside ... it should prompt the user, you are now in whatever territory
+// ... and the suggestion to switch maps"). Coarse on purpose — it only picks
+// which question to ask: the NSW–QLD border traced along 29°S and the rivers
+// to Point Danger, NSW–VIC down the Murray and the straight line to Cape
+// Howe, the ACT a hand-drawn outline. A few kilometres out at the rivers.
+var _AU_QLD_LINE = [[141,-29],[148.96,-29],[149.6,-28.6],[150.4,-28.65],[151,-28.9],[151.4,-28.85],[151.8,-28.95],[152.05,-28.55],[152.5,-28.35],[153.2,-28.25],[153.6,-28.165]];
+var _AU_VIC_LINE = [[141,-34],[142.15,-34.18],[142.6,-34.75],[143.55,-35.34],[144,-35.7],[144.75,-36.12],[146,-35.95],[146.9,-36.1],[147.9,-36.05],[148.2,-36.8],[149.98,-37.505]];
+var _AU_ACT_POLY = [[148.76,-35.33],[149,-35.12],[149.23,-35.15],[149.4,-35.32],[149.19,-35.45],[149.14,-35.92],[148.8,-35.75]];
+function _lineLatAt(line, lng){
+  if (lng <= line[0][0]) return line[0][1];
+  for (var i = 1; i < line.length; i++) if (lng <= line[i][0]){
+    var a = line[i-1], b = line[i]; return a[1] + (b[1] - a[1]) * (lng - a[0]) / (b[0] - a[0]);
+  }
+  return line[line.length - 1][1];
+}
+function _inPolyLL(poly, lng, lat){
+  var inside = false;
+  for (var i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+function _auRegionAt(lat, lng){
+  if (!(lat < -9 && lat > -45 && lng > 112 && lng < 155)) return '';
+  if (lat < -39.2) return 'TAS';
+  if (lng < 129) return 'WA';
+  if (lng < 138) return lat > -26 ? 'NT' : 'SA';
+  if (lng < 141) return lat > -26 ? 'QLD' : 'SA';
+  if (_inPolyLL(_AU_ACT_POLY, lng, lat)) return 'ACT';
+  if (lat > _lineLatAt(_AU_QLD_LINE, lng)) return 'QLD';
+  if (lat < _lineLatAt(_AU_VIC_LINE, lng)) return 'VIC';
+  return 'NSW';
 }
 // What Settings → Branding says under the State box.
 function _stateImageryNote(){
   if (!_isAU()) return '';
   var st = _auState();
-  if (!st) return 'Pick your state. NSW businesses get the NSW Government\u2019s free aerial photos (about 10 cm in towns) in the map finder.';
-  var p = AU_STATE_IMAGERY[st];
-  if (p) return 'Map finder: ' + p.name + ' \u2014 free, about 10 cm in towns \u2014 with Mapbox satellite where it has no photo.';
-  return 'Map finder: Mapbox satellite. ' + (AU_STATE_NAMES[st] || st) + ' has no free government aerial photos RoofMap can use yet.';
+  if (!st) return 'Pick your state. NSW, Queensland and ACT businesses get their government\u2019s free aerial photos in the map finder.';
+  var p = _auStateSrc(st);
+  if (p) return 'Map finder: ' + p.name + ' \u2014 free, about 10 cm in towns \u2014 with Mapbox satellite where it has no photo. A job in another state that has free photos offers to switch.';
+  return 'Map finder: Mapbox satellite. ' + (AU_STATE_NAMES[st] || st) + ' has no free government aerial photos RoofMap can use yet; a job in NSW, Queensland or the ACT offers their photos.';
 }
 // WHERE THE FINDER STARTS (2026-11-10, the owner signed up on roofmap.net
 // with NSW: "the satellite image was showing Auckland ... then it was
@@ -89872,7 +89957,7 @@ function _stateDepthAt(sp, lat, lng){
     var url = sp.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
     return fetch(url).then(function(r){
       var ct = (r.headers && r.headers.get('content-type')) || '';
-      return (r.ok && /^image\//.test(ct)) ? z : tryZ(z - 1);
+      return (r.ok && !/text\/|json/.test(ct)) ? z : tryZ(z - 1);
     }).catch(function(){ return tryZ(z - 1); });
   };
   _STATE_DEPTH[k] = tryZ(top).catch(function(){ return top; });
@@ -89885,9 +89970,141 @@ function _stateDepthCheck(){
   var c = map.getCenter();
   _stateDepthAt(sp, c.lat, c.lng).then(function(z){
     if (!sel || sel.value !== 'state') return;
-    if (z === window._stateDepthNow && map.getSource && map.getSource('rm-imagery')) return;
-    window._stateDepthNow = z;
+    if (z === window._stateDepthNow && window._stateDepthSrc === sp.key && map.getSource && map.getSource('rm-imagery')) return;
+    window._stateDepthNow = z; window._stateDepthSrc = sp.key;
     _aerialOverlayTiles([{ url: sp.url, attribution: sp.credit, maxzoom: z }]);
+  });
+}
+// THE NEARMAP UPGRADE BUTTON (2026-11-11, the owner: "add a button that says
+// upgrade to ultra high definition near maps, and it has a nice easy link for
+// the user to subscribe to near maps separately from roof map ... send me
+// screenshots before you go live"). OFF until his go: `NEARMAP_UPSELL`, or
+// `window.__NEARMAP_UPSELL` for the pictures. Never shown to a company that
+// already has Nearmap on (its own option is in the list).
+var NEARMAP_UPSELL = false;
+function _nearmapUpsellSync(){
+  var b = document.getElementById('nearmapUpsellBtn'); if (!b) return;
+  var on = (NEARMAP_UPSELL || window.__NEARMAP_UPSELL) && !window.__PLAYGROUND;
+  try { if (on && _nearmapKeyNow()) on = false; } catch(e){}
+  b.style.display = on ? 'inline-block' : 'none';
+  if (!on){ var c = document.getElementById('nearmapUpsellCard'); if (c) c.style.display = 'none'; }
+}
+function _nearmapUpsell(open){
+  var c = document.getElementById('nearmapUpsellCard'); if (!c) return;
+  c.style.display = open ? 'block' : 'none';
+}
+// The 'state' option names whichever government's photos it shows now.
+function _stateOptSync(){
+  var so = document.getElementById('imgSrcState'); if (!so) return;
+  var sp = _stateImagery();
+  var any = !!sp;
+  if (!any){ try { var m = window._aerialMap, c = m && m.getCenter && m.getCenter(); any = !!(c && _auStateSrc(_auRegionAt(c.lat, c.lng))); } catch(e){} }
+  so.hidden = !any; so.disabled = !any;
+  if (sp) so.textContent = sp.name + ' (sharpest for ' + sp.region + ')';
+}
+// "YOU ARE NOW IN …" (2026-11-11). After every move the map's centre is placed
+// in a state; where that state's best map is not the one on, a card over the
+// map says so and asks — Yes switches, No is remembered for that state and
+// that map for the sitting. Australia only; Nearmap, a company's own, is left
+// alone.
+var _REGION_NO = {};
+function _aerialRegionCheck(){
+  var card = document.getElementById('aerialRegionAsk');
+  var map = window._aerialMap, sel = document.getElementById('imagerySource');
+  if (!card || !map || !sel) return;
+  var hide = function(){ card.style.display = 'none'; card.dataset.go = ''; };
+  try { if (!_isAU()) return hide(); } catch(e){ return hide(); }
+  if (sel.value === 'nearmap' || (map.getZoom && map.getZoom() < 9)) return hide();
+  var c = map.getCenter(), rg = _auRegionAt(c.lat, c.lng);
+  if (!rg) return hide();
+  var cur = sel.value, curSp = cur === 'state' ? _stateImagery() : null;
+  var want = _auStateSrc(rg), name = AU_STATE_NAMES[rg] || rg, go = '', msg = '';
+  if (want && !(curSp && curSp.key === want.key)){
+    go = 'state:' + rg;
+    msg = '<b>You\u2019re now in ' + name + '.</b> Switch to the ' + want.name + ' \u2014 sharper, free photos here?';
+  } else if (!want && curSp){
+    go = 'mapbox';
+    msg = '<b>You\u2019re now in ' + name + '</b> \u2014 outside the ' + curSp.name + '. Switch to the standard satellite map?';
+  }
+  if (!go || _REGION_NO[rg + '|' + cur + '|' + go]) return hide();
+  card.querySelector('.ara-msg').innerHTML = msg;
+  card.dataset.go = go; card.dataset.no = rg + '|' + cur + '|' + go;
+  card.style.display = 'flex';
+}
+function _aerialRegionAnswer(yes){
+  var card = document.getElementById('aerialRegionAsk'); if (!card) return;
+  var go = card.dataset.go || '', no = card.dataset.no || '';
+  card.style.display = 'none';
+  if (!yes){ if (no) _REGION_NO[no] = 1; return; }
+  var sel = document.getElementById('imagerySource'); if (!sel) return;
+  if (go.indexOf('state:') === 0){ window._stateSrcKey = go.slice(6); _stateOptSync(); sel.value = 'state'; switchImagerySource('state'); }
+  else if (go){ sel.value = go; switchImagerySource(go); }
+}
+// WHERE THE HIGH-DETAIL PHOTOS STOP (2026-11-11, the owner: "can there be
+// actual lines to show that the user is ... past the high definition zone
+// ... it should say that you are now outside the New South Wales map").
+// A government's tile cache is sparse and stops at its state's edge; past it
+// the map shows Mapbox's softer satellite underneath with nothing to say so.
+// On the state's photos, the view is cut into a 6 x 4 grid and each cell's
+// middle asked for a level-19 tile (about 30 cm); a cell with none is shaded
+// with a dashed orange edge and the strip under the map says so.
+var _COVER_TILE = {};
+function _coverTileHas(sp, lat, lng){
+  var z = 19, n = Math.pow(2, z), x = Math.floor((lng + 180) / 360 * n),
+      y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n);
+  var k = sp.key + ':' + x + ':' + y;
+  if (!_COVER_TILE[k]) _COVER_TILE[k] = fetch(sp.url.replace('{z}', z).replace('{x}', x).replace('{y}', y)).then(function(r){
+    var ct = (r.headers && r.headers.get('content-type')) || '';
+    return r.ok && !/text\/|json/.test(ct);
+  }).catch(function(){ delete _COVER_TILE[k]; return true; });
+  return _COVER_TILE[k];
+}
+function _coverLayerSet(map, fc){
+  try {
+    if (map.getSource('rm-cover')) map.getSource('rm-cover').setData(fc);
+    else {
+      map.addSource('rm-cover', { type:'geojson', data: fc });
+      map.addLayer({ id:'rm-cover-fill', type:'fill', source:'rm-cover', paint:{ 'fill-color':'#0f172a', 'fill-opacity':0.38 } });
+      map.addLayer({ id:'rm-cover-line', type:'line', source:'rm-cover', paint:{ 'line-color':'#f59e0b', 'line-width':2, 'line-dasharray':[2,2] } });
+    }
+    if (map.getLayer('rm-cover-fill')) map.moveLayer('rm-cover-fill');
+    if (map.getLayer('rm-cover-line')) map.moveLayer('rm-cover-line');
+  } catch(e){}
+}
+function _stateCoverCheck(){
+  var map = window._aerialMap, sel = document.getElementById('imagerySource');
+  var note = document.getElementById('aerialCoverNote');
+  var empty = { type:'FeatureCollection', features:[] };
+  var sp = (sel && sel.value === 'state') ? _stateImagery() : null;
+  if (!map || !sp || !map.getBounds || (map.getZoom && map.getZoom() < 13)){
+    if (map && map.getSource && map.getSource('rm-cover')) _coverLayerSet(map, empty);
+    if (note) note.style.display = 'none';
+    window._coverCells = null; return;
+  }
+  var b = map.getBounds(), w = b.getWest(), e = b.getEast(), so = b.getSouth(), no = b.getNorth();
+  var C = 6, R = 4, cells = [];
+  for (var i = 0; i < C; i++) for (var j = 0; j < R; j++){
+    var x0 = w + (e - w) * i / C, x1 = w + (e - w) * (i + 1) / C, y0 = so + (no - so) * j / R, y1 = so + (no - so) * (j + 1) / R;
+    cells.push({ box:[x0, y0, x1, y1], p: _coverTileHas(sp, (y0 + y1) / 2, (x0 + x1) / 2) });
+  }
+  var ticket = (window._coverTicket || 0) + 1; window._coverTicket = ticket;
+  Promise.all(cells.map(function(c){ return c.p; })).then(function(has){
+    if (ticket !== window._coverTicket) return;
+    var out = [];
+    cells.forEach(function(c, i){ if (!has[i]) out.push({ type:'Feature', properties:{}, geometry:{ type:'Polygon',
+      coordinates:[[[c.box[0], c.box[1]], [c.box[2], c.box[1]], [c.box[2], c.box[3]], [c.box[0], c.box[3]], [c.box[0], c.box[1]]]] } }); });
+    window._coverCells = { total: cells.length, missing: out.length, src: sp.key };
+    _coverLayerSet(map, { type:'FeatureCollection', features: out });
+    if (note){
+      if (!out.length){ note.style.display = 'none'; return; }
+      var c = map.getCenter(), mid = !has[cells.reduce(function(best, cc, i){
+        var d = Math.abs((cc.box[0] + cc.box[2]) / 2 - c.lng) + Math.abs((cc.box[1] + cc.box[3]) / 2 - c.lat);
+        return d < best.d ? { d: d, i: i } : best; }, { d: 1e9, i: 0 }).i];
+      note.innerHTML = mid
+        ? '\u26a0\ufe0f You\u2019re outside the ' + sp.name + '\u2019s high-detail photos here \u2014 the shaded area is the standard satellite (lower detail).'
+        : 'Shaded areas are outside the ' + sp.name + '\u2019s high-detail photos \u2014 the standard satellite (lower detail) shows there.';
+      note.style.display = 'block';
+    }
   });
 }
 // The state's tiles into the Mapbox picture's exact geometry, as LINZ is.
@@ -90116,16 +90333,21 @@ function switchImagerySource(val, auto) {
     else { alert('LINZ imagery needs an API key.\n\nGet a free key at basemaps.linz.govt.nz'); }
   } else if(val === 'state') {
     linzWrap.style.display = 'none';
+    try { var _m = window._aerialMap, _c = _m && _m.getCenter && _m.getCenter();
+      var _rg = _c ? _auRegionAt(_c.lat, _c.lng) : ''; if (_rg && _auStateSrc(_rg)) window._stateSrcKey = _rg; } catch(e){}
+    try { _stateOptSync(); } catch(e){}
     var sp = _stateImagery();
     if (sp){ window._stateDepthNow = 0; _stateDepthCheck(); window._linzKey = null; }
     else applyMapboxTiles();
   } else if(val === 'esri') {
     linzWrap.style.display = 'none';
     applyEsriTiles();
+    try { _stateCoverCheck(); _aerialRegionCheck(); } catch(e){}
   } else {
     linzWrap.style.display = 'none';
     applyMapboxTiles();
   }
+  if (val !== 'esri'){ try { _stateCoverCheck(); _aerialRegionCheck(); } catch(e){} }
 }
 
 function saveLinzKey() {
@@ -90155,7 +90377,7 @@ function _aerialOverlayTiles(url, attribution) {
         layers.slice(0, 2).forEach(function(L, i){
           var id = i ? 'rm-imagery2' : 'rm-imagery';
           m.addSource(id, { type:'raster', tiles:[L.url], tileSize:256, attribution:L.attribution || '', maxzoom:L.maxzoom || 21 });
-          m.addLayer({ id:id, type:'raster', source:id });
+          m.addLayer({ id:id, type:'raster', source:id }, m.getLayer('rm-cover-fill') ? 'rm-cover-fill' : undefined);
         });
       } else if (url) {
         // maxzoom: past the last real tile the map enlarges it instead of
@@ -90197,8 +90419,8 @@ function _imageryDefaultApply(){
   // The state government's aerial (2026-11-07): offered, and the default,
   // to an Australian business whose state gives its photos away (NSW).
   var sp = _stateImagery();
-  var so = document.getElementById('imgSrcState');
-  if (so){ so.hidden = !sp; so.disabled = !sp; if (sp) so.textContent = sp.name + ' (sharpest for ' + _auState() + ')'; }
+  _stateOptSync();
+  try { _nearmapUpsellSync(); } catch(e){}
   // LINZ flies New Zealand only — not offered to an Australian business.
   var lo = document.getElementById('imgSrcLinz');
   try { var au = _isAU(); if (lo){ lo.hidden = au; lo.disabled = au; } } catch(e){}
@@ -90351,7 +90573,7 @@ document.addEventListener('mousedown',function(e){
     mapboxgl.accessToken = T;
     var map = new mapboxgl['Map']({container:md, style:'mapbox://styles/mapbox/satellite-streets-v12', center:[_aerialHome().lng,_aerialHome().lat], zoom:13, maxZoom:22});
     // A state's own aerial: ask only for levels it really has here.
-    try { map.on('moveend', _stateDepthCheck); } catch(e){}
+    try { map.on('moveend', _stateDepthCheck); map.on('moveend', _aerialRegionCheck); map.on('moveend', _stateCoverCheck); } catch(e){}
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
     window._aerialMap = map;
     // The imagery the finder opens on (LINZ when there is a key).
