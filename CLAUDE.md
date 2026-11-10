@@ -6396,6 +6396,22 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   (barges A–B and C–D, gutter on its end), 'hv' keeps its outer wall out of
   the squaring. The sheet layout's `_pzMonoBumps` / `_pzMonoBase` read it the
   same way. `tests/report82.mjs` (13, his roof, a real drag).
+- THE GAUGE LOCK IS THE PROFILE'S SETTING, THE QUOTE MAY BYPASS IT, AND A LOCKED
+  GAUGE IS PART OF THE MAIN PRICE (2026-11-11, the owner: "I ... selected no for
+  locks gauge, the quote still locks the gauge"; "add an edit ... thickness
+  button ... so I could bypass my rule of locking 5 rib to 0.55"; "when the gauge
+  is locked, can you not show the quote summary the extra cost for 0.55 gauge ...
+  just combine it to the main scope of work price"). Both thickness sections
+  (`_qbThickness`, the A4's selections page) asked `profile === '5rib'`; they ask
+  `_selProfileLocksGauge` now, which answers '' when the quote carries
+  `S.quote.gaugeLockOff` (in Q_CONTENT_KEYS and Q_FRESH_DROP) —
+  `_selProfileLocksGaugeRaw` is the setting alone. The locked section carries
+  "✎ Edit thickness — let the customer choose the gauge" (`_qGaugeUnlock`: 0.40
+  picked, office only, never on an accepted quote); the open one "↺ Lock … to
+  its gauge again" (`_qGaugeRelock`). `_custBarRows` folds the "… profile
+  (supplied in 0.55 gauge)" line into the main scope's figure — the same total —
+  while a 0.55 the customer chose stays "0.55 gauge steel +$". The A4's own
+  summary and the Fergus push still itemise it. `tests/gaugelock.mjs` (12, UI).
 - A ROOF PROFILE MAY CARRY ITS OWN PRICE (2026-10-14, the owner: "corrugate
   and 5-rib share the same standard roofing sheet price, but then a profile
   like RI-925 has it's own more expensive price"). He had added RI-925 and
