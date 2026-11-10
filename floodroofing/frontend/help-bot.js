@@ -600,7 +600,7 @@
     return out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   }
 
-  var CHIPS = ['Talk to a real person', 'How do I start a new job?', 'How do I trace the roof?', 'What is the roof setup popup?', 'How do I price a second roof?', 'How do I send the quote to a customer?', 'Run me through the app', 'How do I order the roof?', 'What is Zincalume?'];
+  var CHIPS = ['Talk to a real person', 'Guides & tutorials', 'How do I start a new job?', 'How do I trace the roof?', 'What is the roof setup popup?', 'How do I price a second roof?', 'How do I send the quote to a customer?', 'Run me through the app', 'How do I order the roof?', 'What is Zincalume?'];
 
   // ── UI ────────────────────────────────────────────────────────────────
   var openState = false;
@@ -661,7 +661,12 @@
       return '<button class="fr-help-chip" style="background:#eef7fc;border:1px solid #cfe8f5;color:#036;border-radius:14px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit;line-height:1.2">' + esc(c) + '</button>';
     }).join('');
     Array.prototype.forEach.call(host.querySelectorAll('.fr-help-chip'), function (b) {
-      b.onclick = function () { if (b.textContent === 'Talk to a real person') return supportStart(); ask(b.textContent); };
+      b.onclick = function () {
+        if (b.textContent === 'Talk to a real person') return supportStart();
+        // The tutorials moved out of Settings' nav (2026-11-10): Help is where a person looks for them.
+        if (b.textContent === 'Guides & tutorials') { try { window.gotoTab('settings'); window.switchSettingsSub('set-guides'); toggle(false); } catch (e) {} return; }
+        ask(b.textContent);
+      };
     });
   }
 

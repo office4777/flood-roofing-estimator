@@ -66,7 +66,7 @@ const set = await pg.evaluate(async () => {
   return { btnText: btn && btn.textContent.trim(), on: panel && panel.classList.contains('on'), secs,
     heads: [...document.querySelectorAll('#coSettingsRoot .co-h')].map(h => h.textContent) };
 });
-check('the Settings nav has a "Colour Options" sub-tab that opens its panel', set.btnText === 'Colour Options' && set.on, JSON.stringify([set.btnText, set.on]));
+check('the Settings nav has a "Colours" sub-tab that opens its panel', set.btnText === 'Colours' && set.on, JSON.stringify([set.btnText, set.on]));
 check('…with a tile per painted steel grade and per gutter type, under their own headings',
   set.heads.join('|') === 'Steel grades|Gutter types' && set.secs.some(s => s.scope === 'grade:maxam') && set.secs.some(s => s.scope === 'grade:colorzen') &&
   !set.secs.some(s => s.scope === 'grade:zincalume') && set.secs.some(s => s.scope === 'gutter:box125') && set.secs.some(s => s.scope === 'gutter:marley_typhoon') && set.secs.some(s => s.scope === 'gutter:marley_classic'),

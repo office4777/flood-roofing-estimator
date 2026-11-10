@@ -1714,7 +1714,70 @@ html.no-jms .jms-only{display:none!important}
 #tab-settings .set-nav .tab-sm{display:block;width:100%;text-align:left;border:none;background:transparent;padding:8px 12px;border-radius:8px;font-size:13px;color:var(--text2)}
 #tab-settings .set-nav .tab-sm:hover{background:var(--surface-2);color:var(--text)}
 #tab-settings .set-nav .tab-sm.on{background:#0099cc;color:#fff;font-weight:700}
-#tab-settings .set-body{flex:1;min-width:0;border-left:1px solid var(--border);padding-left:26px}
+#tab-settings .set-body{flex:1;min-width:0;border-left:1px solid var(--border);padding-left:26px;padding-right:72px}
+@media (max-width:1180px){ #tab-settings .set-body{padding-right:0} }
+/* SIX DESTINATIONS, SUB-TABS INSIDE THE OPEN ONE (2026-11-10): the destination
+   is the navy band (a button now); its sub-tabs show only while it is open. */
+#tab-settings .set-nav .set-dest{display:block;width:100%;text-align:left;border:none;cursor:pointer;font-family:inherit;position:relative;padding-right:28px}
+#tab-settings .set-nav .set-dest::after{content:'›';position:absolute;right:12px;top:4px;font-size:14px;opacity:.7;transition:transform .15s}
+#tab-settings .set-nav .set-dest.on::after{transform:rotate(90deg)}
+#tab-settings .set-nav .set-subs{display:none;padding:0 0 2px 6px}
+#tab-settings .set-nav .set-subs.open{display:block}
+#tab-settings .set-nav-foot{font-size:11px;color:var(--text2);margin:18px 4px 4px;line-height:1.45}
+#tab-settings .set-nav-foot a{color:#0284b5;text-decoration:underline;cursor:pointer}
+#tab-settings .set-search-wrap{position:relative;margin:0 0 8px}
+#tab-settings .set-search{width:100%;box-sizing:border-box;padding:8px 10px 8px 30px;border:1px solid var(--border-strong);border-radius:8px;font-size:12.5px;font-family:inherit;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") 10px 50% no-repeat}
+#tab-settings .set-hits{display:none;position:absolute;left:0;right:0;top:100%;z-index:30;background:#fff;border:1px solid var(--border-strong);border-radius:10px;box-shadow:0 12px 34px rgba(10,22,40,.18);padding:6px;max-height:340px;overflow:auto}
+#tab-settings .set-hits.open{display:block}
+#tab-settings .set-hit{display:block;width:100%;text-align:left;border:none;background:transparent;padding:7px 9px;border-radius:7px;font-size:12.5px;color:var(--text);cursor:pointer;font-family:inherit;line-height:1.3}
+#tab-settings .set-hit:hover{background:var(--surface-2)}
+#tab-settings .set-hit small{display:block;font-size:10.5px;color:var(--text2)}
+#tab-settings .set-hit-none{padding:8px 9px;font-size:12px;color:var(--text2)}
+.set-hit-flash{outline:3px solid #0099cc;outline-offset:3px;border-radius:6px;transition:outline-color .6s}
+.set-hit-flash.fade{outline-color:transparent}
+#tab-settings .set-title-wrap{min-width:0}
+#tab-settings .set-eyebrow{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text2)}
+#tab-settings .set-save-status.saving{color:#b45309}
+#tab-settings .set-save-status.ok{color:#15803d}
+#tab-settings .set-save-status.bad{color:#b91c1c}
+#tab-settings .set-save-status a{color:#0284b5;cursor:pointer;text-decoration:underline}
+/* Detailed rules fold away: a tile whose head carries a chevron, a one-line
+   summary while shut, the whole card while open. Remembered per device. */
+.settings-sub .set-sec.set-fold > .set-sec-hd{cursor:pointer;user-select:none}
+.settings-sub .set-sec.set-fold > .set-sec-hd .set-fold-sum{font-size:11px;font-weight:400;text-transform:none;letter-spacing:0;color:rgba(255,255,255,.75);margin-left:auto}
+.settings-sub .set-sec.set-fold > .set-sec-hd::after{content:'⌵';font-size:13px;opacity:.8;margin-left:8px;transform:rotate(180deg);transition:transform .15s}
+.settings-sub .set-sec.set-fold.shut{padding-bottom:0}
+.settings-sub .set-sec.set-fold.shut > .set-sec-hd{margin-bottom:0}
+.settings-sub .set-sec.set-fold.shut > .set-sec-hd::after{transform:none}
+.settings-sub .set-sec.set-fold.shut > :not(.set-sec-hd){display:none}
+.settings-sub details.set-fold-d{border:1px dashed var(--border-strong);border-radius:10px;padding:0 14px 4px}
+.settings-sub details.set-fold-d > summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text);padding:11px 0;list-style:none}
+.settings-sub details.set-fold-d > summary::before{content:'› ';display:inline-block;transition:transform .15s}
+.settings-sub details.set-fold-d[open] > summary::before{transform:rotate(90deg)}
+.settings-sub details.set-fold-d > summary span{font-weight:400;color:var(--text2)}
+.settings-sub details.set-fold-d > summary::-webkit-details-marker{display:none}
+/* The labour page's opening question. */
+.lp-method{border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:#f6f9fc}
+.lp-method-q{font-size:13.5px;font-weight:800;color:#0a1628;margin-bottom:9px}
+.lp-method-btns{display:flex;gap:8px;flex-wrap:wrap}
+.lp-method-btns button{padding:9px 16px;border:1.5px solid var(--border-strong);background:#fff;border-radius:9px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text2);cursor:pointer}
+.lp-method-btns button.on{background:#0099e0;border-color:#0099e0;color:#fff}
+.lp-method-note{font-size:11.5px;color:var(--text2);margin-top:9px;line-height:1.5}
+.lp-cards{display:flex;flex-direction:column}
+.lp-cards .set-sec{order:2}
+.lp-cards .set-sec.lp-first{order:1}
+.lp-cards .set-sec.lp-dim{opacity:.72}
+.lp-example{margin-top:12px;padding:10px 12px;background:#f6f9fc;border:1px solid var(--border);border-radius:9px;font-size:12px;color:var(--text);line-height:1.5}
+.lp-example b{color:#0a1628}
+.lp-tiers{width:100%;border-collapse:collapse;font-size:12.5px;max-width:420px}
+.lp-tiers td{padding:6px 10px;border-bottom:1px solid var(--border)}
+.lp-tiers td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.emx-moreopts{margin:4px 0 12px}
+.emx-moreopts > summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--text);list-style:none;padding:6px 0}
+.emx-moreopts > summary::-webkit-details-marker{display:none}
+.emx-moreopts > summary::before{content:'› ';display:inline-block;transition:transform .15s}
+.emx-moreopts[open] > summary::before{transform:rotate(90deg)}
+.emx-moreopts > summary span{font-weight:400;color:var(--text2)}
 #tab-settings .set-head{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:12px}
 #tab-settings .set-title{font-size:17px;font-weight:800;color:var(--text);letter-spacing:-.01em}
 /* One setting, one row: label + explanation left, its control right. */
@@ -1726,7 +1789,11 @@ html.no-jms .jms-only{display:none!important}
 @media (max-width:900px){
   #tab-settings .set-shell{display:block}
   #tab-settings .set-nav{width:auto;flex-direction:row;flex-wrap:wrap;gap:6px;padding-right:0;margin-bottom:14px}
-  #tab-settings .set-nav .set-grp{display:none}
+  #tab-settings .set-nav .set-grp{display:inline-block;width:auto;margin:0;padding-right:28px}
+  #tab-settings .set-nav .set-subs{flex-basis:100%;padding:0}
+  #tab-settings .set-nav .set-subs.open{display:flex;flex-wrap:wrap;gap:6px}
+  #tab-settings .set-search-wrap{flex-basis:100%;margin:0}
+  #tab-settings .set-nav-foot{flex-basis:100%;margin:6px 0 0}
   #tab-settings .set-nav .tab-sm{display:inline-block;width:auto;border:1px solid var(--border-strong);background:#fff}
   #tab-settings .set-body{border-left:none;padding-left:0}
 }
@@ -5443,7 +5510,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T02:50:37Z';
+  window.APP_BUILT_AT = '2026-11-10T05:25:51Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -9318,39 +9385,55 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <div class="card">
     <div class="set-shell">
       <nav class="tab-row set-nav" aria-label="Settings sections">
-        <div class="set-grp">Business</div>
-        <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Branding</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Billing</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-email',this)">Email</button>
-        <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
-        <div class="set-grp">Pricing</div>
-        <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-colours',this)">Colour Options</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default Items</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Calculations</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour pricing</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing library</button>
-        <div class="set-grp">Quoting</div>
-        <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-invoicing',this)">Invoicing</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-terms',this);_totLoad()">Terms of Trade</button>
-        <div class="set-grp">App</div>
-        <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">General</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-guides',this)">Guides</button>
+        <div class="set-search-wrap"><input type="search" id="setSearch" class="set-search" placeholder="Search settings…" aria-label="Search settings" autocomplete="off" oninput="_setSearch(this.value)" onkeydown="if(event.key==='Escape'){this.value='';_setSearch('')}"><div id="setSearchHits" class="set-hits"></div></div>
+        <button type="button" class="set-grp set-dest on" data-dest="business" onclick="_setDest('business')">My business</button>
+        <div class="set-subs open" data-dest="business">
+          <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Business details &amp; brand</button>
+        </div>
+        <button type="button" class="set-grp set-dest" data-dest="materials" onclick="_setDest('materials')">Materials &amp; suppliers</button>
+        <div class="set-subs" data-dest="materials">
+          <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Products</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Material costs</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-colours',this)">Colours</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Supplier price list</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-supl',this)">Suppliers</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-flashings',this)">Flashing drawings</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Quantity rules</button>
+        </div>
+        <button type="button" class="set-grp set-dest" data-dest="labour" onclick="_setDest('labour')">Labour &amp; job costs</button>
+        <div class="set-subs" data-dest="labour">
+          <button class="tab-sm" onclick="switchSettingsSub('set-labour',this)">Labour</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-scaffold',this)">Scaffolding</button>
+        </div>
+        <button type="button" class="set-grp set-dest" data-dest="quotes" onclick="_setDest('quotes')">Quotes &amp; emails</button>
+        <div class="set-subs" data-dest="quotes">
+          <button class="tab-sm" onclick="switchSettingsSub('set-quote',this)">Quote defaults</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-email',this);loadTeam()">Emails</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-terms',this);_totLoad()">Terms of trade</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-invoicing',this)">Deposits &amp; invoicing</button>
+        </div>
+        <button type="button" class="set-grp set-dest" data-dest="team" onclick="_setDest('team')">Team &amp; account</button>
+        <div class="set-subs" data-dest="team">
+          <button class="tab-sm" onclick="switchSettingsSub('set-team',this);loadTeam()">Team</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-billing',this);_billingRenderSection()">Plan &amp; billing</button>
+        </div>
+        <button type="button" class="set-grp set-dest" data-dest="connections" onclick="_setDest('connections')">Connections &amp; app</button>
+        <div class="set-subs" data-dest="connections">
+          <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Fergus</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-general',this)">App preferences</button>
+        </div>
+        <div class="set-nav-foot">Tutorials and the practice job are under <a onclick="switchSettingsSub('set-guides')">Help &amp; guides</a>.</div>
       </nav>
       <div class="set-body">
     <div class="set-head">
-      <div class="set-title" id="setPaneTitle">Branding</div>
-      <span style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400">Auto-saves as you type</span>
+      <div class="set-title-wrap"><div class="set-eyebrow" id="setPaneGroup">My business</div><div class="set-title" id="setPaneTitle">Business details &amp; brand</div></div>
+      <span id="setSaveStatus" class="set-save-status" style="margin-left:auto;font-size:11px;color:var(--text2);font-weight:400">Saves as you type</span>
       <button onclick="_saveClick(this,'settings')" id="saveSettingsBtn" style="padding:6px 14px;background:var(--fr-dark);color:#fff;border:none;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600">💾 Save now</button>
     </div>
 
     <!-- Terms of Trade: the business's own PDF, attached to what it sends. -->
     <div class="sub-panel settings-sub" id="set-terms" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Upload your terms of trade once and RoofMap attaches them to the emails you choose. Which emails carry them is set here and on <a onclick="switchSettingsSub('set-email')" style="cursor:pointer;text-decoration:underline;color:#0284b5">Settings &rarr; Email</a>, email by email.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Upload your terms of trade once. Which emails carry them is a tick on each email under <a onclick="switchSettingsSub('set-email')" style="cursor:pointer;text-decoration:underline;color:#0284b5">Quotes &amp; emails &rarr; Emails</a>; the quote's own tick is mirrored below.</p>
       <div id="totBox" style="border:1px solid var(--border);border-radius:12px;padding:16px;background:#fff;max-width:620px">
         <div id="totState" style="font-size:13px;color:var(--text2)">Loading&hellip;</div>
         <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -9374,7 +9457,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Five ways to learn the app. Each one can be run as often as you like.</p>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#f6f9fc;border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px">
         <div style="flex:1;min-width:200px">
-          <div style="font-size:12.5px;font-weight:700;color:var(--text)">RoofMap tutorial in 60sec</div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--text)">Sign-in pointers (60 seconds)</div>
           <div style="font-size:11.5px;color:var(--text2)">The pointers new accounts get at sign-in: the picture, the outline, the Job Pack and the quote, one at a time on your own roof.</div>
         </div>
         <button type="button" data-tour="set-coach" onclick="startCoach()" class="tool-btn" style="font-size:11.5px">RoofMap tutorial in 60sec</button>
@@ -9428,6 +9511,15 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         </div>
         <input type="text" id="intNearmap" placeholder="Nearmap API key" autocomplete="off" spellcheck="false" style="width:260px;flex-shrink:0;font-family:monospace;font-size:12px">
       </div>
+      <!-- Whether the shared inbox gets a place in the left menu (moved here
+           from Branding 2026-11-10: it is an app preference, not a brand). -->
+      <div class="set-row">
+        <div class="set-row-txt">
+          <b>Show the Email tab in the menu</b>
+          <span>The shared inbox. Emailing a customer from the quote and from the schedule board works either way &mdash; this is only whether the inbox gets its own tab.</span>
+        </div>
+        <input type="checkbox" id="brShowEmailTab" onchange="_emailTabToggle(this.checked)" style="width:20px;height:20px;margin:0;cursor:pointer;flex-shrink:0">
+      </div>
       <div class="set-row">
         <div class="set-row-txt">
           <b>Autosave the open job</b>
@@ -9444,10 +9536,10 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       </div>
       <div class="set-row">
         <div class="set-row-txt">
-          <b>Save now</b>
-          <span>Writes the open job immediately, without waiting for the timer.</span>
+          <b>Save the open job now</b>
+          <span>Writes the open job immediately, without waiting for the timer. (The Save button at the top of this page saves your settings, not the job.)</span>
         </div>
-        <button onclick="_saveClick(this,'job')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;flex-shrink:0">💾 Save now</button>
+        <button onclick="_saveClick(this,'job')" class="sec-btn" style="margin:0;width:auto;padding:9px 18px;flex-shrink:0">💾 Save job now</button>
       </div>
     </div>
 
@@ -9592,6 +9684,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 
     <!-- BRANDING -->
     <div class="sub-panel on settings-sub" id="set-brand" style="margin-top:14px">
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Business details</strong><span class="set-sec-note">&mdash; on every quote, invoice and email</span></div>
       <div class="f2">
         <div><label>Company name</label><input type="text" id="brCompanyName" placeholder="Your company name"></div>
         <div><label>Tagline</label><input type="text" id="brTagline" placeholder="Northland's Roofing Specialists"></div>
@@ -9616,8 +9710,12 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           <div id="brStateNote" style="font-size:11.5px;color:var(--text2);margin-top:4px;line-height:1.4"></div></div>
       </div>
       <div class="f2">
+        <div><label>GST rate (%) <span style="font-weight:400;color:var(--text2)">&mdash; follows the country; change it only if yours differs</span></label><input type="number" id="qdGst" value="15" min="0" max="50" step="0.5"></div>
         <div><label>Prepared by <span style="font-weight:400;color:var(--text2)">— the name on the customer's quote</span></label><input type="text" id="brPreparedBy" placeholder="Aron Flood"></div>
       </div>
+      </div>
+      <div class="set-sec">
+      <div class="set-sec-hd"><strong>Brand &amp; quote appearance</strong><span class="set-sec-note">&mdash; colours, logo and the photos on the quote</span></div>
       <div class="f3" style="margin-top:8px">
         <div><label>Primary colour</label><input type="color" id="brPrimary" value="#0099cc" style="width:100%;height:38px;padding:2px"></div>
         <div><label>Dark / header</label><input type="color" id="brDark" value="#0a1628" style="width:100%;height:38px;padding:2px"></div>
@@ -9650,17 +9748,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           <div style="font-size:11px;color:var(--text2);margin:-2px 0 8px">RANZ, Licensed Building Practitioner, Site Safe, Sitewise — whatever you hold. They go on the cover of every quote, over the hero photo, and on its last page. Leave them empty and the customer sees nothing there.</div>
           <div id="brAccredSlots" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"></div>
         </div>
-        <!-- Whether the shared inbox gets a place in the left menu. Some
-             offices run the whole job out of it; others only ever email a
-             customer from the quote and the schedule board, and a menu item
-             they never press is one more thing between them and the work. -->
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer">
-            <input type="checkbox" id="brShowEmailTab" onchange="_emailTabToggle(this.checked)" style="width:auto;margin-top:2px">
-            <span><strong style="font-size:12.5px;color:#0a1628">Show the Email tab in the menu</strong>
-            <div style="font-size:11px;color:var(--text2);margin-top:2px">The shared inbox. Emailing a customer from the quote and from the schedule board works either way — this is only whether the inbox gets its own tab.</div></span>
-          </label>
-        </div>
+      </div>
       </div>
     </div>
 
@@ -9668,16 +9756,17 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     <div class="sub-panel settings-sub" id="set-quote" style="margin-top:14px">
       <div class="f2">
         <div><label>Quote validity (days)</label><input type="number" id="qdValidity" value="30" min="1" max="365"></div>
-        <div><label>GST rate (%)</label><input type="number" id="qdGst" value="15" min="0" max="50" step="0.5"></div>
       </div>
       <div class="f2">
         <div><label>Next job number</label><input type="text" id="qdNextJobNo" value="06121">
           <div style="font-size:10.5px;color:var(--text2);margin-top:3px">New jobs are auto-numbered from here (zero-padding kept) — each new job bumps it by one. Shared across everyone in your business, so two people can't be given the same number.</div></div>
         <div><label>Customer quote links</label>
           <div id="qdQuoteLinkInfo" style="font-size:12.5px;font-family:monospace;padding:9px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;word-break:break-all">https://roofmap.co.nz/?q=…</div>
-          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Set automatically — nothing to type. Links use your own connected domain when you have one (Settings → Team), otherwise your RoofMap address.</div></div>
+          <div style="font-size:10.5px;color:var(--text2);margin-top:3px">Set automatically — nothing to type. Links use your own connected domain when you have one, otherwise your RoofMap address &mdash; both under <a onclick="switchSettingsSub('set-email')" style="cursor:pointer;text-decoration:underline;color:#0284b5">Quotes &amp; emails &rarr; Emails</a>.</div></div>
       </div>
-      <div><label>Default warranty / terms text</label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
+      <div><label>Warranty wording printed on the quote <span style="font-weight:400;color:var(--text2)">&mdash; your Terms of Trade PDF is a separate upload, under Terms of trade</span></label><textarea id="qdTerms" rows="3" placeholder="10-year materials warranty. Workmanship guaranteed. Quote valid 30 days."></textarea></div>
+      <details class="set-fold-d" style="margin-top:16px">
+        <summary>Older settings <span>&mdash; kept from an earlier version of the quote. The options a customer can pick are set on Materials &amp; suppliers &rarr; Products.</span></summary>
       <div style="margin-top:14px">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <strong style="font-size:13px">Selectable quote options</strong>
@@ -9694,6 +9783,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <div id="qdSectionsList"></div>
         <div style="font-size:11px;color:var(--text2);margin-top:6px">Extra sections appended to the inspection report (e.g. health &amp; safety statement, council compliance notes).</div>
       </div>
+      </details>
     </div>
 
     <!-- BILLING — the business's own subscription: where it stands and the
@@ -9706,10 +9796,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         Remove what you don't sell, add what you do. <strong>Quotes you have already sent keep the
         products they were sent with</strong> — removing something here only affects new quotes.
       </p>
-      <p style="font-size:11.5px;color:var(--text2);margin:0 0 12px">This tab is the CHOICES. What each one costs is under
-        <strong>Default Items</strong>; your supplier's own list is <strong>Custom Price Book</strong>.</p>
       <div id="selectablesUI"></div>
-      <p style="font-size:11px;color:var(--text2);margin-top:10px">Click <strong>Save settings</strong> to keep any change.</p>
 
     </div>
 
@@ -9718,9 +9805,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
          Quote’s Product Options, where nobody looking for a price found it
          (2026-09-30). It is its own Pricing sub-tab now.  -->
     <div class="sub-panel settings-sub" id="set-defaultpricing" style="margin-top:14px">
-      <div class="card-hd"><span class="card-dot"></span>Default Items</div>
-      <p style="font-size:12px;color:var(--text2);margin-bottom:6px">Every item RoofMap works out off the roof by itself — sheets, flashings, underlay, fixings, gutter, downpipes — and what you pay for it. These prices cost the <strong>Job Pack</strong> and become the <strong>Materials</strong> line on every quote.</p>
-      <p style="font-size:11.5px;color:var(--text2);margin-bottom:14px">This tab is the PRICES. <strong>Quote’s Product Options</strong> is the list of things a customer may choose between; <strong>Custom Price Book</strong> is your supplier’s own list, which can take over the price of any item here.</p>
+      <div class="card-hd"><span class="card-dot"></span>Material costs</div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">What you pay for everything RoofMap measures off the roof. These costs price the Job Pack and the Materials line on every quote; a line linked from your supplier price list takes over here automatically.</p>
 
       <!-- The whole tab in one go: a supplier CSV read straight onto these
            items. The Custom Price Book tab is the other way round — it keeps
@@ -9770,9 +9856,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         </div>
         <div id="pbSheetsList"></div>
         <div style="margin-top:10px">
-          <label style="font-size:11px">Default product for this job</label>
+          <label style="font-size:11px">Usual sheet product for new jobs</label>
           <select id="pbDefaultSheet" style="max-width:340px"></select>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">The Materials tab cost uses this product's $/lm × total gutter length (sheets are ordered by gutter run × number of sheets across).</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">New jobs start on this product; any job can pick another on its Job Pack.</div>
         </div>
       </div>
 
@@ -9911,7 +9997,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <div class="set-sub-hd"><strong>Downpipes</strong>
           <span class="set-sec-note">— one downpipe per gutter line</span></div>
         <div class="f3">
-          <div><label>Downpipe ($/each)</label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="0.00"></div>
+          <div><label>Downpipe ($/each) <span style="font-weight:400;color:var(--text2)">&mdash; blank uses the standard $100</span></label><input type="number" id="pbDownpipeEach" step="0.01" min="0" placeholder="Standard · $100.00"></div>
           <div></div><div></div>
         </div>
       </div>
@@ -10024,7 +10110,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-hd"><h3>Quote to customer</h3><span class="emx-badge emx-man">You send it</span></div>
 <p class="emx-when">When you press <b>Email quote</b> on the Quote tab. It opens with this wording; you can change it for that one quote before it goes.</p>
 
-<div class="emx-grid"><div class="emx-f"><label for="emQuoteCc">Also send a copy to (CC)</label><input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emQuoteReplyTo">Customer replies go to</label><input type="text" id="emQuoteReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emQuoteCc">Also send a copy to (CC)</label><input type="text" id="emQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emQuoteReplyTo">Customer replies go to</label><input type="text" id="emQuoteReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emQuoteSubject">Subject</label><input type="text" id="emQuoteSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emQuoteBody">Message</label><textarea id="emQuoteBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_quote" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10036,7 +10122,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-hd"><h3>Quote follow-up</h3><span class="emx-badge emx-auto">Automatic</span></div>
 <p class="emx-when">One polite reminder, with their live quote link, when a quote has gone quiet. Never after they accept, decline or ask a question, and never twice.</p>
 <div id="emReminderBlock"><label class="emx-switch"><input type="checkbox" id="emReminderOn" onchange="_emxRenderList()"><span>Send an automatic follow-up when a quote goes quiet</span></label><div class="emx-days"><span>after</span><input type="number" id="emReminderDays" min="1" max="30" step="1" placeholder="3"><span>days without a response</span></div><div id="emReminderLock" style="display:none;font-size:12px;color:#b45309;margin-top:8px">Quote follow-ups are not on your plan &mdash; <a onclick="_billingOpen()" style="cursor:pointer;text-decoration:underline;color:#0284b5">upgrade to switch them on</a>.</div></div>
-<div class="emx-grid"><div class="emx-f"><label for="emReminderCc">Also send a copy to (CC)</label><input type="text" id="emReminderCc" placeholder="Same as the quote copies" autocomplete="off"></div><div class="emx-f"><label for="emReminderReplyTo">Customer replies go to</label><input type="text" id="emReminderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emReminderCc">Also send a copy to (CC)</label><input type="text" id="emReminderCc" placeholder="Same as the quote copies" autocomplete="off"></div><div class="emx-f"><label for="emReminderReplyTo">Customer replies go to</label><input type="text" id="emReminderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emReminderSubject">Subject</label><input type="text" id="emReminderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emReminderBody">Message</label><textarea id="emReminderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_reminder" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10049,7 +10135,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <p class="emx-when">The moment a customer accepts online, they get this: what they accepted, their total, every selection they made, a link back to their accepted quote &mdash; and your phone number for a last-minute change.</p>
 <label class="emx-switch"><input type="checkbox" id="emAcceptCustOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
 
-<div class="emx-grid"><div class="emx-f"><label for="emAcceptCustCc">Also send a copy to (CC)</label><input type="text" id="emAcceptCustCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptCustReplyTo">Customer replies go to</label><input type="text" id="emAcceptCustReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emAcceptCustCc">Also send a copy to (CC)</label><input type="text" id="emAcceptCustCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptCustReplyTo">Customer replies go to</label><input type="text" id="emAcceptCustReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emAcceptCustSubject">Subject</label><input type="text" id="emAcceptCustSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emAcceptCustBody">Message</label><textarea id="emAcceptCustBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_accept_cust" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10062,7 +10148,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <p class="emx-when">When a customer accepts online, your office gets their selections, the accepted total and the accepted-quote PDF. Replying goes straight to the customer.</p>
 <label class="emx-switch"><input type="checkbox" id="emAcceptOfficeOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
 
-<div class="emx-grid"><div class="emx-f"><label for="emAcceptTo">Sends to</label><input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptOfficeCc">Also send a copy to (CC)</label><input type="text" id="emAcceptOfficeCc" placeholder="" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emAcceptTo">Sends to</label><input type="text" id="emAcceptTo" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emAcceptOfficeCc">Also send a copy to (CC)</label><input type="text" id="emAcceptOfficeCc" placeholder="" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emAcceptOfficeSubject">Subject</label><input type="text" id="emAcceptOfficeSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emAcceptOfficeBody">Message</label><textarea id="emAcceptOfficeBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_accept_office" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10075,7 +10161,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <p class="emx-when">When a customer presses <b>Ask a question</b> on their quote. It also goes on your task list for today. Replying goes straight to the customer.</p>
 <label class="emx-switch"><input type="checkbox" id="emQuestionOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
 
-<div class="emx-grid"><div class="emx-f"><label for="emQuestionTo">Sends to</label><input type="text" id="emQuestionTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emQuestionCc">Also send a copy to (CC)</label><input type="text" id="emQuestionCc" placeholder="" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emQuestionTo">Sends to</label><input type="text" id="emQuestionTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emQuestionCc">Also send a copy to (CC)</label><input type="text" id="emQuestionCc" placeholder="" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emQuestionSubject">Subject</label><input type="text" id="emQuestionSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emQuestionBody">Message</label><textarea id="emQuestionBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_question" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10088,7 +10174,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <p class="emx-when">When a customer presses <b>Decline</b> on their quote. It also goes on your task list for today. Replying goes straight to the customer &mdash; a no online is often a question nobody got to ask.</p>
 <label class="emx-switch"><input type="checkbox" id="emDeclineOn" onchange="_emxRenderList()"><span>Send this email automatically</span></label>
 
-<div class="emx-grid"><div class="emx-f"><label for="emDeclineTo">Sends to</label><input type="text" id="emDeclineTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emDeclineCc">Also send a copy to (CC)</label><input type="text" id="emDeclineCc" placeholder="" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emDeclineTo">Sends to</label><input type="text" id="emDeclineTo" placeholder="Same as the acceptance email" autocomplete="off"></div><div class="emx-f"><label for="emDeclineCc">Also send a copy to (CC)</label><input type="text" id="emDeclineCc" placeholder="" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emDeclineSubject">Subject</label><input type="text" id="emDeclineSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emDeclineBody">Message</label><textarea id="emDeclineBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <div class="emx-tags" data-emx-tags="decline"></div>
@@ -10099,7 +10185,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-hd"><h3>Invoice to customer</h3><span class="emx-badge emx-man">You send it</span></div>
 <p class="emx-when">When you send an invoice (and the automatic deposit invoice, if it is switched on under Invoicing). The amounts, due date and bank details are always added below your message.</p>
 
-<div class="emx-grid"><div class="emx-f"><label for="emInvoiceCc">Also send a copy to (CC)</label><input type="text" id="emInvoiceCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emInvoiceReplyTo">Customer replies go to</label><input type="text" id="emInvoiceReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emInvoiceCc">Also send a copy to (CC)</label><input type="text" id="emInvoiceCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emInvoiceReplyTo">Customer replies go to</label><input type="text" id="emInvoiceReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emInvoiceSubject">Subject</label><input type="text" id="emInvoiceSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emInvoiceBody">Message</label><textarea id="emInvoiceBody" class="emx-body" rows="13" onfocus="_emxFocus(this)" placeholder="Optional — a few words above the invoice, e.g. Hi {client}, thank you for having us."></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_invoice" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10111,7 +10197,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-hd"><h3>Material order to supplier</h3><span class="emx-badge emx-man">You send it</span></div>
 <p class="emx-when">When you press <b>Email order</b> on the Job Pack. It opens with this wording and the order PDF attached; you can change it before it goes.</p>
 
-<div class="emx-grid"><div class="emx-f"><label for="emOrderCc">Also send a copy to (CC)</label><input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emOrderReplyTo">Supplier replies go to</label><input type="text" id="emOrderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emOrderCc">Also send a copy to (CC)</label><input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emOrderReplyTo">Supplier replies go to</label><input type="text" id="emOrderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emOrderSubject">Subject</label><input type="text" id="emOrderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
 <label class="emx-l" for="emOrderBody">Message</label><textarea id="emOrderBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
 <label class="emx-switch emx-terms"><input type="checkbox" id="emTerms_order" onchange="_totKindChanged()"><span>Attach our Terms of Trade PDF</span><em class="emx-terms-none" style="font-style:normal;color:var(--text2);font-size:11.5px"></em></label>
@@ -10123,12 +10209,16 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-hd"><h3>Schedule updates to customers</h3><span class="emx-badge emx-man">You send it</span></div>
 <p class="emx-when">What the Schedule board&rsquo;s &#9993; button starts from &mdash; you review every one before it sends.</p>
 
-<div class="emx-grid"><div class="emx-f"><label for="emSchedCc">Also send a copy to (CC)</label><input type="text" id="emSchedCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emSchedReplyTo">Customer replies go to</label><input type="text" id="emSchedReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emSchedCc">Also send a copy to (CC)</label><input type="text" id="emSchedCc" placeholder="" autocomplete="off"></div><div class="emx-f"><label for="emSchedReplyTo">Customer replies go to</label><input type="text" id="emSchedReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <div id="emxSchedHost"></div>
 </section>
         </div>
       </div>
       <div class="emx-more">
+        <!-- Your RoofMap address (the quote-link subdomain) and any domain you
+             connect: moved here from Team (2026-11-10) — they are the
+             business's sending identity, not its people. Rendered by renderTeam. -->
+        <div id="emAddressHost"></div>
         <div id="emDomainBlock">
           <label style="font-weight:700">Send from your own email address <span style="font-weight:400;color:var(--text2);font-size:11px">&mdash; Team plan</span></label>
           <div style="font-size:11px;color:var(--text2);margin:3px 0 8px">Your emails normally send from the RoofMap address wearing your business name, with replies going to you. Verify a domain you own and they send genuinely from your address instead &mdash; e.g. <code>office@yourcompany.co.nz</code>. One-time DNS setup, about 5 minutes wherever your domain is managed.</div>
@@ -10156,46 +10246,40 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 
     <!-- LABOUR PRICING -->
     <div class="sub-panel settings-sub" id="set-labour" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">Default hour budgets used by the editable <strong>Labour</strong> breakdown on the Scope &amp; Pricing tab. The user can still tweak hours per job; this just sets the starting numbers.</p>
-
-      <div class="set-sec">
-      <div class="set-sec-hd"><strong>Crew defaults</strong>
-        <span class="set-sec-note">— where a new job's labour table starts</span></div>
-      <div class="f3">
-        <div><label>Default workers on site</label><input type="number" id="lpWorkers" min="1" max="20" placeholder="2"></div>
-        <div><label>Default rate ($/hr per worker)</label><input type="number" id="lpRate" min="1" step="0.5" placeholder="55"></div>
-        <div><label>Default complexity multiplier</label>
-          <select id="lpComplexity">
-            <option value="1">Standard ×1.0</option>
-            <option value="1.2">Moderate ×1.2</option>
-            <option value="1.5">Complex ×1.5</option>
-            <option value="2">Very complex ×2.0</option>
-          </select>
+      <!-- THE LABOUR PAGE OPENS ON ONE QUESTION (2026-11-10, the developer's
+           review: "How do you normally price roofing labour? ... Show the
+           relevant fields for that method and keep other methods available
+           per job"). The choice is this device's view of the page (fr_lp_method):
+           it brings the matching card to the top and dims the rest. The job's
+           own method is still picked on the Pricing drawer. -->
+      <div class="lp-method" id="lpMethod">
+        <div class="lp-method-q">How do you normally price roofing labour?</div>
+        <div class="lp-method-btns">
+          <button type="button" data-lpm="hourly" onclick="_lpMethodSet('hourly')">By the hour</button>
+          <button type="button" data-lpm="m2" onclick="_lpMethodSet('m2')">By the square metre</button>
+          <button type="button" data-lpm="auto" onclick="_lpMethodSet('auto')">RoofMap&rsquo;s estimated hours</button>
         </div>
+        <div class="lp-method-note" id="lpMethodNote"></div>
       </div>
-      </div>
+      <div class="lp-cards" id="lpCards">
 
-      <div class="set-sec">
-        <div class="set-sec-hd"><strong>Default charge-out rates &amp; scaffolding</strong></div>
-        <div class="set-sec-sub">Starting numbers for the Labour table on a new quote — cost/hr is what you pay, price/hr is the charge-out rate. Editable per job.</div>
+      <div class="set-sec" data-lpcard="hourly">
+        <div class="set-sec-hd"><strong>Charge-out rates by the hour</strong><span class="set-sec-note">&mdash; what a new quote's labour table starts on</span></div>
+        <div class="set-sec-sub">Cost/hr is what you pay, price/hr is what the customer is charged. Every job can change its own.</div>
         <div class="f2">
           <div><label>Lead Roofer — cost ($/hr)</label><input type="number" id="lpLeadCost" min="0" step="0.5" placeholder="45"></div>
           <div><label>Lead Roofer — price/hr ($)</label><input type="number" id="lpLeadPrice" min="0" step="0.5" placeholder="200"></div>
           <div><label>Apprentice — cost ($/hr)</label><input type="number" id="lpAppCost" min="0" step="0.5" placeholder="25"></div>
           <div><label>Apprentice — price/hr ($)</label><input type="number" id="lpAppPrice" min="0" step="0.5" placeholder="90"></div>
-          <div><label>Scaffolding — default cost ($)</label><input type="number" id="lpScaffoldCost" min="0" step="1" placeholder="2000"></div>
-          <div><label>Scaffolding — default price ($)</label><input type="number" id="lpScaffoldPrice" min="0" step="1" placeholder="2500"></div>
-          <div><label>Platform scaffolding uplift (%)</label><input type="number" id="lpScaffoldPlatformPct" min="0" step="1" placeholder="25"></div>
         </div>
       </div>
 
-      <div class="set-sec">
-        <div class="set-sec-hd"><strong>Charging by area or by the metre</strong></div>
-        <div class="set-sec-sub">Your default rates for pricing labour by the square metre of roof, and gutter labour by the lineal metre. Each job can be switched between hourly and these on the Pricing tab, and changing a rate there offers to save it back here. Leave blank to price by the hour.</div>
+      <div class="set-sec" data-lpcard="m2">
+        <div class="set-sec-hd"><strong>Rates by area and by the metre</strong></div>
+        <div class="set-sec-sub">Roof labour by the square metre and gutter labour by the lineal metre. A job switched to these on the Pricing drawer starts here; changing a rate there offers to save it back. Blank means the job prices by the hour.</div>
         <div class="f2">
-          <div><label>Roof labour — default ($/m²)</label><input type="number" id="lpLabourM2" min="0" step="0.5" placeholder="e.g. 45"></div>
-          <div><label>Gutter labour — default ($/lm)</label><input type="number" id="lpGutterLm" min="0" step="0.5" placeholder="e.g. 18"></div>
-          <div><label>Outsourced scaffolding — default ($/lm of perimeter)</label><input type="number" id="lpScaffoldLm" min="0" step="0.5" placeholder="e.g. 60"></div>
+          <div><label>Roof labour — default ($/m²)</label><input type="number" id="lpLabourM2" min="0" step="0.5" placeholder="Not set · priced by the hour"></div>
+          <div><label>Gutter labour — default ($/lm)</label><input type="number" id="lpGutterLm" min="0" step="0.5" placeholder="Not set · priced by the hour"></div>
         </div>
       </div>
 
@@ -10203,7 +10287,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
            tab's "Show labour auto-calculations". The old "Default hours per
            scope item" list (the retired scope checklist's hours) came off this
            page; its stored figures are kept untouched. -->
-      <div class="set-sec" id="lpCalcSec">
+      <div class="set-sec" id="lpCalcSec" data-lpcard="auto">
         <div class="set-sec-hd">
           <strong>Labour auto-calculations</strong>
           <span class="set-sec-note">&mdash; how fast a two-person crew gets through each part of a re-roof</span>
@@ -10214,12 +10298,35 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <div class="f2" style="margin-top:12px">
           <div><label>Stripping tiles takes this many times longer than steel</label><input type="number" id="lpStripTileFactor" min="1" step="0.1" placeholder="1.5"></div>
         </div>
+        <div class="lp-example" id="lpExample"></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- SCAFFOLDING (2026-11-10): its own page under Labour & job costs. The
+         inputs are the ones that lived inside Labour pricing's rates card, so
+         every collector and filler is unchanged. -->
+    <div class="sub-panel settings-sub" id="set-scaffold" style="margin-top:14px">
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Scaffolding defaults</strong><span class="set-sec-note">&mdash; what a new quote starts on; the Pricing drawer picks the method per job</span></div>
+        <div class="set-sec-sub">The quote's <strong>Pricing strategy</strong> offers four ways to price the scaffold: outsourced as one price, outsourced by the metre of perimeter, done by your own crew, or no scaffold. These are the starting figures for each.</div>
+        <div class="f2">
+          <div><label>Outsourced, one price — default cost ($)</label><input type="number" id="lpScaffoldCost" min="0" step="1" placeholder="2000"></div>
+          <div><label>Outsourced, one price — default price ($)</label><input type="number" id="lpScaffoldPrice" min="0" step="1" placeholder="2500"></div>
+          <div><label>Outsourced by the metre — default ($/lm of perimeter)</label><input type="number" id="lpScaffoldLm" min="0" step="0.5" placeholder="Not set"></div>
+          <div><label>Platform scaffolding uplift (%) <span style="font-weight:400;color:var(--text2)">&mdash; added when a gutter job needs a working platform</span></label><input type="number" id="lpScaffoldPlatformPct" min="0" step="1" placeholder="25"></div>
+        </div>
+      </div>
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Done by your own crew</strong><span class="set-sec-note">&mdash; the hours a job starts on, by roof area</span></div>
+        <div class="set-sec-sub">When a job's scaffold is set to <em>Do it ourselves</em>, these hours go on the Lead Roofer and the Apprentice at their own rates. Any job can type its own.</div>
+        <div id="lpScaffTiers"></div>
       </div>
     </div>
 
     <!-- MATERIAL CALCULATIONS — how much of everything the take-off buys -->
     <div class="sub-panel settings-sub" id="set-ordering" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default Items</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How much of each thing a job buys &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one.</p>
       <div id="ordPane-waste"></div>
       <div id="ordPane-cons"></div>
     </div>
@@ -10235,7 +10342,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <div id="cpbRoot"></div>
     </div>
     <div class="sub-panel settings-sub" id="set-supl" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The companies you buy material from, and the flashing types the <strong>Order Material</strong> tab offers. The roof products, underlays and screws it offers come from <strong>Quote's Product Options</strong>. Click <strong>Save settings</strong> at the top of this card to persist changes to your account.</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:14px">The companies you buy material from, and the flashing types the <strong>Order Material</strong> tab offers. The roof products, underlays and screws it offers come from <strong>Products</strong> and <strong>Material costs</strong>.</p>
 
       <!-- Suppliers -->
       <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
@@ -14208,6 +14315,187 @@ function toggleIncludeReport(ev){
     try { refreshQuoteProposal(); } catch(e){}
   }
 }
+// SIX DESTINATIONS (2026-11-10): the nav is six navy buttons; the one that is
+// open shows its sub-tabs under it. _setDest opens one and lands on its first
+// sub-tab; switchSettingsSub opens whichever destination holds the pane asked
+// for, so a link straight to a pane (the setup guide, a test, a search hit)
+// still shows where it lives.
+var SET_PANE_TITLES = { 'set-guides': 'Help & guides' };
+var SET_PANE_GROUPS = { 'set-guides': 'Help' };
+function _setDestOpen(d){
+  document.querySelectorAll('#tab-settings .set-nav .set-dest').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-dest') === d); });
+  document.querySelectorAll('#tab-settings .set-nav .set-subs').forEach(function(w){ w.classList.toggle('open', w.getAttribute('data-dest') === d); });
+}
+function _setDest(d){
+  _setDestOpen(d);
+  var first = document.querySelector('#tab-settings .set-nav .set-subs[data-dest="' + d + '"] .tab-sm');
+  if (first) first.click();
+}
+// SETTINGS SEARCH, in a roofer's own words: "spouting", "deposit", "hourly
+// rate", "logo". The index is every label, heading and row title on every
+// pane plus a synonyms list, built on the first keystroke (the lazy panes are
+// rendered once so their words are there to find).
+var SET_SYN = {
+  spouting:'gutter', guttering:'gutter', downpipes:'downpipe', 'hourly rate':'lead roofer price/hr', wage:'cost ($/hr)',
+  paper:'underlay', screws:'fixings', nails:'fixings', tek:'fixings', photo:'cover hero photo', picture:'logo',
+  deposit:'deposit on acceptance', bank:'bank account', invoice:'invoicing', gst:'gst rate', tax:'gst',
+  fergus:'job management system', people:'team', staff:'team', seats:'team', plan:'billing', subscription:'billing', card:'billing',
+  colours:'colour', colors:'colour', color:'colour', markup:'mark-up', 'mark up':'mark-up', waste:'wastage',
+  scaffold:'scaffolding', platform:'platform scaffolding uplift', terms:'terms of trade', warranty:'warranty',
+  email:'emails', template:'subject', address:'business address', domain:'own email address', link:'customer quote links',
+  logo:'logo', tutorial:'guides', help:'guides', autosave:'autosave', password:'team', dektite:'pipe penetrations', pipe:'pipe penetrations',
+  flashing:'flashings', ridge:'ridge', barge:'barge', valley:'valley', sheet:'roofing sheets', corrugate:'roof profiles', profile:'roof profiles', grade:'steel grades'
+};
+var _SET_INDEX = null;
+function _setSearchIndex(){
+  if (_SET_INDEX) return _SET_INDEX;
+  // The panes are rendered to be read, not shown: a notice a render would
+  // open (the price-book disclaimer) is put back as it was.
+  var hadDisc = !!document.getElementById('pbDiscModal');
+  try { renderSelectablesUI(); } catch(e){}
+  try { renderPriceBookUI(); _pbGradeTabsRender(); _pbGutTabsRender(); } catch(e){}
+  if (!hadDisc){ var dm = document.getElementById('pbDiscModal'); if (dm) dm.remove(); }
+  try { _colourOptionsRender(); } catch(e){}
+  try { if (typeof _ordRender === 'function') _ordRender(); } catch(e){}
+  var idx = [];
+  document.querySelectorAll('#tab-settings .settings-sub').forEach(function(p){
+    var id = p.id; if (!id) return;
+    var btn = document.querySelector('#tab-settings .set-nav .tab-sm[onclick*="\'' + id + '\'"]');
+    var tab = btn ? btn.textContent.trim() : (SET_PANE_TITLES[id] || id);
+    var subs = btn && btn.closest('.set-subs');
+    var dest = subs ? (document.querySelector('#tab-settings .set-nav .set-dest[data-dest="' + subs.getAttribute('data-dest') + '"]') || {}).textContent : (SET_PANE_GROUPS[id] || '');
+    var seen = {};
+    p.querySelectorAll('label, .set-sec-hd strong, .set-row-txt b, h3, .emx-it, .set-sub-hd strong, summary').forEach(function(el){
+      var tx = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!tx || tx.length > 90 || seen[tx]) return; seen[tx] = 1;
+      idx.push({ id: id, tab: tab, dest: String(dest || '').trim(), text: tx, el: el });
+    });
+    idx.push({ id: id, tab: tab, dest: String(dest || '').trim(), text: tab, el: null, isTab: true });
+  });
+  _SET_INDEX = idx; return idx;
+}
+function _setSearchClose(){ var h = document.getElementById('setSearchHits'); if (h){ h.classList.remove('open'); h.innerHTML = ''; } }
+function _setSearch(q){
+  var box = document.getElementById('setSearchHits'); if (!box) return;
+  q = String(q || '').trim().toLowerCase();
+  if (q.length < 2){ _setSearchClose(); return; }
+  var idx = _setSearchIndex();
+  var terms = [q]; Object.keys(SET_SYN).forEach(function(k){ if (q.indexOf(k) >= 0 || k.indexOf(q) === 0) terms.push(SET_SYN[k].toLowerCase()); });
+  var hits = idx.filter(function(it){ var t = it.text.toLowerCase(); return terms.some(function(w){ return t.indexOf(w) >= 0; }); });
+  hits.sort(function(a, b){ return (b.isTab ? 1 : 0) - (a.isTab ? 1 : 0); });
+  var seen = {}; hits = hits.filter(function(h){ var k = h.id + '|' + h.text; if (seen[k]) return false; seen[k] = 1; return true; }).slice(0, 9);
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
+  box.innerHTML = hits.length
+    ? hits.map(function(h, i){ return '<button type="button" class="set-hit" data-hit="' + i + '">' + esc(h.text) + '<small>' + esc(h.dest) + (h.isTab ? '' : ' \u203A ' + esc(h.tab)) + '</small></button>'; }).join('')
+    : '<div class="set-hit-none">Nothing called that. Try the thing\u2019s everyday name \u2014 spouting, deposit, logo, hourly rate.</div>';
+  box.classList.add('open');
+  box.querySelectorAll('.set-hit').forEach(function(b){
+    b.onclick = function(){
+      var h = hits[parseInt(b.getAttribute('data-hit'), 10)]; if (!h) return;
+      switchSettingsSub(h.id);
+      var inp = document.getElementById('setSearch'); if (inp) inp.value = '';
+      _setSearchClose();
+      if (h.el){
+        var tgt = h.el.closest('.set-sec, .set-row, .emx-f, .f2 > div, .f3 > div, label') || h.el;
+        try { var d = tgt.closest('details'); if (d) d.open = true; var fold = tgt.closest('.set-fold.shut'); if (fold) _setFoldToggle(fold); } catch(e){}
+        setTimeout(function(){
+          try { tgt.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch(e){ tgt.scrollIntoView(); }
+          tgt.classList.add('set-hit-flash');
+          setTimeout(function(){ tgt.classList.add('fade'); }, 1600);
+          setTimeout(function(){ tgt.classList.remove('set-hit-flash', 'fade'); }, 2400);
+        }, 60);
+      }
+    };
+  });
+}
+document.addEventListener('click', function(e){ if (!e.target.closest || !e.target.closest('.set-search-wrap')) { try { _setSearchClose(); } catch(x){} } });
+// DETAILED RULES FOLD AWAY (2026-11-10, the review: "Show everyday controls
+// first; collapse detailed rules"). The named tiles on Material costs and
+// Products start shut on a device that has not opened them, with a one-line
+// summary of what is inside; a click on the band opens or shuts, remembered
+// per tile in fr_set_folds.
+var SET_FOLD_SHUT = ['Back-trays', 'Clearlite sheets', 'Fixings', 'Pipe penetrations', 'One-off items you add yourself'];
+function _setFoldState(){ try { return JSON.parse(localStorage.getItem('fr_set_folds') || '{}') || {}; } catch(e){ return {}; } }
+function _setFoldKey(sec){ var st = sec.querySelector(':scope > .set-sec-hd strong'); return st ? st.textContent.replace(/\s+/g,' ').trim() : ''; }
+function _setFoldSummary(sec){
+  var n = 0, filled = 0;
+  sec.querySelectorAll('input:not([type=checkbox]):not([type=file]):not([type=radio]), select').forEach(function(i){ if (i.closest('.set-sec-hd')) return; n++; if (String(i.value || '').trim() !== '') filled++; });
+  if (!n) return '';
+  return filled + ' of ' + n + ' set \u00b7 tap to ' + (sec.classList.contains('shut') ? 'open' : 'close');
+}
+function _setFoldToggle(sec){
+  sec.classList.toggle('shut');
+  var k = _setFoldKey(sec); if (k){ var st = _setFoldState(); st[k] = sec.classList.contains('shut') ? 1 : 0; try { localStorage.setItem('fr_set_folds', JSON.stringify(st)); } catch(e){} }
+  var sum = sec.querySelector(':scope > .set-sec-hd .set-fold-sum'); if (sum) sum.textContent = _setFoldSummary(sec);
+}
+function _setFoldInit(panel){
+  if (!panel) return;
+  var st = _setFoldState();
+  panel.querySelectorAll('.set-sec').forEach(function(sec){
+    var k = _setFoldKey(sec); if (!k) return;
+    var want = SET_FOLD_SHUT.some(function(x){ return k.indexOf(x) === 0; });
+    if (!want && !(k in st)) return;
+    var hd = sec.querySelector(':scope > .set-sec-hd');
+    if (!sec.classList.contains('set-fold')){
+      sec.classList.add('set-fold');
+      var sum = document.createElement('span'); sum.className = 'set-fold-sum'; hd.appendChild(sum);
+      hd.addEventListener('click', function(ev){ if (ev.target.closest('button, input, select, a, label')) return; _setFoldToggle(sec); });
+      var shut = (k in st) ? !!st[k] : true;
+      sec.classList.toggle('shut', shut);
+    }
+    var s2 = sec.querySelector(':scope > .set-sec-hd .set-fold-sum'); if (s2) s2.textContent = _setFoldSummary(sec);
+  });
+}
+// THE LABOUR PAGE'S OPENING QUESTION (see #lpMethod in the markup).
+function _lpMethodGuess(){
+  try { var lp = (S.settings && S.settings.labour_pricing) || {}; if (parseFloat(lp.labour_m2) > 0) return 'm2'; } catch(e){}
+  return 'hourly';
+}
+function _lpMethodSet(m, quiet){
+  m = m || 'hourly';
+  if (!quiet){ try { localStorage.setItem('fr_lp_method', m); } catch(e){} }
+  document.querySelectorAll('#lpMethod [data-lpm]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-lpm') === m); });
+  document.querySelectorAll('#lpCards .set-sec[data-lpcard]').forEach(function(c){
+    var mine = c.getAttribute('data-lpcard') === m;
+    c.classList.toggle('lp-first', mine);
+    c.classList.toggle('lp-dim', !mine && c.getAttribute('data-lpcard') !== 'auto');
+  });
+  var notes = {
+    hourly: 'Every new quote starts on the charge-out rates below, with the hours worked out by the auto-calculations. A job can switch to a square-metre rate on its Pricing drawer.',
+    m2: 'Every new quote prices the roof at your $/m\u00b2 and the gutter at your $/lm. The crew\u2019s cost per hour still comes from the hourly card, so the margin stays honest. A job can switch back to hourly on its Pricing drawer.',
+    auto: 'RoofMap works the hours out from the roof you draw \u2014 strip, underlay, sheets, cuts, flashings \u2014 at the speeds below, then prices them at your hourly rates. Check the example roof at the foot of the card.'
+  };
+  var n = document.getElementById('lpMethodNote'); if (n) n.textContent = notes[m] || '';
+  try { _lpExampleRender(); } catch(e){}
+}
+function _lpMethodInit(){
+  var m = null; try { m = localStorage.getItem('fr_lp_method'); } catch(e){}
+  _lpMethodSet(m || _lpMethodGuess(), true);
+}
+// "For estimated hours, show the result on an example roof": a 150 m2 hip
+// re-roof, 48 sheets, 40 lm of cuts, 60 lm of flashings and two pipes, at
+// the rates on the page — the same arithmetic the Pricing drawer does.
+function _lpExampleRender(){
+  var box = document.getElementById('lpExample'); if (!box) return;
+  var rate = function(k){ var v = 0; try { v = parseFloat(_labourCalcRate(k)); } catch(e){} return v > 0 ? v : 0; };
+  var q = { strip: 150, underlay: 150, roof: 150, sheets: 48, cuts: 40, flash: 60, pen: 2 };
+  var parts = [], total = 0;
+  Object.keys(q).forEach(function(k){ var r = rate(k); if (!r) return; var h = q[k] / r; total += h; parts.push(k + ' ' + h.toFixed(1)); });
+  var crew = Math.ceil(total);
+  var lp = (S.settings && S.settings.labour_pricing) || {};
+  var price = crew * ((parseFloat(lp.lead_price) || 0) + (parseFloat(lp.app_price) || 0));
+  box.innerHTML = '<b>Example roof:</b> a 150 m\u00b2 hip re-roof on steel \u2014 48 sheets, 40 lm of cuts, 60 lm of flashings, two pipes \u2014 comes to about <b>' + crew + ' crew hours</b>' +
+    ' (' + parts.join(', ').replace(/strip/, 'strip').replace(/flash/, 'flashings').replace(/pen/, 'penetrations') + ').' +
+    (price ? ' At your hourly rates that is <b>' + fmtMoney(price) + '</b> of labour, the lead roofer and the apprentice both on the job for those hours.' : '') +
+    ' A crew hour is one hour with both of them on the roof.';
+}
+function _lpScaffTiersRender(){
+  var box = document.getElementById('lpScaffTiers'); if (!box) return;
+  var rows = '', prev = 0;
+  SCAFF_DIY_TIERS.forEach(function(t){ rows += '<tr><td>' + (prev ? (prev + 1) : 0) + ' \u2013 ' + t[0] + ' m\u00b2</td><td>' + t[1] + ' hrs</td></tr>'; prev = t[0]; });
+  rows += '<tr><td>over ' + prev + ' m\u00b2</td><td>15 hrs</td></tr>';
+  box.innerHTML = '<table class="lp-tiers"><tbody>' + rows + '</tbody></table>';
+}
 function switchSettingsSub(id,btn){
   // Opening the price book is the moment the disclaimer matters, so it is
   // tied to that rather than to finishing the setup guide — which anyone
@@ -14227,13 +14515,24 @@ function switchSettingsSub(id,btn){
   if (panel) panel.classList.add('on');
   // Callers that only know the panel id (tests, the setup wizard) can omit
   // the button — it's findable from the id.
-  if (!btn) btn = document.querySelector('#tab-settings .set-nav button[onclick*="' + id + '"]');
+  if (!btn) btn = document.querySelector('#tab-settings .set-nav .tab-sm[onclick*="\'' + id + '\'"]');
+  var t = document.getElementById('setPaneTitle'), g = document.getElementById('setPaneGroup');
+  document.querySelectorAll('#tab-settings .set-nav .tab-sm').forEach(function(b){b.classList.remove('on');});
   if (btn){
-    document.querySelectorAll('#tab-settings .set-nav .tab-sm').forEach(function(b){b.classList.remove('on');});
     btn.classList.add('on');
-    var t = document.getElementById('setPaneTitle');
+    var subs = btn.closest('.set-subs');
+    if (subs) _setDestOpen(subs.getAttribute('data-dest'));
     if (t) t.textContent = btn.textContent.trim();
+    if (g){ var d = document.querySelector('#tab-settings .set-nav .set-dest[data-dest="' + (subs ? subs.getAttribute('data-dest') : '') + '"]'); g.textContent = d ? d.textContent.trim() : ''; }
+  } else {
+    // A pane with no button of its own (Help & guides).
+    if (t) t.textContent = (SET_PANE_TITLES[id] || id);
+    if (g) g.textContent = SET_PANE_GROUPS[id] || '';
   }
+  try { _setSearchClose(); } catch(e){}
+  try { _setFoldInit(panel); } catch(e){}
+  if (id === 'set-labour'){ try { _lpMethodInit(); } catch(e){} }
+  if (id === 'set-scaffold'){ try { _lpScaffTiersRender(); } catch(e){} }
   if (id === 'set-flashings') {
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
@@ -15044,7 +15343,23 @@ async function loadSettings(){
 var _settingsAutosaveTimer = null;
 function _scheduleSettingsAutosave(){
   clearTimeout(_settingsAutosaveTimer);
-  _settingsAutosaveTimer = setTimeout(function(){ _settingsAutosaveTimer = null; try { saveSettings(true); } catch(e){} }, 900);
+  _settingsAutosaveTimer = setTimeout(function(){ _settingsAutosaveTimer = null; _settingsAutosaveRun(); }, 900);
+  _settingsSaveStatus('saving');
+}
+// What the header says about the save (2026-11-10, the review: "Show
+// Saving..., Saved, or Couldn't save - retry").
+function _settingsSaveStatus(state){
+  var el = document.getElementById('setSaveStatus'); if (!el) return;
+  el.className = 'set-save-status ' + (state || '');
+  if (state === 'saving') el.textContent = 'Saving\u2026';
+  else if (state === 'ok') el.textContent = '\u2713 Saved ' + new Date().toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  else if (state === 'bad') el.innerHTML = 'Couldn\u2019t save \u2014 <a onclick="_settingsAutosaveRun()">retry</a>';
+  else el.textContent = 'Saves as you type';
+}
+function _settingsAutosaveRun(){
+  _settingsSaveStatus('saving');
+  var p; try { p = saveSettings(true); } catch(e){ p = Promise.resolve(false); }
+  Promise.resolve(p).then(function(ok){ _settingsSaveStatus(ok === false ? 'bad' : 'ok'); }).catch(function(){ _settingsSaveStatus('bad'); });
 }
 // A reload (an app update, a closed tab) inside that 900 ms used to lose what
 // was just typed. Leaving the page saves it now rather than after the beat.
@@ -15295,9 +15610,11 @@ function collectSettingsFromUI(){
 function collectLabourPricingFromUI(){
   if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
   var lp = S.settings.labour_pricing;
-  lp.default_workers    = parseInt((document.getElementById('lpWorkers')||{}).value, 10) || 2;
-  lp.default_rate       = parseFloat((document.getElementById('lpRate')||{}).value) || 55;
-  lp.default_complexity = parseFloat((document.getElementById('lpComplexity')||{}).value) || 1;
+  // Crew defaults (workers / $/hr / complexity) came off the page 2026-11-10:
+  // nothing in the quote reads them. Stored figures are kept as they are.
+  lp.default_workers    = parseInt((document.getElementById('lpWorkers')||{}).value, 10) || lp.default_workers || 2;
+  lp.default_rate       = parseFloat((document.getElementById('lpRate')||{}).value) || lp.default_rate || 55;
+  lp.default_complexity = parseFloat((document.getElementById('lpComplexity')||{}).value) || lp.default_complexity || 1;
   // Default charge-out rates + scaffolding (fall back to the seeded defaults).
   var numOr = function(id, d){ var v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : d; };
   lp.lead_cost   = numOr('lpLeadCost', 45);
@@ -15349,6 +15666,8 @@ function renderLabourPricingUI(){
   setN('lpScaffoldLm', lp.scaffold_lm);
   renderLabourItemsList(lp.per_item_hours || {});
   try { _lpCalcRender(lp); } catch(e){}
+  try { _lpExampleRender(); } catch(e){}
+  try { _lpScaffTiersRender(); } catch(e){}
 }
 function _lpCalcRender(lp){
   var box = document.getElementById('lpCalcList'); if (!box) return;
@@ -15530,13 +15849,13 @@ function _pbGutBracketsHtml(id){
       ' title="' + esc(title) + '"' +
       ' onchange="_pbGutBracketEdit(\'' + esc(id) + '\',\'' + f + '\',this.value)"></div>';
   };
-  return '<div style="font-size:11px;color:var(--text2);margin:0 0 6px">Brackets — one every <em>spacing</em>, plus <em>per run</em> to start each run. Price an internal and an external one and the quote works the &ldquo;External brackets&rdquo; upgrade out by itself, at the real difference × the real count. Where the $/lm below already includes the brackets (the box gutter), these two change the UPGRADE only — the base price does not move. These are the same boxes as Quote\u2019s Product Options → Gutter profiles, so there is one number per bracket however you reach it.</div>' +
+  return '<div style="font-size:11px;color:var(--text2);margin:0 0 6px">Brackets — one every <em>spacing</em>, plus <em>per run</em> to start each run. Price an internal and an external one and the quote works the &ldquo;External brackets&rdquo; upgrade out by itself, at the real difference × the real count. Where the $/lm below already includes the brackets (the box gutter), these two change the UPGRADE only — the base price does not move. The Products page shows these figures beside each gutter and links back here, so there is one number per bracket however you reach it.</div>' +
     '<div class="f3" style="margin-bottom:12px">' +
     inp('bracketSpacingMm',   { label:'Bracket every (mm)', ph:String(Math.round(c.spacingMm || 500)) }, '10', 'One bracket every this many millimetres along the run') +
     inp('bracketStartPerRun', { label:'+ per run',          ph:String(c.startPerRun == null ? 1 : c.startPerRun) }, '1', 'Brackets to start each gutter run, on top of the spacing') +
     '<div></div>' +
-    inp('bracketIntEa',       { label:'Internal bracket ($/each)', ph:'standard' }, '0.01', 'What one internal bracket costs') +
-    inp('bracketExtEa',       { label:'External bracket ($/each)', ph:'—' }, '0.01', 'What one external bracket costs — fill this in and the upgrade is worked out from the difference') +
+    inp('bracketIntEa',       { label:'Internal bracket ($/each)', ph: (function(){ var p = null; try { p = _gutterBracketIntEa(id); } catch(e){} return (p > 0) ? ('Standard \u00b7 ' + fmtMoney(p)) : 'Not priced'; })() }, '0.01', 'What one internal bracket costs') +
+    inp('bracketExtEa',       { label:'External bracket ($/each)', ph:'Not priced \u00b7 no upgrade offered' }, '0.01', 'What one external bracket costs — fill this in and the upgrade is worked out from the difference') +
     '<div><label>Or a flat external upcharge ($/lm)</label>' +
       '<input type="number" step="0.5" min="0" value="' + esc(g.extBracketLm == null ? '' : String(g.extBracketLm)) + '" placeholder="0"' +
       ' title="Used where the two per-each prices cannot be filled in \u2014 a box gutter\u2019s brackets are inside its $/lm, so there is no internal cost to subtract"' +
@@ -31570,21 +31889,24 @@ function renderSelectablesUI(){
           '<td>' + inp('profiles', i, 'desc', r.desc, 'Short description') + '</td>';
       }) +
     section('gutters', 'Gutter profiles',
-      'Fitting a gutter usually lifts the site from edge protection to a working platform — 25% on the scaffolding. Leave that ticked unless this product genuinely does not.<br><strong>Brackets.</strong> One every <em>spacing</em>, plus <em>per run</em> to start each run — a box gutter is bracketed every 800 mm, a PVC spouting every 450. Price an <strong>internal</strong> and an <strong>external</strong> bracket each and the quote works the &ldquo;External brackets&rdquo; extra out by itself, at the real difference times the real count. Where you cannot (a box gutter&rsquo;s brackets are inside its $/lm, so there is no internal cost to subtract), leave those two blank and type the flat <strong>Ext $/lm</strong> instead. Every box here is blank for &ldquo;use the standard&rdquo;, and the internal price falls back to Default Items.',
-      '<th>Name</th><th style="width:86px">Scaffold +25%</th><th style="width:82px">Bracket every (mm)</th><th style="width:66px">+ per run</th><th style="width:80px">Internal $/ea</th><th style="width:80px">External $/ea</th><th style="width:76px">Ext $/lm</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
+      'Fitting a gutter usually lifts the site from edge protection to a working platform &mdash; 25% on the scaffolding. Leave that ticked unless this product genuinely does not. Each gutter&rsquo;s bracket spacing and prices are set once, on Material costs &rarr; Guttering.',
+      '<th>Name</th><th style="width:86px">Scaffold +25%</th><th style="width:170px">Brackets</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         // The DEFAULT is the placeholder, never the value: one source of
         // truth (GUTTER_BRACKET_DEFAULTS) and a box that reads "800" in grey
         // until the office types its own.
+        // THE BRACKET FIGURES ARE EDITED IN ONE PLACE NOW (2026-11-10): the
+        // Material costs page's Guttering card. This cell reads them back.
         var _bc = _gutterBracketCfg(r.id);
+        var _ie = null; try { _ie = _gutterBracketIntEa(r.id); } catch(e){}
+        var _bsum = 'every ' + Math.round(_bc.spacingMm) + ' mm +' + _bc.startPerRun + '/run' +
+          (_ie > 0 ? ', ' + fmtMoney(_ie) + ' ea' : '') +
+          (r.bracketExtEa > 0 ? ' / ext ' + fmtMoney(r.bracketExtEa) : (r.extBracketLm > 0 ? ' / ext +' + fmtMoney(r.extBracketLm) + '/lm' : ''));
         return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
           '<td style="text-align:center"><input type="checkbox" ' + (r.scaffoldUplift === false ? '' : 'checked') +
             ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
-          '<td>' + inp('gutters', i, 'bracketSpacingMm', (r.bracketSpacingMm == null ? '' : r.bracketSpacingMm), String(Math.round(_bc.spacingMm)), ' type="number" step="10" min="1" title="One bracket every this many millimetres along the run"') + '</td>' +
-          '<td>' + inp('gutters', i, 'bracketStartPerRun', (r.bracketStartPerRun == null ? '' : r.bracketStartPerRun), String(_bc.startPerRun), ' type="number" step="1" min="0" title="Brackets to start each gutter run, on top of the spacing"') + '</td>' +
-          '<td>' + inp('gutters', i, 'bracketIntEa', (r.bracketIntEa == null ? '' : r.bracketIntEa), 'standard', ' type="number" step="0.01" min="0" title="What one internal bracket costs. Blank uses Default Items."') + '</td>' +
-          '<td>' + inp('gutters', i, 'bracketExtEa', (r.bracketExtEa == null ? '' : r.bracketExtEa), '\u2014', ' type="number" step="0.01" min="0" title="What one external bracket costs. Fill this in and the quote works the upgrade out from the difference."') + '</td>' +
-          '<td>' + inp('gutters', i, 'extBracketLm', (r.extBracketLm == null ? 0 : r.extBracketLm), '0', ' type="number" step="0.5" min="0" title="Flat $ per metre of run for the external-bracket upgrade. Used when the two per-each prices above cannot be filled in."') + '</td>' +
+          '<td style="font-size:11px;color:var(--text2);line-height:1.35">' + esc(_bsum) +
+            '<br><a onclick="switchSettingsSub(\'set-defaultpricing\');try{_pbGutSelect(\'' + esc(r.id) + '\')}catch(e){}" style="color:#0284b5;cursor:pointer;text-decoration:underline">Edit in Material costs</a></td>' +
           '<td style="text-align:center">' +
             (r.img ? '<img src="' + esc(r.img) + '" alt="" style="max-width:52px;max-height:30px;display:block;margin:0 auto 3px;border-radius:4px">' : '') +
             '<button type="button" onclick="_qpfPicPick(\'' + esc(r.id) + '\',\'gutters\')" style="background:none;border:none;color:#0099cc;font-size:11px;cursor:pointer;text-decoration:underline;padding:0;font-family:inherit">' +
@@ -31594,6 +31916,7 @@ function renderSelectablesUI(){
     // The four groups whose ids ARE the pricing. A company can word them its
     // own way and take one off the quote; it cannot invent a row here,
     // because there would be no price behind it.
+    '<details class="set-fold-d" style="margin:0 0 14px"><summary>Customer wording for thickness, brackets, downpipes and the old roofing <span>&mdash; rename a choice or take one off the quote</span></summary><div style="padding-top:12px">' +
     _selFixedGroups().map(function(g){
       var c = _selCopy()[g.kind] || {};
       var body = g.rows.map(function(r, i){
@@ -31620,7 +31943,7 @@ function renderSelectablesUI(){
         '<table class="price-tbl" style="table-layout:fixed"><thead><tr>' +
         '<th>Called</th><th>Described as</th><th style="width:70px">Hide</th></tr></thead>' +
         '<tbody>' + body + '</tbody></table></div>';
-    }).join('') +
+    }).join('') + '</div></details>' +
     // Whatever else this company sells.
     '<div class="set-sec">' +
       '<div class="set-sec-hd"><strong>Your own options</strong></div>' +
@@ -34737,8 +35060,12 @@ function renderTeam(){
     '</span>'+
     (full ? '<span style="font-size:12.5px;color:#b45309;font-weight:600">Every seat is taken — upgrade to add someone.</span>' : '')+
   '</div>';
-  // The business's address on RoofMap.
-  h += '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;background:var(--surface-2)">'+
+  // The business's address on RoofMap — on the Emails page since 2026-11-10
+  // (it is the sending identity, not the people). Rendered into #emAddressHost
+  // when that host exists; the Team page keeps it only on a page without one.
+  var addrHost = document.getElementById('emAddressHost');
+  var a = '';
+  a += '<div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;background:var(--surface-2)">'+
     '<div style="font-size:13px;font-weight:700;color:#0a1628;margin-bottom:3px">Your RoofMap address</div>'+
     '<div style="font-size:11.5px;color:var(--text2);margin-bottom:9px;line-height:1.5">This is the web address your customers\' quote links are sent on. Nothing to set up — it works the moment you choose it.</div>'+
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'+
@@ -34749,7 +35076,13 @@ function renderTeam(){
     '<div id="teamSlugMsg" style="font-size:10.5px;margin-top:5px;min-height:14px"></div>'+
     (slug ? '<div style="font-size:11px;color:var(--text2);margin-top:2px">Quote links currently read <strong>https://'+esc(slug)+'.'+ROOFMAP_ROOT+'/?q=…</strong></div>' : '')+
   '</div>';
-  h += _teamDomainsHtml(owner);
+  a += _teamDomainsHtml(owner);
+  if (addrHost){
+    addrHost.innerHTML = '<div style="margin:18px 0 6px;font-size:13px;font-weight:700;color:var(--text)">Your addresses</div>' +
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:10px;line-height:1.5">The web address your customers\u2019 quote links open on, and any domain of your own you connect for them.</div>' + a;
+  } else {
+    h += a;
+  }
   // Members.
   h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
     '<strong style="font-size:13px">People in '+esc((TEAM.company && TEAM.company.name) || 'your business')+'</strong>'+
@@ -49107,6 +49440,12 @@ function _emxFill(em){
     var el = document.getElementById(f[0]); if (!el) return;
     if (f[2] === 'on') el.checked = em[f[1]] !== false; else el.value = em[f[1]] || '';
   });
+  // A template's copies / reply address sit behind "More options"; one that
+  // carries a value opens so it is never hidden from the person who set it.
+  document.querySelectorAll('#set-email .emx-moreopts').forEach(function(d){
+    var any = Array.prototype.some.call(d.querySelectorAll('input'), function(i){ return String(i.value || '').trim() !== ''; });
+    if (any) d.open = true;
+  });
   Object.keys(EMX_TPL).forEach(function(k){
     if (k === 'quote') return;                          // filled by refreshSettingsUI as before
     var d = _emxDefault(k), su = document.getElementById(EMX_TPL[k][0]), bo = document.getElementById(EMX_TPL[k][1]);
@@ -58469,7 +58808,7 @@ var SETUP_STEPS = [
 
   { key:'pricebook', title:'Your price book — read this one',
     body:'__PB_DISCLAIMER__',
-    go:{ tab:'settings', sub:'set-defaultpricing' }, cta:'Open the price book', where:'Default Items' },
+    go:{ tab:'settings', sub:'set-defaultpricing' }, cta:'Open the price book', where:'Material costs' },
 
   { key:'brand', title:'Make the quotes yours',
     // The branding wizard collects the same fields on first run. If it has
@@ -58489,19 +58828,19 @@ var SETUP_STEPS = [
          'Their selections, any questions they ask and their acceptance all come **straight back to ' +
          'you by email**, and show up on the RoofMap status board, so you can see what a customer ' +
          'has actually looked at and chosen without ringing them.',
-    go:{ tab:'settings', sub:'set-brand' }, cta:'Add your branding', where:'Branding' },
+    go:{ tab:'settings', sub:'set-brand' }, cta:'Add your branding', where:'Business details & brand' },
 
   { key:'products', title:'The products you actually fit',
     body:'Steel grades, sheet profiles and gutter profiles — add, edit or remove them so the ' +
          'options your customer sees are the ones you really offer, priced the way you price them.\n\n' +
          'A grade you never fit should not be on the page.',
-    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products', where:'Quote\'s Product Options' },
+    go:{ tab:'settings', sub:'set-products' }, cta:'Set up your products', where:'Products' },
 
   { key:'labour', title:'Your labour and scaffolding',
     body:'Charge-out rates for a lead roofer and an apprentice, and the hours a roof of a given ' +
          'size takes you. RoofMap estimates the hours from the drawing; you can always type over them ' +
          'on the job.\n\nThis is the half of the quote that is not materials, so it is worth ten minutes.',
-    go:{ tab:'settings', sub:'set-labour' }, cta:'Set your rates', where:'Labour pricing' },
+    go:{ tab:'settings', sub:'set-labour' }, cta:'Set your rates', where:'Labour' },
 
   { key:'suppliers', title:'Material ordering',
     body:'Set up the merchants you actually buy from — the branch, who the order goes to, and the ' +
@@ -58525,7 +58864,7 @@ var SETUP_STEPS = [
          'than overwriting what was there — so the history of what you quoted stays intact.\n\n' +
          'If you do not use Fergus, skip this. Everything works without it — jobs, quotes, ' +
          'material orders and invoices all live in RoofMap on their own.',
-    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus', where:'Job Management Software' },
+    go:{ tab:'settings', sub:'set-jms' }, cta:'Connect Fergus', where:'Fergus' },
 
   { key:'feedback', title:'Something wrong? Tell us — it gets fixed',
     body:'This is the one worth knowing about, because it is the difference between a bug you have ' +
@@ -58560,8 +58899,8 @@ var PB_DISCLAIMER =
   'range a roofing company pays, so your very first quote is a believable number instead of zero.\n\n' +
   'They are a starting point, not your prices. What you pay depends on your region, your merchant ' +
   'and the deal you have negotiated, and it moves. Every rate in here is yours to change.\n\n' +
-  'Load your own supplier pricing before you send a quote to a customer: Settings → Price book → ' +
-  'Upload CSV takes a merchant price list straight in, or type over any number by hand.\n\n' +
+  'Load your own supplier pricing before you send a quote to a customer: Settings → Materials & suppliers → ' +
+  'Material costs → Upload supplier price book takes a merchant price list straight in, or type over any number by hand.\n\n' +
   'Until you do, you are quoting on somebody else’s rates. RoofMap marks the book as indicative ' +
   'until you save your own, and every quote and order carries a note that materials should be checked.';
 

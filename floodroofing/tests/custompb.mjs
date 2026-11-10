@@ -64,14 +64,14 @@ await pg.waitForTimeout(2600);
 // ── the tab ──
 const nav = await pg.evaluate(() => {
   gotoTab('settings');
-  const btns = [...document.querySelectorAll('#tab-settings .set-nav > *')].map(x => x.textContent.trim());
-  const at = btns.indexOf('Custom Price Book');
-  const grp = btns.slice(0, at).reverse().find(t => /^(Business|Pricing|Quoting|App)$/i.test(t));
+  const btn = document.querySelector('#tab-settings .set-nav .tab-sm[onclick*="set-custompb"]');
+  const at = btn ? 1 : -1;
+  const grp = btn ? (btn.closest('.set-subs') || {}).getAttribute('data-dest') : '';
   switchSettingsSub('set-custompb');
   return { at, grp, live: !!window.__settingsLive, on: document.getElementById('set-custompb').classList.contains('on'),
            title: document.getElementById('setPaneTitle').textContent, empty: !!document.querySelector('#cpbRoot .cpb-empty') };
 });
-check('Settings has a Custom Price Book tab under Pricing', nav.at > 0 && /pricing/i.test(nav.grp) && nav.on && nav.title === 'Custom Price Book', JSON.stringify(nav));
+check('Settings has a Supplier price list tab under Materials & suppliers', nav.at > 0 && /materials/i.test(nav.grp) && nav.on && nav.title === 'Supplier price list', JSON.stringify(nav));
 check('…which opens empty, saying how to start', nav.empty);
 
 // ── upload a CSV ──

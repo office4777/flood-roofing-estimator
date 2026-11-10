@@ -350,7 +350,7 @@ check('THE ASK: roofing sheets, flashings and back-trays are three sections',
 check('…under one steel-grade picker, so they are still one grade\u2019s prices',
   secs.hds.indexOf('Steel grade') >= 0 &&
   secs.hds.indexOf('Steel grade') < secs.hds.indexOf('Roofing sheets'), secs.hds.join(' | '));
-check('…and the tab is called Default Items', /Default Items/.test(secs.title), secs.title);
+check('…and the tab is called Material costs', /Material costs/.test(secs.title), secs.title);
 
 // ── A SAVE KEEPS ALL THREE FIELDS (2026-10-20, the owner: "the underlay item
 // i added won't let me set it at 50m2 or set it's price (it keeps deleting

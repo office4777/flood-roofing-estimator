@@ -304,23 +304,27 @@ check('…then it is $6.00 × 52 = $312.00',
 
 // The four boxes are on the Gutter profiles table where he was told to look.
 v = await pg.evaluate(() => {
-  gotoTab('settings'); switchSettingsSub('set-products');
-  renderSelectablesUI();
-  const tbl = [...document.querySelectorAll('#selectablesUI table')]
-    .find(t => /Bracket every/i.test(t.textContent));
-  if (!tbl) return { found: false };
-  const row = tbl.querySelector('tbody tr');
+  // Since 2026-11-10 the boxes are on Material costs → Guttering (one place),
+  // and the Products table reads them back with a link there.
+  gotoTab('settings'); switchSettingsSub('set-defaultpricing');
+  renderPriceBookUI(); _pbGutTabsRender(); _pbGutSelect('box125');
+  const pane = document.querySelector('#set-defaultpricing [data-gut-pane="box125"]');
+  if (!pane) return { found: false };
+  const row = pane;
   const f = (n) => row.querySelector('[onchange*="' + n + '"]');
+  switchSettingsSub('set-products'); renderSelectablesUI();
+  const ptbl = [...document.querySelectorAll('#selectablesUI table')].find(t => /Brackets/i.test(t.textContent));
   return { found: true,
-           cols: tbl.querySelectorAll('thead th').length,
+           cols: ptbl ? ptbl.querySelectorAll('thead th').length : 0,
+           link: !!(ptbl && ptbl.querySelector('a[onclick*="set-defaultpricing"]')),
            spacing: !!f('bracketSpacingMm'), start: !!f('bracketStartPerRun'),
            int: !!f('bracketIntEa'), ext: !!f('bracketExtEa'),
            flat: !!f('extBracketLm'),
            // the DEFAULT is the placeholder, so the box reads 800 in grey
            ph: f('bracketSpacingMm') && f('bracketSpacingMm').placeholder };
 });
-check('the bracket boxes are on Gutter profiles, with the default as the placeholder',
-  v.found && v.spacing && v.start && v.int && v.ext && v.flat && v.ph === '800',
+check('the bracket boxes are on Material costs, the default as the placeholder, and Products links there',
+  v.found && v.spacing && v.start && v.int && v.ext && v.flat && v.ph === '800' && v.link,
   JSON.stringify(v));
 
 // ── (4) THE PAGE ─────────────────────────────────────────────────────

@@ -293,8 +293,8 @@ const tab = await pg.evaluate(() => {
            wide: !!p.querySelector('#pbRidgeWideLm'),
            gone: !document.querySelector('#set-products #pbSheetsList') };
 });
-check('"Default Items" is its own Pricing sub-tab, carrying the price book',
-  tab.on && tab.title === 'Default Items' && tab.wide && tab.gone, JSON.stringify(tab));
+check('"Material costs" is its own Materials sub-tab, carrying the price book',
+  tab.on && tab.title === 'Material costs' && tab.wide && tab.gone, JSON.stringify(tab));
 
 check('no page errors', errs.length === 0, errs.join(' | '));
 await b.close();

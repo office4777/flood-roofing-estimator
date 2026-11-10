@@ -367,7 +367,7 @@ check('the template picker is a solid light-blue button with white text', top.tp
 // a Save button that shows a spinner, then a tick and the time.
 const setv = await pg.evaluate(async () => {
   gotoTab('settings'); await new Promise(r => setTimeout(r, 400));
-  const nav = document.querySelector('#tab-settings .set-nav'), grp = document.querySelector('#tab-settings .set-grp');
+  const nav = document.querySelector('#tab-settings .set-nav'), grp = document.querySelector('#tab-settings .set-grp.on') || document.querySelector('#tab-settings .set-grp');
   const on = document.querySelector('#tab-settings .set-nav .tab-sm.on');
   const out = { onBg: on ? getComputedStyle(on).backgroundColor : '', sticky: nav ? getComputedStyle(nav).position : '', grpBg: grp ? getComputedStyle(grp).backgroundColor : '', grpFg: grp ? getComputedStyle(grp).color : '' };
   const real = window.saveSettings; window.saveSettings = async function(){ await new Promise(r => setTimeout(r, 150)); return true; };

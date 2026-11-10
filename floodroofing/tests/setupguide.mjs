@@ -81,7 +81,7 @@ v = await pg.evaluate(() => ({
 check('step two is the price book', /price book/i.test(v.title), v.title);
 check('…it says the rates are a starting point, not theirs',
   /starting point/i.test(v.body) && /not your prices/i.test(v.body));
-check('…it tells them how to load their own', /Upload CSV/i.test(v.body));
+check('…it tells them how to load their own', /Upload supplier price book|Upload CSV/i.test(v.body));
 check('…and it does not claim the rates belong to anyone',
   !/Flood/i.test(v.body), v.body.slice(0, 60) + '…');
 check('…with a button to the screen itself', /price book/i.test(v.cta), v.cta);

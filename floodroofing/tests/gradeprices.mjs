@@ -42,13 +42,15 @@ await pg.evaluate(() => { ['setupWizard','_rsModal','tourWrap'].forEach(i => { c
 const nav = await pg.evaluate(() => {
   gotoTab('settings');
   const btns = [...document.querySelectorAll('#tab-settings .set-nav .tab-sm')].map(b => b.textContent.trim());
-  return { btns, guides: !!document.getElementById('set-guides'), pricebookPanel: !!document.getElementById('set-pricebook'),
-           products: !!document.getElementById('set-products') };
+  const dests = [...document.querySelectorAll('#tab-settings .set-nav .set-dest')].map(b => b.textContent.trim());
+  return { btns, dests, guides: !!document.getElementById('set-guides'), guidesLink: !!document.querySelector('#tab-settings .set-nav-foot [onclick*="set-guides"]'),
+           pricebookPanel: !!document.getElementById('set-pricebook'), products: !!document.getElementById('set-products') };
 });
-check('Guides is a Settings tab of its own', nav.guides && nav.btns.includes('Guides'), nav.btns.join(' | '));
-check('the Products tab is called Quote’s Product Options', nav.btns.includes("Quote's Product Options"));
-check('…and the price book is its own tab, called Default Items',
-  nav.btns.includes('Default Items') && !nav.btns.includes('Price book') && !nav.pricebookPanel, nav.btns.join(' | '));
+check('Help & guides is a Settings pane of its own, reached from the nav foot', nav.guides && nav.guidesLink, nav.btns.join(' | '));
+check('the six destinations lead the nav', nav.dests.length === 6 && nav.dests[0] === 'My business' && nav.dests[1] === 'Materials & suppliers', nav.dests.join(' | '));
+check('the Products tab is called Products', nav.btns.includes('Products'));
+check('…and the price book is its own tab, called Material costs',
+  nav.btns.includes('Material costs') && !nav.btns.includes('Price book') && !nav.pricebookPanel, nav.btns.join(' | '));
 check('Suppliers & materials is just Suppliers', nav.btns.includes('Suppliers') && !nav.btns.some(t => /materials/i.test(t)));
 
 const guides = await pg.evaluate(() => {
@@ -75,7 +77,7 @@ const alias = await pg.evaluate(() => {
            notInProducts: !document.querySelector('#set-products #pbSheetsList'),
            supl: !!document.querySelector('#set-supl #supplierList') && !!document.querySelector('#set-supl #catalogFlashings') && !document.querySelector('#set-supl #catalogUnderlays') && !document.getElementById('catalogProducts') };
 });
-check('opening "set-pricebook" lands on Default Items', alias.on && alias.title === 'Default Items', alias.title);
+check('opening "set-pricebook" lands on Material costs', alias.on && alias.title === 'Material costs', alias.title);
 check('…which carries the price book: sheets, the grade buttons and the back-trays', alias.pb);
 check('…and the underlay and screw lists that came over from Suppliers', alias.lists);
 check('…and it is gone from Quote’s Product Options', alias.notInProducts);
