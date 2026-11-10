@@ -10625,46 +10625,60 @@ function _schedNthWeekday(y, m, dow, n){  // n-th <dow> of month m
   const off = (dow - first.getUTCDay() + 7) % 7;
   return _schedShift(first, off + 7 * (n - 1));
 }
-// Matariki has no formula — gazetted dates.
+// Matariki has no formula — the dates the Matariki Advisory Committee set
+// (MBIE's 2022–2052 table); 2031–2035 added 2026-11-11.
 const _SCHED_MATARIKI = { 2025: '2025-06-20', 2026: '2026-07-10', 2027: '2027-06-25',
-                          2028: '2028-07-14', 2029: '2029-07-06', 2030: '2030-06-21' };
+                          2028: '2028-07-14', 2029: '2029-07-06', 2030: '2030-06-21',
+                          2031: '2031-07-11', 2032: '2032-07-02', 2033: '2033-06-24',
+                          2034: '2034-07-07', 2035: '2035-06-29' };
 const SCHED_REGIONS = ['auckland', 'wellington', 'canterbury', 'otago', 'southland',
   'taranaki', 'hawkes_bay', 'marlborough', 'nelson', 'westland', 'chatham_islands', 'none'];
-function _nzHolidays(year, region){
-  const days = [];
-  const add = d => { if (d) days.push(typeof d === 'string' ? d : _schedISO(d)); };
+// Every public holiday of the year WITH ITS NAME (2026-11-11, the owner: "a
+// stripe down ... any public holiday ... write inside the stripe, public
+// holiday, and what public holiday it is"). _nzHolidays is the dates alone.
+function _nzHolidayList(year, region){
+  const out = [];
+  const add = (d, name) => { if (d) out.push({ date: typeof d === 'string' ? d : _schedISO(d), name }); };
   // New Year's Day + day after: each mondayised, and they can't collide —
   // if the 1st lands Saturday both roll to Mon/Tue.
-  const ny1 = _schedMondayised(year, 1, 1); add(ny1);
+  const ny1 = _schedMondayised(year, 1, 1); add(ny1, 'New Year\u2019s Day');
   let ny2 = _schedMondayised(year, 1, 2);
   if (_schedISO(ny2) === _schedISO(ny1)) ny2 = _schedShift(ny1, 1);
-  add(ny2);
-  add(_schedMondayised(year, 2, 6));               // Waitangi Day
+  add(ny2, 'Day after New Year\u2019s');
+  add(_schedMondayised(year, 2, 6), 'Waitangi Day');
   const easter = _schedEaster(year);
-  add(_schedShift(easter, -2));                    // Good Friday
-  add(_schedShift(easter, 1));                     // Easter Monday
-  add(_schedMondayised(year, 4, 25));              // Anzac Day
-  add(_schedNthWeekday(year, 6, 1, 1));            // King's Birthday
-  add(_SCHED_MATARIKI[year] || null);              // Matariki
-  add(_schedNthWeekday(year, 10, 1, 4));           // Labour Day
-  const x1 = _schedMondayised(year, 12, 25); add(x1);
+  add(_schedShift(easter, -2), 'Good Friday');
+  add(_schedShift(easter, 1), 'Easter Monday');
+  add(_schedMondayised(year, 4, 25), 'Anzac Day');
+  add(_schedNthWeekday(year, 6, 1, 1), 'King\u2019s Birthday');
+  add(_SCHED_MATARIKI[year] || null, 'Matariki');
+  add(_schedNthWeekday(year, 10, 1, 4), 'Labour Day');
+  const x1 = _schedMondayised(year, 12, 25); add(x1, 'Christmas Day');
   let x2 = _schedMondayised(year, 12, 26);
   if (_schedISO(x2) === _schedISO(x1)) x2 = _schedShift(x1, 1);
-  add(x2);
+  add(x2, 'Boxing Day');
   switch (String(region || '')) {                  // provincial anniversary
-    case 'auckland':   add(_schedNearestMonday(year, 1, 29)); break;   // incl. Northland
-    case 'wellington': add(_schedNearestMonday(year, 1, 22)); break;
-    case 'nelson':     add(_schedNearestMonday(year, 2, 1)); break;
-    case 'taranaki':   add(_schedNthWeekday(year, 3, 1, 2)); break;
-    case 'otago':      add(_schedNearestMonday(year, 3, 23)); break;
-    case 'southland':  add(_schedShift(_schedEaster(year), 2)); break; // Easter Tuesday
-    case 'canterbury': add(_schedShift(_schedNthWeekday(year, 11, 2, 1), 10)); break; // Show Day: 2nd Fri after 1st Tue of Nov
-    case 'hawkes_bay': add(_schedShift(_schedNthWeekday(year, 10, 1, 4), -3)); break; // Fri before Labour Day
-    case 'marlborough':add(_schedShift(_schedNthWeekday(year, 10, 1, 4), 7)); break;  // Mon after Labour Day
-    case 'westland':   add(_schedNearestMonday(year, 12, 1)); break;
-    case 'chatham_islands': add(_schedNearestMonday(year, 11, 30)); break;
+    case 'auckland':   add(_schedNearestMonday(year, 1, 29), 'Auckland Anniversary'); break;   // incl. Northland
+    case 'wellington': add(_schedNearestMonday(year, 1, 22), 'Wellington Anniversary'); break;
+    case 'nelson':     add(_schedNearestMonday(year, 2, 1), 'Nelson Anniversary'); break;
+    case 'taranaki':   add(_schedNthWeekday(year, 3, 1, 2), 'Taranaki Anniversary'); break;
+    case 'otago':      add(_schedNearestMonday(year, 3, 23), 'Otago Anniversary'); break;
+    case 'southland':  add(_schedShift(_schedEaster(year), 2), 'Southland Anniversary'); break; // Easter Tuesday
+    case 'canterbury': add(_schedShift(_schedNthWeekday(year, 11, 2, 1), 10), 'Canterbury Show Day'); break; // 2nd Fri after 1st Tue of Nov
+    case 'hawkes_bay': add(_schedShift(_schedNthWeekday(year, 10, 1, 4), -3), 'Hawke\u2019s Bay Anniversary'); break; // Fri before Labour Day
+    case 'marlborough':add(_schedShift(_schedNthWeekday(year, 10, 1, 4), 7), 'Marlborough Anniversary'); break;  // Mon after Labour Day
+    case 'westland':   add(_schedNearestMonday(year, 12, 1), 'Westland Anniversary'); break;
+    case 'chatham_islands': add(_schedNearestMonday(year, 11, 30), 'Chatham Islands Anniversary'); break;
   }
-  return days;
+  return out;
+}
+function _nzHolidays(year, region){ return _nzHolidayList(year, region).map(h => h.date); }
+function _schedHolidaysIn(cfg, fromISO, toISO){
+  const out = [];
+  for (let y = +fromISO.slice(0, 4); y <= +toISO.slice(0, 4); y++) {
+    for (const h of _nzHolidayList(y, cfg.region)) { if (h.date >= fromISO && h.date <= toISO) out.push(h); }
+  }
+  return out;
 }
 // Every non-working ISO date in [fromISO, toISO]: weekends, public
 // holidays for the company's region, and its own shutdown ranges.
@@ -10903,6 +10917,7 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
       '&sig=' + crypto.createHmac('sha256', cfg.feed_secret).update(String(req.companyId || '')).digest('hex');
     const cfgOut = Object.assign({}, cfg); delete cfgOut.feed_secret;
     res.json({ cfg: cfgOut, rows: out, blocks, nonwork: [...nonwork].sort(),
+               holidays: _schedHolidaysIn(cfg, calFrom, to),
                range: { from, to, today }, feed_url: feedBase });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -11035,6 +11050,14 @@ app.patch('/schedule/blocks/:id', ..._schedGate, async (req, res) => {
   if (b.kind !== undefined) patch.kind = b.kind === 'crew' ? 'crew' : 'pencil';
   if (b.crew_id !== undefined) patch.crew_id = String(b.crew_id || '').slice(0, 40);
   try {
+    // A block dragged up or down onto another job (2026-11-11, the owner: "if
+    // I've clicked onto the wrong job, I can just drag it up or down"). The
+    // row it lands on must be this business's own.
+    if (b.row_id !== undefined) {
+      const { data: to } = await _scopeCompany(supabase.from('schedule_rows').select('id'), req).eq('id', String(b.row_id || ''));
+      if (!to || !to.length) return res.status(400).json({ error: 'That row is not on your schedule' });
+      patch.row_id = to[0].id;
+    }
     const { data, error } = await _scopeCompany(supabase.from('schedule_blocks')
       .update(patch), req).eq('id', req.params.id).select('*');
     if (error) return res.status(500).json({ error: error.message });
@@ -11132,22 +11155,54 @@ app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// THE SUPPLIERS AND TRADES (2026-11-11, the owner: the board's envelope
+// should also "order the material ... the job pack", "book in scaffold ...
+// email for an installation date or email for a scaffolding quote", and
+// email the electrician and the plumber). Each kind has its own wording in
+// Settings -> Email (the roofing order shares the Job Pack's 'order' one).
+const SCHED_CUST_KINDS = ['confirm', 'week', 'pencil'];
+const SCHED_SUPP_KINDS = { ord_roofing: 'order', ord_gutter: 'ord_gutter', scaff_book: 'scaff_book',
+  scaff_quote: 'scaff_quote', trade_elec: 'trade_elec', trade_plumb: 'trade_plumb' };
+const SCHED_ATTACH_MAX = 15 * 1024 * 1024;
 app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
   const b = req.body || {};
-  if (!b.to || !/.+@.+\..+/.test(String(b.to))) return res.status(400).json({ error: 'A customer email address is needed' });
+  const supp = Object.prototype.hasOwnProperty.call(SCHED_SUPP_KINDS, b.kind);
+  if (!b.to || !/.+@.+\..+/.test(String(b.to))) return res.status(400).json({ error: supp ? 'An email address is needed' : 'A customer email address is needed' });
   if (!b.subject || !b.body) return res.status(400).json({ error: 'Subject and message are needed' });
   try {
     const { data: rows } = await _scopeCompany(supabase.from('schedule_rows')
-      .select('id'), req).eq('id', req.params.id);
+      .select('id, job_id'), req).eq('id', req.params.id);
     if (!rows || !rows.length) return res.status(404).json({ error: 'Row not found' });
     const settings = await _companySettingsRow(req);
     const brand = (settings && settings.branding) || {};
-    const replyTo = _tenantMailIdentity(settings, 'sched').replyTo || undefined;
+    const tplKey = supp ? SCHED_SUPP_KINDS[b.kind] : 'sched';
+    const replyTo = _tenantMailIdentity(settings, tplKey).replyTo || undefined;
+    // A file from the job's own Files & Photos (the Job Pack, the order PDF),
+    // read here so the bytes never pass through the browser twice. One that
+    // cannot be read stops the send: an order that goes out without its order
+    // is worse than one that waits.
+    let attachments, fileName = '';
+    if (b.fileId) {
+      const jobId = rows[0].job_id;
+      if (!jobId) return res.status(400).json({ error: 'This row has no RoofMap job, so it has no files to attach.' });
+      const job = await _jfJob(req, jobId);
+      const f = job && _jfFirst(await _scopeCompany(supabase.from('job_files').select(JF_COLS), req)
+        .eq('job_id', job.root).eq('id', String(b.fileId)).limit(1));
+      if (!f || f.status !== 'ready') return res.status(400).json({ error: 'The file to attach was not found on this job.' });
+      if ((+f.size || 0) > SCHED_ATTACH_MAX) return res.status(400).json({ error: f.name + ' is too big to email (over 15 MB).' });
+      let buf;
+      try { buf = await _jfStorage().download(f.storage_path); }
+      catch (e) { return res.status(502).json({ error: 'The file to attach could not be read (' + (e.message || e) + '). Nothing was sent.' }); }
+      attachments = [{ base64: Buffer.from(buf).toString('base64'), filename: f.name }];
+      fileName = f.name;
+    }
+    const emCfg = _emailCfgOfRow(settings);
     await _dispatchMail({
       to: String(b.to).slice(0, 200),
-      cc: _emailCopies(settings, _emailCfgOfRow(settings).sched_cc, _emailList(b.to)),
+      cc: _emailCopies(settings, emCfg[tplKey + '_cc'], _emailList(b.to)),
       subject: String(b.subject).slice(0, 250),
       text: String(b.body).slice(0, 8000),
+      attachments,
       fromName: brand.company_name || undefined,
       replyTo,
       fromAddress: _tenantSendAddress(req.companyId, brand.company_name, replyTo) || undefined,
@@ -11164,12 +11219,18 @@ app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
         .select('notify_log'), req).eq('id', req.params.id).maybeSingle();
       if (cur && Array.isArray(cur.notify_log)) log = cur.notify_log;
     } catch (e) {}
-    const kind = ['confirm', 'week', 'pencil'].includes(b.kind) ? b.kind : '';
-    log.push({ at: stamp, kind, to: String(b.to).slice(0, 200), subject: String(b.subject).slice(0, 250) });
+    const kind = (SCHED_CUST_KINDS.includes(b.kind) || supp) ? b.kind : '';
+    const ent = { at: stamp, kind, to: String(b.to).slice(0, 200), subject: String(b.subject).slice(0, 250) };
+    if (supp) {
+      if (b.supplier) ent.supplier = String(b.supplier).slice(0, 120);
+      if (b.asap) ent.asap = true; else if (/^\d{4}-\d{2}-\d{2}$/.test(String(b.date || ''))) ent.date = String(b.date);
+      if (fileName) ent.file = fileName.slice(0, 160);
+    }
+    log.push(ent);
     if (log.length > 50) log = log.slice(-50);
     await _scopeCompany(supabase.from('schedule_rows')
-      .update({ last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
-    res.json({ ok: true, last_notified: stamp });
+      .update(supp ? { notify_log: log } : { last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
+    res.json({ ok: true, last_notified: stamp, file: fileName || undefined });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 

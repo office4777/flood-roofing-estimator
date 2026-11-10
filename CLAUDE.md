@@ -1866,6 +1866,51 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   (`_SCHED_FG_CACHE`). The search drop-down sits in the window's flow
   (`.sched-jsdrop` static) so it is never clipped by the modal. `scheduleui`
   (137), `scheduleapi` (53).
+  THE ✉ EMAILS SUPPLIERS AND TRADES TOO (2026-11-11, the owner: "order the
+  material ... the job pack ... book in scaffold ... an installation date or
+  ... a scaffolding quote ... electricians ... plumbers ... a delivery date ...
+  or just click at your earliest convenience"). `_SCHED_MAIL_KINDS` carries six
+  more (`grp:'supp'`): ord_roofing (the Job Pack's own `order` wording),
+  ord_gutter, scaff_book, scaff_quote, trade_elec, trade_plumb, each with its
+  `cat` (Settings → Suppliers & trades group), `tpl` (Settings → Email) and
+  `dateLbl` (Delivery / Installation / Booking date). The window
+  (`#schedMailSupp`, `_schedMailSuppSetup`): the group's companies
+  (`_suppliersOf`) or "Someone else", a date (`#schedMailDate`, default the
+  row's delivery date for an order, else its first booked day) or
+  `#schedMailAsap`, and for an order the attachment (`#schedMailFile`) off the
+  job's Files & Photos — the newest order / Job Pack PDF picked
+  (`_SM_FILE_PREF`). Written CLIENT-side from the template (`_schedMailCompose`,
+  tags `{supplier_contact} {supplier} {job} {site} {deliver_to} {date}
+  {delivery_date}`); once the office types in it, a later change of company or
+  date only swaps those words (`_SM.edited`). SERVER: `/schedule/rows/:id/send`
+  takes the kinds (`SCHED_SUPP_KINDS`), CCs `<tpl>_cc`, attaches `fileId` from
+  the job's own `job_files` (scoped, ≤15 MB, an unreadable file stops the send),
+  logs `{kind, supplier, date|asap, file}` and leaves `last_notified` (the
+  customer's) alone. SUPPLIERS: a row's `category` (`SUPPLIER_CATS`: roofing,
+  gutter, scaffold, electrician, plumber; none = roofing), five tiles on
+  Settings → Suppliers & trades; Order Roof's pickers list roofing + gutter only.
+  EMAIL TEMPLATES: Material order is "Roofing material order"; ord_gutter,
+  scaff_book, scaff_quote, trade_elec, trade_plumb panes (`emT<Kind>Subject`…,
+  `<kind>_cc` / `_reply_to`), app-side only (`EMX_DEFAULTS`).
+  THE JOB WINDOW: opens on the customer's roofs (the quote map, each roof
+  included or not) with a "Detailed map" switch (`.sij-mapsw`,
+  `window._sijMapMode`); its "✉ Email…" opens the same window OVER it
+  (z 9101) and a send refreshes its History (`_schedInfoHistRefresh`), which
+  lists supplier emails with their date and file.
+  THE BOARD: a block click IS the colour list (Pencil + crews, its own ticked)
+  with Remove this block at the foot — no Email customer, no Change ▾; a block
+  drags UP/DOWN onto another job (`targetRow`, `.sched-droprow`, PATCH
+  `row_id`, the server checks the row is the company's); no text selection
+  while dragging (`_schedNoSelect`, `body.sched-noselect`); a click in a row
+  lights it end to end for `SCHED_ROWHI_MS` 5 s or until a click elsewhere
+  (`_schedRowHiSet`); NO RELOAD PAINTS OVER A WRITE IN FLIGHT — `_schedApi`
+  counts writes (`_SCHED.writeSeq`, `pending`) and `_schedLoad` drops a GET that
+  overlapped one and reloads after the last lands (the crew change that flicked
+  back to pencil, the new block that vanished for two seconds). The orange
+  over-capacity day tint is gone; PUBLIC HOLIDAYS are an orange stripe with
+  "Public holiday · <name>" down it (`.sched-shade.hol`): GET /schedule sends
+  `holidays: [{date, name}]` (`_nzHolidayList`, `_schedHolidaysIn`; Matariki to
+  2035 from MBIE's table). `scheduleui` (161), `scheduleapi` (61).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

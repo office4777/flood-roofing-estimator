@@ -12,6 +12,19 @@ const _ROOT = _j(_d(_f(import.meta.url)), '..');
 import { startFakePostgrest } from './fakepgrst.mjs';
 import { createRequire } from 'node:module';
 const require = createRequire(_j(_ROOT, 'backend') + '/');
+import http from 'node:http';
+// The mail relay, captured: the suppliers' emails carry an attachment.
+const sentMail = [];
+const relay = http.createServer((req, res) => {
+  let body = ''; req.on('data', c => body += c);
+  req.on('end', () => { try { sentMail.push(JSON.parse(body)); } catch (e) { sentMail.push({ raw: body }); }
+    res.writeHead(200, {'content-type':'application/json'}); res.end('{"ok":true}'); });
+});
+await new Promise(r => relay.listen(0, '127.0.0.1', r));
+const _mem = await require('./tender/storage').memory();
+globalThis.__TEST_JOBFILES_STORAGE = _mem;
+await _mem.upload('company-a/job-a1/f-pack/Job_Pack_FR-2996.pdf', Buffer.from('%PDF-1.4 the job pack'), 'application/pdf');
+await _mem.upload('company-b/job-b1/f-rival/Rival.pdf', Buffer.from('%PDF-1.4 not yours'), 'application/pdf');
 const jwt = require('jsonwebtoken');
 const results = [];
 function check(n, ok, d){ results.push(!!ok); console.log((ok?'PASS':'FAIL')+'  '+n+(d?('  — '+d):'')); }
@@ -41,7 +54,15 @@ const { port } = await startFakePostgrest({
   invoices: [{ id: 'inv-1', company_id: A.company, user_id: A.user, job_id: JOB,
     type: 'deposit', status: 'paid', number: 'INV-1001' }],
   schedule_rows: [], schedule_blocks: [],
+  job_files: [
+    { id: 'f-pack', company_id: 'company-a', user_id: 'user-a', job_id: 'job-a1', name: 'Job Pack FR-2996.pdf', mime: 'application/pdf',
+      size: 21, kind: 'export', source: 'jobpack-pdf', author: '', status: 'ready', storage_path: 'company-a/job-a1/f-pack/Job_Pack_FR-2996.pdf', created_at: '2026-11-01T00:00:00Z' },
+    { id: 'f-rival', company_id: 'company-b', user_id: 'user-b', job_id: 'job-b1', name: 'Rival.pdf', mime: 'application/pdf',
+      size: 18, kind: 'export', source: 'jobpack-pdf', author: '', status: 'ready', storage_path: 'company-b/job-b1/f-rival/Rival.pdf', created_at: '2026-11-01T00:00:00Z' } ],
 });
+process.env.GAS_MAIL_URL = 'http://127.0.0.1:' + relay.address().port;
+process.env.GAS_MAIL_TOKEN = 'tok';
+process.env.GAS_RELAY_IS_PLATFORM = 'true';
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
 process.env.JWT_SECRET = 'test-secret';
@@ -96,6 +117,17 @@ check('Deposit Paid auto-fills from the paid deposit invoice', linked.deposit_pa
 check('Ordered auto-fills from the sent order', linked.ordered === true, String(linked.ordered));
 check('the customer email auto-fills from the quote client', linked.email === 'brian@lewis.co.nz', linked.email);
 check('the job number rides along from the quote ref', linked.job_no === 'FR-2996', String(linked.job_no));
+// Public holidays come with their names (2026-11-11): every one a day off,
+// and over 420 days the board always holds Christmas and Labour Day.
+{
+  const hol = body.holidays || [], nw = new Set(body.nonwork || []);
+  const names = hol.map(h => h.name);
+  const xmas = hol.filter(h => h.name === 'Christmas Day');
+  check('the board sends the public holidays by name, each one a day off',
+    hol.length >= 10 && names.includes('Labour Day') && names.includes('Matariki') && names.includes('Easter Monday') &&
+    xmas.length >= 1 && xmas.every(h => /-12-2[5-7]$/.test(h.date)) && hol.every(h => nw.has(h.date)),
+    JSON.stringify(hol).slice(0, 300));
+}
 // Sampled from the range the board actually returned, not a date typed in
 // on the day this was written: the calendar starts a week back, so a fixed
 // Saturday silently walks out of the window and fails a year later.
@@ -256,6 +288,55 @@ body = await j(await as(A, '/schedule/presence', { method: 'POST', body: JSON.st
 body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
 check('leaving takes the person off the list', body.users.length === 0, JSON.stringify(body.users));
 
+// ── SUPPLIERS AND TRADES (2026-11-11) ────────────────────────────
+{
+  sentMail.length = 0;
+  // the office's copy-to for scaffold bookings rides on that template's own CC
+  await as(A, '/settings', { method: 'PUT', body: JSON.stringify({ quote_defaults: { email: { scaff_book_cc: 'yard@floodroofing.co.nz' } } }) });
+  r = await as(A, '/schedule/rows/' + rowA.id + '/send', { method: 'POST', body: JSON.stringify({
+    kind: 'ord_roofing', to: 'orders@ri.nz', subject: 'Order #FR-2996', body: 'Hi Sam, the order is attached.',
+    supplier: 'Roofing Industries', date: '2026-11-20', asap: false, fileId: 'f-pack' }) });
+  body = await j(r);
+  await new Promise(res => setTimeout(res, 200));
+  const m = sentMail[sentMail.length - 1] || {};
+  const att = (m.attachments || [])[0] || {};
+  check('a roofing material order goes to the supplier with the job\u2019s Job Pack attached',
+    r.status === 200 && body.file === 'Job Pack FR-2996.pdf' && /orders@ri\.nz/.test(JSON.stringify(m.to || m)) &&
+    (att.filename || att.name) === 'Job Pack FR-2996.pdf' && Buffer.from(String(att.base64 || att.content || att.data || ''), 'base64').toString().startsWith('%PDF-1.4 the job pack'),
+    JSON.stringify({ status: r.status, body, keys: Object.keys(m), att: Object.keys(att) }).slice(0, 300));
+  const brd = await j(await as(A, '/schedule'));
+  const rw = (brd.rows || []).find(x => x.id === rowA.id) || {};
+  const ent = (rw.notify_log || []).slice(-1)[0] || {};
+  check('…logged on the row with the supplier, the date and the file — and the customer\u2019s "last told" untouched',
+    ent.kind === 'ord_roofing' && ent.supplier === 'Roofing Industries' && ent.date === '2026-11-20' && ent.file === 'Job Pack FR-2996.pdf' &&
+    String(rw.last_notified || '') !== String(ent.at), JSON.stringify({ ent, last: rw.last_notified }));
+  r = await as(A, '/schedule/rows/' + rowA.id + '/send', { method: 'POST', body: JSON.stringify({
+    kind: 'ord_roofing', to: 'orders@ri.nz', subject: 'x', body: 'y', fileId: 'f-rival' }) });
+  check('another business\u2019s file is never attached — nothing is sent', r.status === 400 && sentMail.length === 1, r.status + ' / ' + sentMail.length);
+  sentMail.length = 0;
+  r = await as(A, '/schedule/rows/' + rowA.id + '/send', { method: 'POST', body: JSON.stringify({
+    kind: 'scaff_book', to: 'book@northscaff.nz', subject: 'Scaffold booking', body: 'Installation date: at your earliest convenience.', supplier: 'North Scaffolding', asap: true }) });
+  await new Promise(res => setTimeout(res, 200));
+  const m2 = sentMail[0] || {};
+  check('a scaffold booking sends with no attachment and the template\u2019s own copy-to',
+    r.status === 200 && !(m2.attachments || []).length && /yard@floodroofing\.co\.nz/.test(JSON.stringify(m2.cc || '')), JSON.stringify(m2).slice(0, 300));
+  r = await as(A, '/schedule/rows/' + rowA.id + '/send', { method: 'POST', body: JSON.stringify({ kind: 'trade_plumb', to: '', subject: 's', body: 'b' }) });
+  body = await j(r);
+  check('a trade email with no address is refused in plain words', r.status === 400 && /email address is needed/.test(body.error) && !/customer/.test(body.error), body.error);
+}
+// A block dragged onto another job's row (2026-11-11): the row must be this
+// business's own.
+{
+  const blk = await j(await as(A, '/schedule/blocks', { method: 'POST', body: JSON.stringify({ row_id: rowA.id, kind: 'pencil', start_date: '2026-12-07', work_days: 1 }) }));
+  r = await as(A, '/schedule/blocks/' + blk.id, { method: 'PATCH', body: JSON.stringify({ row_id: rowQ.id, start_date: '2026-12-08' }) });
+  body = await j(r);
+  check('a block dragged onto another job moves there', r.status === 200 && body.row_id === rowQ.id && body.start_date === '2026-12-08', JSON.stringify(body).slice(0, 160));
+  const rival = await j(await as(B, '/schedule/rows', { method: 'POST', body: JSON.stringify({ client_name: 'Rival job' }) }));
+  r = await as(A, '/schedule/blocks/' + blk.id, { method: 'PATCH', body: JSON.stringify({ row_id: rival.id }) });
+  check('…but never onto another business\u2019s row', r.status === 400, String(r.status));
+}
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
+await new Promise(r2 => relay.close(r2)); try { _mem.close(); } catch (e) {}
 process.exit(pass === results.length ? 0 : 1);
