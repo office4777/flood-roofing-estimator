@@ -3294,6 +3294,19 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   old pale grid was right). Screen-constant at every zoom, exactly as before.
   The ALIGNMENT grid stays orange and stays louder — that one is only up while
   the rotate slider is being dragged and is meant to be shouted.
+- A NEW JOB STARTS WITH NO CLEARLITES, AND A CLEARLITE IS CLICKED TO DELETE
+  (2026-11-11, the owner: job 3355 opened with the four clears of job 3344 on
+  its canvas; "it doesn't let me click those clear lights and delete them";
+  Clear left them there too). `clearAll`, the one door every new-job path goes
+  through, never emptied `DRAW.clearlites` — nor the clears' and back-trays'
+  cut-list rows (`matClear*`, `matBackTray*`, `matRowOff`), the info marks or
+  the dimension labels; it does now. A job already SAVED with the leaked clears
+  keeps them until they are deleted. A click with Move on a clearlite opens
+  `#clearPop` ("Clearlite 2.40 m · ✕ Delete", `_clearPop` / `_clearDelete`,
+  `window._clearSel`, the selected one ringed red) and the Delete key takes it
+  off; before, only the eraser could. "Moving them around" was the canvas
+  panning with the picture, not a drag of the clears. `tests/clearlite.mjs`
+  (39, a real mouse), `jobbgleak.mjs` (24).
 - A HEAD BARGE seeds a sheet measure on the map (roof side only).
 - MAP ROOF, 2026-09-25 (`tests/roofmeasure.mjs`): the roof image boxes are
   always open with no frame (`_setRoofBg` forces open; `#roofBgBar`

@@ -364,6 +364,39 @@ const undone = await pg.evaluate(() => {
 check('undo lifts a placed clear off the roof', undone.after === 1 && undone.undone === 0,
   JSON.stringify(undone));
 
+// ── A CLEARLITE IS CLICKED AND DELETED WITH MOVE (2026-11-11, the owner: "it
+// doesn't let me click those clear lights and delete them"). A real mouse.
+await pg.evaluate(() => gotoTab('roof'));
+await pg.waitForTimeout(600);
+const at = await pg.evaluate(() => {
+  setTool('select');
+  DRAW.clearlites = [{ cx: 400, cy: 250, mode: 'short', lenM: 2.4 }, { cx: 400, cy: 330, mode: 'short', lenM: 2.4 }];
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  redrawAll();
+  const cv = document.getElementById('roofCanvas');
+  const q = imgToCanvas([400, 250], getImgTransform());
+  window.scrollBy(0, cv.getBoundingClientRect().top + q[1] * cv.getBoundingClientRect().height / cv.height - innerHeight / 2);
+  const r = cv.getBoundingClientRect();
+  void imgToCanvas([400, 250], getImgTransform());
+  return { x: r.left + q[0] * r.width / cv.width, y: r.top + q[1] * r.height / cv.height };
+});
+await pg.mouse.click(at.x, at.y);
+await pg.waitForTimeout(300);
+const pop = await pg.evaluate(() => ({ open: !!document.getElementById('clearPop'),
+  text: (document.getElementById('clearPop') || {}).textContent || '', sel: window._clearSel }));
+check('a click on a clearlite with Move opens its box with a Delete button',
+  pop.open && /Clearlite 2\.40 m/.test(pop.text) && /Delete/.test(pop.text) && pop.sel === 0, JSON.stringify(pop));
+await pg.keyboard.press('Delete');
+await pg.waitForTimeout(300);
+const gone = await pg.evaluate(() => ({ n: DRAW.clearlites.length, left: DRAW.clearlites[0] && DRAW.clearlites[0].cy,
+  open: !!document.getElementById('clearPop') }));
+check('…the Delete key takes that one off, and only that one', gone.n === 1 && gone.left === 330 && !gone.open, JSON.stringify(gone));
+await pg.evaluate(() => _clearPop(0, 200, 200));
+await pg.click('#clearPopDel');
+await pg.waitForTimeout(200);
+check('…and the box\u2019s own Delete button does the same',
+  await pg.evaluate(() => DRAW.clearlites.length === 0 && !document.getElementById('clearPop')));
+
 check('and none of this threw', errs.length === 0, errs.join(' | ') || 'no page errors');
 await b.close();
 const bad = results.filter(x => !x).length;

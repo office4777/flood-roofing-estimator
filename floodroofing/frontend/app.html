@@ -5570,7 +5570,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T20:35:34Z';
+  window.APP_BUILT_AT = '2026-11-10T22:14:57Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -57308,6 +57308,7 @@ document.addEventListener('keydown', function(e){
     if(DRAW.selTape != null && DRAW.selTape >= 0 && _tab === 'roof'){ e.preventDefault(); _tapeDelete(DRAW.selTape); return; }
     if(DRAW.selectedLine>=0){ e.preventDefault(); deleteSelectedLine(); return; }
     if(DRAW.selectedPen>=0){ e.preventDefault(); deletePen(); return; }
+    if(window._clearSel>=0 && document.getElementById('clearPop')){ e.preventDefault(); _clearDelete(window._clearSel); return; }
     if(DRAW.selectedSection>=0){ e.preventDefault(); ctxDelete(); return; }
     // 3) Backspace with nothing selected on the Map Roof tab → Undo.
     if(e.key==='Backspace' && _tab==='roof'){ e.preventDefault(); undoLast(); return; }
@@ -63185,6 +63186,11 @@ function onCanvasClick(e) {
     var hitP = hitPen(xy[0],xy[1]);
     var hitI = hitInfo(xy[0],xy[1]);
     if(hitP>=0) { selectPen(hitP); return; }
+    // A CLEARLITE IS CLICKED LIKE A PENETRATION (2026-11-11, the owner: "it
+    // doesn't let me click those clear lights and delete them"). Only the
+    // eraser could take one off; a click with Move now offers the delete.
+    var hitC = -1; try { hitC = hitClearlite(xy[0], xy[1]); } catch(_e){}
+    if(hitC>=0) { _clearPop(hitC, e.clientX, e.clientY); return; }
     if(hitI>=0) { focusInfoItem(hitI); return; }
     if(hitL>=0) { selectLine(hitL); return; }
     // Cross-roof line hit — auto-switch to the owning roof THEN
@@ -64778,6 +64784,13 @@ function clearAll(silent) {
   if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
   try { _lkgForget(); } catch(e){}   // asked for — an empty save is now correct
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[]; DRAW.tapes=[]; DRAW.selTape=-1;
+  // THE CLEARLITES GO WITH THE ROOF (2026-11-11, the owner: job 3355 opened
+  // with the four clears of job 3344 still on its canvas). Every new-job path
+  // comes through here and none of them emptied these, nor the clears' and
+  // back-trays' cut-list rows, nor the numbered info marks and dimension labels.
+  DRAW.clearlites=[]; DRAW.infoItems=[]; DRAW.dimLabels=[];
+  DRAW.matClearExtras=[]; DRAW.matClearRowHidden={}; DRAW.matClearRowQty={}; DRAW.matClearRowLen={};
+  DRAW.matRowOff={}; DRAW.matBackTrayOff={}; DRAW.matBackTrayQty={}; DRAW.matBackTrayLen={}; DRAW.matBackTrayExtras=[];
   try { MATERIAL_OVERRIDES = {}; MATERIAL_DELETED = {}; } catch(e){}
   DRAW.currentPts=[]; DRAW.outlineDone=false;
   try { _inkResetRuns(); } catch(e){}
@@ -67140,9 +67153,10 @@ function redrawAll() {
       ctx.closePath();
       ctx.fillStyle = o.preview ? 'rgba(56,189,248,0.45)' : 'rgba(56,189,248,0.22)';
       ctx.fill();
-      ctx.strokeStyle = '#0284c7';
-      ctx.lineWidth = o.preview ? 2.5 : 1.5;
-      ctx.setLineDash([5,3]);
+      var _clSel = false; try { _clSel = window._clearSel >= 0 && _clearArr()[window._clearSel] === o.c; } catch(_e){}
+      ctx.strokeStyle = _clSel ? '#dc2626' : '#0284c7';
+      ctx.lineWidth = _clSel ? 3 : (o.preview ? 2.5 : 1.5);
+      ctx.setLineDash(_clSel ? [] : [5,3]);
       ctx.stroke();
       ctx.setLineDash([]);
       var txt = lenM > 0 ? (lenM.toFixed(2) + 'm') : 'set length';
@@ -69196,6 +69210,41 @@ function _clearOfMeasures(p, w, h, segs){
 // Canvas view menu shows or hides every roof's plate at once. Labels only —
 // the pitch itself never changes here.
 function _pitchRoofObj(i){ return (i === DRAW.activeRoofIdx || !(DRAW.roofs && DRAW.roofs.length)) ? DRAW : DRAW.roofs[i]; }
+function _clearPopClose(){ var m = document.getElementById('clearPop'); if (m) m.remove(); window._clearSel = -1; try { redrawAll(); } catch(e){} }
+function _clearPop(idx, cx, cy){
+  var arr = _clearArr(); var c = arr[idx]; if (!c) return;
+  var old = document.getElementById('clearPop'); if (old) old.remove();
+  window._clearSel = idx;
+  var lenM = 0; try { lenM = _clearLenM(c, DRAW.activeRoofIdx) || 0; } catch(e){}
+  var m = document.createElement('div');
+  m.id = 'clearPop';
+  m.style.cssText = 'position:fixed;z-index:9000;background:#fff;border:1px solid #d6dbe2;border-radius:10px;box-shadow:0 10px 28px rgba(10,22,40,.22);padding:8px 10px;font-size:12px;color:#0a1628;display:flex;align-items:center;gap:8px';
+  m.style.left = Math.min(window.innerWidth - 260, (cx || 0) + 12) + 'px';
+  m.style.top = Math.max(8, (cy || 0) - 18) + 'px';
+  m.innerHTML = '<strong>Clearlite' + (lenM > 0 ? ' ' + lenM.toFixed(2) + ' m' : '') + '</strong>' +
+    '<button type="button" id="clearPopDel" style="background:#fee2e2;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;padding:4px 10px;font-weight:700;cursor:pointer" onclick="_clearDelete(window._clearSel)">\u2715 Delete</button>' +
+    '<button type="button" style="background:none;border:0;color:#64748b;cursor:pointer;font-size:14px" onclick="_clearPopClose()" aria-label="Close">\u00d7</button>';
+  document.body.appendChild(m);
+  try { redrawAll(); } catch(e){}
+  setTimeout(function(){
+    document.addEventListener('pointerdown', function _o(ev){
+      if (m.contains(ev.target)) return;
+      document.removeEventListener('pointerdown', _o, true);
+      if (document.getElementById('clearPop') === m) _clearPopClose();
+    }, true);
+  }, 0);
+}
+function _clearDelete(idx){
+  var arr = _clearArr(); if (!(idx >= 0) || !arr[idx]) { _clearPopClose(); return; }
+  try { saveSnapshot(); } catch(e){}
+  arr.splice(idx, 1);
+  try { _syncCurrentToRoof && _syncCurrentToRoof(); } catch(e){}
+  try { syncToRoofData(); } catch(e){}
+  _clearPopClose();
+  try { updateMeasTotals(); } catch(e){}
+  try { renderMaterialsCutLists && renderMaterialsCutLists(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
 function _pitchPlateClose(){ var m = document.getElementById('pitchPlatePop'); if (m) m.remove(); }
 function _pitchPlatePop(roofIdx, cx, cy){
   _pitchPlateClose();

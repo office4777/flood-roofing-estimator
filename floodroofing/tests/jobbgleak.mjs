@@ -188,6 +188,20 @@ check('\u2026and names the job that is actually open',
   /Job selected:.*saved job j77/.test(diag.txt) && /Fergus job 3306/.test(diag.txt) && /job no 3306/.test(diag.txt),
   (diag.txt.match(/Job selected:.*/) || [''])[0]);
 
+// ── A NEW JOB STARTS WITH NO CLEARLITES (2026-11-11, the owner: job 3355
+// opened with the four clears of job 3344 on its canvas). clearAll is the one
+// door every new-job path goes through, and it never emptied DRAW.clearlites.
+const cl = await pg.evaluate(() => {
+  DRAW.clearlites = [{x:10,y:10},{x:20,y:20},{x:30,y:30},{x:40,y:40}];
+  DRAW.matClearExtras = [{len:2.4}]; DRAW.matClearRowQty = {a:3};
+  DRAW.infoItems = [{cx:1,cy:1,note:'x',num:1}]; DRAW.dimLabels = [{text:'5m',x:1,y:1}];
+  clearAll(true);
+  return { c: (DRAW.clearlites||[]).length, x: (DRAW.matClearExtras||[]).length,
+           q: Object.keys(DRAW.matClearRowQty||{}).length, i: (DRAW.infoItems||[]).length, d: (DRAW.dimLabels||[]).length };
+});
+check('a new job does not carry the last job\u2019s clearlites', cl.c === 0, JSON.stringify(cl));
+check('\u2026nor their cut-list rows, info marks or dimension labels', cl.x === 0 && cl.q === 0 && cl.i === 0 && cl.d === 0, JSON.stringify(cl));
+
 check('no page errors through any of that', errs.length === 0, errs.join(' | ').slice(0, 160));
 await ctx.close();
 await b.close();
