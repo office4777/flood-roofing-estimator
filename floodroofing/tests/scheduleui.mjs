@@ -816,6 +816,38 @@ await ctx.close();
     v.fz1 > v.fz0 * 1.3 && v.w1 > v.w0 * 1.3 && v.h1 > v.h0 && v.d1 === v.d0 && v.bar === '1.4' && v.lbl === '140%', JSON.stringify(v));
   check('Ctrl + wheel over the job columns zooms the words only', v.fzW === 1.5 && v.dW === v.d0, JSON.stringify([v.fzW, v.dW]));
   check('the Calendar bar sets the day width and remembers it', v.d2 === 12 && v.dayBar === '12' && v.stored === '1', JSON.stringify([v.d2, v.dayBar, v.stored]));
+  // the block menu's Change ▾ drop-down (2026-11-11)
+  v = await pg.evaluate(() => {
+    const blk = [...document.querySelectorAll('.sched-block')].find(b => b.classList.contains('pencil'));
+    const id = blk.getAttribute('data-block') || (blk.dataset || {}).block;
+    const b = _SCHED.data.blocks.find(x => x.id === id) || _SCHED.data.blocks.find(x => x.kind !== 'crew');
+    _schedBlockMenu(b, { clientX: 200, clientY: 200 });
+    const m = document.querySelector('.sched-menu');
+    const dd = m.querySelector('.sched-menu-dd'), sub = m.querySelector('.sched-menu-sub');
+    const shut = sub.style.display === 'none';
+    const labelOnly = dd.textContent.replace(/▾/, '').trim() === 'Change', chev = /▾/.test(dd.textContent);
+    dd.click();
+    const open = sub.style.display !== 'none' && dd.classList.contains('open');
+    const opts = [...sub.querySelectorAll('button')].map(o => o.textContent.trim());
+    const dots = sub.querySelectorAll('.dot').length;
+    const ticked = [...sub.querySelectorAll('button')].filter(o => o.querySelector('.sched-menu-on')).map(o => o.textContent.trim());
+    [...sub.querySelectorAll('button')].find(o => /Nick/.test(o.textContent)).click();
+    return { id: b.id, shut, labelOnly, chev, open, opts, dots, ticked, kind: b.kind, crew: b.crew_id, menuGone: !document.querySelector('.sched-menu') };
+  });
+  await pg.waitForTimeout(200);
+  const chg = calls.find(c => c[0] === 'PATCH ' + v.id && c[1].kind === 'crew');
+  check('the block menu carries "Change" with a chevron, shut until pressed', v.labelOnly && v.chev && v.shut, JSON.stringify([v.labelOnly, v.chev, v.shut]));
+  check('…pressed, it drops Pencil and every crew with its colour, the block\'s own ticked', v.open && v.opts[0].startsWith('Pencil') && v.opts.some(o => /Nick/.test(o)) && v.dots === v.opts.length && v.ticked.length === 1 && /Pencil/.test(v.ticked[0]), JSON.stringify([v.opts, v.ticked, v.dots]));
+  check('…and picking a crew re-allocates the block and saves it', v.kind === 'crew' && v.crew && v.menuGone && !!chg && chg[1].crew_id === v.crew, JSON.stringify([v.kind, v.crew, chg]));
+  // the header row is 30% taller (2026-11-11)
+  v = await pg.evaluate(() => {
+    const row = document.querySelector('.sched-hd-row.cols');
+    const strip = row.querySelector('.sched-strip').getBoundingClientRect();
+    const hd = row.querySelector('.sched-cell.hd'), body = document.querySelector('.sched-row .sched-cell.hd, .sched-row .sched-cell');
+    const dn = row.querySelector('.sched-day-hd');
+    return { h: strip.height, fz: parseFloat(getComputedStyle(hd).fontSize), dfz: parseFloat(getComputedStyle(dn).fontSize), dlh: parseFloat(getComputedStyle(dn).lineHeight) };
+  });
+  check('the column / day-number header row is 26px with its words and numbers scaled up', Math.abs(v.h - 26) < 1 && v.fz >= 13 && v.dfz >= 12 && Math.abs(v.dlh - 26) < 1, JSON.stringify(v));
   await ctx.close();
 }
 

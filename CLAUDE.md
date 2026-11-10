@@ -1769,7 +1769,17 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   widths and the row height (`_schedRowH`, the strips' heights and the shade
   layer follow it); the Calendar bar `#schedZoomDays` is the old day width,
   Ctrl + wheel over the strip as before; `_schedZoomBarSync` keeps both bars
-  honest. `tests/scheduleui.mjs` (107).
+  honest. `tests/scheduleui.mjs` (107). THE BLOCK MENU'S "CHANGE ▾" AND THE
+  TALLER HEADER (2026-11-11, the owner: "have another option which has a
+  drop-down menu and say change, just the word change ... make sure it's
+  clear that it's going to be a drop-down menu button ... the list of the
+  different colors"; "make the row with Job Site 💰 🤝 📦 🚚 ✉ 3 4 5 ... 30%
+  larger"): `_schedBlockMenu` adds a bordered `.sched-menu-dd` "Change ▾"
+  between Email customer and Remove, which opens `.sched-menu-sub` — Pencil
+  then every crew with its colour dot, the block's own ticked — and a pick
+  PATCHes the block's kind / crew_id. The second header row is
+  `.sched-hd-row.cols`, 26px (was 20), its words 13.5px × the text zoom and
+  the day numbers 12.5px; the shade layer starts at 46px. `scheduleui` (111).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

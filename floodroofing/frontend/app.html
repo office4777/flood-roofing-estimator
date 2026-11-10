@@ -3517,6 +3517,11 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-cell{ flex:0 0 auto; border-right:1px solid #eef1f4; border-bottom:1px solid #eef1f4;
   font-size:calc(11.5px * var(--sched-tz, 1)); padding:3px 6px; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sched-cell.hd{ font-weight:700; color:#334155; font-size:calc(10.5px * var(--sched-tz, 1)); text-transform:uppercase; letter-spacing:.03em; }
+/* The column / day-number header row is 30% taller than it was (2026-11-11,
+   the owner: "make the row with Job Site 💰 🤝 📦 🚚 ✉ 3 4 5 … 30% larger"):
+   26px, its words and the day numbers scaled with it. */
+.sched-hd-row.cols .sched-cell.hd{ font-size:calc(13.5px * var(--sched-tz, 1)); line-height:20px; }
+.sched-hd-row.cols .sched-day-hd{ font-size:12.5px; line-height:26px; }
 .sched-cell input[type=text], .sched-cell input[type=number]{
   width:100%; border:none; background:transparent; font-size:calc(11.5px * var(--sched-tz, 1)); padding:0; margin:0; color:#0a1628; }
 .sched-cell input[type=checkbox]{ transform:scale(var(--sched-tz, 1)); transform-origin:left center; }
@@ -3568,6 +3573,13 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
   border-radius:7px; font-size:12.5px; cursor:pointer; color:#0a1628; }
 .sched-menu button:hover{ background:#f1f5f9; }
 .sched-menu button .dot{ display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:-1px; }
+.sched-menu .sched-menu-dd{ display:flex; justify-content:space-between; align-items:center; border:1px solid #cbd5e1; background:#f8fafc; margin:2px 0; }
+.sched-menu .sched-menu-dd.open{ background:#e0f2fe; border-color:#9bd5f0; border-radius:7px 7px 0 0; }
+.sched-menu .sched-menu-chev{ font-size:11px; color:#475569; margin-left:14px; }
+.sched-menu .sched-menu-dd.open .sched-menu-chev{ transform:rotate(180deg); display:inline-block; }
+.sched-menu .sched-menu-sub{ border:1px solid #9bd5f0; border-top:none; border-radius:0 0 7px 7px; margin:-2px 0 4px; padding:4px; background:#fff; }
+.sched-menu .sched-menu-sub button{ padding:6px 12px 6px 18px; }
+.sched-menu .sched-menu-on{ color:#15803d; font-weight:700; margin-left:4px; }
 /* The legend that appears after half a second over a column icon — the
    native tooltip is too slow and too small to read what 💰 means. */
 .sched-tip{ position:fixed; z-index:9999; background:#0a1628; color:#fff; font-size:12px; line-height:1.4;
@@ -5530,7 +5542,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T17:35:08Z';
+  window.APP_BUILT_AT = '2026-11-10T18:09:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -11376,8 +11388,8 @@ function _schedRender(){
       ' style="left:' + lefts[i] + 'px;width:' + c.w + 'px;position:sticky">' + c.hd +
       (c.key === 'handle' ? '' : '<span class="sched-colrz" data-colrz="' + c.key + '" title="Drag to resize this column"></span>') + '</div>';
   });
-  h += '<div class="sched-hd-row" style="top:20px">' + hcells +
-       '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + dayNums + '</div></div>';
+  h += '<div class="sched-hd-row cols" style="top:20px">' + hcells +
+       '<div class="sched-strip" style="width:' + stripW + 'px;height:26px;background:none">' + dayNums + '</div></div>';
 
   var _useFolders = _schedFoldersInUse(rows);
   var _lastFolder = null, _bands = 0, _hiddenRows = 0;
@@ -11536,7 +11548,7 @@ function _schedRender(){
   // One shade layer over everything below the header (weekends, holidays,
   // shutdowns, over-capacity warnings, today). pointer-events:none.
   var bodyH = (rows.length - _hiddenRows + _bands + pad) * (rh + 1) + 4;
-  h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
+  h += '<div style="position:absolute;left:' + infoW + 'px;top:46px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
   grid.style.position = 'relative';
   grid.style.setProperty('--sched-dayw', _SCHED.dayW + 'px');
   grid.style.setProperty('--sched-tz', String(_tz));
@@ -11905,6 +11917,46 @@ function _schedBlockMenu(b, ev){
       _schedApi('DELETE', '/schedule/blocks/' + b.id);
     }],
   ], ev);
+  // "Change ▾" — a drop-down inside the menu listing Pencil and every crew
+  // with its colour, so a block is re-allocated without picking a colour on
+  // the bar first (2026-11-11, the owner: "just the word change with a
+  // drop-down menu, make sure it's clear that it's going to be a drop-down").
+  var m = document.querySelector('.sched-menu');
+  if (!m) return;
+  var ch = document.createElement('button');
+  ch.className = 'sched-menu-dd';
+  ch.innerHTML = '<span>Change</span><span class="sched-menu-chev">▾</span>';
+  var sub = document.createElement('div');
+  sub.className = 'sched-menu-sub';
+  sub.style.display = 'none';
+  function opt(label, colour, on, fn){
+    var o = document.createElement('button');
+    o.innerHTML = '<span class="dot" style="background:' + colour + '"></span>' + label + (on ? ' <span class="sched-menu-on">✓</span>' : '');
+    o.onclick = function(){ _schedCloseMenus(); fn(); };
+    sub.appendChild(o);
+  }
+  opt('Pencil', '#c00000', b.kind !== 'crew', function(){
+    if (b.kind !== 'crew') return;
+    b.kind = 'pencil'; b.crew_id = '';
+    _schedRender();
+    _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'pencil', crew_id: '' });
+  });
+  (((_SCHED.data.cfg || {}).crews) || []).forEach(function(c){
+    opt(String(c.name || '').replace(/</g, '&lt;'), c.colour, b.kind === 'crew' && b.crew_id === c.id, function(){
+      if (b.kind === 'crew' && b.crew_id === c.id) return;
+      b.kind = 'crew'; b.crew_id = c.id;
+      _schedRender();
+      _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'crew', crew_id: c.id });
+    });
+  });
+  ch.onclick = function(e){
+    e.stopPropagation();
+    var open = sub.style.display !== 'none';
+    sub.style.display = open ? 'none' : 'block';
+    ch.classList.toggle('open', !open);
+  };
+  m.insertBefore(sub, m.children[1]);
+  m.insertBefore(ch, sub);
 }
 function _schedRowMenu(rowId, ev){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
