@@ -226,24 +226,27 @@ async function capture(pg, src){
   check('…and Queensland\u2019s credit carries the State\u2019s no-warranty statement', await pg.evaluate(() => /no warranty/.test(_auStateSrc('QLD').credit) && /CC BY-SA/.test(_auStateSrc('QLD').credit)));
 
   // "You're now in …": a fake map, the finder on the NSW photos.
-  const ask = async (lat, lng) => pg.evaluate(async ([lat, lng]) => {
+  // The map is a stub and the answer is pressed in the same step: on a runner
+  // where Mapbox loads, the real map's own moveend would otherwise re-check
+  // against its own centre between the question and the click.
+  const ask = async (lat, lng, press) => pg.evaluate(async ([lat, lng, press]) => {
     window._aerialMap = { getCenter: () => ({ lat, lng }), getZoom: () => 18, isStyleLoaded: () => true, getLayer: () => null, getSource: () => null,
-      removeLayer(){}, removeSource(){}, addSource(){}, addLayer(){}, moveLayer(){} };
+      removeLayer(){}, removeSource(){}, addSource(){}, addLayer(){}, moveLayer(){}, getBounds: null };
     _aerialRegionCheck();
     const c = document.getElementById('aerialRegionAsk');
-    return { shown: c.style.display !== 'none', msg: c.textContent.replace(/\s+/g, ' ').trim(), go: c.dataset.go };
-  }, [lat, lng]);
+    const r = { shown: c.style.display !== 'none', msg: c.textContent.replace(/\s+/g, ' ').trim(), go: c.dataset.go };
+    if (press) document.getElementById(press === 'yes' ? 'aerialRegionYes' : 'aerialRegionNo').click();
+    return r;
+  }, [lat, lng, press || '']);
   await pg.evaluate(() => { _openAerialModal(); window._stateSrcKey = 'NSW'; document.getElementById('imagerySource').value = 'state'; });
   const inSyd = await ask(-33.87, 151.21);
   check('over Sydney on the NSW photos nothing is asked', !inSyd.shown, JSON.stringify(inSyd));
-  const inAct = await ask(-35.28, 149.13);
+  const inAct = await ask(-35.28, 149.13, 'yes');
   check('moving into Canberra asks "You\u2019re now in the ACT. Switch to the ACT Government aerial?"', inAct.shown && /now in the ACT/.test(inAct.msg) && /ACT Government aerial/.test(inAct.msg) && inAct.go === 'state:ACT', JSON.stringify(inAct));
-  await pg.click('#aerialRegionYes');
   const afterYes = await pg.evaluate(() => ({ key: window._stateSrcKey, sel: document.getElementById('imagerySource').value, opt: document.getElementById('imgSrcState').textContent, card: document.getElementById('aerialRegionAsk').style.display }));
   check('…Yes switches to the ACT Government\u2019s photos and the list names them', afterYes.key === 'ACT' && afterYes.sel === 'state' && /ACT Government aerial/.test(afterYes.opt) && afterYes.card === 'none', JSON.stringify(afterYes));
-  const inMel = await ask(-37.81, 144.96);
+  const inMel = await ask(-37.81, 144.96, 'no');
   check('moving into Melbourne says it is outside the ACT\u2019s photos and offers the standard satellite', inMel.shown && /now in Victoria/.test(inMel.msg) && /outside the ACT Government aerial/.test(inMel.msg) && inMel.go === 'mapbox', JSON.stringify(inMel));
-  await pg.click('#aerialRegionNo');
   const again = await ask(-37.80, 144.95);
   check('…No is remembered: Melbourne is not asked again this sitting', !again.shown, JSON.stringify(again));
   const inBris = await ask(-27.47, 153.03);
