@@ -726,6 +726,70 @@ await ctx.close();
 }
 
 // ── locked plan ───────────────────────────────────────────────────
+// ── a Fergus-only job on the board (2026-11-11, job 3275) ─────────────
+{
+  const fgJob = { id: 15590001, jobNo: '3275', jobNumber: '3275', description: 'Re-Roof',
+    customer: { customerFullName: 'Alfred Crawford', email: 'alf@x.nz' }, siteAddress: { address1: '1622F Matauri Bay Road', addressCity: 'Matauri Bay' } };
+  const fgQuotes = { data: [
+    { id: 901, title: 'Quote v2', status: 'Void', voidedAt: '2026-11-01', total: 100 },
+    { id: 902, title: 'Quote v3', status: 'Accepted', isAccepted: true, acceptedAt: '2026-11-10T20:00:00Z', total: 23460,
+      notes: 'Strip and re-roof the house in Colorsteel.',
+      sections: [
+        { name: 'Roof Labour', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 24, itemPrice: 140 }, { itemName: 'Apprentice', itemQuantity: 24, itemPrice: 90 }] },
+        { name: 'Scaffolding', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 6, itemPrice: 140 }] },
+        { name: 'Roof Material', lineItems: [{ itemName: 'Corrugate 0.40 Colorsteel', itemQuantity: 180, itemPrice: 42.5, unitOfMeasureSell: 'm2' }] },
+      ] } ] };
+  const sched = mkSched();
+  const fgCalls = [];
+  ({ ctx, pg, calls } = await boot({ sched, jobs: [] }));
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/fergus/**', r => {
+    const u = r.request().url(); fgCalls.push(u.split('/fergus')[1]);
+    if (/\/jobs\?/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(/3275|Crawford/i.test(decodeURIComponent(u)) ? { data: [fgJob] } : { data: [] }) });
+    if (/\/jobs\/15590001\/quotes$/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fgQuotes) });
+    r.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+  });
+  await pg.evaluate(() => { S.fergConnected = true; _schedAddOpen(); });
+  await pg.waitForTimeout(300);
+  await pg.fill('#schedJobSearch', '3275');
+  await pg.waitForFunction(() => document.querySelector('[data-pickfergus]'), null, { timeout: 5000 });
+  v = await pg.evaluate(() => { const el = document.querySelector('[data-pickfergus]'); return { id: el.getAttribute('data-pickfergus'), no: el.getAttribute('data-fgno'),
+    client: el.getAttribute('data-fgclient'), site: el.getAttribute('data-fgsite'), tag: (el.querySelector('.sched-fgonly') || {}).textContent, text: el.textContent }; });
+  check('a job quoted only in Fergus is found by its number and marked Fergus only', v.id === '15590001' && v.no === '3275' && v.client === 'Alfred Crawford' && /Matauri/.test(v.site) && /Fergus only — not in RoofMap/.test(v.tag), JSON.stringify(v));
+  check('…and Fergus was asked by job number as well as by words', fgCalls.some(u => /filterJobNo=3275/.test(u)) && fgCalls.some(u => /filterSearchText=3275/.test(u)), JSON.stringify(fgCalls));
+  calls.length = 0;
+  await pg.click('[data-pickfergus]');
+  await pg.waitForTimeout(400);
+  const made = calls.find(c => c[0] === 'POST rows');
+  check('picking it adds a row carrying the Fergus id, number, customer, site and email', !!made && made[1].fergus_job_id === '15590001' && made[1].job_ref === '3275' && made[1].client_name === 'Alfred Crawford' && /Matauri/.test(made[1].site_address) && made[1].email === 'alf@x.nz', JSON.stringify(made && made[1]));
+  v = await pg.evaluate(() => ({ open: document.getElementById('schedAddModal').style.display, named: /3275/.test(document.getElementById('schedGrid').textContent) && /Matauri/.test(document.getElementById('schedGrid').textContent),
+    row: _SCHED.data.rows[_SCHED.data.rows.length - 1].fergus_id }));
+  check('…the window closes and the row is on the board as a Fergus job', v.open === 'none' && v.named && v.row === '15590001', JSON.stringify(v));
+  // Its window: the banner, the accepted quote's description, hours and lines.
+  const rid = await pg.evaluate(() => _SCHED.data.rows[_SCHED.data.rows.length - 1].id);
+  await pg.evaluate((id) => _schedInfoOpen(id), rid);
+  await pg.waitForFunction(() => document.querySelector('.sij-fghrs'), null, { timeout: 5000 });
+  v = await pg.evaluate(() => { const b = document.getElementById('schedInfoJob');
+    const rows = Array.from(b.querySelectorAll('.sij-fghrs tbody tr')).map(tr => tr.textContent.replace(/\s+/g, ' ').trim());
+    return { banner: (b.querySelector('.sij-fgbanner') || {}).textContent, desc: (b.querySelector('.sij-fgdesc') || {}).textContent,
+      rows, tot: (b.querySelector('.sij-fghrs tfoot') || {}).textContent, lines: b.querySelectorAll('.sij-fglines tbody tr').length,
+      total: b.textContent.includes('$23,460.00'), accepted: /Quote — accepted/.test(b.textContent),
+      facts: Array.from(document.querySelectorAll('#schedInfoFacts .sii-show')).map(e => e.textContent + '|' + e.style.display).join(';'),
+      inputs: ['client_name', 'job_ref', 'site_address', 'email'].filter(k => document.querySelector('#schedInfoFacts [data-iedit="' + k + '"]').style.display !== 'none').length }; });
+  check('its window says it is a Fergus-only job, not in RoofMap yet', /Fergus-only job \(not in RoofMap yet\)/.test(v.banner) && /#3275/.test(v.banner), v.banner);
+  check('…shows the ACCEPTED quote, not the voided one, with its description and total', v.accepted && /Strip and re-roof/.test(v.desc) && v.total, JSON.stringify([v.desc, v.total, v.accepted]));
+  check('…the allocated hours off the labour and scaffolding lines, 54 combined', v.rows.length === 3 && /Roof Labour — Lead Roofer ?24/.test(v.rows[0]) && /Scaffolding — Lead Roofer ?6/.test(v.rows[2]) && /54/.test(v.tot), JSON.stringify(v));
+  check('…and every quote line item by section', v.lines === 7, String(v.lines));
+  check('…with the facts as plain text from Fergus', /Alfred Crawford\|/.test(v.facts) && /3275\|/.test(v.facts) && v.inputs === 0, v.facts + ' inputs ' + v.inputs);
+  await pg.evaluate(() => _schedInfoClose());
+  // The same job searched again is marked as already on the schedule.
+  await pg.evaluate(() => _schedAddOpen()); await pg.waitForTimeout(200);
+  await pg.fill('#schedJobSearch', '3275');
+  await pg.waitForFunction(() => document.querySelector('[data-pickfergus]'), null, { timeout: 5000 });
+  v = await pg.evaluate(() => !!document.querySelector('[data-pickfergus] .sched-onboard'));
+  check('searched again it wears the On the schedule chip', v);
+  await ctx.close();
+}
+
 // ── live: the last schedule at once, and who is doing what (2026-11-11) ──
 {
   const ctx2 = await b.newContext({ viewport: { width: 1700, height: 1000 } });
