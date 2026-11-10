@@ -2429,6 +2429,27 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   environment's allowed hosts carry `maps.six.nsw.gov.au` /
   `maps1.six.nsw.gov.au` so a session can reach it. `tests/austate.mjs` (28,
   UI), `aucountry.mjs` (21), `signup.mjs`.
+  THE LIVE MAP ASKS ONLY FOR LEVELS THE CACHE HOLDS, AND THE FINDER STARTS IN
+  THE STATE (2026-11-10, the owner on his own roofmap.net test account: the
+  finder showed Auckland, then Whangarei, and the NSW aerial "just looks
+  terrible ... so blurry"). The photos are sharp — 15 cm at level 20 in Port
+  Macquarie, 7.5 cm at 21 in Sydney, fetched and looked at — but past a
+  place's deepest level a tile is a 404 (it was an HTML 200 when first
+  measured), and the GL layer was given maxzoom 21 everywhere, so in a
+  regional town every rooftop-zoom tile failed and MAPBOX'S picture showed
+  through under the NSW credit. `_stateDepthCheck` (on `moveend` and on picking
+  the source) asks the service for the deepest level at the view's centre
+  (`_stateDepthAt`, 21 down to 15, remembered per z14 tile) and re-lays the
+  layer with that maxzoom, so past it the map enlarges the real NSW photo. The
+  CAPTURE was always right (`_stateStitch` steps back a level at a time).
+  `_aerialHome()` / `AU_STATE_HOME`: an Australian business's preview card,
+  first map view, geocoder proximity and address example are its state's
+  capital (no state → Sydney); `_aerialHomeApply` runs from `_navPlanSync` and
+  `_openAerialModal`. New Zealand is untouched. `austate.mjs` (33). MAPBOX IS
+  SOFT IN AUSTRALIA AND NOTHING HERE CHANGES THAT: the other states' sharp
+  options are Nearmap (built, `NEARMAP_ON` false, needs privacy notice and each
+  business's own subscription) or a state service whose licence allows
+  business use — put to the owner.
 - THE SCAFFOLD: ON THE QUOTE OR NOT, OURS OR OUTSOURCED (2026-11-04, the owner:
   "have a button to click to exclude scaffold from this quote ... in the gutter
   job type, always default the scaffold to not included and collapse the

@@ -190,6 +190,29 @@ async function capture(pg, src){
   check('a NSW business’s map finder opens on the NSW Government aerial', f.sel === 'state' && f.stateShown && /NSW Government aerial/.test(f.stateText), JSON.stringify(f));
   check('…and does not offer LINZ, which is New Zealand only', !f.linzShown, JSON.stringify(f));
 
+  // Where the finder starts (2026-11-10): the state's capital, not Auckland / Whangarei.
+  const home = await pg.evaluate(() => { _aerialHomeApply(); return {
+    thumb: document.getElementById('aerialThumb').getAttribute('src'),
+    ph: document.getElementById('aerialAddressInput').getAttribute('placeholder'),
+    hint: document.getElementById('aerialHint').textContent, h: _aerialHome() }; });
+  check('a NSW business’s finder starts over Sydney, not Auckland', /static\/151\.2093,-33\.8688,/.test(home.thumb) && home.h.lat === -33.8688, JSON.stringify({ t: home.thumb.slice(60, 110), h: home.h }));
+  check('…and its address box and hint say nothing of New Zealand', /Sydney/.test(home.ph) && !/NZ|Whangarei/.test(home.ph) && !/NZ address/.test(home.hint), home.ph + ' | ' + home.hint);
+
+  // The live map asks only for levels the NSW cache holds here (Port Macquarie stops at 20).
+  const depth = async (mode, lat, lng) => { state.mode = mode; return pg.evaluate(async ([lat, lng]) => {
+    const added = [];
+    window._aerialMap = { getCenter: () => ({ lat, lng }), isStyleLoaded: () => true, getLayer: () => null, getSource: (id) => added.find(a => a.id === id) || null,
+      removeLayer(){}, removeSource(){}, addSource(id, o){ added.push({ id, maxzoom: o.maxzoom, tiles: o.tiles }); }, addLayer(){} };
+    document.getElementById('imagerySource').value = 'state';
+    window._stateDepthNow = 0; _stateDepthCheck();
+    for (let i = 0; i < 40 && !added.length; i++) await new Promise(r => setTimeout(r, 50));
+    window._aerialMap = null;
+    return added.length ? added[0].maxzoom : null; }, [lat, lng]); };
+  const d21 = await depth('ok', -33.8150, 151.0030);
+  const d20 = await depth('no21', -31.4285, 152.9105);
+  check('the live NSW layer goes to level 21 where the cache has it (Sydney)', d21 === 21, String(d21));
+  check('…and stops at 20 where it does not (Port Macquarie), so the map enlarges the NSW photo instead of showing Mapbox underneath', d20 === 20, String(d20));
+
   state.nswTiles.length = 0; state.mode = 'ok';
   const got = await capture(pg, 'state');
   const capT = state.nswTiles.filter(u => +((/tile\/(\d+)\//.exec(u) || [])[1]) >= 17);
@@ -229,6 +252,8 @@ async function capture(pg, src){
   check('a New Zealand business has no State box', s);
   const f = await finder(pg);
   check('…and its map finder is unchanged: LINZ, no state photos', f.sel === 'linz' && !f.stateShown && f.linzShown, JSON.stringify(f));
+  const nzHome = await pg.evaluate(() => { _aerialHomeApply(); return { t: document.getElementById('aerialThumb').getAttribute('src'), ph: document.getElementById('aerialAddressInput').getAttribute('placeholder') }; });
+  check('…and still starts over Auckland with the Whangarei example', /static\/174\.7633,-36\.8485,/.test(nzHome.t) && /Whangarei/.test(nzHome.ph), JSON.stringify(nzHome));
   check('no page errors for a New Zealand business', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }

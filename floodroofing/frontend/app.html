@@ -13217,6 +13217,7 @@ function _navWhoSync(){
 }
 function _navPlanSync(){
   try { _navWhoSync(); } catch(e){}
+  try { _aerialHomeApply(); } catch(e){}
   var lim = _planLimits();
   var hidden = {};
   if (lim && lim.inbox === false) hidden.inbox = 1;   // still bounces off the tab
@@ -26348,6 +26349,7 @@ function _openAerialModal(){
   // The imagery the finder opens on (LINZ when the platform has a key) —
   // asked for here, the first time it matters, never on page load.
   try { _imageryConfigLoad(); } catch(e){}
+  try { _aerialHomeApply(); } catch(e){}
   // The finder is written inside the Map Roof panel. Once an aerial is on the
   // canvas, the roof card sits above it and the popup opened BEHIND the
   // drawing (report 43). Hoisted onto <body> the first time it opens, so no
@@ -89671,6 +89673,81 @@ function _stateImageryNote(){
   if (p) return 'Map finder: ' + p.name + ' \u2014 free, about 10 cm in towns \u2014 with Mapbox satellite where it has no photo.';
   return 'Map finder: Mapbox satellite. ' + (AU_STATE_NAMES[st] || st) + ' has no free government aerial photos RoofMap can use yet.';
 }
+// WHERE THE FINDER STARTS (2026-11-10, the owner signed up on roofmap.net
+// with NSW: "the satellite image was showing Auckland ... then it was
+// showing Whangarei. It should show whatever state the sign up user was
+// from"). The preview card's picture, the map's first view, the address
+// search's lean and the box's own example all come from here: an
+// Australian business opens on its state's capital (no state said →
+// Sydney); a New Zealand one exactly as before.
+var AU_STATE_HOME = { NSW:[151.2093,-33.8688,'Sydney','12 George St, Sydney'], VIC:[144.9631,-37.8136,'Melbourne','12 Collins St, Melbourne'],
+  QLD:[153.0251,-27.4698,'Brisbane','12 Queen St, Brisbane'], SA:[138.6007,-34.9285,'Adelaide','12 King William St, Adelaide'],
+  WA:[115.8605,-31.9505,'Perth','12 Hay St, Perth'], TAS:[147.3272,-42.8821,'Hobart','12 Elizabeth St, Hobart'],
+  ACT:[149.1300,-35.2809,'Canberra','12 Northbourne Ave, Canberra'], NT:[130.8456,-12.4634,'Darwin','12 Smith St, Darwin'] };
+function _aerialHome(){
+  try { if (_isAU()){ var h = AU_STATE_HOME[_auState()] || AU_STATE_HOME.NSW; return { lng:h[0], lat:h[1], town:h[2], eg:h[3], au:true }; } } catch(e){}
+  return { lng:174.3166, lat:-35.7275, town:'Whangarei', eg:'123 Main St, Whangarei', au:false };
+}
+function _aerialHomeApply(){
+  var h = _aerialHome();
+  if (!h.au) return;
+  var th = document.getElementById('aerialThumb');
+  if (th && !th.dataset.home){
+    var m = /access_token=([^&"]+)/.exec(th.getAttribute('src') || '');
+    if (m){ th.src = 'https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/' + h.lng + ',' + h.lat + ',11.4,0/600x300@2x?access_token=' + m[1]; th.dataset.home = h.town; }
+  }
+  var inp = document.getElementById('aerialAddressInput');
+  if (inp) inp.setAttribute('placeholder', 'Enter an address (e.g. ' + h.eg + ')');
+  var hint = document.getElementById('aerialHint');
+  if (hint && /NZ address/.test(hint.innerHTML)) hint.innerHTML = hint.innerHTML.replace(/Enter a NZ address/, 'Enter an address');
+  // A map made before the business was known still sits over Northland: move it
+  // home, but never off an address somebody has already found.
+  var map = window._aerialMap;
+  try { if (map && !window._aerialHomed && map.getZoom() < 15){ map.jumpTo({ center:[h.lng, h.lat], zoom:13 }); } } catch(e){}
+  window._aerialHomed = true;
+  try { _auTermsPass(document.body); } catch(e){}
+}
+// THE STATE'S PHOTOS AT THE DEPTH THEY HAVE (2026-11-10, the owner on Port
+// Macquarie: "the New South Wales government aerial just looks terrible. It's
+// so blurry"). The photos are not blurry — 15 cm at level 20 in a regional
+// town, 7.5 cm at 21 in Sydney (fetched and looked at) — but the cache is
+// SPARSE: past the deepest level a place has, a tile is a 404. The live map
+// was told maxzoom 21 everywhere, so in Port Macquarie every tile it asked for
+// at rooftop zoom was a 404 and the map showed Mapbox's blurry picture from
+// underneath, under the NSW credit. Now the map asks the service, at the
+// middle of the view, for the deepest level it holds there (21 down to 15,
+// remembered per neighbourhood) and re-lays the layer with that maxzoom, so
+// past it the map ENLARGES the real NSW photo instead of falling through.
+var _STATE_DEPTH = {};
+function _stateDepthAt(sp, lat, lng){
+  var n14 = Math.pow(2, 14), k = sp.key + ':' + Math.floor((lng + 180) / 360 * n14) + ':' + Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n14);
+  if (_STATE_DEPTH[k]) return _STATE_DEPTH[k];
+  var top = sp.maxZ || 21;
+  var tryZ = function(z){
+    if (z < 15) return Promise.resolve(top);
+    var n = Math.pow(2, z), x = Math.floor((lng + 180) / 360 * n),
+        y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n);
+    var url = sp.url.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+    return fetch(url).then(function(r){
+      var ct = (r.headers && r.headers.get('content-type')) || '';
+      return (r.ok && /^image\//.test(ct)) ? z : tryZ(z - 1);
+    }).catch(function(){ return tryZ(z - 1); });
+  };
+  _STATE_DEPTH[k] = tryZ(top).catch(function(){ return top; });
+  return _STATE_DEPTH[k];
+}
+function _stateDepthCheck(){
+  var map = window._aerialMap, sel = document.getElementById('imagerySource');
+  var sp = _stateImagery();
+  if (!map || !sp || !sel || sel.value !== 'state') return;
+  var c = map.getCenter();
+  _stateDepthAt(sp, c.lat, c.lng).then(function(z){
+    if (!sel || sel.value !== 'state') return;
+    if (z === window._stateDepthNow && map.getSource && map.getSource('rm-imagery')) return;
+    window._stateDepthNow = z;
+    _aerialOverlayTiles([{ url: sp.url, attribution: sp.credit, maxzoom: z }]);
+  });
+}
 // The state's tiles into the Mapbox picture's exact geometry, as LINZ is.
 // The deepest level the picture wants first, then one level back at a time
 // (k takes up the difference: the same ground at the same scale, softer),
@@ -89898,7 +89975,7 @@ function switchImagerySource(val, auto) {
   } else if(val === 'state') {
     linzWrap.style.display = 'none';
     var sp = _stateImagery();
-    if (sp){ _aerialOverlayTiles([{ url: sp.url, attribution: sp.credit, maxzoom: sp.maxZ }]); window._linzKey = null; }
+    if (sp){ window._stateDepthNow = 0; _stateDepthCheck(); window._linzKey = null; }
     else applyMapboxTiles();
   } else if(val === 'esri') {
     linzWrap.style.display = 'none';
@@ -90130,7 +90207,9 @@ document.addEventListener('mousedown',function(e){
       setTimeout(initMap, 200); return;
     }
     mapboxgl.accessToken = T;
-    var map = new mapboxgl['Map']({container:md, style:'mapbox://styles/mapbox/satellite-streets-v12', center:[174.3166,-35.7275], zoom:13, maxZoom:22});
+    var map = new mapboxgl['Map']({container:md, style:'mapbox://styles/mapbox/satellite-streets-v12', center:[_aerialHome().lng,_aerialHome().lat], zoom:13, maxZoom:22});
+    // A state's own aerial: ask only for levels it really has here.
+    try { map.on('moveend', _stateDepthCheck); } catch(e){}
     map.addControl(new mapboxgl.NavigationControl(), 'top-left');
     window._aerialMap = map;
     // The imagery the finder opens on (LINZ when there is a key).
@@ -90163,7 +90242,7 @@ document.addEventListener('mousedown',function(e){
         var q = inp.value.trim(); if (!q) return;
         var hint = document.getElementById('aerialHint');
         if (hint) hint.textContent = 'Searching...';
-        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(q) + '.json?' + (_isAU() ? 'country=au' : 'country=nz&proximity=174.3166,-35.7275') + '&access_token=' + T)
+        fetch('https://api.mapbox.com/geocoding/v5/mapbox.places/' + encodeURIComponent(q) + '.json?' + (_isAU() ? ('country=au&proximity=' + _aerialHome().lng + ',' + _aerialHome().lat) : 'country=nz&proximity=174.3166,-35.7275') + '&access_token=' + T)
         .then(function(r){return r.json();}).then(function(d){
           if (d.features && d.features.length > 0) {
             var f = d.features[0];
