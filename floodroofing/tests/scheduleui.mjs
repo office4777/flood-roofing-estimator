@@ -105,6 +105,11 @@ async function boot(opts){
     if (/\/schedule\/rows\/[^/]+\/send$/.test(u)){ calls.push(['send', JSON.parse(r.request().postData() || '{}')]);
       return r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); }
     if (/\/schedule\//.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (/\/jobs\/j1\/files$/.test(u) && m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, files: [
+      { id: 'f-photo', name: 'site.jpg', mime: 'image/jpeg', source: '', at: '2026-11-09T01:00:00Z' },
+      { id: 'f-csv', name: 'Pricing 3288.pdf', mime: 'application/pdf', source: 'pricing-pdf', at: '2026-11-10T01:00:00Z' },
+      { id: 'f-old', name: 'Job Pack 3288 (old).pdf', mime: 'application/pdf', source: 'jobpack-pdf', at: '2026-11-01T01:00:00Z' },
+      { id: 'f-pack', name: 'Job Pack 3288.pdf', mime: 'application/pdf', source: 'jobpack-pdf', at: '2026-11-08T01:00:00Z' } ] }) });
     if (/\/jobs\/j1$/.test(u) && m === 'GET') return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.job || JOB_J1) });
     if (/\/jobs(\?|$)/.test(u) && m === 'GET' && opts.jobs) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(opts.jobs) });
     if (/fergus/i.test(u)) return r.fulfill({ status: 400, contentType: 'application/json', body: '{}' });
@@ -193,7 +198,52 @@ let v = await pg.evaluate(() => ({
 }));
 check('the board renders rows, blocks, palette (with its ✎ chip) and weekend shading',
   v.wrap && v.rows === 2 && v.blocks === 2 && v.chips === 3 && v.editChip && v.weekendShades > 20, JSON.stringify(v));
-check('days holding more jobs than the cap wear the warning tint', v.capShades >= 2, v.capShades + ' warned days');
+// The orange "more jobs than crews" day tint came off (2026-11-11, the owner:
+// "I don't want an orange line down it").
+check('no orange over-capacity column down a busy day', v.capShades === 0, v.capShades + ' tinted days');
+// A PUBLIC HOLIDAY IS AN ORANGE STRIPE WITH ITS NAME IN IT (2026-11-11).
+{
+  const hv = await pg.evaluate(() => {
+    const d = _SCHED.data.range.from.slice(0, 8) + '28';
+    _SCHED.data.holidays = [{ date: d, name: 'Labour Day' }];
+    _SCHED.nonwork[d] = 1; _schedRender();
+    const sh = document.querySelector('.sched-shade.hol');
+    const hd = document.querySelector('.sched-day-hd.hol');
+    const out = { text: sh ? sh.textContent : '', bg: sh ? getComputedStyle(sh).backgroundColor : '', full: sh ? sh.parentElement.offsetHeight : 0,
+      left: sh ? parseInt(sh.style.left, 10) : -1, want: _SCHED.dayIdx[d] * _SCHED.dayW, hdTitle: hd ? hd.title : '' };
+    _SCHED.data.holidays = []; delete _SCHED.nonwork[d]; _schedRender();
+    return out;
+  });
+  check('a public holiday is an orange stripe down the whole board, "Public holiday · Labour Day" written in it',
+    hv.text === 'Public holiday \u00b7 Labour Day' && /^rgba\(251, 146, 60/.test(hv.bg) && hv.full > 300 && hv.left === hv.want && /Labour Day/.test(hv.hdTitle),
+    JSON.stringify(hv));
+}
+// A CLICK IN A ROW LIGHTS THE WHOLE ROW, five seconds or until the next click
+// elsewhere — from the calendar and from the job number or the address alike.
+{
+  const sb = await pg.locator('[data-strip="r1"]').boundingBox();
+  await pg.mouse.click(sb.x + 260, sb.y + sb.height / 2);
+  await pg.waitForTimeout(150);
+  const a = await pg.evaluate(() => [...document.querySelectorAll('.sched-row.sched-row-hi')].map(x => x.getAttribute('data-rowzone')));
+  await pg.evaluate(() => _schedCloseMenus());
+  const cell = await pg.locator('.sched-row[data-rowzone="r2"] .sched-cell').nth(2).boundingBox();
+  await pg.mouse.click(cell.x + 4, cell.y + cell.height / 2);
+  await pg.waitForTimeout(150);
+  const b = await pg.evaluate(() => ({ hi: [...document.querySelectorAll('.sched-row.sched-row-hi')].map(x => x.getAttribute('data-rowzone')),
+    bg: getComputedStyle(document.querySelector('.sched-row[data-rowzone="r2"] .sched-cell')).backgroundColor }));
+  await pg.evaluate(() => _schedCloseMenus());
+  await pg.mouse.click(5, 5);
+  await pg.waitForTimeout(100);
+  const c = await pg.evaluate(() => document.querySelectorAll('.sched-row.sched-row-hi').length);
+  await pg.evaluate(() => { SCHED_ROWHI_MS = 300; });
+  await pg.mouse.click(sb.x + 260, sb.y + sb.height / 2);
+  await pg.evaluate(() => _schedCloseMenus());
+  await pg.waitForTimeout(500);
+  const d = await pg.evaluate(() => { SCHED_ROWHI_MS = 5000; return document.querySelectorAll('.sched-row.sched-row-hi').length; });
+  check('a click in the calendar lights that whole row', a.join() === 'r1', JSON.stringify(a));
+  check('…a click on another row\u2019s job columns moves the light there, tinted end to end', b.hi.join() === 'r2' && b.bg === 'rgb(219, 234, 254)', JSON.stringify(b));
+  check('…a click anywhere else puts it out, and it goes by itself after its time', c === 0 && d === 0, JSON.stringify({ c, d }));
+}
 
 // The Excel-sheet look: the board pads out to 20 lines of blank rows, the
 // calendar shading runs the full grid, and blank strips are unpaintable.
@@ -296,7 +346,7 @@ v = await pg.evaluate(() => ({
   kinds: [...document.querySelectorAll('#schedMailKinds [data-mailkind]')].map(b => b.getAttribute('data-mailkind')),
 }));
 check('the email box opens INSTANTLY, wording still being written',
-  v.shown && v.writing && v.disabled && v.kinds.join(',') === 'pencil,week,confirm', JSON.stringify(v));
+  v.shown && v.writing && v.disabled && v.kinds.join(',') === 'pencil,week,confirm,ord_roofing,ord_gutter,scaff_book,scaff_quote,trade_elec,trade_plumb', JSON.stringify(v));
 await pg.waitForTimeout(900);
 v = await pg.evaluate(() => ({
   shown: getComputedStyle(document.getElementById('schedMailModal')).display !== 'none',
@@ -320,6 +370,97 @@ await pg.waitForTimeout(400);
 const sent = calls.find(c => c[0] === 'send');
 check('…and Send posts exactly what the office approved',
   !!sent && sent[1].to === 'b@l.nz' && /late October/.test(sent[1].body), JSON.stringify(sent && sent[1]).slice(0, 90));
+
+// ── SUPPLIERS AND TRADES FROM THE SAME ✉ (2026-11-11, the owner: "order the
+// material ... the job pack ... book in scaffold ... an installation date or
+// ... a scaffolding quote ... electricians ... plumbers ... select a delivery
+// date in the calendar ... or just click at your earliest convenience").
+await pg.evaluate(() => {
+  const c = _ensureCatalog();
+  c.suppliers = [
+    { name: 'Roofing Industries', email: 'orders@ri.nz', contact: 'Sam', category: 'roofing' },
+    { name: 'North Scaffolding', email: 'book@northscaff.nz', contact: 'Tama', category: 'scaffold' },
+    { name: 'Second Scaff', email: 'hi@scaff2.nz', contact: '', category: 'scaffold' },
+    { name: 'Old Supplier', email: 'old@sup.nz', contact: 'Al' } ];
+  S.settings.quote_defaults = S.settings.quote_defaults || {};
+  S.settings.quote_defaults.email = { scaff_book_subject: 'Scaffold for #{job} please' };
+});
+calls.length = 0;
+await pg.evaluate(() => document.querySelector('[data-mailkind="scaff_book"]').click());
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({
+  title: document.getElementById('schedMailTitle').textContent,
+  opts: [...document.querySelectorAll('#schedMailSupplier option')].map(o => o.textContent),
+  to: document.getElementById('schedMailTo').value,
+  lbl: document.getElementById('schedMailDateLbl').textContent,
+  date: document.getElementById('schedMailDate').value, asap: document.getElementById('schedMailAsap').checked,
+  subj: document.getElementById('schedMailSubject').value, body: document.getElementById('schedMailBody').value,
+  file: getComputedStyle(document.getElementById('schedMailFileRow')).display,
+  groups: [...document.querySelectorAll('#schedMailKinds .sched-mailgrp > span')].map(x => x.textContent) }));
+check('the kinds come in two groups, the customer and the suppliers & trades', v.groups.join('|') === 'Customer|Suppliers & trades', v.groups.join('|'));
+check('Scaffold — installation date offers the scaffolding companies only, the first one picked',
+  v.opts.length === 3 && /North Scaffolding/.test(v.opts[0]) && /Second Scaff/.test(v.opts[1]) && /Someone else/.test(v.opts[2]) && v.to === 'book@northscaff.nz',
+  JSON.stringify(v.opts));
+check('…asks for an INSTALLATION date, starting on the first day booked',
+  v.lbl === 'Installation date' && /^\d{4}-\d{2}-\d{2}$/.test(v.date) && !v.asap, v.lbl + ' ' + v.date);
+check('…written from the office\u2019s own wording (subject) and the standard one (body), no attachment row',
+  v.subj === 'Scaffold for #' + (v.subj.match(/#(\S+)/) || [])[1] + ' please' && !/\{/.test(v.subj) &&
+  /^Hi Tama,/.test(v.body) && /Installation date: \w+day, \d+ \w+\./.test(v.body) && /Thanks,\n\S/.test(v.body) && v.file === 'none',
+  JSON.stringify({ s: v.subj, b: v.body.slice(0, 160) }));
+// The office edits a line, then ticks "at your earliest convenience": their
+// line stays, only the date is swapped.
+await pg.evaluate(() => {
+  const bo = document.getElementById('schedMailBody'); bo.value = bo.value.replace('Can you confirm', 'PS gate code 1234. Can you confirm');
+  const a = document.getElementById('schedMailAsap'); a.checked = true; a.dispatchEvent(new Event('change'));
+});
+v = await pg.evaluate(() => document.getElementById('schedMailBody').value);
+check('ticking \u201cat your earliest convenience\u201d swaps the date and keeps the office\u2019s own edit',
+  /Installation date: at your earliest convenience\./.test(v) && /PS gate code 1234/.test(v), v.slice(0, 200));
+await pg.evaluate(() => { const sel = document.getElementById('schedMailSupplier'); sel.value = '1'; sel.dispatchEvent(new Event('change')); });
+v = await pg.evaluate(() => ({ to: document.getElementById('schedMailTo').value, body: document.getElementById('schedMailBody').value }));
+check('picking the other company changes the address and the greeting', v.to === 'hi@scaff2.nz' && /^Hi there,/.test(v.body) && /PS gate code/.test(v.body), JSON.stringify(v).slice(0, 120));
+await pg.evaluate(() => _schedMailSend());
+await pg.waitForTimeout(400);
+let ss = calls.find(c => c[0] === 'send');
+check('…and Send posts the kind, the company and "earliest convenience", no date and no file',
+  !!ss && ss[1].kind === 'scaff_book' && ss[1].supplier === 'Second Scaff' && ss[1].asap === true && !ss[1].date && !('fileId' in ss[1]) && ss[1].to === 'hi@scaff2.nz',
+  JSON.stringify(ss && ss[1]).slice(0, 200));
+// The roofing order: the job's newest Job Pack PDF is attached, a row from
+// before categories is a roofing supplier, and a date sends as a date.
+await pg.evaluate(() => _schedMailOpen('r1', 'ord_roofing'));
+await pg.waitForTimeout(600);
+v = await pg.evaluate(() => ({
+  title: document.getElementById('schedMailTitle').textContent,
+  opts: [...document.querySelectorAll('#schedMailSupplier option')].map(o => o.textContent),
+  lbl: document.getElementById('schedMailDateLbl').textContent,
+  files: [...document.querySelectorAll('#schedMailFile option')].map(o => o.value),
+  file: document.getElementById('schedMailFile').value,
+  body: document.getElementById('schedMailBody').value }));
+check('Roofing material order offers the roofing suppliers (one saved before categories among them)',
+  v.title === 'Order roofing material' && v.opts.length === 3 && /Roofing Industries/.test(v.opts[0]) && /Old Supplier/.test(v.opts[1]), JSON.stringify(v.opts));
+check('…a DELIVERY date, in the Job Pack\u2019s own order wording',
+  v.lbl === 'Delivery date' && /^Hi Sam,/.test(v.body) && /Please deliver to .+ (on \w+day, \d+ \w+|at your earliest convenience)\./.test(v.body), v.body.slice(0, 200));
+check('…and attaches the NEWEST Job Pack off the job\u2019s files, PDFs only, with "No attachment" offered',
+  v.file === 'f-pack' && v.files.join(',') === 'f-pack,f-old,f-csv,' , JSON.stringify(v.files));
+await pg.evaluate(() => { const d = document.getElementById('schedMailDate'); d.value = '2026-11-20'; d.dispatchEvent(new Event('change')); });
+v = await pg.evaluate(() => document.getElementById('schedMailBody').value);
+check('a date picked on the calendar goes into the email', /on Friday, 20 November\./.test(v), v.slice(0, 200));
+calls.length = 0;
+await pg.evaluate(() => _schedMailSend());
+await pg.waitForTimeout(400);
+ss = calls.find(c => c[0] === 'send');
+check('…and the send carries the date and the file to attach',
+  !!ss && ss[1].kind === 'ord_roofing' && ss[1].date === '2026-11-20' && ss[1].asap === false && ss[1].fileId === 'f-pack' && ss[1].supplier === 'Roofing Industries',
+  JSON.stringify(ss && ss[1]).slice(0, 200));
+// A kind with nobody saved says where to add them.
+await pg.evaluate(() => _schedMailOpen('r1', 'trade_plumb'));
+await pg.waitForTimeout(200);
+v = await pg.evaluate(() => ({ none: document.getElementById('schedMailSuppNone').textContent, to: document.getElementById('schedMailTo').value,
+  lbl: document.getElementById('schedMailDateLbl').textContent, body: document.getElementById('schedMailBody').value }));
+check('Plumber with none saved points to Settings, leaves To empty and asks for a BOOKING date',
+  /No plumbers saved yet/.test(v.none) && /Suppliers & trades/.test(v.none) && v.to === '' && v.lbl === 'Booking date' && /need a plumber/.test(v.body), JSON.stringify(v).slice(0, 200));
+await pg.evaluate(() => _schedMailClose());
+await pg.waitForTimeout(300);
 
 // NO QUICK ROW ANYWHERE (2026-11-11): a blank line is blank, and "+ Add row"
 // under the jobs opens the same Add job window the toolbar button does.
@@ -577,8 +718,42 @@ check('every header column carries a resize grip', v.grips >= 7, JSON.stringify(
   check('…with the saved job\'s quote summary and the picks on the right', /Quote summary/.test(v.txt) && /What the customer chose/.test(v.txt) && /Steel grade/.test(v.txt), v.txt.slice(0, 160));
   check('…and the map straight away, the hidden render frame opened for the detailed one', v.hasSvg && v.frame, JSON.stringify({ svg: v.hasSvg, frame: v.frame }));
   let img = false;
-  try { await pg.waitForSelector('#sijMap img', { timeout: 45000 }); img = true; } catch(e){}
+  try { await pg.waitForSelector('#sijMap img', { timeout: 45000, state: 'attached' }); img = true; } catch(e){}
   check('the detailed roof map lands from the frame', img, (await pg.evaluate(() => (document.querySelector('#sijMap .sij-wait') || {}).textContent)) || 'no img');
+  // THE CUSTOMER'S ROOFS LEAD (2026-11-11): the quote's map shows, the
+  // detailed one waits behind "Detailed map".
+  v = await pg.evaluate(() => ({
+    q: getComputedStyle(document.querySelector('#sijMap .sij-mapq')).display, d: getComputedStyle(document.querySelector('#sijMap .sij-mapd')).display,
+    title: document.getElementById('sijMapTitle').textContent, btns: [...document.querySelectorAll('[data-sijmap]')].map(b => b.textContent + (b.classList.contains('on') ? '*' : '')) }));
+  check('the window opens on the customer\u2019s roofs (the quote map), the detailed map behind a button',
+    v.q !== 'none' && v.d === 'none' && /customer/i.test(v.title) && v.btns.join('|') === 'Customer\u2019s roofs*|Detailed map', JSON.stringify(v));
+  await pg.evaluate(() => document.querySelector('[data-sijmap="detail"]').click());
+  v = await pg.evaluate(() => ({ q: getComputedStyle(document.querySelector('#sijMap .sij-mapq')).display,
+    d: getComputedStyle(document.querySelector('#sijMap .sij-mapd')).display, img: !!document.querySelector('#sijMap .sij-mapd img'), title: document.getElementById('sijMapTitle').textContent }));
+  check('…and Detailed map switches to the aerial one', v.q === 'none' && v.d !== 'none' && v.img && v.title === 'Detailed roof map', JSON.stringify(v));
+  await pg.evaluate(() => document.querySelector('[data-sijmap="quote"]').click());
+  // The window's Email… opens every kind OVER the window, which stays open,
+  // and a send lands in its History.
+  await pg.evaluate(() => { _schedInfoMail(); });
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => ({ info: getComputedStyle(document.getElementById('schedInfoModal')).display,
+    mail: getComputedStyle(document.getElementById('schedMailModal')).display,
+    z: [+getComputedStyle(document.getElementById('schedMailModal')).zIndex, +getComputedStyle(document.getElementById('schedInfoModal')).zIndex],
+    kinds: document.querySelectorAll('#schedMailKinds [data-mailkind]').length,
+    btn: [...document.querySelectorAll('#schedInfoModal button')].map(b => b.textContent).filter(t => /Email/.test(t)) }));
+  check('the window\u2019s Email\u2026 button opens every kind of email on top, the window staying open',
+    v.info !== 'none' && v.mail !== 'none' && v.z[0] > v.z[1] && v.kinds === 9 && v.btn.join() === '\u2709 Email\u2026', JSON.stringify(v));
+  await pg.evaluate(() => {
+    const r = _SCHED.data.rows.find(x => x.id === 'r1');
+    r.notify_log = [{ at: '2026-11-11T00:00:00Z', kind: 'scaff_book', to: 'book@northscaff.nz', supplier: 'North Scaffolding', subject: 'Scaffold booking', asap: true },
+                    { at: '2026-11-11T01:00:00Z', kind: 'ord_roofing', to: 'orders@ri.nz', supplier: 'Roofing Industries', subject: 'Order #3288', date: '2026-11-20', file: 'Job Pack 3288.pdf' }];
+    _schedInfoHistRefresh('r1');
+    _schedMailClose();
+  });
+  v = await pg.evaluate(() => document.getElementById('schedInfoHistory').textContent);
+  check('…and the History in the window lists the supplier emails, the date and the file',
+    /Scaffold — installation date emailed to North Scaffolding/.test(v) && /Installation date: at their earliest convenience/.test(v) &&
+    /Roofing material order emailed to Roofing Industries/.test(v) && /Delivery date: Friday, 20 November/.test(v) && /Attached: Job Pack 3288\.pdf/.test(v), v.slice(0, 400));
   v = await pg.evaluate(() => ({ roofs: (DRAW.roofs || []).length, tab: document.body.getAttribute('data-tab'), posts: 0 }));
   check('…and the office\'s own screen is untouched by it', v.roofs === 0 && v.tab === 'schedule', JSON.stringify(v));
   check('…the frame wrote nothing', !calls.some(c => /^(POST|PATCH|PUT) /.test(c[0]) && !/rows|blocks|config/.test(c[0])), JSON.stringify(calls.map(c => c[0])));
@@ -662,6 +837,47 @@ check('holding across two rows paints both in the selected crew',
   v.length === 2 && v.every(x => x.crew_id === 'troy' && x.start_date === '2026-09-24' && x.work_days === 2) &&
   v.map(x => x.row_id).sort().join() === 'r1,r2', JSON.stringify(v));
 await pg.waitForTimeout(800);
+
+// A drag across the days never highlights the page's words (2026-11-11).
+await pg.evaluate(() => { _SCHED.sel = null; try { window.getSelection().removeAllRanges(); } catch(e){} });
+{
+  const sb = await pg.locator('[data-strip="r2"]').boundingBox();
+  await pg.mouse.move(sb.x + 40 * 24 + 12, sb.y + 15);
+  await pg.mouse.down();
+  await pg.mouse.move(sb.x + 34 * 24, sb.y - 60, { steps: 8 });     // out over the day numbers
+  const mid = await pg.evaluate(() => ({ sel: String(window.getSelection()), cls: document.body.classList.contains('sched-noselect') }));
+  await pg.mouse.up();
+  await pg.waitForTimeout(150);
+  const after = await pg.evaluate(() => ({ sel: String(window.getSelection()), cls: document.body.classList.contains('sched-noselect') }));
+  check('dragging across empty days highlights no words on the page, and the page is selectable again after',
+    mid.sel === '' && mid.cls && after.sel === '' && !after.cls, JSON.stringify({ mid, after }));
+  await pg.evaluate(() => _schedCloseMenus());
+}
+// A block dragged UP or DOWN lands on that job (2026-11-11, the owner: "drag
+// it up and down as well ... if I've clicked onto the wrong job").
+{
+  calls.length = 0;
+  const id = await pg.evaluate(() => {
+    const b = _SCHED.data.blocks.find(x => x.row_id === 'r1' && x.crew_id === 'troy' && !/^tmp-/.test(x.id));
+    if (!b) return null;
+    b.id = 'mv1'; _schedRender(); return b.id;          // the stub gives both new blocks one id
+  });
+  const bl = await pg.locator('[data-block="' + id + '"]').boundingBox();
+  const r2b = await pg.locator('[data-strip="r2"]').boundingBox();
+  await pg.mouse.move(bl.x + 6, bl.y + bl.height / 2);
+  await pg.mouse.down();
+  await pg.mouse.move(bl.x + 6, r2b.y + r2b.height / 2, { steps: 6 });
+  const lit = await pg.evaluate(() => [...document.querySelectorAll('.sched-droprow')].map(x => x.getAttribute('data-strip')));
+  await pg.mouse.up();
+  await pg.waitForTimeout(300);
+  const pc = calls.find(c => c[0] === 'PATCH ' + id);
+  const now = await pg.evaluate((bid) => (_SCHED.data.blocks.find(b => b.id === bid) || {}).row_id, id);
+  check('dragging a block down lights the job under it and moves the block there, same day',
+    !!id && lit.join() === 'r2' && now === 'r2' && !!pc && pc[1].row_id === 'r2' && pc[1].start_date === '2026-09-24' && !(await pg.evaluate(() => !!document.querySelector('.sched-droprow'))),
+    JSON.stringify({ id, lit, now, pc: pc && pc[1] }));
+  await pg.evaluate(() => _schedCloseMenus());
+  await pg.waitForTimeout(800);
+}
 
 // The job details popup can take the row off the board.
 pg.on('dialog', d => d.accept());
@@ -972,29 +1188,60 @@ await ctx.close();
     v.fz1 > v.fz0 * 1.3 && v.w1 > v.w0 * 1.3 && v.h1 > v.h0 && v.d1 === v.d0 && v.bar === '1.4' && v.lbl === '140%', JSON.stringify(v));
   check('Ctrl + wheel over the job columns zooms the words only', v.fzW === 1.5 && v.dW === v.d0, JSON.stringify([v.fzW, v.dW]));
   check('the Calendar bar sets the day width and remembers it', v.d2 === 12 && v.dayBar === '12' && v.stored === '1', JSON.stringify([v.d2, v.dayBar, v.stored]));
-  // the block menu's Change ▾ drop-down (2026-11-11)
+  // A CLICK ON A BLOCK OFFERS ITS COLOURS (2026-11-11, second ask): no
+  // Email customer, no Change ▾ to open — Pencil and every crew straight away,
+  // the block's own ticked, Remove this block at the foot.
   v = await pg.evaluate(() => {
     const blk = [...document.querySelectorAll('.sched-block')].find(b => b.classList.contains('pencil'));
     const id = blk.getAttribute('data-block') || (blk.dataset || {}).block;
     const b = _SCHED.data.blocks.find(x => x.id === id) || _SCHED.data.blocks.find(x => x.kind !== 'crew');
     _schedBlockMenu(b, { clientX: 200, clientY: 200 });
     const m = document.querySelector('.sched-menu');
-    const dd = m.querySelector('.sched-menu-dd'), sub = m.querySelector('.sched-menu-sub');
-    const shut = sub.style.display === 'none';
-    const labelOnly = dd.textContent.replace(/▾/, '').trim() === 'Change', chev = /▾/.test(dd.textContent);
-    dd.click();
-    const open = sub.style.display !== 'none' && dd.classList.contains('open');
-    const opts = [...sub.querySelectorAll('button')].map(o => o.textContent.trim());
-    const dots = sub.querySelectorAll('.dot').length;
-    const ticked = [...sub.querySelectorAll('button')].filter(o => o.querySelector('.sched-menu-on')).map(o => o.textContent.trim());
-    [...sub.querySelectorAll('button')].find(o => /Nick/.test(o.textContent)).click();
-    return { id: b.id, shut, labelOnly, chev, open, opts, dots, ticked, kind: b.kind, crew: b.crew_id, menuGone: !document.querySelector('.sched-menu') };
+    const all = [...m.querySelectorAll('button')].map(o => o.textContent.trim());
+    const cols = [...m.querySelectorAll('.sched-menu-col')];
+    const opts = cols.map(o => o.textContent.trim());
+    const dots = m.querySelectorAll('.sched-menu-col .dot').length;
+    const ticked = cols.filter(o => o.querySelector('.sched-menu-on')).map(o => o.textContent.trim());
+    const hd = (m.querySelector('.sched-menu-hd') || {}).textContent || '';
+    const dd = !!m.querySelector('.sched-menu-dd');
+    cols.find(o => /Nick/.test(o.textContent)).click();
+    return { id: b.id, all, opts, dots, ticked, hd, dd, kind: b.kind, crew: b.crew_id, menuGone: !document.querySelector('.sched-menu') };
   });
   await pg.waitForTimeout(200);
   const chg = calls.find(c => c[0] === 'PATCH ' + v.id && c[1].kind === 'crew');
-  check('the block menu carries "Change" with a chevron, shut until pressed', v.labelOnly && v.chev && v.shut, JSON.stringify([v.labelOnly, v.chev, v.shut]));
-  check('…pressed, it drops Pencil and every crew with its colour, the block\'s own ticked', v.open && v.opts[0].startsWith('Pencil') && v.opts.some(o => /Nick/.test(o)) && v.dots === v.opts.length && v.ticked.length === 1 && /Pencil/.test(v.ticked[0]), JSON.stringify([v.opts, v.ticked, v.dots]));
+  check('the block menu IS the colours: Pencil and every crew with its dot, the block\'s own ticked',
+    /Change to/i.test(v.hd) && !v.dd && v.opts[0].startsWith('Pencil') && v.opts.some(o => /Nick/.test(o)) && v.dots === v.opts.length && v.ticked.length === 1 && /Pencil/.test(v.ticked[0]),
+    JSON.stringify([v.hd, v.opts, v.ticked]));
+  check('…no Email customer on it, and Remove this block last',
+    !v.all.some(t => /Email/.test(t)) && /Remove this block/.test(v.all[v.all.length - 1]), JSON.stringify(v.all));
   check('…and picking a crew re-allocates the block and saves it', v.kind === 'crew' && v.crew && v.menuGone && !!chg && chg[1].crew_id === v.crew, JSON.stringify([v.kind, v.crew, chg]));
+  // NO RELOAD PAINTS OVER A WRITE ON ITS WAY: a quiet reload that set off
+  // before the change landed brings the board as it was; it is dropped and
+  // taken again after the write, so the block never flicks back.
+  v = await pg.evaluate(async () => {
+    const b = _SCHED.data.blocks.find(x => x.kind === 'crew');
+    const was = b.crew_id;
+    const other = ((_SCHED.data.cfg || {}).crews || []).find(c => c.id !== was);
+    const stale = JSON.parse(JSON.stringify(_SCHED.data));          // the board before the change
+    const realApi = window.api; let gets = 0, release;
+    const gate = new Promise(r => { release = r; });
+    window.api = async function(m, p, body){
+      if (m === 'GET' && /^\/schedule/.test(p)){ gets++; return gets === 1 ? stale : JSON.parse(JSON.stringify(Object.assign({}, stale, { blocks: stale.blocks.map(x => x.id === b.id ? Object.assign({}, x, { crew_id: other.id }) : x) }))); }
+      if (m === 'PATCH'){ await gate; return {}; }
+      return realApi(m, p, body);
+    };
+    const load = _schedLoad({ quiet: true });                       // a beat's reload sets off…
+    b.crew_id = other.id; _schedRender();
+    const write = _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'crew', crew_id: other.id }); // …the change is made
+    await load;
+    const during = (_SCHED.data.blocks.find(x => x.id === b.id) || {}).crew_id;
+    release(); await write; await new Promise(r => setTimeout(r, 600));
+    const after = (_SCHED.data.blocks.find(x => x.id === b.id) || {}).crew_id;
+    window.api = realApi;
+    return { want: other.id, was, during, after, gets };
+  });
+  check('a reload that set off before a block change does not flick it back, and the board reloads once it lands',
+    v.during === v.want && v.after === v.want && v.gets === 2, JSON.stringify(v));
   // the header row is 30% taller (2026-11-11)
   v = await pg.evaluate(() => {
     const row = document.querySelector('.sched-hd-row.cols');

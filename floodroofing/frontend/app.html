@@ -3496,6 +3496,15 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
   .ibx-main.open .ibx-conv{ display:flex; }
 }
 .sched-topbar{ display:flex; gap:6px; align-items:center; flex-wrap:wrap; padding:7px 12px; }
+.sij-mapsw{ display:inline-flex; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden; text-transform:none; letter-spacing:0; }
+.sij-mapsw button{ border:0; background:#fff; color:#334155; font-size:12px; font-weight:600; padding:5px 11px; cursor:pointer; font-family:inherit; }
+.sij-mapsw button + button{ border-left:1px solid #cbd5e1; }
+.sij-mapsw button.on{ background:#0a1628; color:#fff; }
+body.sched-noselect, body.sched-noselect *{ -webkit-user-select:none !important; user-select:none !important; }
+.sched-strip.sched-droprow{ background:rgba(0,153,224,.10) !important; box-shadow:inset 0 0 0 2px rgba(0,153,224,.55); }
+.sched-mailgrp{ display:flex; gap:8px; align-items:flex-start; }
+.sched-mailgrp > span{ flex:0 0 112px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; padding-top:6px; }
+.sched-mailgrp > div{ display:flex; gap:6px; flex-wrap:wrap; flex:1; }
 .sched-chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:16px;
   border:1.5px solid var(--border); background:#fff; font-size:11.5px; font-weight:600; cursor:pointer; color:#0a1628; }
 .sched-chip .dot{ width:11px; height:11px; border-radius:3px; }
@@ -3542,6 +3551,10 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-shade{ position:absolute; top:0; bottom:0; width:var(--sched-dayw, 24px); background:rgba(148,163,184,.28); pointer-events:none; z-index:2; }
 .sched-shade.shut{ background:rgba(255,102,120,.16); }
 .sched-shade.cap{ background:rgba(245,158,11,.25); }
+.sched-shade.hol{ background:rgba(251,146,60,.28); border-left:1px solid rgba(234,88,12,.35); border-right:1px solid rgba(234,88,12,.35); overflow:hidden; }
+.sched-shade.hol span{ position:absolute; top:46px; left:50%; transform:translateX(-50%) rotate(180deg); writing-mode:vertical-rl;
+  white-space:nowrap; font-size:calc(10px * var(--sched-tz, 1)); font-weight:700; letter-spacing:.03em; color:#9a3412; }
+.sched-day-hd.hol{ color:#c2410c; font-weight:800; }
 .sched-shade.today{ background:transparent; border-left:2px solid #0099cc; width:0; }
 .sched-block{ position:absolute; top:3px; bottom:3px; border-radius:5px; z-index:1; cursor:grab;
   box-shadow:0 1px 3px rgba(10,22,40,.25); }
@@ -3554,6 +3567,9 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
    colour and their name; the pill at the top right says who else is here. */
 .sched-block.held{ outline:3px solid var(--held,#f59e0b); outline-offset:1px; box-shadow:0 0 0 5px rgba(255,255,255,.7); cursor:not-allowed; z-index:2; }
 .sched-block.held::after{ content:attr(data-held); position:absolute; right:3px; top:50%; transform:translateY(-50%); background:var(--held,#f59e0b); color:#fff; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; white-space:nowrap; line-height:14px; }
+.sched-row.sched-row-hi > .sched-cell{ background-color:#dbeafe !important; }
+.sched-row.sched-row-hi > .sched-strip{ background-color:rgba(59,130,246,.13); box-shadow:inset 0 2px 0 #60a5fa, inset 0 -2px 0 #60a5fa; }
+.sched-row.sched-row-hi > .sched-cell.sched-info{ box-shadow:inset 0 2px 0 #60a5fa, inset 0 -2px 0 #60a5fa; }
 .sched-row.held-row .sched-cell.sched-info{ box-shadow:inset 3px 0 0 var(--held,#f59e0b); }
 .sched-who{ display:inline-flex; gap:5px; align-items:center; font-size:11.5px; color:var(--text2); white-space:nowrap }
 .sched-who .sw-dot{ display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; color:#fff; font-weight:700; font-size:11px }
@@ -3598,6 +3614,11 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-menu .sched-menu-sub{ border:1px solid #9bd5f0; border-top:none; border-radius:0 0 7px 7px; margin:-2px 0 4px; padding:4px; background:#fff; }
 .sched-menu .sched-menu-sub button{ padding:6px 12px 6px 18px; }
 .sched-menu .sched-menu-on{ color:#15803d; font-weight:700; margin-left:4px; }
+.sched-menu .sched-menu-hd{ font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; padding:4px 12px 2px; }
+.sched-menu .sched-menu-col{ font-size:13px; padding:7px 12px; }
+.sched-menu .sched-menu-col.on{ background:#f0f9ff; font-weight:700; }
+.sched-menu .sched-menu-col .dot{ width:13px; height:13px; }
+.sched-menu .sched-menu-sep{ height:1px; background:#e2e8f0; margin:5px 4px; }
 .sij-hrs{ width:100%; border-collapse:collapse; font-size:12.5px; }
 .sij-hrs th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:4px 6px; border-bottom:1px solid var(--border); }
 .sij-hrs td{ padding:6px 6px; border-bottom:1px solid #f1f5f9; }
@@ -5570,7 +5591,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T22:14:57Z';
+  window.APP_BUILT_AT = '2026-11-10T22:50:57Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8171,14 +8192,27 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   </div>
 
   <!-- Compose customer email -->
-  <div id="schedMailOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:8998" onclick="_schedMailClose()"></div>
-  <div id="schedMailModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;max-width:94vw;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:8999;overflow:hidden">
+  <div id="schedMailOverlay" class="no-print" style="display:none;position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:9100" onclick="_schedMailClose()"></div>
+  <div id="schedMailModal" class="no-print" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;max-width:94vw;max-height:94vh;overflow-y:auto !important;background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.30);z-index:9101;overflow:hidden">
     <div style="background:#0a1628;color:#fff;padding:12px 18px;display:flex;align-items:center;gap:10px">
       <strong style="flex:1;font-size:14px" id="schedMailTitle">Email the customer</strong>
       <button onclick="_schedMailClose()" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:13px">✕</button>
     </div>
     <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
-      <div id="schedMailKinds" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+      <div id="schedMailKinds" style="display:flex;flex-direction:column;gap:6px"></div>
+      <div id="schedMailSupp" style="display:none;flex-direction:column;gap:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">
+        <label style="font-size:12px;font-weight:600;color:#334155"><span id="schedMailSuppLbl">Company</span>
+          <select id="schedMailSupplier" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff"></select></label>
+        <div id="schedMailSuppNone" style="display:none;font-size:12px;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:7px 10px"></div>
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:600;color:#334155"><span id="schedMailDateLbl">Delivery date</span>
+            <input type="date" id="schedMailDate" style="display:block;margin-top:3px;padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;background:#fff"></label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;padding-bottom:8px;cursor:pointer"><input type="checkbox" id="schedMailAsap" style="width:16px;height:16px">At your earliest convenience</label>
+        </div>
+        <label id="schedMailFileRow" style="display:none;font-size:12px;font-weight:600;color:#334155">Attach
+          <select id="schedMailFile" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fff"></select>
+          <span id="schedMailFileNote" style="display:block;font-weight:400;font-size:11.5px;color:var(--text2);margin-top:4px"></span></label>
+      </div>
       <label style="font-size:12px;font-weight:600;color:#334155">To
         <input type="email" id="schedMailTo" style="width:100%;margin-top:3px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;box-sizing:border-box"></label>
       <label style="font-size:12px;font-weight:600;color:#334155">Subject
@@ -8286,7 +8320,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
         <button onclick="_schedInfoDelete()" title="Take this row off the schedule" style="padding:8px 12px;border:1px solid #fecaca;background:#fff;color:#b91c1c;border-radius:8px;font-size:12px;cursor:pointer">🗑 Delete row</button>
         <button id="schedInfoOpenJob" onclick="_schedInfoOpenJob()" style="display:none;padding:8px 14px;border:1px solid var(--border);background:#fff;border-radius:8px;font-size:12px;cursor:pointer">Open this job</button>
-        <button onclick="_schedInfoMail()" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email the customer</button>
+        <button onclick="_schedInfoMail()" title="Email the customer, order the material, book the scaffold or a trade" style="padding:8px 14px;background:#0a1628;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✉ Email…</button>
       </div>
     </div>
     <div id="schedInfoJob" style="padding:14px 18px;overflow-y:auto;font-size:12.5px;background:#f8fafc"></div>
@@ -10294,8 +10328,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 
 </section>
 <section class="emx-pane" data-emx="order" id="emxPane-order">
-<div class="emx-hd"><h3>Material order to supplier</h3><span class="emx-badge emx-man">You send it</span></div>
-<p class="emx-when">When you press <b>Email order</b> on the Job Pack. It opens with this wording and the order PDF attached; you can change it before it goes.</p>
+<div class="emx-hd"><h3>Roofing material order</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">When you press <b>Email order</b> on the Job Pack, or pick <b>Roofing material order</b> in the Schedule board&rsquo;s &#9993; window. It opens with this wording and the order attached; you can change it before it goes.</p>
 
 <details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emOrderCc">Also send a copy to (CC)</label><input type="text" id="emOrderCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emOrderReplyTo">Supplier replies go to</label><input type="text" id="emOrderReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
 <label class="emx-l" for="emOrderSubject">Subject</label><input type="text" id="emOrderSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
@@ -10304,6 +10338,51 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
 <div class="emx-tags" data-emx-tags="order"></div>
 <div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('order')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('order')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-order"></div>
 
+</section>
+<section class="emx-pane" data-emx="ord_gutter" id="emxPane-ord_gutter">
+<div class="emx-hd"><h3>Gutter material order</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">Ordering gutter material from a gutter supply company. Pick it in the Schedule board&rsquo;s &#9993; window: choose the company (Settings &rarr; Suppliers &amp; trades), a date or &ldquo;at your earliest convenience&rdquo;, and check the wording before it goes.</p>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emTOrdGutterCc">Also send a copy to (CC)</label><input type="text" id="emTOrdGutterCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emTOrdGutterReplyTo">Supplier replies go to</label><input type="text" id="emTOrdGutterReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
+<label class="emx-l" for="emTOrdGutterSubject">Subject</label><input type="text" id="emTOrdGutterSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emTOrdGutterBody">Message</label><textarea id="emTOrdGutterBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="ord_gutter"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('ord_gutter')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('ord_gutter')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-ord_gutter"></div>
+</section>
+<section class="emx-pane" data-emx="scaff_book" id="emxPane-scaff_book">
+<div class="emx-hd"><h3>Scaffolding — book an installation date</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">Asking a scaffolding company to put the scaffold up on a date. Pick it in the Schedule board&rsquo;s &#9993; window: choose the company (Settings &rarr; Suppliers &amp; trades), a date or &ldquo;at your earliest convenience&rdquo;, and check the wording before it goes.</p>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emTScaffBookCc">Also send a copy to (CC)</label><input type="text" id="emTScaffBookCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emTScaffBookReplyTo">Scaffolder replies go to</label><input type="text" id="emTScaffBookReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
+<label class="emx-l" for="emTScaffBookSubject">Subject</label><input type="text" id="emTScaffBookSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emTScaffBookBody">Message</label><textarea id="emTScaffBookBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="scaff_book"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('scaff_book')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('scaff_book')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-scaff_book"></div>
+</section>
+<section class="emx-pane" data-emx="scaff_quote" id="emxPane-scaff_quote">
+<div class="emx-hd"><h3>Scaffolding — ask for a quote</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">Asking a scaffolding company to price the scaffold. Pick it in the Schedule board&rsquo;s &#9993; window: choose the company (Settings &rarr; Suppliers &amp; trades), a date or &ldquo;at your earliest convenience&rdquo;, and check the wording before it goes.</p>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emTScaffQuoteCc">Also send a copy to (CC)</label><input type="text" id="emTScaffQuoteCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emTScaffQuoteReplyTo">Scaffolder replies go to</label><input type="text" id="emTScaffQuoteReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
+<label class="emx-l" for="emTScaffQuoteSubject">Subject</label><input type="text" id="emTScaffQuoteSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emTScaffQuoteBody">Message</label><textarea id="emTScaffQuoteBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="scaff_quote"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('scaff_quote')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('scaff_quote')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-scaff_quote"></div>
+</section>
+<section class="emx-pane" data-emx="trade_elec" id="emxPane-trade_elec">
+<div class="emx-hd"><h3>Electrician booking</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">Booking an electrician onto the job. Pick it in the Schedule board&rsquo;s &#9993; window: choose the company (Settings &rarr; Suppliers &amp; trades), a date or &ldquo;at your earliest convenience&rdquo;, and check the wording before it goes.</p>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emTTradeElecCc">Also send a copy to (CC)</label><input type="text" id="emTTradeElecCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emTTradeElecReplyTo">Electrician replies go to</label><input type="text" id="emTTradeElecReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
+<label class="emx-l" for="emTTradeElecSubject">Subject</label><input type="text" id="emTTradeElecSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emTTradeElecBody">Message</label><textarea id="emTTradeElecBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="trade_elec"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('trade_elec')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('trade_elec')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-trade_elec"></div>
+</section>
+<section class="emx-pane" data-emx="trade_plumb" id="emxPane-trade_plumb">
+<div class="emx-hd"><h3>Plumber booking</h3><span class="emx-badge emx-man">You send it</span></div>
+<p class="emx-when">Booking a plumber onto the job. Pick it in the Schedule board&rsquo;s &#9993; window: choose the company (Settings &rarr; Suppliers &amp; trades), a date or &ldquo;at your earliest convenience&rdquo;, and check the wording before it goes.</p>
+<details class="emx-moreopts"><summary>More options <span>&mdash; copies and where replies go for this email</span></summary><div class="emx-grid"><div class="emx-f"><label for="emTTradePlumbCc">Also send a copy to (CC)</label><input type="text" id="emTTradePlumbCc" placeholder="office@yourcompany.co.nz" autocomplete="off"></div><div class="emx-f"><label for="emTTradePlumbReplyTo">Plumber replies go to</label><input type="text" id="emTTradePlumbReplyTo" placeholder="Same as above (Customer replies go to)" autocomplete="off"></div></div></details>
+<label class="emx-l" for="emTTradePlumbSubject">Subject</label><input type="text" id="emTTradePlumbSubject" class="emx-subj" autocomplete="off" onfocus="_emxFocus(this)">
+<label class="emx-l" for="emTTradePlumbBody">Message</label><textarea id="emTTradePlumbBody" class="emx-body" rows="13" onfocus="_emxFocus(this)"></textarea>
+<div class="emx-tags" data-emx-tags="trade_plumb"></div>
+<div class="emx-acts"><button type="button" class="emx-btn" onclick="_emxReset('trade_plumb')">&#8634; Reset to the standard wording</button><button type="button" class="emx-btn" onclick="_emxPreview('trade_plumb')">&#128065; Preview</button></div><div class="emx-prev" id="emxPrev-trade_plumb"></div>
 </section>
 <section class="emx-pane" data-emx="sched" id="emxPane-sched">
 <div class="emx-hd"><h3>Schedule updates to customers</h3><span class="emx-badge emx-man">You send it</span></div>
@@ -10450,9 +10529,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <!-- Suppliers -->
       <div style="margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <strong style="font-size:13px">Suppliers</strong>
-          <span style="font-size:11px;color:var(--text2)">— companies you buy material from</span>
-          <button type="button" onclick="addSupplier()" class="tool-btn" style="margin-left:auto;font-size:11px">+ Add supplier</button>
+          <strong style="font-size:13px">Suppliers &amp; trades</strong>
+          <span style="font-size:11px;color:var(--text2)">— who you buy from and book in. The Schedule board's ✉ button emails them.</span>
         </div>
         <div id="supplierList"></div>
       </div>
@@ -11249,11 +11327,19 @@ function _schedUpdating(on){
 }
 async function _schedLoad(opts){
   opts = opts || {};
+  var seq0 = _SCHED.writeSeq || 0;
   try {
     var fresh = await api('GET', '/schedule' + (_SCHED.archived ? '?archived=1' : ''));
     // A quiet reload from the presence loop never lands mid-drag: the block
     // under the pointer would jump. It is picked up on the next beat.
     if (opts.quiet && _SCHED.dragging){ _SCHED.needLoad = true; return; }
+    // Nor over a write that was made while it was on its way, or is still
+    // going: it would paint the board as it was before that write.
+    if (_SCHED.data && (_SCHED.pending || (_SCHED.writeSeq || 0) !== seq0)){
+      _SCHED.needLoad = true; _schedUpdating(false);
+      if (!_SCHED.pending){ _SCHED.needLoad = false; setTimeout(function(){ _schedLoad({ quiet: true }); }, 150); }
+      return;
+    }
     _SCHED.data = fresh; _SCHED.fromCopy = false;
     _SCHED.nonwork = {};
     (_SCHED.data.nonwork || []).forEach(function(d){ _SCHED.nonwork[d] = 1; });
@@ -11372,7 +11458,7 @@ var _SCHED_COLS = [
   { key:'hand', w:26, hd:'🤝', tip:'Hand-over complete' },
   { key:'ord', w:26, hd:'📦', tip:'Materials ordered' },
   { key:'del', w:26, hd:'🚚', tip:'Delivery checked' },
-  { key:'mail', w:24, hd:'✉', tip:'Email the customer an update' },
+  { key:'mail', w:24, hd:'✉', tip:'Email the customer, order material, book the scaffold or a trade' },
 ];
 // "23, Don Buck Road, Massey" → "Don Buck Road". The number and the suburb
 // are noise on a board where every row is a different street; the full
@@ -11542,12 +11628,22 @@ function _schedRender(){
        '<div class="sched-strip" style="width:' + stripW + 'px;height:20px;background:none">' + months + '</div></div>';
   var dayNums = '', shades = '';
   var _dwTiny = _SCHED.dayW < 14;   // zoomed far out: number only Mondays + the 1st
+  // PUBLIC HOLIDAYS ARE NAMED (2026-11-11, the owner: "give a stripe down
+  // any public holiday ... that orange color ... write inside the stripe,
+  // public holiday, and what public holiday it is"). The server sends them
+  // with their names (holidays: [{date, name}]); a weekend stays grey.
+  var _hols = {};
+  ((_SCHED.data && _SCHED.data.holidays) || []).forEach(function(h){ if (h && h.date) _hols[h.date] = h.name || 'Public holiday'; });
   days.forEach(function(d, i){
     var _dn = parseInt(d.slice(8), 10);
     var _dnShow = !_dwTiny || _dn === 1 || new Date(d + 'T00:00:00Z').getUTCDay() === 1;
-    dayNums += '<div class="sched-day-hd" style="left:' + (i * _SCHED.dayW) + 'px">' + (_dnShow ? _dn : '') + '</div>';
-    if (_SCHED.nonwork[d]) shades += '<div class="sched-shade" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
-    else if ((dayLoad[i] || 0) > cap) shades += '<div class="sched-shade cap" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
+    var _hol = _hols[d];
+    dayNums += '<div class="sched-day-hd' + (_hol ? ' hol' : '') + '" style="left:' + (i * _SCHED.dayW) + 'px"' +
+      (_hol ? ' title="Public holiday \u2014 ' + String(_hol).replace(/"/g, '&quot;') + '"' : '') + '>' + (_dnShow ? _dn : '') + '</div>';
+    if (_hol) shades += '<div class="sched-shade hol" style="left:' + (i * _SCHED.dayW) + 'px"><span>Public holiday \u00b7 ' + String(_hol).replace(/</g, '&lt;') + '</span></div>';
+    else if (_SCHED.nonwork[d]) shades += '<div class="sched-shade" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
+    // (The orange "more jobs than crews" tint of a whole day came off on
+    // 2026-11-11, the owner: "I don't want an orange line down it".)
     if (d === _SCHED.data.range.today) shades += '<div class="sched-shade today" style="left:' + (i * _SCHED.dayW) + 'px"></div>';
   });
   var hcells = '';
@@ -11639,7 +11735,7 @@ function _schedRender(){
       if (c.key === 'hand') inner = '<input type="checkbox"' + (r.handover_done ? ' checked' : '') + ' data-edit="handover_done" data-row="' + r.id + '" title="Hand-over complete">';
       if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
       if (c.key === 'del') inner = '<input type="checkbox"' + (r.delivery_check ? ' checked' : '') + ' data-edit="delivery_check" data-row="' + r.id + '" title="Delivery checked">';
-      if (c.key === 'mail') inner = '<span data-mail="' + r.id + '" style="cursor:pointer" title="Email the customer an update">✉</span>';
+      if (c.key === 'mail') inner = '<span data-mail="' + r.id + '" style="cursor:pointer" title="Email the customer, order material, book the scaffold or a trade">✉</span>';
       cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
     var blocks = '';
@@ -11747,11 +11843,57 @@ function _schedRenderPalette(){
   if (ab) ab.classList.toggle('on', _SCHED.archived);
 }
 // ── mutations, optimistic ──
+// NO RELOAD PAINTS OVER A WRITE STILL ON ITS WAY (2026-11-11, the owner: "when
+// I change a block color to a different person ... it goes back to the
+// penciled in color and then jumps back to the person I selected. And when I
+// enter a new block into an empty slot, it disappears for a couple of seconds
+// and then it jumps in"). Every write is painted at once; the presence beat
+// then reloads the board for the version it moved, and a GET that set off
+// before the write landed carried the board WITHOUT it. Writes are counted
+// here; a reload that overlapped one is dropped and taken again once the last
+// write has landed (_schedLoad).
 async function _schedApi(method, path, body){
+  var w = method !== 'GET';
+  if (w){ _SCHED.writeSeq = (_SCHED.writeSeq || 0) + 1; _SCHED.pending = (_SCHED.pending || 0) + 1; }
   try { return await api(method, path, body); }
-  catch(e){ _schedMsg((e && e.message) || 'That didn’t save', true); _schedLoad(); throw e; }
+  catch(e){ _schedMsg((e && e.message) || 'That didn’t save', true); if (w) _SCHED.needLoad = true; throw e; }
+  finally {
+    if (w){
+      _SCHED.pending = Math.max(0, (_SCHED.pending || 1) - 1);
+      if (!_SCHED.pending && _SCHED.needLoad && !_SCHED.dragging){ _SCHED.needLoad = false; setTimeout(function(){ _schedLoad({ quiet: true }); }, 150); }
+    }
+  }
 }
+function _schedWrite(p){ return p; }
+// A CLICK IN A ROW LIGHTS THE WHOLE ROW (2026-11-11, the owner: "if I click
+// anything inside a row, in the calendar, can it highlight that row? And even
+// the address of the property or the job number ... leave it highlighted for 5
+// seconds or until I click out of it"). Any press inside a job row lights it,
+// end to end; five seconds or a press anywhere else puts it out. It survives a
+// re-render of the board (_schedWire puts it back).
+var SCHED_ROWHI_MS = 5000;
+function _schedRowHiSet(id){
+  _SCHED.hiRow = id || null;
+  clearTimeout(_SCHED.hiTimer);
+  document.querySelectorAll('.sched-row.sched-row-hi').forEach(function(x){ x.classList.remove('sched-row-hi'); });
+  if (!id) return;
+  var el = document.querySelector('.sched-row[data-rowzone="' + id + '"]');
+  if (el) el.classList.add('sched-row-hi');
+  _SCHED.hiTimer = setTimeout(function(){ if (_SCHED.hiRow === id) _schedRowHiSet(null); }, SCHED_ROWHI_MS);
+}
+document.addEventListener('pointerdown', function(ev){
+  try {
+    if (!_SCHED || (!_SCHED.hiRow && !(ev.target.closest && ev.target.closest('.sched-row[data-rowzone]')))) return;
+    var row = ev.target.closest && ev.target.closest('.sched-row[data-rowzone]');
+    if (row) _schedRowHiSet(row.getAttribute('data-rowzone'));
+    else if (!(ev.target.closest && ev.target.closest('.sched-menu'))) _schedRowHiSet(null);
+  } catch(e){}
+}, true);
 function _schedWire(grid){
+  if (_SCHED.hiRow){
+    var _hr = grid.querySelector('.sched-row[data-rowzone="' + _SCHED.hiRow + '"]');
+    if (_hr) _hr.classList.add('sched-row-hi');
+  }
   // Inline edits on the info columns.
   grid.querySelectorAll('[data-edit]').forEach(function(inp){
     inp.onchange = function(){
@@ -11889,6 +12031,12 @@ function _schedWire(grid){
     strip.addEventListener('pointerdown', function(ev){ _schedStripDown(ev, strip); });
   });
 }
+function _schedNoSelect(on){
+  try {
+    document.body.classList.toggle('sched-noselect', !!on);
+    if (on){ var sel = window.getSelection && window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); }
+  } catch(e){}
+}
 function _schedStripDown(ev, strip){
   if (ev.button != null && ev.button !== 0) return;
   var rowId = strip.getAttribute('data-strip');
@@ -11907,10 +12055,31 @@ function _schedStripDown(ev, strip){
     var resizing = ev.target.classList && ev.target.classList.contains('rz');
     var startDay = day, moved = false;
     var span0 = _schedSpan(b), i0 = _SCHED.dayIdx[span0.from];
+    try { ev.preventDefault(); } catch(_e){}
+    _schedNoSelect(true);
     blockEl.setPointerCapture && blockEl.setPointerCapture(ev.pointerId);
+    // UP AND DOWN TOO (2026-11-11, the owner: "click and hold any block to drag
+    // it up and down as well, not just left and right ... if I've clicked onto
+    // the wrong job"): the row under the pointer is the one it lands on, lit
+    // while the block is over it.
+    var grid0 = strip.closest('#schedGrid') || document.getElementById('schedGrid');
+    var targetRow = b.row_id, startY = ev.clientY;
+    var rowUnder = function(mv){
+      var hit = null;
+      (grid0 ? grid0.querySelectorAll('[data-strip]') : []).forEach(function(st){
+        var rr = st.getBoundingClientRect();
+        if (mv.clientY >= rr.top && mv.clientY < rr.bottom) hit = st;
+      });
+      return hit;
+    };
+    var lightRow = function(id){
+      document.querySelectorAll('.sched-strip.sched-droprow').forEach(function(x){ x.classList.remove('sched-droprow'); });
+      if (id && id !== b.row_id){ var st = grid0 && grid0.querySelector('[data-strip="' + id + '"]'); if (st) st.classList.add('sched-droprow'); }
+    };
     var onMove = function(mv){
       var d2 = Math.floor((mv.clientX - rect.left) / _SCHED.dayW);
-      if (d2 === startDay && !moved) return;
+      var dy = mv.clientY - startY;
+      if (d2 === startDay && !moved && Math.abs(dy) < 8) return;
       moved = true;
       blockEl.classList.add('dragging');
       if (resizing){
@@ -11918,11 +12087,20 @@ function _schedStripDown(ev, strip){
         blockEl.style.width = wPx + 'px';
       } else {
         blockEl.style.left = ((i0 + (d2 - startDay)) * _SCHED.dayW) + 'px';
+        var st = rowUnder(mv);
+        if (st){
+          targetRow = st.getAttribute('data-strip');
+          blockEl.style.transform = 'translateY(' + (st.getBoundingClientRect().top - rect.top) + 'px)';
+        }
+        lightRow(targetRow);
       }
     };
     var onUp = function(up){
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
+      _schedNoSelect(false);
+      lightRow(null);
+      blockEl.style.transform = '';
       blockEl.classList.remove('dragging');
       _SCHED.dragging = false;
       if (_SCHED.needLoad){ _SCHED.needLoad = false; setTimeout(function(){ _schedLoad({ quiet: true }); }, 400); }
@@ -11940,8 +12118,12 @@ function _schedStripDown(ev, strip){
         } else {
           var ni = Math.max(0, i0 + (d2 - startDay));
           b.start_date = _schedSnapStart(_SCHED.days[Math.min(ni, _SCHED.days.length - 1)]);
+          var mv2 = { start_date: b.start_date };
+          if (targetRow && targetRow !== b.row_id && (_SCHED.data.rows || []).some(function(x){ return x.id === targetRow; })){
+            b.row_id = targetRow; mv2.row_id = targetRow;
+          }
           _schedRender();
-          _schedApi('PATCH', '/schedule/blocks/' + b.id, { start_date: b.start_date });
+          _schedApi('PATCH', '/schedule/blocks/' + b.id, mv2);
         }
         return;
       }
@@ -11974,6 +12156,10 @@ function _schedStripDown(ev, strip){
   var rowIds = Array.prototype.map.call(grid.querySelectorAll('[data-strip]'), function(s){ return s.getAttribute('data-strip'); });
   var r0i = rowIds.indexOf(rowId);
   var dayB = day, rowBi = r0i, dragged = false;
+  // A drag across the days never highlights the page's words (2026-11-11, the
+  // owner: "it tries to highlight some of the words ... like the day numbers").
+  try { ev.preventDefault(); } catch(_e){}
+  _schedNoSelect(true);
   var rowAt = function(ev2){
     var el = document.elementFromPoint(ev2.clientX, ev2.clientY);
     var st = el && el.closest ? el.closest('[data-strip]') : null;
@@ -12002,6 +12188,7 @@ function _schedStripDown(ev, strip){
   var onUp = function(){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    _schedNoSelect(false);
     var a = Math.min(day, dayB), z = Math.max(day, dayB);
     var ra = Math.min(r0i, rowBi), rz = Math.max(r0i, rowBi);
     var ids = rowIds.slice(ra, rz + 1);
@@ -12086,57 +12273,44 @@ function _schedMenu(items, ev, html){
   }); }, 0);
   return m;
 }
+// A CLICK ON A BLOCK OFFERS ITS COLOURS (2026-11-11, the owner: "when I
+// click on any of the color blocks instead of showing up that pop-up window,
+// show all of the different colors I can change it to. Remove the email
+// customer because I've already got an email button ... keep the remove this
+// block button"). Pencil and every crew, the block's own ticked, then Remove.
 function _schedBlockMenu(b, ev){
-  var r = (_SCHED.data.rows || []).find(function(x){ return x.id === b.row_id; }) || {};
   _schedMenu([
-    ['✉ Email customer — ' + (b.kind === 'crew' ? 'confirmed date' : 'pencilled window'),
-      function(){ _schedMailOpen(b.row_id, b.kind === 'crew' ? 'confirm' : 'pencil'); }],
     ['🗑 Remove this block', function(){
       _SCHED.data.blocks = _SCHED.data.blocks.filter(function(x){ return x.id !== b.id; });
       _schedRender();
-      _schedApi('DELETE', '/schedule/blocks/' + b.id);
+      _schedWrite(_schedApi('DELETE', '/schedule/blocks/' + b.id));
     }],
   ], ev);
-  // "Change ▾" — a drop-down inside the menu listing Pencil and every crew
-  // with its colour, so a block is re-allocated without picking a colour on
-  // the bar first (2026-11-11, the owner: "just the word change with a
-  // drop-down menu, make sure it's clear that it's going to be a drop-down").
   var m = document.querySelector('.sched-menu');
   if (!m) return;
-  var ch = document.createElement('button');
-  ch.className = 'sched-menu-dd';
-  ch.innerHTML = '<span>Change</span><span class="sched-menu-chev">▾</span>';
-  var sub = document.createElement('div');
-  sub.className = 'sched-menu-sub';
-  sub.style.display = 'none';
+  var list = document.createElement('div');
+  list.className = 'sched-menu-cols';
+  list.innerHTML = '<div class="sched-menu-hd">Change to</div>';
   function opt(label, colour, on, fn){
     var o = document.createElement('button');
+    o.className = 'sched-menu-col' + (on ? ' on' : '');
     o.innerHTML = '<span class="dot" style="background:' + colour + '"></span>' + label + (on ? ' <span class="sched-menu-on">✓</span>' : '');
     o.onclick = function(){ _schedCloseMenus(); fn(); };
-    sub.appendChild(o);
+    list.appendChild(o);
   }
-  opt('Pencil', '#c00000', b.kind !== 'crew', function(){
-    if (b.kind !== 'crew') return;
-    b.kind = 'pencil'; b.crew_id = '';
+  function setTo(kind, crewId){
+    if (b.kind === kind && (kind !== 'crew' || b.crew_id === crewId)) return;
+    b.kind = kind; b.crew_id = crewId || '';
     _schedRender();
-    _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'pencil', crew_id: '' });
-  });
+    _schedWrite(_schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: kind, crew_id: crewId || '' }));
+  }
+  opt('Pencil', '#c00000', b.kind !== 'crew', function(){ setTo('pencil', ''); });
   (((_SCHED.data.cfg || {}).crews) || []).forEach(function(c){
-    opt(String(c.name || '').replace(/</g, '&lt;'), c.colour, b.kind === 'crew' && b.crew_id === c.id, function(){
-      if (b.kind === 'crew' && b.crew_id === c.id) return;
-      b.kind = 'crew'; b.crew_id = c.id;
-      _schedRender();
-      _schedApi('PATCH', '/schedule/blocks/' + b.id, { kind: 'crew', crew_id: c.id });
-    });
+    opt(String(c.name || '').replace(/</g, '&lt;'), c.colour, b.kind === 'crew' && b.crew_id === c.id, function(){ setTo('crew', c.id); });
   });
-  ch.onclick = function(e){
-    e.stopPropagation();
-    var open = sub.style.display !== 'none';
-    sub.style.display = open ? 'none' : 'block';
-    ch.classList.toggle('open', !open);
-  };
-  m.insertBefore(sub, m.children[1]);
-  m.insertBefore(ch, sub);
+  var sep = document.createElement('div'); sep.className = 'sched-menu-sep';
+  m.insertBefore(sep, m.firstChild);
+  m.insertBefore(list, sep);
 }
 function _schedRowMenu(rowId, ev){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
@@ -12312,6 +12486,13 @@ function _schedInfoHistoryHtml(r){
   var kinds = { pencil: 'Part of month', week: 'Week of\u2026', confirm: 'Confirm start date' };
   (r.notify_log || []).forEach(function(e){
     if (!e || !e.at) return;
+    var sk = _schedMailKindDef(e.kind);
+    if (sk && sk.grp === 'supp'){
+      var when = e.asap ? 'at their earliest convenience' : (e.date ? _schedMailNice(e.date) : '');
+      ev.push({ at: e.at, what: sk.label + ' emailed' + (e.supplier ? ' to ' + e.supplier : (e.to ? ' to ' + e.to : '')),
+        sub: [e.subject || '', when ? sk.dateLbl + ': ' + when : '', e.file ? 'Attached: ' + e.file : ''].filter(Boolean).join(' \u00b7 ') });
+      return;
+    }
     ev.push({ at: e.at, what: (kinds[e.kind] || 'Schedule') + ' email sent' + (e.to ? ' to ' + e.to : ''), sub: e.subject || '' });
   });
   if (!ev.length) return '<span style="color:var(--text2)">Nothing yet \u2014 the quote has not been sent from RoofMap.</span>';
@@ -12449,19 +12630,46 @@ function _schedInfoJobHtml(job, r){
   // the basic roof map in that pop-up window"): the Map Roof canvas of that
   // job, drawn by the hidden frame (_schedMapshot) and put in #sijMap when
   // it lands; the quote's plain map stands in while it draws.
+  // THE CUSTOMER'S ROOFS FIRST (2026-11-11, the owner on job 3305, three roofs,
+  // the main one taken: "on default, can it default to the customer selected
+  // roof basic map? But then also have a button to let me switch to the
+  // detailed roof map"). The quote's map — each roof marked included or not —
+  // leads; the detailed map draws behind it and is one press away. The pick
+  // holds for the sitting (window._sijMapMode).
   var hasDraw = !!(job.draw_state && job.draw_state.draw && (job.draw_state.draw.outline || []).length);
-  h += '<div class="sij-card"><div class="sij-h">Detailed roof map</div><div id="sijMap" data-job="' + esc(job.id) + '">' +
+  var mode = (window._sijMapMode === 'detail' && hasDraw) ? 'detail' : 'quote';
+  h += '<div class="sij-card"><div class="sij-h" style="display:flex;align-items:center;gap:8px"><span id="sijMapTitle" style="flex:1">' +
+    (mode === 'detail' ? 'Detailed roof map' : 'The customer\u2019s roofs') + '</span>' +
+    (hasDraw ? '<span class="sij-mapsw" role="group" aria-label="Which map">' +
+      '<button type="button" data-sijmap="quote" class="' + (mode === 'quote' ? 'on' : '') + '">Customer\u2019s roofs</button>' +
+      '<button type="button" data-sijmap="detail" class="' + (mode === 'detail' ? 'on' : '') + '">Detailed map</button></span>' : '') +
+    '</div><div id="sijMap" data-job="' + esc(job.id) + '">' +
+    '<div class="sij-mapq"' + (mode === 'detail' ? ' style="display:none"' : '') + '>' +
     (map ? '<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff">' + map + '</div>'
-         : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') +
-    (hasDraw ? '<div class="sij-wait" style="font-size:11px;color:var(--text2);margin-top:6px">Drawing the detailed map with its aerial…</div>' : '') + '</div></div>';
+         : '<div style="color:var(--text2)">No roof map on this job yet — open the job and save it once from Map Roof.</div>') + '</div>' +
+    (hasDraw ? '<div class="sij-mapd"' + (mode === 'detail' ? '' : ' style="display:none"') + '><div class="sij-wait" style="font-size:12px;color:var(--text2);padding:30px 0;text-align:center">Drawing the detailed map with its aerial\u2026</div></div>' : '') +
+    '</div></div>';
   if (hasDraw) setTimeout(function(){
+    var box0 = document.getElementById('sijMap');
+    var card = box0 && box0.closest('.sij-card');
+    if (card) card.querySelectorAll('[data-sijmap]').forEach(function(b){
+      b.onclick = function(){
+        var m = b.getAttribute('data-sijmap'); window._sijMapMode = m;
+        card.querySelectorAll('[data-sijmap]').forEach(function(x){ x.classList.toggle('on', x === b); });
+        var qd = card.querySelector('.sij-mapq'), dd = card.querySelector('.sij-mapd');
+        if (qd) qd.style.display = m === 'quote' ? '' : 'none';
+        if (dd) dd.style.display = m === 'detail' ? '' : 'none';
+        var t = document.getElementById('sijMapTitle'); if (t) t.textContent = m === 'detail' ? 'Detailed roof map' : 'The customer\u2019s roofs';
+      };
+    });
     _schedMapshot(job).then(function(src){
       var box = document.getElementById('sijMap');
       if (!box || box.getAttribute('data-job') !== String(job.id)) return;
-      box.innerHTML = '<img src="' + src + '" alt="Detailed roof map" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
+      var d = box.querySelector('.sij-mapd'); if (!d) return;
+      d.innerHTML = '<img src="' + src + '" alt="Detailed roof map" style="display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:8px;background:#fff">';
     }).catch(function(e){
       var w = document.querySelector('#sijMap .sij-wait');
-      if (w) w.textContent = 'Could not draw the detailed map (' + ((e && e.message) || e) + ') — the quote\'s map is shown.';
+      if (w) w.textContent = 'Could not draw the detailed map (' + ((e && e.message) || e) + ').';
     });
   }, 0);
   var acc = q.accepted;
@@ -12576,10 +12784,19 @@ function _schedInfoOpenJob(){
   var r = (_SCHED.data.rows || []).find(function(x){ return x.id === _schedInfoId; });
   if (r && r.job_id){ _schedInfoClose(); try { loadJobById && loadJobById(r.job_id); } catch(e){} }
 }
+// The job window's Email button opens every kind of email over the window,
+// which stays open; a send lands in its History (2026-11-11, the owner: "in
+// this window, add that new feature of the email button ... make sure any of
+// those emails made show in the history in this window").
 function _schedInfoMail(){
-  var id = _schedInfoId; _schedInfoClose();
-  var el = document.querySelector('[data-mail="' + id + '"]');
-  _schedMailPick(id, el || { getBoundingClientRect: function(){ return { left: innerWidth / 2, bottom: innerHeight / 2 }; } });
+  var id = _schedInfoId;
+  _schedMailPick(id, document.querySelector('[data-mail="' + id + '"]'));
+}
+function _schedInfoHistRefresh(rowId){
+  if (!rowId || _schedInfoId !== rowId) return;
+  var r = ((_SCHED.data && _SCHED.data.rows) || []).filter(function(x){ return x.id === rowId; })[0];
+  var hEl = document.getElementById('schedInfoHistory');
+  if (r && hEl) hEl.innerHTML = _schedInfoHistoryHtml(r);
 }
 // ── import: get the spreadsheet onto the board ──────────────────────────
 // A roofing office does not retype forty live jobs to try a new schedule, so
@@ -12831,13 +13048,10 @@ async function _schedImportRun(){
 function _schedMailPick(rowId, el){
   var has = { pencil: false, crew: false };
   (_SCHED.data.blocks || []).forEach(function(b){ if (b.row_id === rowId) has[b.kind] = true; });
-  if (!has.crew && !has.pencil){
-    _schedMsg('Nothing booked or pencilled for this job yet — paint a block first', true);
-    return;
-  }
-  // The box carries its own kind buttons now — open straight into the
-  // likeliest one and let the office switch inside.
-  _schedMailOpen(rowId, has.crew ? 'confirm' : 'pencil');
+  // The box carries its own kind buttons — open straight into the likeliest
+  // one and let the office switch inside. A job with nothing painted yet can
+  // still have its material ordered and its scaffold booked (2026-11-11).
+  _schedMailOpen(rowId, has.crew ? 'confirm' : has.pencil ? 'pencil' : 'ord_roofing');
 }
 var _schedMailRow = null;
 var _schedMailKind = null;
@@ -12846,7 +13060,141 @@ var _SCHED_MAIL_KINDS = [
   { kind: 'pencil', label: 'Part of month', col: '#dc2626' },
   { kind: 'week', label: 'Week of…', col: '#f59e0b' },
   { kind: 'confirm', label: 'Confirm start date', col: '#16a34a' },
+  // SUPPLIERS AND TRADES (2026-11-11, the owner: "order the material ... the
+  // job pack ... book in scaffold ... an installation date or ... a
+  // scaffolding quote ... electricians ... plumbers ... a delivery date ... an
+  // installation date ... a booking date ... or just click at your earliest
+  // convenience"). `tpl` is its wording in Settings -> Email, `cat` the
+  // Settings -> Suppliers & trades group it is sent to.
+  { kind: 'ord_roofing', label: 'Roofing material order', col: '#0891b2', grp: 'supp', cat: 'roofing', tpl: 'order', dateLbl: 'Delivery date', attach: true, title: 'Order roofing material' },
+  { kind: 'ord_gutter', label: 'Gutter material order', col: '#0e7490', grp: 'supp', cat: 'gutter', tpl: 'ord_gutter', dateLbl: 'Delivery date', attach: true, title: 'Order gutter material' },
+  { kind: 'scaff_book', label: 'Scaffold — installation date', col: '#475569', grp: 'supp', cat: 'scaffold', tpl: 'scaff_book', dateLbl: 'Installation date', title: 'Book the scaffold in' },
+  { kind: 'scaff_quote', label: 'Scaffold — quote', col: '#64748b', grp: 'supp', cat: 'scaffold', tpl: 'scaff_quote', dateLbl: 'Installation date', title: 'Ask for a scaffolding quote' },
+  { kind: 'trade_elec', label: 'Electrician', col: '#ca8a04', grp: 'supp', cat: 'electrician', tpl: 'trade_elec', dateLbl: 'Booking date', title: 'Book an electrician' },
+  { kind: 'trade_plumb', label: 'Plumber', col: '#2563eb', grp: 'supp', cat: 'plumber', tpl: 'trade_plumb', dateLbl: 'Booking date', title: 'Book a plumber' },
 ];
+function _schedMailKindDef(k){ for (var i = 0; i < _SCHED_MAIL_KINDS.length; i++) if (_SCHED_MAIL_KINDS[i].kind === k) return _SCHED_MAIL_KINDS[i]; return null; }
+function _schedMailNice(iso){
+  var d = new Date(String(iso) + 'T00:00:00');
+  return isNaN(d) ? String(iso) : d.toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+function _schedMailRowObj(){
+  return ((_SCHED.data && _SCHED.data.rows) || []).filter(function(x){ return x.id === _schedMailRow; })[0] || {};
+}
+// The date the window starts on: a delivery the board already knows of, else
+// the first day booked (a crew, else a pencil); none = earliest convenience.
+function _schedMailDefaultDate(def){
+  var r = _schedMailRowObj();
+  if (def.attach && (r.confirmed_delivery || r.requested_delivery)) return String(r.confirmed_delivery || r.requested_delivery).slice(0, 10);
+  var bl = ((_SCHED.data && _SCHED.data.blocks) || []).filter(function(b){ return b.row_id === _schedMailRow; })
+    .sort(function(a, b){ return (a.kind === 'crew' ? 0 : 1) - (b.kind === 'crew' ? 0 : 1) || (a.start_date < b.start_date ? -1 : 1); });
+  return bl[0] ? String(bl[0].start_date).slice(0, 10) : '';
+}
+var _SM = { vars: null, fill: null };
+function _schedMailVars(def){
+  var r = _schedMailRowObj();
+  var sel = document.getElementById('schedMailSupplier'), list = _suppliersOf(def.cat);
+  var sup = (sel && sel.value !== '' && list[+sel.value]) || null;
+  var asap = !!(document.getElementById('schedMailAsap') || {}).checked;
+  var d = (document.getElementById('schedMailDate') || {}).value || '';
+  var br = (S.settings && S.settings.branding) || {};
+  var nice = (!asap && d) ? _schedMailNice(d) : '';
+  return {
+    supplier_contact: (sup && String(sup.contact || '').trim()) || 'there',
+    supplier: (sup && sup.name) || '',
+    job: r.job_no || r.fergus_no || r.job_ref || '',
+    site: r.site_address || '', deliver_to: r.site_address || '', client: r.client_name || '',
+    company: br.company_name || 'the team',
+    date: nice || 'at your earliest convenience',
+    delivery_date: nice ? ' on ' + nice : ' at your earliest convenience',
+  };
+}
+function _schedMailFillTpl(t, v){ return String(t || '').replace(/\{([a-z_]+)\}/g, function(m, k){ return Object.prototype.hasOwnProperty.call(v, k) ? v[k] : m; }); }
+// Write the email from its template. On a later change of company or date the
+// office's own edits are kept: an untouched email is rewritten, an edited one
+// only has the old date / name swapped for the new.
+function _schedMailCompose(def){
+  var v = _schedMailVars(def);
+  var em = ((S.settings || {}).quote_defaults || {}).email || {}, d0 = (typeof EMX_DEFAULTS !== 'undefined' && EMX_DEFAULTS[def.tpl]) || { subject: '', body: '' };
+  var subj = _schedMailFillTpl(em[def.tpl + '_subject'] || d0.subject, v).replace(/\s{2,}/g, ' ').trim();
+  var body = _schedMailFillTpl(em[def.tpl + '_body'] || d0.body, v).replace(/\n{3,}/g, '\n\n');
+  var su = document.getElementById('schedMailSubject'), bo = document.getElementById('schedMailBody');
+  // Once the office has typed in it, it stays theirs: every later change only
+  // swaps the old date / name for the new.
+  if (_SM.fill && _SM.vars && (_SM.edited || su.value !== _SM.fill.s || bo.value !== _SM.fill.b)){
+    _SM.edited = true;
+    var o = _SM.vars, sw = function(t){
+      ['delivery_date', 'date', 'supplier_contact', 'supplier'].forEach(function(k){
+        if (o[k] && o[k] !== v[k]) t = t.split(o[k]).join(v[k]);
+      });
+      return t;
+    };
+    subj = sw(su.value); body = sw(bo.value);
+  }
+  su.value = subj; bo.value = body;
+  _SM.vars = v; _SM.fill = { s: subj, b: body };
+}
+function _schedMailSuppSetup(def){
+  var box = document.getElementById('schedMailSupp'); box.style.display = 'flex';
+  var list = _suppliersOf(def.cat), cat = SUPPLIER_CATS.filter(function(c){ return c.k === def.cat; })[0] || {};
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  document.getElementById('schedMailSuppLbl').textContent = ({ roofing: 'Roofing supplier', gutter: 'Gutter supplier', scaffold: 'Scaffolding company', electrician: 'Electrician', plumber: 'Plumber' })[def.cat] || 'Company';
+  var sel = document.getElementById('schedMailSupplier');
+  sel.innerHTML = list.map(function(s, i){ return '<option value="' + i + '">' + esc(s.name || s.email) + (s.email ? ' \u2014 ' + esc(s.email) : '') + '</option>'; }).join('') +
+    '<option value="">Someone else \u2014 type the address below</option>';
+  sel.value = list.length ? '0' : '';
+  var none = document.getElementById('schedMailSuppNone');
+  if (!list.length){
+    none.style.display = 'block';
+    none.innerHTML = 'No ' + esc((cat.t || 'companies').toLowerCase()) + ' saved yet. <a href="#" onclick="_schedMailClose();gotoTab(\'settings\');try{switchSettingsSub(\'set-supl\');}catch(e){};return false">Add them in Settings \u2192 Suppliers &amp; trades</a>, or type an address below.';
+  } else none.style.display = 'none';
+  document.getElementById('schedMailDateLbl').textContent = def.dateLbl;
+  var dt = document.getElementById('schedMailDate'), asap = document.getElementById('schedMailAsap');
+  var d = _schedMailDefaultDate(def);
+  dt.value = d; asap.checked = !d;
+  var to = document.getElementById('schedMailTo');
+  var pickTo = function(){ var s0 = sel.value !== '' ? list[+sel.value] : null; to.value = (s0 && s0.email) || ''; };
+  pickTo();
+  _SM.vars = null; _SM.fill = null; _SM.edited = false;
+  sel.onchange = function(){ pickTo(); _schedMailCompose(def); };
+  dt.onchange = function(){ if (dt.value) asap.checked = false; _schedMailCompose(def); };
+  asap.onchange = function(){ _schedMailCompose(def); };
+  _schedMailCompose(def);
+  var fr = document.getElementById('schedMailFileRow');
+  fr.style.display = def.attach ? 'block' : 'none';
+  if (def.attach) _schedMailFilesLoad(def);
+}
+// The attachment comes off the job's own Files & Photos: the newest order or
+// Job Pack PDF RoofMap kept, picked for them; any other PDF on the job is in
+// the list too.
+var _SM_FILE_PREF = { 'sent-order': 1, 'order-pdf': 1, 'jobpack-pdf': 2, 'jobpack-print': 2, 'jobpack-fergus': 2 };
+async function _schedMailFilesLoad(def){
+  var sel = document.getElementById('schedMailFile'), note = document.getElementById('schedMailFileNote');
+  var r = _schedMailRowObj(), seq = _schedMailSeq;
+  if (!r.job_id){
+    sel.innerHTML = '<option value="">No attachment</option>';
+    note.textContent = 'This row has no RoofMap job, so there is no Job Pack to attach.';
+    return;
+  }
+  sel.innerHTML = '<option value="">Looking for the Job Pack\u2026</option>'; note.textContent = '';
+  var files = [];
+  try { var d = await api('GET', '/jobs/' + r.job_id + '/files'); files = (d && d.files) || []; } catch(e){
+    if (seq !== _schedMailSeq) return;
+    sel.innerHTML = '<option value="">No attachment</option>'; note.textContent = 'The job\u2019s files could not be read (' + ((e && e.message) || 'error') + ').'; return;
+  }
+  if (seq !== _schedMailSeq) return;
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var pdfs = files.filter(function(f){ return /pdf/i.test(f.mime || '') || /\.pdf$/i.test(f.name || ''); });
+  var rank = function(f){ return _SM_FILE_PREF[f.source] || 9; };
+  pdfs.sort(function(a, b){ return rank(a) - rank(b) || (String(a.at) < String(b.at) ? 1 : -1); });
+  var when = function(at){ var t = new Date(at); return isNaN(t) ? '' : ' \u00b7 ' + t.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' }); };
+  sel.innerHTML = pdfs.map(function(f){ return '<option value="' + esc(f.id) + '">' + esc(f.name) + esc(when(f.at)) + '</option>'; }).join('') +
+    '<option value="">No attachment</option>';
+  var best = pdfs.filter(function(f){ return rank(f) < 9; })[0];
+  sel.value = best ? best.id : '';
+  note.textContent = best ? 'From the job\u2019s Files & Photos.'
+    : 'No Job Pack or order saved on this job yet \u2014 open the job and save the Job Pack as a PDF (or Order Roof), and it attaches here.';
+}
 function _schedMailOpen(rowId, kind){
   // The box opens the moment it's asked for; the wording fills in when the
   // server answers — waiting on the network before showing anything made
@@ -12861,16 +13209,31 @@ function _schedMailSetKind(kind){
   _schedMailKind = kind;
   var kd = document.getElementById('schedMailKinds');
   if (kd){
-    kd.innerHTML = _SCHED_MAIL_KINDS.map(function(k){
+    var chip = function(k){
       var on = k.kind === kind;
       return '<button class="sched-chip" data-mailkind="' + k.kind + '"' +
         (on ? ' style="border-color:' + k.col + ';box-shadow:0 0 0 1.5px ' + k.col + ' inset"' : '') +
         '><span class="dot" style="background:' + k.col + '"></span>' + k.label + '</button>';
-    }).join('');
+    };
+    var grp = function(lbl, g){
+      return '<div class="sched-mailgrp"><span>' + lbl + '</span><div>' +
+        _SCHED_MAIL_KINDS.filter(function(k){ return (k.grp || 'cust') === g; }).map(chip).join('') + '</div></div>';
+    };
+    kd.innerHTML = grp('Customer', 'cust') + grp('Suppliers &amp; trades', 'supp');
     kd.querySelectorAll('[data-mailkind]').forEach(function(b){
       b.onclick = function(){ _schedMailSetKind(b.getAttribute('data-mailkind')); };
     });
   }
+  var st0 = document.getElementById('schedMailStatus'); if (st0) st0.style.display = 'none';
+  var def = _schedMailKindDef(kind);
+  if (def && def.grp === 'supp'){
+    ++_schedMailSeq;
+    document.getElementById('schedMailTitle').textContent = def.title;
+    var sbs = document.getElementById('schedMailSendBtn'); if (sbs) sbs.disabled = false;
+    _schedMailSuppSetup(def);
+    return;
+  }
+  var sp = document.getElementById('schedMailSupp'); if (sp) sp.style.display = 'none';
   document.getElementById('schedMailTitle').textContent =
     kind === 'confirm' ? 'Email the customer — confirm start date'
     : kind === 'week' ? 'Email the customer — week of…'
@@ -12901,16 +13264,27 @@ async function _schedMailSend(){
   var btn = document.getElementById('schedMailSendBtn'), st = document.getElementById('schedMailStatus');
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
-    await api('POST', '/schedule/rows/' + _schedMailRow + '/send', {
+    var body = {
       kind: _schedMailKind,
       to: document.getElementById('schedMailTo').value.trim(),
       subject: document.getElementById('schedMailSubject').value,
       body: document.getElementById('schedMailBody').value,
-    });
+    };
+    var def = _schedMailKindDef(_schedMailKind);
+    if (def && def.grp === 'supp'){
+      var v = _schedMailVars(def);
+      body.supplier = v.supplier;
+      body.asap = !!document.getElementById('schedMailAsap').checked;
+      if (!body.asap) body.date = document.getElementById('schedMailDate').value || '';
+      if (def.attach) body.fileId = document.getElementById('schedMailFile').value || '';
+      if (!body.asap && !body.date) throw new Error('Pick a ' + def.dateLbl.toLowerCase() + ', or tick \u201cAt your earliest convenience\u201d.');
+    }
+    var res = await api('POST', '/schedule/rows/' + _schedMailRow + '/send', body);
     st.style.display = 'block'; st.style.background = '#ecfdf5'; st.style.color = '#065f46';
-    st.textContent = '✓ Sent.';
+    st.textContent = '✓ Sent' + ((res && res.file) ? ' with ' + res.file + ' attached.' : '.');
     setTimeout(_schedMailClose, 900);
-    _schedLoad();
+    var _sentRow = _schedMailRow;
+    Promise.resolve(_schedLoad({ quiet: true })).then(function(){ _schedInfoHistRefresh(_sentRow); }, function(){});
   } catch(e){
     st.style.display = 'block'; st.style.background = '#fef2f2'; st.style.color = '#b91c1c';
     st.textContent = (e && e.message) || 'Send failed';
@@ -50127,7 +50501,19 @@ var EMX_DEFAULTS = {
     body: '{client} has asked a question about their quote.\n\nQuote reference: {ref}\nAddress: {site}\n\nWhat they asked:\n{question}\n\nOpen the job in RoofMap to reply.' },
   invoice: { subject: 'Invoice {invoice_no} from {company} — {site}', body: '' },
   order: { subject: 'Order #{job}',
-    body: 'Hi {supplier_contact},\n\nPlease find the attached order for job #{job}.\nPlease deliver to {deliver_to}{delivery_date}.\n\nThanks,\n{company}' }
+    body: 'Hi {supplier_contact},\n\nPlease find the attached order for job #{job}.\nPlease deliver to {deliver_to}{delivery_date}.\n\nThanks,\n{company}' },
+  // The suppliers and trades the Schedule board's ✉ emails (2026-11-11).
+  // {date} reads "Wednesday, 18 November" or "at your earliest convenience".
+  ord_gutter: { subject: 'Gutter order #{job}',
+    body: 'Hi {supplier_contact},\n\nPlease find the attached gutter order for job #{job}.\nPlease deliver to {deliver_to}{delivery_date}.\n\nThanks,\n{company}' },
+  scaff_book: { subject: 'Scaffold booking \u2014 job #{job}, {site}',
+    body: 'Hi {supplier_contact},\n\nCould we please book scaffolding for job #{job} at {site}.\n\nInstallation date: {date}.\n\nCan you confirm that works, or let us know the nearest date you can do?\n\nThanks,\n{company}' },
+  scaff_quote: { subject: 'Scaffold quote request \u2014 job #{job}, {site}',
+    body: 'Hi {supplier_contact},\n\nCould you please quote scaffolding for job #{job} at {site}.\n\nWe are looking to have it installed: {date}.\n\nThanks,\n{company}' },
+  trade_elec: { subject: 'Electrician booking \u2014 job #{job}, {site}',
+    body: 'Hi {supplier_contact},\n\nWe have a roofing job at {site} (job #{job}) and need an electrician on site.\n\nBooking date: {date}.\n\nCan you let us know if that suits?\n\nThanks,\n{company}' },
+  trade_plumb: { subject: 'Plumber booking \u2014 job #{job}, {site}',
+    body: 'Hi {supplier_contact},\n\nWe have a roofing job at {site} (job #{job}) and need a plumber on site.\n\nBooking date: {date}.\n\nCan you let us know if that suits?\n\nThanks,\n{company}' }
 };
 function _emxDefault(k){ return k === 'quote' ? QUOTE_EMAIL_DEFAULT : (EMX_DEFAULTS[k] || { subject:'', body:'' }); }
 var EMX_TAGS = {
@@ -50138,18 +50524,24 @@ var EMX_TAGS = {
   question:      ['client','site','ref','question','company'],
   decline:       ['client','site','ref','total','declined_at','company'],
   invoice:       ['client','invoice_no','total','due_date','site','company'],
-  order:         ['supplier_contact','job','deliver_to','delivery_date','client','site','company']
+  order:         ['supplier_contact','job','deliver_to','delivery_date','client','site','company'],
+  ord_gutter:    ['supplier_contact','supplier','job','deliver_to','delivery_date','date','client','site','company'],
+  scaff_book:    ['supplier_contact','supplier','job','site','date','client','company'],
+  scaff_quote:   ['supplier_contact','supplier','job','site','date','client','company'],
+  trade_elec:    ['supplier_contact','supplier','job','site','date','client','company'],
+  trade_plumb:   ['supplier_contact','supplier','job','site','date','client','company']
 };
 var EMX_TAG_LABEL = { client:'Customer name', address:'“ at ” + address', site:'Address', link:'Quote link', ref:'Quote number', company:'Your company',
   valid_until:'Valid until', phone:'Your phone', email:'Your email', website:'Your website', total:'Accepted total', accepted_by:'Accepted by',
   accepted_at:'Accepted on', accepted_by_line:'“Accepted by” line', selections:'Their selections', office_phone:'Your phone (in a sentence)',
   office_address:'Your address', pdf_note:'PDF note', question:'Their question', supplier_contact:'Supplier contact', job:'Job number',
-  declined_at:'Declined on', deliver_to:'Deliver to', delivery_date:'“ on ” + delivery date', invoice_no:'Invoice number', due_date:'Due date' };
+  declined_at:'Declined on', deliver_to:'Deliver to', delivery_date:'“ on ” + delivery date', invoice_no:'Invoice number', due_date:'Due date',
+  supplier:'Their company', date:'The date (or “at your earliest convenience”)' };
 // key → [subject id, body id]; and the plain fields: [id, quote_defaults.email key, kind]
 var EMX_TPL = { quote:['emQuoteSubject','emQuoteBody'], reminder:['emReminderSubject','emReminderBody'], accept_cust:['emAcceptCustSubject','emAcceptCustBody'],
   accept_office:['emAcceptOfficeSubject','emAcceptOfficeBody'], question:['emQuestionSubject','emQuestionBody'],
   decline:['emDeclineSubject','emDeclineBody'], invoice:['emInvoiceSubject','emInvoiceBody'],
-  order:['emOrderSubject','emOrderBody'] };
+  order:['emOrderSubject','emOrderBody'], ord_gutter:['emTOrdGutterSubject','emTOrdGutterBody'], scaff_book:['emTScaffBookSubject','emTScaffBookBody'], scaff_quote:['emTScaffQuoteSubject','emTScaffQuoteBody'], trade_elec:['emTTradeElecSubject','emTTradeElecBody'], trade_plumb:['emTTradePlumbSubject','emTTradePlumbBody'] };
 var EMX_FIELDS = [
   ['emCopyAll','copy_all'], ['emReplyTo','reply_to'], ['emQuoteReplyTo','quote_reply_to'],
   ['emReminderCc','reminder_cc'], ['emReminderReplyTo','reminder_reply_to'],
@@ -50159,7 +50551,12 @@ var EMX_FIELDS = [
   ['emDeclineOn','decline_on','on'], ['emDeclineTo','decline_to'], ['emDeclineCc','decline_cc'],
   ['emSenderLocal','sender_local'],
   ['emInvoiceCc','invoice_cc'], ['emInvoiceReplyTo','invoice_reply_to'],
-  ['emOrderReplyTo','order_reply_to'], ['emSchedCc','sched_cc'], ['emSchedReplyTo','sched_reply_to']
+  ['emOrderReplyTo','order_reply_to'], ['emSchedCc','sched_cc'], ['emSchedReplyTo','sched_reply_to'],
+  ['emTOrdGutterCc','ord_gutter_cc'], ['emTOrdGutterReplyTo','ord_gutter_reply_to'],
+  ['emTScaffBookCc','scaff_book_cc'], ['emTScaffBookReplyTo','scaff_book_reply_to'],
+  ['emTScaffQuoteCc','scaff_quote_cc'], ['emTScaffQuoteReplyTo','scaff_quote_reply_to'],
+  ['emTTradeElecCc','trade_elec_cc'], ['emTTradeElecReplyTo','trade_elec_reply_to'],
+  ['emTTradePlumbCc','trade_plumb_cc'], ['emTTradePlumbReplyTo','trade_plumb_reply_to']
 ];
 var EMX_ITEMS = [
   { g:'To your customers' },
@@ -50172,8 +50569,13 @@ var EMX_ITEMS = [
   { k:'accept_office', t:'Quote accepted — to office', on:'emAcceptOfficeOn' },
   { k:'question', t:'Customer asked a question', on:'emQuestionOn' },
   { k:'decline', t:'Quote declined', on:'emDeclineOn' },
-  { g:'To suppliers' },
-  { k:'order', t:'Material order' }
+  { g:'To suppliers & trades' },
+  { k:'order', t:'Roofing material order' },
+  { k:'ord_gutter', t:'Gutter material order' },
+  { k:'scaff_book', t:'Scaffolding — book an installation date' },
+  { k:'scaff_quote', t:'Scaffolding — ask for a quote' },
+  { k:'trade_elec', t:'Electrician booking' },
+  { k:'trade_plumb', t:'Plumber booking' }
 ];
 var _EMX = { k: null };
 function _emxFill(em){
@@ -50422,7 +50824,7 @@ function _emxSampleVars(){
     total: '$7,044.45', accepted_by: q.client || 'Jane Smith', accepted_at: new Date().toLocaleString('en-NZ', { day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit' }),
     accepted_by_line: '', selections: '  • Steel grade: Colorsteel MAXAM\n  • Steel gauge: 0.40 gauge\n  • Colour: Ironsand\n  • Paint Roof: Include',
     office_phone: br.phone || 'the office', office_address: br.address ? br.address + '\n' : '', pdf_note: 'The accepted quote PDF (showing the customer\'s selections) is attached.',
-    question: '  Can you start before Christmas?', supplier_contact: 'Sam', job: q.ref || '3288', deliver_to: site, delivery_date: ' on Monday 12 October',
+    question: '  Can you start before Christmas?', supplier_contact: 'Sam', job: q.ref || '3288', deliver_to: site, delivery_date: ' on Monday 12 October', supplier: 'North Scaffolding', date: 'Monday, 12 October',
     declined_at: new Date().toLocaleString('en-NZ', { day:'numeric', month:'long', year:'numeric', hour:'numeric', minute:'2-digit' }),
     invoice_no: 'INV-0042', due_date: '9/10/2026' };
 }
@@ -51607,27 +52009,65 @@ function _ensureCatalog(){
 }
 
 // — Settings: render the editable lists for suppliers + materials —
+// SUPPLIERS AND TRADES BY KIND (2026-11-11, the owner: "in the settings and
+// suppliers, there should be a subcategory for scaffold suppliers ... another
+// category for electricians and another one for plumbers"). One list, each
+// row carrying its `category`; a row from before has none and is a roofing
+// material supplier, so nobody's list moves. The schedule's email window
+// offers each kind's own companies.
+var SUPPLIER_CATS = [
+  { k:'roofing',     t:'Roofing material suppliers', one:'roofing supplier',      ph:'e.g. Roofing Industries' },
+  { k:'gutter',      t:'Gutter supply companies',    one:'gutter supplier',       ph:'e.g. Marley' },
+  { k:'scaffold',    t:'Scaffolding companies',      one:'scaffolding company',   ph:'e.g. North Scaffolding' },
+  { k:'electrician', t:'Electricians',               one:'electrician',           ph:'e.g. Bay Electrical' },
+  { k:'plumber',     t:'Plumbers',                   one:'plumber',               ph:'e.g. Kerikeri Plumbing' }
+];
+var SUPPLIER_FIELDS = ['name','email','phone','yard_addr','contact','category'];
+function _supplierCat(s){
+  var c = s && s.category;
+  return SUPPLIER_CATS.some(function(x){ return x.k === c; }) ? c : 'roofing';
+}
+function _suppliersOf(cat){
+  return ((_ensureCatalog().suppliers) || []).filter(function(s){ return s && (s.name || s.email) && _supplierCat(s) === cat; });
+}
 function renderSupplierList(){
   var box = document.getElementById('supplierList'); if (!box) return;
   var list = (_ensureCatalog().suppliers) || [];
-  if (!list.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12px;padding:4px 0">No suppliers yet — add one to populate the dropdown on Order Material.</div>'; return; }
-  box.innerHTML = list.map(function(s){
-    function esc(v){ return String(v||'').replace(/"/g,'&quot;'); }
-    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff" data-row="supplier">'+
-      '<div class="f2"><div><label>Company</label><input type="text" data-field="name" value="'+esc(s.name)+'" placeholder="e.g. Roofing Industries"></div>'+
-      '<div><label>Contact first name</label><input type="text" data-field="contact" value="'+esc(s.contact)+'" placeholder="e.g. Steve"></div></div>'+
-      '<div class="f2"><div><label>Contact email</label><input type="email" data-field="email" value="'+esc(s.email)+'" placeholder="orders@supplier.co.nz"></div>'+
-      '<div><label>Phone</label><input type="tel" data-field="phone" value="'+esc(s.phone)+'" placeholder="09 000 0000"></div></div>'+
-      '<div><label>Yard / pickup address</label><input type="text" data-field="yard_addr" value="'+esc(s.yard_addr)+'" placeholder="Yard / depot address"></div>'+
-      '<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" onclick="this.closest(\'[data-row=supplier]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button></div>'+
-      '</div>';
+  function esc(v){ return String(v||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+  box.innerHTML = SUPPLIER_CATS.map(function(c){
+    var rows = list.filter(function(s){ return _supplierCat(s) === c.k; });
+    var yard = (c.k === 'roofing' || c.k === 'gutter');
+    return '<div class="set-sec sup-cat" data-supcat="' + c.k + '">' +
+      '<div class="set-sec-hd" style="display:flex;align-items:center;gap:8px">' + esc(c.t) +
+      ' <span style="font-weight:500;opacity:.75">(' + rows.length + ')</span>' +
+      '<button type="button" onclick="addSupplier(\'' + c.k + '\')" class="tool-btn" style="margin-left:auto;font-size:11px;background:#fff">+ Add ' + esc(c.one) + '</button></div>' +
+      '<div style="padding:10px 12px">' +
+      (rows.length ? '' : '<div style="color:var(--text2);font-size:12px;padding:2px 0">None yet.</div>') +
+      rows.map(function(s){
+        return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:#fff" data-row="supplier">'+
+          '<input type="hidden" data-field="category" value="' + c.k + '">' +
+          '<div class="f2"><div><label>Company</label><input type="text" data-field="name" value="'+esc(s.name)+'" placeholder="'+esc(c.ph)+'"></div>'+
+          '<div><label>Contact first name</label><input type="text" data-field="contact" value="'+esc(s.contact)+'" placeholder="e.g. Steve"></div></div>'+
+          '<div class="f2"><div><label>Contact email</label><input type="email" data-field="email" value="'+esc(s.email)+'" placeholder="bookings@company.co.nz"></div>'+
+          '<div><label>Phone</label><input type="tel" data-field="phone" value="'+esc(s.phone)+'" placeholder="09 000 0000"></div></div>'+
+          (yard ? '<div><label>Yard / pickup address</label><input type="text" data-field="yard_addr" value="'+esc(s.yard_addr)+'" placeholder="Yard / depot address"></div>'
+                : '<input type="hidden" data-field="yard_addr" value="'+esc(s.yard_addr)+'">') +
+          '<div style="display:flex;justify-content:flex-end;margin-top:8px"><button type="button" onclick="this.closest(\'[data-row=supplier]\').remove()" class="tool-btn" style="font-size:11px;color:#b91c1c">Remove</button></div>'+
+          '</div>';
+      }).join('') + '</div></div>';
   }).join('');
 }
-function addSupplier(){
-  var list = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
-  list.push({ name:'', email:'', phone:'', yard_addr:'', contact:'' });
+function addSupplier(cat){
+  var list = collectListEditor('supplierList', SUPPLIER_FIELDS);
+  list.push({ name:'', email:'', phone:'', yard_addr:'', contact:'', category: SUPPLIER_CATS.some(function(x){ return x.k === cat; }) ? cat : 'roofing' });
   _ensureCatalog().suppliers = list;
   renderSupplierList();
+  try {
+    var sec = document.querySelector('#supplierList [data-supcat="' + (cat || 'roofing') + '"]');
+    var rows = sec ? sec.querySelectorAll('[data-row=supplier]') : [];
+    var last = rows[rows.length - 1]; var inp = last && last.querySelector('[data-field=name]');
+    if (inp) inp.focus();
+  } catch(e){}
 }
 
 function _catalogContainerId(key){
@@ -51814,7 +52254,7 @@ function onCatalogUnderlayChange(){
   collectSettingsFromUI = function(){
     _origCollect();
     var cat = _ensureCatalog();
-    cat.suppliers = collectListEditor('supplierList', ['name','email','phone','yard_addr','contact']);
+    cat.suppliers = collectListEditor('supplierList', SUPPLIER_FIELDS);
     // ONE COLLECTOR FOR THE PAPERS (2026-10-20, the owner: "the underlay item
     // i added won't let me set it at 50m2 or set it's price (it keeps deleting
     // what i enter) and the quote is still trying to say 75m2"). A paper grew
@@ -51911,7 +52351,7 @@ function populateOrderDropdowns(){
     });
     dl.innerHTML = html;
   }
-  fillList('orderSupplierList', (cat.suppliers||[]).map(function(s){return {name:s.name};}));
+  fillList('orderSupplierList', (cat.suppliers||[]).filter(function(s){ return ['roofing','gutter'].indexOf(_supplierCat(s)) >= 0; }).map(function(s){return {name:s.name};}));
   // Roof products are the steel grades on Quote's Product Options (plus
   // anything typed into the old Roof products list).
   var grades = []; try { grades = _selGrades(); } catch(e){}
@@ -83045,7 +83485,9 @@ function _orderRoofProceed(){
 
 function _orderEmailSuppliers(){
   var cat = (typeof _ensureCatalog === 'function') ? _ensureCatalog() : { suppliers: [] };
-  return (cat.suppliers || []).filter(function(s){ return s && (s.name || s.email); });
+  // Material suppliers only — a scaffolder or an electrician is not who an
+  // order goes to (they have their own emails on the Schedule board).
+  return (cat.suppliers || []).filter(function(s){ return s && (s.name || s.email) && ['roofing','gutter'].indexOf(_supplierCat(s)) >= 0; });
 }
 function _openOrderEmail(){
   var sups = _orderEmailSuppliers();
