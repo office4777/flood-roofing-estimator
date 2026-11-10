@@ -37,6 +37,8 @@ const PROCESSORS = [
   ['Esri',      /esri/i,                           app],
   ['Mapbox',    /api\.mapbox\.com/,                 app],
   ['NSW Spatial Services', /maps\.six\.nsw\.gov\.au/, app],
+  ['ACT Government', /ACT_Aerial_Imagery/, app],
+  ['Queensland Government', /spatial-img\.information\.qld\.gov\.au/, app],
 ];
 for (const [name, pattern, src] of PROCESSORS){
   if (!pattern.test(src)) { check('(' + name + ' is no longer called — remove it from the policy)', false); continue; }

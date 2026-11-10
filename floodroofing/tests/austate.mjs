@@ -121,10 +121,15 @@ async function signedIn(company){
     const u = r.request().url(); state.nswTiles.push(u);
     const m = /MapServer\/tile\/(\d+)\/(\d+)\/(\d+)/.exec(u);
     const z = m ? +m[1] : 0;
-    const have = state.mode === 'ok' ? true : state.mode === 'no21' ? z !== 21 : false;
+    const have = state.mode === 'ok' ? true : state.mode === 'no21' ? z !== 21 : state.mode === 'no19' ? z < 19 : false;
     if (!have) return r.fulfill({ status: 200, contentType: 'text/html;charset=utf-8', body: MISSING, headers: { 'Access-Control-Allow-Origin': '*' } });
     return r.fulfill({ status: 200, contentType: 'image/png', body: GREEN, headers: { 'Access-Control-Allow-Origin': '*' } });
   });
+  await pg.route('**/tiles.arcgis.com/**', r => {
+    const u = r.request().url(); state.nswTiles.push(u);
+    return r.fulfill({ status: 200, contentType: 'application/octet-stream', body: GREEN, headers: { 'Access-Control-Allow-Origin': '*' } });
+  });
+  await pg.route('**/spatial-img.information.qld.gov.au/**', r => r.fulfill({ status: 200, contentType: 'image/png', body: GREEN, headers: { 'Access-Control-Allow-Origin': '*' } }));
   await pg.route(API, r => {
     const u = r.request().url();
     if (/\/imagery-config/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ linzKey: 'platform-key' }) });
@@ -138,7 +143,11 @@ async function signedIn(company){
   await pg.waitForTimeout(2500);
   return { ctx, pg, errs, state };
 }
-async function finder(pg){
+// `at` puts a stub map over that point first, so the answer does not hang on
+// whether Mapbox loaded on this machine (the option follows the map's state).
+async function finder(pg, at){
+  if (at) await pg.evaluate(([lat, lng]) => { window._aerialMap = { getCenter: () => ({ lat, lng }), getZoom: () => 13, isStyleLoaded: () => true,
+    getLayer: () => null, getSource: () => null, removeLayer(){}, removeSource(){}, addSource(){}, addLayer(){}, moveLayer(){}, jumpTo(){}, resize(){}, on(){}, once(){} }; window._stateSrcKey = null; }, at);
   await pg.evaluate(() => { gotoTab('roof'); _openAerialModal(); });
   await pg.waitForTimeout(700);
   return pg.evaluate(() => {
@@ -213,6 +222,89 @@ async function capture(pg, src){
   check('the live NSW layer goes to level 21 where the cache has it (Sydney)', d21 === 21, String(d21));
   check('…and stops at 20 where it does not (Port Macquarie), so the map enlarges the NSW photo instead of showing Mapbox underneath', d20 === 20, String(d20));
 
+  // 2026-11-11: which state a point is in, coarse on purpose.
+  const regions = await pg.evaluate(() => [[-33.87,151.21],[-27.47,153.03],[-35.28,149.13],[-37.81,144.96],[-36.12,146.89],[-28.18,153.54],[-28.168,153.535].slice(0,2),[-42.88,147.33],[-31.95,115.86],[-34.93,138.6],[-12.46,130.85],[-32.24,148.6]].map(p => _auRegionAt(p[0], p[1])));
+  check('the map knows which state it is over (Sydney, Brisbane, Canberra, Melbourne, Wodonga, Tweed Heads, Coolangatta …)',
+    JSON.stringify(regions) === JSON.stringify(['NSW','QLD','ACT','VIC','VIC','NSW','QLD','TAS','WA','SA','NT','NSW']), JSON.stringify(regions));
+  check('the ACT\u2019s and Queensland\u2019s photos are offered, Victoria has none', await pg.evaluate(() => !!_auStateSrc('ACT') && !!_auStateSrc('QLD') && !_auStateSrc('VIC')));
+  check('…and Queensland\u2019s credit carries the State\u2019s no-warranty statement', await pg.evaluate(() => /no warranty/.test(_auStateSrc('QLD').credit) && /CC BY-SA/.test(_auStateSrc('QLD').credit)));
+
+  // "You're now in …": a fake map, the finder on the NSW photos.
+  // The map is a stub and the answer is pressed in the same step: on a runner
+  // where Mapbox loads, the real map's own moveend would otherwise re-check
+  // against its own centre between the question and the click.
+  const ask = async (lat, lng, press) => pg.evaluate(async ([lat, lng, press]) => {
+    window._aerialMap = { getCenter: () => ({ lat, lng }), getZoom: () => 18, isStyleLoaded: () => true, getLayer: () => null, getSource: () => null,
+      removeLayer(){}, removeSource(){}, addSource(){}, addLayer(){}, moveLayer(){}, getBounds: null };
+    _aerialRegionCheck();
+    const c = document.getElementById('aerialRegionAsk');
+    const r = { shown: c.style.display !== 'none', msg: c.textContent.replace(/\s+/g, ' ').trim(), go: c.dataset.go };
+    if (press) document.getElementById(press === 'yes' ? 'aerialRegionYes' : 'aerialRegionNo').click();
+    return r;
+  }, [lat, lng, press || '']);
+  await pg.evaluate(() => { _openAerialModal(); window._stateSrcKey = 'NSW'; document.getElementById('imagerySource').value = 'state'; });
+  const inSyd = await ask(-33.87, 151.21);
+  check('over Sydney on the NSW photos nothing is asked', !inSyd.shown, JSON.stringify(inSyd));
+  const inAct = await ask(-35.28, 149.13, 'yes');
+  check('moving into Canberra asks "You\u2019re now in the ACT. Switch to the ACT Government aerial?"', inAct.shown && /now in the ACT/.test(inAct.msg) && /ACT Government aerial/.test(inAct.msg) && inAct.go === 'state:ACT', JSON.stringify(inAct));
+  const afterYes = await pg.evaluate(() => ({ key: window._stateSrcKey, sel: document.getElementById('imagerySource').value, opt: document.getElementById('imgSrcState').textContent, card: document.getElementById('aerialRegionAsk').style.display }));
+  check('…Yes switches to the ACT Government\u2019s photos and the list names them', afterYes.key === 'ACT' && afterYes.sel === 'state' && /ACT Government aerial/.test(afterYes.opt) && afterYes.card === 'none', JSON.stringify(afterYes));
+  const inMel = await ask(-37.81, 144.96, 'no');
+  check('moving into Melbourne says it is outside the ACT\u2019s photos and offers the standard satellite', inMel.shown && /now in Victoria/.test(inMel.msg) && /outside the ACT Government aerial/.test(inMel.msg) && inMel.go === 'mapbox', JSON.stringify(inMel));
+  const again = await ask(-37.80, 144.95);
+  check('…No is remembered: Melbourne is not asked again this sitting', !again.shown, JSON.stringify(again));
+  const inBris = await ask(-27.47, 153.03);
+  check('Brisbane offers the Queensland Government aerial', inBris.shown && /now in Queensland/.test(inBris.msg) && /Queensland Government aerial/.test(inBris.msg) && inBris.go === 'state:QLD', JSON.stringify(inBris));
+  await pg.evaluate(() => { document.getElementById('aerialRegionAsk').style.display = 'none'; window._stateSrcKey = 'NSW'; });
+
+  // The ACT's tiles come as application/octet-stream and still count.
+  const actDepth = await pg.evaluate(async () => {
+    const added = [];
+    window._aerialMap = { getCenter: () => ({ lat: -35.28, lng: 149.13 }), isStyleLoaded: () => true, getLayer: () => null, getSource: () => null,
+      removeLayer(){}, removeSource(){}, addSource(id, o){ added.push({ id, maxzoom: o.maxzoom, tiles: o.tiles }); }, addLayer(){}, moveLayer(){} };
+    window._stateSrcKey = 'ACT'; document.getElementById('imagerySource').value = 'state';
+    window._stateDepthNow = 0; _stateDepthCheck();
+    for (let i = 0; i < 40 && !added.length; i++) await new Promise(r => setTimeout(r, 50));
+    window._stateSrcKey = 'NSW';
+    return added[0] || null;
+  });
+  check('the ACT layer is laid at its deepest level (22) from its Web Mercator copy', actDepth && actDepth.maxzoom === 22 && /ACT_Aerial_Imagery_Current_3857/.test(actDepth.tiles[0]), JSON.stringify(actDepth));
+
+  // Where the high-detail photos stop: shaded cells and a line under the map.
+  const cover = async (mode) => { state.mode = mode; return pg.evaluate(async () => {
+    let fc = null;
+    window._aerialMap = { getCenter: () => ({ lat: -27.47, lng: 153.03 }), getZoom: () => 18,
+      getBounds: () => ({ getWest: () => 153.02, getEast: () => 153.04, getSouth: () => -27.48, getNorth: () => -27.46 }),
+      getSource: (id) => id === 'rm-cover' && fc ? { setData(d){ fc = d; } } : null, addSource(id, o){ if (id === 'rm-cover') fc = o.data; },
+      addLayer(){}, getLayer: () => true, moveLayer(){} };
+    window._stateSrcKey = 'NSW'; document.getElementById('imagerySource').value = 'state';
+    _stateCoverCheck();
+    for (let i = 0; i < 60 && !window._coverCells; i++) await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 100));
+    const n = document.getElementById('aerialCoverNote');
+    const out = { cells: window._coverCells, shaded: fc ? fc.features.length : -1, note: n.style.display !== 'none' ? n.textContent : '' };
+    window._coverCells = null; return out; }); };
+  const cBad = await cover('no19');
+  check('outside the NSW photos the whole view is shaded, edged, and the strip says "You\u2019re outside the NSW Government aerial\u2019s high-detail photos"',
+    cBad.shaded === 24 && /outside the NSW Government aerial/.test(cBad.note), JSON.stringify(cBad));
+  await pg.evaluate(() => { for (const k in _COVER_TILE) delete _COVER_TILE[k]; });
+  const cOk = await cover('ok');
+  check('…and where the photos are there, nothing is shaded and nothing is said', cOk.shaded === 0 && !cOk.note, JSON.stringify(cOk));
+  await pg.evaluate(() => { window._aerialMap = null; });
+
+  // The Nearmap upgrade button: off until the owner's go.
+  const nm = await pg.evaluate(() => {
+    _nearmapUpsellSync(); const off = getComputedStyle(document.getElementById('nearmapUpsellBtn')).display;
+    window.__NEARMAP_UPSELL = true; _nearmapUpsellSync(); const on = getComputedStyle(document.getElementById('nearmapUpsellBtn')).display;
+    document.getElementById('nearmapUpsellBtn').click();
+    const card = document.getElementById('nearmapUpsellCard'), link = document.getElementById('nearmapUpsellLink');
+    const r = { off, on, card: card.style.display, href: link.href, target: link.target, words: card.textContent };
+    window.__NEARMAP_UPSELL = false; _nearmapUpsellSync(); window._stateSrcKey = null; return r; });
+  check('the Nearmap upgrade button is hidden until it is switched on', nm.off === 'none', JSON.stringify(nm.off));
+  check('…switched on it shows, opens a card saying it is a separate subscription, and links to Nearmap in a new tab',
+    nm.on !== 'none' && nm.card === 'block' && /nearmap\.com/.test(nm.href) && nm.target === '_blank' && /separate subscription/.test(nm.words), JSON.stringify({ on: nm.on, card: nm.card, href: nm.href }));
+  await pg.evaluate(() => { try { _closeAerialModal(); } catch(e){} });
+
   state.nswTiles.length = 0; state.mode = 'ok';
   const got = await capture(pg, 'state');
   const capT = state.nswTiles.filter(u => +((/tile\/(\d+)\//.exec(u) || [])[1]) >= 17);
@@ -241,7 +333,8 @@ async function capture(pg, src){
   const v = await pg.evaluate(() => ({ brief: _companyBrief().state, note: document.getElementById('brStateNote').textContent }));
   check('the owner picking another state saves it', state.puts.length === 1 && state.puts[0].country === 'AU' && state.puts[0].state === 'VIC' && v.brief === 'VIC', JSON.stringify({ puts: state.puts, v }));
   check('…and the note says Victoria has no free government photos, so Mapbox', /Mapbox/.test(v.note) && /Victoria/.test(v.note), v.note);
-  const f2 = await finder(pg);
+  await pg.evaluate(() => { document.getElementById('imagerySource').value = 'state'; });   // as a runner with Mapbox leaves it
+  const f2 = await finder(pg, [-37.81, 144.96]);
   check('…and the map finder no longer offers the NSW photos', f2.sel === 'mapbox' && !f2.stateShown, JSON.stringify(f2));
   check('no page errors for a NSW business', errs.length === 0, errs.join(' | '));
   await ctx.close();
@@ -261,8 +354,10 @@ async function capture(pg, src){
   const { ctx, pg, errs } = await signedIn({ id: 'co-au', name: 'Old Aussie', role: 'owner', country: 'AU' });
   const n = await pg.evaluate(() => { _countrySyncUI(); return document.getElementById('brStateNote').textContent; });
   check('an Australian business that has not said its state is asked for it in Settings', /Pick your state/.test(n), n);
-  const f = await finder(pg);
-  check('…and stays on Mapbox until it does', f.sel === 'mapbox' && !f.stateShown, JSON.stringify(f));
+  const f = await finder(pg, [-37.81, 144.96]);
+  check('…and stays on Mapbox until it does (a map over Melbourne offers no state photos)', f.sel === 'mapbox' && !f.stateShown, JSON.stringify(f));
+  const fSyd = await finder(pg, [-33.87, 151.21]);
+  check('…and over Sydney it offers the NSW photos without switching to them unasked', fSyd.sel === 'mapbox' && fSyd.stateShown && /NSW Government aerial/.test(fSyd.stateText), JSON.stringify(fSyd));
   check('no page errors for an Australian business with no state', errs.length === 0, errs.join(' | '));
   await ctx.close();
 }
