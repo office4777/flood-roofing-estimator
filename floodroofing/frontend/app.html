@@ -1388,6 +1388,7 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 #tab-scope .card-hd .tile-mini-btn{ margin-left:4px; }
 #tab-scope .px-note{ display:none !important; font-size:11.5px;line-height:1.45;color:#475569;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin:0 0 10px; }
 #tab-scope .card.px-info-on .px-note{ display:block !important; }
+#tab-scope .card.px-info-on .px-note[style*="display:flex"]{ display:flex !important; }
 #tab-scope .card.px-info-on span.px-note{ display:inline !important; background:none; border:none; padding:0; margin:0; }
 #tab-scope .card.px-info-on span.px-note[style*="display:block"]{ display:block !important; }
 #tab-scope .px-sum{ display:none !important; }
@@ -5428,7 +5429,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-09T23:57:21Z';
+  window.APP_BUILT_AT = '2026-11-10T01:07:13Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -18406,7 +18407,7 @@ function renderMaterialPriceTable(){
         ['Ridge / hip', _fj.ridge + _fj.hip], ['Barge', _fj.barge], ['Apron', _fj.apron],
         ['Valley', _fj.valley], ['Change of pitch', _fj.changepitch], ['Boxed penetrations', _fj.box]
       ].filter(function(b){ return b[1] > 0.05; });
-      _flashStrip = '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px;'+
+      _flashStrip = '<div class="px-note" style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px;'+
         'padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:12px">'+
         '<span style="font-weight:800;color:#0a1628">'+_fj.total.toFixed(1)+' lm of flashings on this job</span>'+
         '<span style="color:var(--text2)">across '+_fj.roofs+' roof'+(_fj.roofs === 1 ? '' : 's')+', gutters excluded</span>'+
