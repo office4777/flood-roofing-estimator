@@ -5570,7 +5570,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T20:28:16Z';
+  window.APP_BUILT_AT = '2026-11-10T20:35:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -90001,6 +90001,9 @@ function _stateOptSync(){
   if (!sp){ try { var m = window._aerialMap, c = m && m.getCenter && m.getCenter(); sp = c ? _auStateSrc(_auRegionAt(c.lat, c.lng)) : null; } catch(e){} }
   so.hidden = !sp; so.disabled = !sp;
   if (sp) so.textContent = sp.name + ' (sharpest for ' + sp.region + ')';
+  // A hidden option must never be the one in use: back to the plain map.
+  var sel = document.getElementById('imagerySource');
+  if (!sp && sel && sel.value === 'state'){ sel.value = 'mapbox'; try { if (window._aerialMap) switchImagerySource('mapbox', true); } catch(e){} }
 }
 // "YOU ARE NOW IN …" (2026-11-11). After every move the map's centre is placed
 // in a state; where that state's best map is not the one on, a card over the

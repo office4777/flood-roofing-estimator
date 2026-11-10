@@ -333,6 +333,7 @@ async function capture(pg, src){
   const v = await pg.evaluate(() => ({ brief: _companyBrief().state, note: document.getElementById('brStateNote').textContent }));
   check('the owner picking another state saves it', state.puts.length === 1 && state.puts[0].country === 'AU' && state.puts[0].state === 'VIC' && v.brief === 'VIC', JSON.stringify({ puts: state.puts, v }));
   check('…and the note says Victoria has no free government photos, so Mapbox', /Mapbox/.test(v.note) && /Victoria/.test(v.note), v.note);
+  await pg.evaluate(() => { document.getElementById('imagerySource').value = 'state'; });   // as a runner with Mapbox leaves it
   const f2 = await finder(pg, [-37.81, 144.96]);
   check('…and the map finder no longer offers the NSW photos', f2.sel === 'mapbox' && !f2.stateShown, JSON.stringify(f2));
   check('no page errors for a NSW business', errs.length === 0, errs.join(' | '));
