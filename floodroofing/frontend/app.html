@@ -208,48 +208,7 @@ body[data-tab="feedback"] .content{
   margin-left:0;
   margin-right:0;
 }
-/* Settings use the whole content width (2026-11-10, the owner: "nearly every
-   single sub setting is only using a very small amount of the screen space"). */
-body[data-tab="settings"] .card{ max-width:none; }
-body[data-tab="settings"] .content{ max-width:1480px; }
-#tab-settings .settings-sub .f2{ grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
-#tab-settings .settings-sub input[type=text], #tab-settings .settings-sub input[type=number], #tab-settings .settings-sub select:not(.flib-def-sel):not(.flib-add-sel){ min-height:36px; font-size:13px; }
-.lp-calc{ width:100%; border-collapse:collapse; font-size:13px; }
-.lp-calc th{ text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:6px 8px; border-bottom:1px solid var(--border); }
-.lp-calc td{ padding:8px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text2); }
-.lp-calc td:first-child{ color:var(--text); width:26%; }
-.lp-calc td:last-child{ white-space:nowrap; width:200px; }
-.lp-calc td:last-child input{ width:96px; display:inline-block; text-align:right; }
-.lp-calc td:last-child span{ font-size:11.5px; color:var(--text2); margin-left:4px; }
-/* the profit tiles' click-to-type figures */
-#profitWrap .pf-edit{ cursor:text; border-bottom:1px dashed rgba(10,22,40,.35); }
-#profitWrap .pf-edit-inp{ width:72px; font:inherit; font-size:15px; font-weight:700; padding:1px 4px; border:1px solid #0099e0; border-radius:5px; }
-/* the scaffold's Pricing strategy: one full-width control, the height of the mode buttons */
-.sc-strat{ display:flex; align-items:stretch; width:100%; height:40px; border:1.5px solid var(--border,#d6dbe2); border-radius:9px; background:#fff; color:#0a1628; cursor:pointer; overflow:hidden; position:relative; }
-.sc-strat:hover{ border-color:#0099e0; }
-.sc-strat-k{ display:flex; align-items:center; font-size:12px; font-weight:700; padding:0 14px; background:#f1f5f9; border-right:1.5px solid var(--border,#d6dbe2); white-space:nowrap; flex:0 0 auto; }
-.sc-strat select{ appearance:none; -webkit-appearance:none; border:none; background:transparent; font:inherit; font-size:12.5px; font-weight:700; color:#0a1628; padding:0 36px 0 14px; cursor:pointer; flex:1 1 auto; min-width:0; height:100%; }
-.sc-strat select:focus{ outline:none; }
-.sc-strat-ch{ position:absolute; right:12px; top:50%; transform:translateY(-50%); font-size:12px; color:#64748b; pointer-events:none; }
-/* the per-metre scaffold: perimeter, price and cost on one row */
-.sc-lm-row{ display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; }
-.sc-lm-row > div{ flex:0 1 150px; min-width:120px; }
-.sc-lm-row label{ display:block; font-size:11px; color:var(--text2); margin-bottom:4px; white-space:nowrap; }
-.sc-lm-row input{ width:100%; font-size:12.5px; padding:6px 8px; }
-/* the Pricing tab's auto-calculation panel, in line */
-.lc-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
-.lc-table th{ font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text2); padding:2px 6px; text-align:right; }
-.lc-table th.lc-lab{ text-align:left; }
-.lc-table td{ padding:3px 6px; font-size:11.5px; color:#0a1628; text-align:right; white-space:nowrap; }
-.lc-table td.lc-lab{ text-align:left; }
-.lc-table .lc-q{ width:150px; } .lc-table .lc-r{ width:130px; color:var(--text2); } .lc-table .lc-h{ width:84px; font-weight:600; }
-.lc-table .lc-qty{ width:74px; font-size:11.5px; padding:4px 6px; text-align:right; margin:0; display:inline-block; }
-.lc-table .lc-u{ display:inline-block; width:44px; text-align:left; font-size:10px; color:var(--text2); margin-left:5px; }
-.lc-choices{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 8px; font-size:11.5px; font-weight:600; color:#0a1628; }
-.lc-choices label{ display:inline-flex; align-items:center; gap:6px; }
-.lc-choices select{ font-size:11.5px; padding:3px 6px; width:auto; }
-.lc-choices input[type=checkbox]{ width:14px; height:14px; margin:0; }
-.lc-choices .lc-edit{ margin-left:auto; font-size:11.5px; padding:4px 10px; }
+body[data-tab="settings"] .card{ max-width:1080px; }
 body[data-tab="feedback"] .card{ max-width:760px; }
 
 /* ── SITE MODE CHROME ───────────────────────────────────────────
@@ -1346,8 +1305,7 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
    emoji went 2026-09-21 — the owner called them childish. */
 #tab-scope .card{
   padding:0 14px 14px;
-  margin-bottom:16px;
-  background:#fff;
+  margin-bottom:12px;
   border:1px solid var(--border);
   border-radius:10px;
   box-shadow:0 1px 2px rgba(10,22,40,.04);
@@ -1379,23 +1337,6 @@ html.site-mode body[data-tab="roof"] #frHelpLauncher{display:none!important}
 #tab-scope .card.px-collapsed .card-hd .px-chev{ transform:rotate(-90deg); }
 #tab-scope .card.px-collapsed > :not(.card-hd){ display:none !important; }
 @media (max-width:640px){ #tab-scope .card-hd .tile-sub-note{ display:none; } }
-/* THE DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals ... hide any
-   explanations ... Use less different coloring"). Every explanation is a .px-note,
-   shown only while the banner's "i" is lit; every in-card total is a .px-sum,
-   never shown on screen (the banner carries the figure) and back on paper. */
-#tab-scope .card-hd .px-info{ flex:0 0 auto;width:18px;height:18px;border:1px solid rgba(255,255,255,.45);border-radius:50%;background:transparent;color:#fff;font:italic 700 11px/1 Georgia,serif;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;margin-left:auto; }
-#tab-scope .card-hd .px-info:hover, #tab-scope .card.px-info-on .card-hd .px-info{ background:#fff;color:#0a1628;border-color:#fff; }
-#tab-scope .card-hd .px-info + .px-total{ margin-left:0; }
-#tab-scope .card-hd .tile-mini-btn{ margin-left:4px; }
-#tab-scope .px-note{ display:none !important; font-size:11.5px;line-height:1.45;color:#475569;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:7px 10px;margin:0 0 10px; }
-#tab-scope .card.px-info-on .px-note{ display:block !important; }
-#tab-scope .card.px-info-on .px-note[style*="display:flex"]{ display:flex !important; }
-#tab-scope .card.px-info-on span.px-note{ display:inline !important; background:none; border:none; padding:0; margin:0; }
-#tab-scope .card.px-info-on span.px-note[style*="display:block"]{ display:block !important; }
-#tab-scope .px-sum{ display:none !important; }
-html.print-scope #tab-scope .px-sum{ display:flex !important; }
-html.print-scope #tab-scope .px-note{ display:block !important; }
-html.print-scope #tab-scope .card-hd .px-info{ display:none !important; }
 
 /* ── SETTINGS SECTIONS ARE TILES (2026-10-08) ──────────────────────
    The owner, on the pricing settings pages: "These pages are hard to
@@ -1543,14 +1484,14 @@ html.print-scope #tab-scope .card-hd .px-info{ display:none !important; }
    the colour lives in the header, not clashing with everything inside. */
 /* The material sub-block's roof switch is redundant with the labour tabs
    directly above it in the same tile — hide it. */
-#tab-scope #roofMaterialCard #materialPriceRoofPicker{ display:none !important; }
+#tab-scope #roofPriceTile #materialPriceRoofPicker{ display:none !important; }
 /* GUTTERS ONLY (2026-10-28): the canvas draws gutter lines and nothing else,
    and the Pricing drawer is the scaffold and the gutter card. */
 .gj-only{ display:none !important; }
 body.gutter-job .gj-only{ display:inline-flex !important; }
 body.gutter-job #btn-outline, body.gutter-job #rlDropWrap, body.gutter-job #btn-squarecorner,
 body.gutter-job #btn-calibrate, body.gutter-job #roofTypePanel,
-body.gutter-job #tab-scope #roofPriceTile, body.gutter-job #tab-scope #roofMaterialCard{ display:none !important; }
+body.gutter-job #tab-scope #roofPriceTile{ display:none !important; }
 /* Action bar isn't a titled tile — keep it plain. */
 #tab-scope .card.mat-actions{ padding:12px 14px;border:1px solid var(--border);background:var(--surface);box-shadow:none; }
 #tab-scope .card.mat-actions .mat-btn{ font-size:12px;padding:7px 12px; }
@@ -2386,7 +2327,7 @@ html.site-mode body[data-tab="roof"] .global-top-bar{ display:none; }
      70px put the drawer's own header over the taller Email quote button. */
   position:fixed; top:calc(var(--gtb-h, 0px) + var(--qbar-top, 0px) + var(--qbar-h, 60px) + 14px); right:0; bottom:16px;
   width:var(--sidepop-w,40vw); min-width:200px; max-width:96vw; z-index:70;
-  background:#e9edf2; border:1px solid var(--border); border-right:none;
+  background:#fff; border:1px solid var(--border); border-right:none;
   border-radius:12px 0 0 12px; box-shadow:-8px 10px 34px rgba(0,0,0,.18);
   transform:translateX(100%); transition:transform .28s ease;
   display:none; flex-direction:column;
@@ -4549,27 +4490,6 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .qb-rec.qb-rec-c-red, .qb-opt.on .qb-rec.qb-rec-c-red{ background:#fdecec; color:#b42318; }
 .qb-rec-add{ margin:0 0 5px; opacity:.75; }
 .qb-sw{ position:relative; }
-/* Colour Options (Settings and the quote's Edit colours window) */
-.co-h{ font-size:13px; font-weight:800; color:#0a1628; text-transform:uppercase; letter-spacing:.04em; margin:14px 0 8px; }
-.co-tools{ display:flex; align-items:center; gap:8px; margin:0 0 8px; flex-wrap:wrap; }
-.co-count{ font-size:12px; color:#5b6b7d; margin-right:auto; }
-.co-all{ font-size:12px; padding:4px 10px; }
-.co-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:8px; }
-.co-grid.co-big{ grid-template-columns:repeat(auto-fill,minmax(128px,1fr)); gap:10px; }
-.co-sw{ position:relative; border:1.5px solid #e2e8f0; border-radius:10px; padding:6px 6px 7px; background:#fff; cursor:pointer; font-family:inherit; text-align:left; }
-.co-sw.on{ border-color:#0099e0; box-shadow:0 0 0 1px #0099e0 inset; }
-.co-sw.off .co-chip{ opacity:.35; }
-.co-sw.off i{ color:#94a3b8; text-decoration:line-through; }
-.co-sw:disabled{ cursor:default; }
-.co-chip{ display:block; height:40px; border-radius:7px; border:1px solid rgba(10,22,40,.12); }
-.co-big .co-chip{ height:56px; }
-.co-tick{ position:absolute; top:9px; right:9px; width:18px; height:18px; border-radius:50%; background:#fff; border:1.5px solid #cbd5e1; display:flex; align-items:center; justify-content:center; color:#fff; }
-.co-sw.on .co-tick{ background:#0099e0; border-color:#0099e0; }
-.co-sw i{ display:block; font-style:normal; font-size:11px; line-height:1.25; margin-top:5px; color:#33475f; }
-.co-modal{ max-width:960px; }
-.co-body{ padding:14px 18px; overflow:auto; }
-.co-edit-btn{ margin:0 0 8px; }
-.co-sec .co-grid{ margin-bottom:4px; }
 .qb-sw .qb-sw-note{ position:absolute; top:3px; right:3px; width:9px; height:9px; border-radius:50%; border:1.5px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.15); }
 .qb-sw-note.qb-onote-green{ background:#2f9e5b; } .qb-sw-note.qb-onote-yellow{ background:#d99a14; } .qb-sw-note.qb-onote-red{ background:#d93a2b; }
 .qb-colnote{ margin:6px 0 10px; }
@@ -5233,16 +5153,16 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <!-- Google Maps API - Replace YOUR_MAPS_API_KEY with your actual key -->
   <script>
     // ── THE COUNTRY: NEW ZEALAND OR AUSTRALIA (2026-11-04, the owner: "I'll
-    // only advertise roofmap.com in Australia and roofmap.co.nz in nz, and make
+    // only advertise roofmap.net in Australia and roofmap.co.nz in nz, and make
     // the user enter their country ... all the terminology and products need
     // tweaking to suit Australian roofers"). A signed-in business's country is
     // the company's own (`fr_company.country`, set at sign-up, changed in
     // Settings → Branding); a business saved before that has none and is NZ.
     // The customer's quote page reads the country stamped on the quote. With
-    // neither, the site they are on decides: roofmap.com is Australia.
+    // neither, the site they are on decides: roofmap.net is Australia.
     function _hostCountry(){
       var h = String((location && location.hostname) || '').toLowerCase();
-      return /(^|\.)roofmap\.com$/.test(h) ? 'AU' : 'NZ';
+      return /(^|\.)roofmap\.net$/.test(h) ? 'AU' : 'NZ';
     }
     function _country(){
       try {
@@ -5430,7 +5350,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T01:10:25Z';
+  window.APP_BUILT_AT = '2026-11-10T02:00:37Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -5722,7 +5642,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   };
   // THE COUNTRY ON SIGN-UP (2026-11-04): New Zealand or Australia, the same
   // question signup.html asks. Pre-picked from the site they came in on
-  // (roofmap.com = Australia), else New Zealand; one is always ticked.
+  // (roofmap.net = Australia), else New Zealand; one is always ticked.
   window._suCountryHints=function(){
     var au=((document.querySelector('input[name=su-country]:checked')||{}).value==='AU');
     var em=document.getElementById('su-email'), ph=document.getElementById('su-phone');
@@ -7237,32 +7157,27 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   <!-- 1. SCAFFOLDING — its own tile, first. Rendered per-roof by calcLabour
        into #scaffoldWrap (split out of the labour table). -->
   <div class="card" id="scaffoldCard">
-    <div class="card-hd" onclick="_pxToggle('scaffoldCard', event)" title="Click to fold or unfold this section"><span class="px-title">Scaffolding</span><button type="button" class="px-info" onclick="_pxInfo('scaffoldCard',event)" title="Show or hide the notes for this section">i</button><span class="px-total" id="pxTot_scaffoldCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
-    <div class="px-note">Included in every quote &middot; one price for the main roof and everything part of it.</div>
+    <div class="card-hd" onclick="_pxToggle('scaffoldCard', event)" title="Click to fold or unfold this section"><span class="px-title">Scaffolding</span><span class="tile-sub-note">Included in every quote &middot; one price for the main roof and everything part of it</span><span class="px-total" id="pxTot_scaffoldCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="scaffoldWrap"></div>
   </div>
 
   <!-- 2. ROOF — labour + material for the roof itself, grouped in one tile.
        #labourTableWrap (calcLabour) + #materialPriceTableWrap (renderMaterialPriceTable). -->
-  <!-- ROOF LABOUR and ROOF MATERIAL are two cards since 2026-11-10 (the owner:
-       "separate them into separate sections so roof labor should be its own
-       section with its own dark blue banner ... and then roof material should be
-       its own one"). #roofPriceTile keeps its id (the tour and the suites point at
-       it) and is the labour card; #roofMaterialCard is the material. -->
   <div class="card" id="roofPriceTile">
-    <div class="card-hd" onclick="_pxToggle('roofPriceTile', event)" title="Click to fold or unfold this section"><span class="px-title">Roof labour</span><button type="button" class="px-info" onclick="_pxInfo('roofPriceTile',event)" title="Show or hide the notes for this section">i</button><span class="px-total" id="pxTot_roofPriceTile"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
-    <div class="px-note">The crew&rsquo;s hours for the roof itself, by the hour or by the square metre. The hours are worked out from the roof and can be typed over.</div>
-    <div id="labourTableWrap"></div>
-  </div>
-  <div class="card" id="roofMaterialCard">
-    <div class="card-hd" onclick="_pxToggle('roofMaterialCard', event)" title="Click to fold or unfold this section"><span class="px-title">Roof material</span>
-      <button onclick="openPriceSettings()" class="tile-mini-btn">Prices</button>
-      <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">Refresh</button>
-      <button type="button" class="px-info" onclick="_pxInfo('roofMaterialCard',event)" title="Show or hide the notes for this section">i</button><span class="px-total" id="pxTot_roofMaterialCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
-    <div class="px-note">Every material the roof takes, counted off the map and priced from your Default Items. Type over a quantity or a price for this job; a typed price offers to become your default.</div>
-    <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
-    <div id="materialPriceTableWrap">
-      <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Quote's Product Options — this table will auto-populate.</p>
+    <div class="card-hd" onclick="_pxToggle('roofPriceTile', event)" title="Click to fold or unfold this section"><span class="px-title">Roof</span><span class="tile-sub-note">Labour &amp; material for the roof itself</span><span class="px-total" id="pxTot_roofPriceTile"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
+    <div class="tile-block">
+      <div class="tile-block-hd">Roof labour</div>
+      <div id="labourTableWrap"></div>
+    </div>
+    <div class="tile-block">
+      <div class="tile-block-hd">Roof material
+        <button onclick="openPriceSettings()" class="tile-mini-btn">Prices</button>
+        <button onclick="renderMaterialPriceTable();try{resyncQuoteLines();}catch(e){}" class="tile-mini-btn tile-mini-btn-dark">Refresh</button>
+      </div>
+      <div id="materialPriceRoofPicker" style="display:none;margin-bottom:10px"></div>
+      <div id="materialPriceTableWrap">
+        <p style="font-size:12px;color:var(--text2)">Draw your roof on the Map Roof tab and set unit prices in Settings → Quote's Product Options — this table will auto-populate.</p>
+      </div>
     </div>
   </div>
 
@@ -7271,8 +7186,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
        or not the customer has taken guttering up, unless the office ticks
        "Exclude gutter pricing" on this card or on the Selections page. -->
   <div class="card" id="gutterDownpipeCard">
-    <div class="card-hd" onclick="_pxToggle('gutterDownpipeCard', event)" title="Click to fold or unfold this section"><span class="px-title">Guttering &amp; downpipes</span><button type="button" class="px-info" onclick="_pxInfo('gutterDownpipeCard',event)" title="Show or hide the notes for this section">i</button><span class="px-total" id="pxTot_gutterDownpipeCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
-    <div class="px-note">Priced on every job so the customer can add guttering on their quote; edit a total if this one is complex.</div>
+    <div class="card-hd" onclick="_pxToggle('gutterDownpipeCard', event)" title="Click to fold or unfold this section"><span class="px-title">Guttering &amp; downpipes</span><span class="tile-sub-note">Priced on every job &mdash; edit a total if this one is complex</span><span class="px-total" id="pxTot_gutterDownpipeCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="gutterDownpipeWrap"></div>
   </div>
 
@@ -7282,8 +7196,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
        here). Populated by renderPerRoofBreakdown(). -->
   <!-- JOB PROFITABILITY — revenue vs cost, gross profit % and $/hr. -->
   <div class="card" id="profitCard">
-    <div class="card-hd" onclick="_pxToggle('profitCard', event)" title="Click to fold or unfold this section"><span class="px-title">Job profitability</span><button type="button" class="px-info" onclick="_pxInfo('profitCard',event)" title="Show or hide the notes for this section">i</button><span class="px-total" id="pxTot_profitCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
-    <div class="px-note">Revenue (what the customer is charged) against cost, before GST.</div>
+    <div class="card-hd" onclick="_pxToggle('profitCard', event)" title="Click to fold or unfold this section"><span class="px-title">Job profitability</span><span class="tile-sub-note">Revenue (charge-out) against cost</span><span class="px-total" id="pxTot_profitCard"></span><span class="px-chev" aria-hidden="true">&#8964;</span></div>
     <div id="profitWrap"></div>
   </div>
 
@@ -9297,7 +9210,6 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <button class="tab-sm" id="jmsSubTabBtn" onclick="switchSettingsSub('set-jms',this)">Job Management Software</button>
         <div class="set-grp">Pricing</div>
         <button class="tab-sm" onclick="switchSettingsSub('set-products',this);renderSelectablesUI();_pbGradeTabsRender()">Quote's Product Options</button>
-        <button class="tab-sm" onclick="switchSettingsSub('set-colours',this)">Colour Options</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-defaultpricing',this)">Default Items</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-ordering',this)">Material Calculations</button>
         <button class="tab-sm" onclick="switchSettingsSub('set-custompb',this)">Custom Price Book</button>
@@ -10166,25 +10078,16 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <div class="f2">
           <div><label>Roof labour — default ($/m²)</label><input type="number" id="lpLabourM2" min="0" step="0.5" placeholder="e.g. 45"></div>
           <div><label>Gutter labour — default ($/lm)</label><input type="number" id="lpGutterLm" min="0" step="0.5" placeholder="e.g. 18"></div>
-          <div><label>Outsourced scaffolding — default ($/lm of perimeter)</label><input type="number" id="lpScaffoldLm" min="0" step="0.5" placeholder="e.g. 60"></div>
         </div>
       </div>
 
-      <!-- LABOUR AUTO-CALCULATIONS (2026-11-10) — the rates behind the Pricing
-           tab's "Show labour auto-calculations". The old "Default hours per
-           scope item" list (the retired scope checklist's hours) came off this
-           page; its stored figures are kept untouched. -->
-      <div class="set-sec" id="lpCalcSec">
+      <div class="set-sec">
         <div class="set-sec-hd">
-          <strong>Labour auto-calculations</strong>
-          <span class="set-sec-note">&mdash; how fast a two-person crew gets through each part of a re-roof</span>
-          <button type="button" onclick="_lpCalcReset()" class="tool-btn" style="margin-left:auto">&#8635; RoofMap&rsquo;s defaults</button>
+          <strong>Default hours per scope item</strong>
+          <span class="set-sec-note">— pre-multiplier; the Scope &amp; Pricing labour table multiplies by complexity</span>
+          <button type="button" onclick="addLabourItem()" class="tool-btn" style="margin-left:auto">+ Add item</button>
         </div>
-        <div class="set-sec-sub">Each figure is how much the crew does in one hour. The quantities come off the roof you draw; hours = quantity &divide; rate, added up and rounded up, then applied to the Lead Roofer and the Apprentice. Change a rate here and every new calculation uses it.</div>
-        <div id="lpCalcList"></div>
-        <div class="f2" style="margin-top:12px">
-          <div><label>Stripping tiles takes this many times longer than steel</label><input type="number" id="lpStripTileFactor" min="1" step="0.1" placeholder="1.5"></div>
-        </div>
+        <div id="lpItemsList"></div>
       </div>
     </div>
 
@@ -10193,12 +10096,6 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <p style="font-size:12px;color:var(--text2);margin-bottom:12px">How MUCH of each thing a job buys. <strong>Default Items</strong> is what each one costs and <strong>Custom Price Book</strong> is your supplier&rsquo;s own list &mdash; nothing on this page is a price. Every figure starts at what RoofMap has always worked on, so no quote changes until you type in one. Click <strong>Save settings</strong> at the top of this card when you are done.</p>
       <div id="ordPane-waste"></div>
       <div id="ordPane-cons"></div>
-    </div>
-
-    <!-- COLOUR OPTIONS (2026-11-09) -->
-    <div class="sub-panel settings-sub" id="set-colours" style="margin-top:14px">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">The colours your quotes offer, for each steel grade and each gutter type. Every colour on the maker&rsquo;s chart is ticked to start with; <strong>untick</strong> one and it is no longer shown in the quote&rsquo;s colour sections. The charts themselves are built in and never change. Ticks save by themselves.</p>
-      <div id="coSettingsRoot"></div>
     </div>
 
     <!-- SUPPLIERS & MATERIALS -->
@@ -10507,9 +10404,9 @@ function _auTermsPass(root){
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
-// Australia's links are on roofmap.com (2026-11-04).
+// Australia's links are on roofmap.net (2026-11-04).
 try { Object.defineProperty(window, 'CUSTOMER_QUOTE_BASE', { configurable:true,
-  get:function(){ return _isAU() ? 'https://roofmap.com' : 'https://roofmap.co.nz'; } }); } catch(e){}
+  get:function(){ return _isAU() ? 'https://roofmap.net' : 'https://roofmap.co.nz'; } }); } catch(e){}
 var S={img64:null,roofData:null,labour:0,materials:0,condition:null,photos:[],files:[],linkedJobId:null,linkedJobNo:null,linkedJobName:null,fergConnected:false,fergKey:'',proxyOk:true,
   quote:null /* {ref,date,validUntil,client,addr,email,scope,notes,terms,gstRate,lineItems:[{desc,qty,unit}]} — lazy-init in buildQuote */};
 var COLORS=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#ea580c','#65a30d'];
@@ -14075,7 +13972,6 @@ function switchSettingsSub(id,btn){
   }
   if (id === 'set-custompb') { try { _cpbRender(); } catch(e) { console.warn('custom price book render:', e); } }
   if (id === 'set-ordering') { try { renderOrderingUI(); } catch(e) { console.warn('material calculations render:', e); } }
-  if (id === 'set-colours') { try { _colourOptionsRender(); } catch(e) { console.warn('colour options render:', e); } }
 }
 // Settings -> Material Calculations. ONE page, one store (price_book.ordering).
 // Wastage and Consumables were two sub-tabs until 2026-10-20 (the owner:
@@ -14723,7 +14619,7 @@ function defaultSettings(){
       // roofers price labour at a rate per square metre of roof and per
       // lineal metre of gutter rather than by the hour. 0 = never set, and
       // the switch in the Pricing tab says so rather than charging nothing.
-      labour_m2: 0, gutter_lm: 0, scaffold_lm: 0, calc_rates: {},
+      labour_m2: 0, gutter_lm: 0,
       default_workers: 2,
       default_rate: 55,
       default_complexity: 1,
@@ -15144,20 +15040,7 @@ function collectLabourPricingFromUI(){
   lp.scaffold_platform_pct = numOr('lpScaffoldPlatformPct', 25);
   lp.labour_m2 = numOr('lpLabourM2', 0);
   lp.gutter_lm = numOr('lpGutterLm', 0);
-  lp.scaffold_lm = numOr('lpScaffoldLm', 0);
-  // The auto-calculation rates: a blank box is RoofMap's default.
-  if (document.getElementById('lpCalcList')){
-    var cr = {};
-    Array.from(document.querySelectorAll('#lpCalcList [data-lp-calc]')).forEach(function(inp){
-      var v = parseFloat(inp.value); if (isFinite(v) && v > 0) cr[inp.getAttribute('data-lp-calc')] = v;
-    });
-    lp.calc_rates = cr;
-    var tf = parseFloat((document.getElementById('lpStripTileFactor') || {}).value);
-    if (isFinite(tf) && tf > 0) lp.strip_tile_factor = tf; else delete lp.strip_tile_factor;
-  }
   var dict = {};
-  // The retired scope-hours list: only read while its box is on the page.
-  if (!document.getElementById('lpItemsList')) dict = (lp.per_item_hours && typeof lp.per_item_hours === 'object') ? lp.per_item_hours : {};
   Array.from(document.querySelectorAll('#lpItemsList > [data-lp-item]')).forEach(function(row){
     var name  = (row.querySelector('input[data-f="name"]')||{}).value || '';
     var hours = parseFloat((row.querySelector('input[data-f="hours"]')||{}).value) || 0;
@@ -15181,29 +15064,7 @@ function renderLabourPricingUI(){
   setN('lpScaffoldPlatformPct', lp.scaffold_platform_pct);
   setN('lpLabourM2', lp.labour_m2);
   setN('lpGutterLm', lp.gutter_lm);
-  setN('lpScaffoldLm', lp.scaffold_lm);
   renderLabourItemsList(lp.per_item_hours || {});
-  try { _lpCalcRender(lp); } catch(e){}
-}
-function _lpCalcRender(lp){
-  var box = document.getElementById('lpCalcList'); if (!box) return;
-  lp = lp || _lpDefaults();
-  var cr = (lp.calc_rates && typeof lp.calc_rates === 'object') ? lp.calc_rates : {};
-  box.innerHTML = '<table class="lp-calc"><thead><tr><th>Part of the job</th><th>What it covers</th><th>Crew does per hour</th></tr></thead><tbody>'+
-    LABOUR_CALC_DRIVERS.map(function(d){
-      var v = parseFloat(cr[d.key]);
-      return '<tr><td><b>'+esc(d.label)+'</b></td><td>'+esc(d.desc)+'</td>'+
-        '<td><input type="number" min="0" step="0.5" data-lp-calc="'+d.key+'" value="'+((isFinite(v) && v > 0) ? v : '')+'" placeholder="'+LABOUR_CALC_DEFAULT_RATES[d.key]+'"> <span>'+esc(d.unit)+'/hr</span></td></tr>';
-    }).join('')+'</tbody></table>';
-  var tf = document.getElementById('lpStripTileFactor');
-  if (tf) tf.value = (parseFloat(lp.strip_tile_factor) > 0) ? lp.strip_tile_factor : '';
-}
-function _lpCalcReset(){
-  if (!S.settings) return;
-  if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
-  S.settings.labour_pricing.calc_rates = {}; delete S.settings.labour_pricing.strip_tile_factor;
-  _lpCalcRender(S.settings.labour_pricing);
-  try { _scheduleSettingsAutosave(); } catch(e){}
 }
 function renderLabourItemsList(dict){
   var box = document.getElementById('lpItemsList'); if (!box) return;
@@ -17902,12 +17763,6 @@ function _gutterJobSync(){
 // Typhoon range. Marley Classic: white, and white only.
 function _gjPalette(id){
   if (id == null) id = (((window.S && S.quote && S.quote.proposalOptions) || {}).gutterType) || '';
-  var P = _gjPaletteAll(id);
-  if (P.kind === 'classic') return P;
-  return { kind:P.kind, list:_colourOffered('gutter', id) };
-}
-function _gjPaletteAll(id){
-  if (id == null) id = (((window.S && S.quote && S.quote.proposalOptions) || {}).gutterType) || '';
   var g = null; try { g = _selGutterOf(id); } catch(e){}
   var nm = String(id + ' ' + ((g && g.name) || '')).toLowerCase();
   if (/classic/.test(nm)) return { kind:'classic', list:[{ name:'White', hex:'#f4f4ef' }] };
@@ -18408,7 +18263,7 @@ function renderMaterialPriceTable(){
         ['Ridge / hip', _fj.ridge + _fj.hip], ['Barge', _fj.barge], ['Apron', _fj.apron],
         ['Valley', _fj.valley], ['Change of pitch', _fj.changepitch], ['Boxed penetrations', _fj.box]
       ].filter(function(b){ return b[1] > 0.05; });
-      _flashStrip = '<div class="px-note" style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px;'+
+      _flashStrip = '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px;'+
         'padding:9px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:12px">'+
         '<span style="font-weight:800;color:#0a1628">'+_fj.total.toFixed(1)+' lm of flashings on this job</span>'+
         '<span style="color:var(--text2)">across '+_fj.roofs+' roof'+(_fj.roofs === 1 ? '' : 's')+', gutters excluded</span>'+
@@ -18469,7 +18324,7 @@ function renderMaterialPriceTable(){
     html += '<tr'+(_zero ? ' class="pb-zero"' : '')+'>'+
       '<td>'+esc(r.label)+ custom +
         (_zero ? ' <span class="pb-zero-tag">🚩 No price</span>' : '')+
-        (r.note ? '<div class="px-note" style="font-size:10px;margin-top:2px;padding:0;border:none;background:none">'+esc(r.note)+'</div>' : '')+
+        (r.note ? '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+esc(r.note)+'</div>' : '')+
       '</td>'+
       '<td>'+
         '<select onchange="_onMatOverride(\''+_ovk+'\',\'variant\',this.value)" style="width:100%;font-size:12px;padding:4px 6px"'+(r.singleVariant?' disabled':'')+'>'+optsHtml+'</select>'+
@@ -18510,7 +18365,7 @@ function renderMaterialPriceTable(){
       '<td style="font-size:11px;color:var(--text2)">applies to roofing steel</td>'+
       '<td></td>'+
       '<td style="font-size:11px;color:var(--text2)">'+(_gradeAdj<0?'−':'+')+_pctTxt+'</td>'+
-      '<td style="text-align:right;font-weight:600;color:#0a1628">'+(_gradeAdj<0?'−$':'+$')+Math.abs(_gradeAdj).toFixed(2)+'</td>'+
+      '<td style="text-align:right;font-weight:600;color:'+(_gradeAdj<0?'#2e7d32':'#b45309')+'">'+(_gradeAdj<0?'−$':'+$')+Math.abs(_gradeAdj).toFixed(2)+'</td>'+
       '<td></td>'+
     '</tr>';
   }
@@ -18535,7 +18390,7 @@ function renderMaterialPriceTable(){
         '<div style="font-size:10px;color:var(--text2);margin-top:2px">'+sub+'</div></td>'+
       '<td colspan="2"><div style="display:flex;align-items:center;gap:4px"><input type="number" step="1" min="0" value="'+pct+'" onchange="'+setter+'(this.value)" style="width:64px;font-size:12px;padding:4px 6px;text-align:right"><span style="font-size:11px;color:var(--text2)">%</span></div></td>'+
       '<td style="font-size:11px;color:var(--text2)">+'+pct+'%</td>'+
-      '<td style="text-align:right;font-weight:600;color:'+(amt > 0 ? '#0a1628' : 'var(--text2)')+'">+$'+amt.toFixed(2)+'</td>'+
+      '<td style="text-align:right;font-weight:600;color:'+(amt > 0 ? '#b45309' : 'var(--text2)')+'">+$'+amt.toFixed(2)+'</td>'+
       '<td></td>'+
     '</tr>';
   };
@@ -18547,7 +18402,7 @@ function renderMaterialPriceTable(){
   var _matRoofNm = _isShed ? (_psPricingPlans() ? _psPlanLabel(_psPlanIdx()) : 'this shed')
                            : (_multiMat ? _pricingRoofName(_matRi) : '');
   html += '</tbody></table>'+
-    '<div class="px-sum" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+((_isShed || _multiMat) ? ('Materials — '+esc(_matRoofNm)) : 'Total materials → Quote')+(_isShed ? '' : _gradeSpan)+'</strong>'+
       '<span id="matTotalShown" data-base="'+_finalMat.toFixed(2)+'" style="font-size:18px;font-weight:700;color:#2e7d32">$'+_finalMatShown.toFixed(2)+'</span>'+
     '</div>';
@@ -18822,12 +18677,10 @@ async function _labourRateAskDefault(key, n, label, unit){
 // to type beside it — and a straight "set a rate" rather than a silent $0
 // when neither the job nor Settings has one.
 function _labourModeBtnHtml(onclick, label, sub, on){
-  // Navy when on, the banners' own colour (2026-11-10, "use less different
-  // coloring"); the explanation is the button's tooltip and a note behind "i".
-  return '<button type="button" onclick="'+onclick+'" title="'+esc(sub)+'" style="flex:1;min-width:0;padding:9px 10px;border-radius:9px;cursor:pointer;text-align:center;font-family:inherit;'+
-    'border:1.5px solid '+(on?'#0099e0':'var(--border,#d6dbe2)')+';background:'+(on?'#0099e0':'#fff')+';color:'+(on?'#fff':'#0a1628')+'">'+
-    '<div style="font-size:12.5px;font-weight:700;line-height:1.2">'+label+'</div>'+
-    '<div class="px-note" style="font-size:10.5px;font-weight:600;margin:2px 0 0;padding:0;border:none;background:none;color:inherit;opacity:'+(on?'.85':'.6')+'">'+sub+'</div>'+
+  return '<button type="button" onclick="'+onclick+'" style="flex:1;min-width:0;padding:11px 10px;border-radius:10px;cursor:pointer;text-align:center;font-family:inherit;'+
+    'border:2px solid '+(on?'#0099cc':'var(--border,#d6dbe2)')+';background:'+(on?'#0099cc':'#fff')+';color:'+(on?'#fff':'#0a1628')+'">'+
+    '<div style="font-size:13px;font-weight:800;line-height:1.2">'+label+'</div>'+
+    '<div style="font-size:10.5px;font-weight:600;margin-top:2px;opacity:'+(on?'.92':'.6')+'">'+sub+'</div>'+
   '</button>';
 }
 function _labourRateRowHtml(qty, unit, rate, setter, note){
@@ -18976,48 +18829,7 @@ function _updateRoofLabour(idx, field, val){
 // Scaffolding labour is intentionally excluded. Rates (m/hr) are editable for
 // calibration; quantities auto-fill from the drawing and can be overridden per
 // roof. Drives the Lead + Apprentice hours when enabled.
-// THE DRIVERS COVER THE WHOLE RE-ROOF (2026-11-10, the owner: "make it more
-// expansive to cover all the aspects of roofing, re-roofing ... strip existing
-// roofing, strip existing tiles, install new purlins, underlay, all that stuff
-// ... strip existing tile roofing should take about 1.5 times longer than
-// existing steel roofing ... put it all into a settings where a roofer can
-// adjust their own calculations"). Each rate is UNITS PER CREW-HOUR. The old
-// single "Roofing 14 m²/hr" is split three ways — strip 28, underlay 56, install
-// & clean-up 56 — whose hours add to exactly what 14 gave (1/28 + 1/56 + 1/56 =
-// 1/14), so no quote's hours moved on the day. Settings → Labour pricing →
-// Labour auto-calculations (`labour_pricing.calc_rates`, `strip_tile_factor`)
-// is the business's own set; a rate typed on a quote (`labourCalc.rates`) is
-// that job's.
-var LABOUR_CALC_DEFAULT_RATES = { strip: 28, underlay: 56, purlins: 30, roof: 56, sheets: 6, cuts: 18, flash: 8, pen: 6 };
-var LABOUR_CALC_TILE_FACTOR = 1.5;
-var LABOUR_CALC_DRIVERS = [
-  { key:'strip',    label:'Strip existing roof',          unit:'m\u00b2', desc:'Taking the old roof off. Tiles take longer \u2014 the factor below.' },
-  { key:'underlay', label:'Underlay',                     unit:'m\u00b2', desc:'Laying the paper and netting.' },
-  { key:'purlins',  label:'New purlins / battens',        unit:'m\u00b2', desc:'Only when the job ticks New purlins.' },
-  { key:'roof',     label:'Roof install & clean-up',      unit:'m\u00b2', desc:'Fixing off, screwing down, the site clean.' },
-  { key:'sheets',   label:'Sheets',                       unit:'sheets',  desc:'Handling and placing each sheet.' },
-  { key:'cuts',     label:'Cuts (ridges, hips, valleys)', unit:'lm',      desc:'Cutting sheets along a ridge, hip or valley.' },
-  { key:'flash',    label:'Flashings',                    unit:'lm',      desc:'Barges, aprons, ridging.' },
-  { key:'pen',      label:'Penetrations',                 unit:'each',    desc:'Pipes, flues and skylights.' }
-];
-function _labourCalcSettingsRates(){ var lp = _lpDefaults(); return (lp && lp.calc_rates && typeof lp.calc_rates === 'object') ? lp.calc_rates : {}; }
-function _labourCalcTileFactor(){ var f = parseFloat(_lpDefaults().strip_tile_factor); return (isFinite(f) && f > 0) ? f : LABOUR_CALC_TILE_FACTOR; }
-// What the job is stripping: steel (the default), tiles, or nothing (a new build).
-function _labourCalcExisting(){ var c = _labourCalcCfg(); return (c.existing === 'tile' || c.existing === 'none') ? c.existing : 'steel'; }
-function _labourCalcPurlins(){ return !!_labourCalcCfg().purlins; }
-function _setLabourCalcExisting(v){
-  var c = _labourCalcCfg(); if (v === 'tile' || v === 'none') c.existing = v; else delete c.existing;
-  try { calcLabour(); } catch(e){} try { refreshQuoteProposal(); } catch(e){} try { _scheduleAutosave(); } catch(e){}
-}
-function _setLabourCalcPurlins(on){
-  var c = _labourCalcCfg(); if (on) c.purlins = true; else delete c.purlins;
-  try { calcLabour(); } catch(e){} try { refreshQuoteProposal(); } catch(e){} try { _scheduleAutosave(); } catch(e){}
-}
-function _labourCalcSettingsGo(){
-  try { gotoTab('settings'); } catch(e){}
-  try { switchSettingsSub('set-labour'); } catch(e){}
-  try { setTimeout(function(){ var el = document.getElementById('lpCalcSec'); if (el) el.scrollIntoView({ behavior:'smooth', block:'start' }); }, 80); } catch(e){}
-}
+var LABOUR_CALC_DEFAULT_RATES = { roof: 14, sheets: 6, cuts: 18, flash: 8, pen: 6 };
 var LABOUR_CALC_SHEET_WIDTH_M = 0.762;   // effective sheet cover for the sheet-count estimate
 function _labourCalcCfg(){
   if (!S.quote) return { enabled: false, rates: {} };
@@ -19042,10 +18854,7 @@ function _toggleShowLabourCalc(on){
 }
 function _labourCalcRate(key){
   var v = parseFloat(_labourCalcCfg().rates[key]);
-  if (isFinite(v) && v > 0) return v;
-  var sv = parseFloat(_labourCalcSettingsRates()[key]);
-  if (isFinite(sv) && sv > 0) return sv;
-  return LABOUR_CALC_DEFAULT_RATES[key];
+  return (isFinite(v) && v > 0) ? v : LABOUR_CALC_DEFAULT_RATES[key];
 }
 // Measurement totals for ONE roof (roof-swap like _materialsCostForRoofIdx),
 // plus that roof's penetration count.
@@ -19102,11 +18911,7 @@ function _labourCalcAutoQty(idx){
 function _labourCalcQty(idx){
   var q = _labourCalcAutoQty(idx);
   var ov = (S.quote && S.quote.roofLabourCalc && S.quote.roofLabourCalc[idx]) || {};
-  // The strip, the underlay and the purlins run over the same m² as the roof.
-  q.strip = (_labourCalcExisting() === 'none') ? 0 : q.roof;
-  q.underlay = q.roof;
-  q.purlins = _labourCalcPurlins() ? q.roof : 0;
-  ['strip','underlay','purlins','roof','sheets','cuts','flash','pen'].forEach(function(k){
+  ['roof','sheets','cuts','flash','pen'].forEach(function(k){
     var v = parseFloat(ov[k]);
     if (isFinite(v) && v >= 0) q[k] = v;
   });
@@ -19115,16 +18920,13 @@ function _labourCalcQty(idx){
 // Per-driver hours + the 2-man / 3-man crew totals for one roof.
 function _labourCalcHours(idx){
   var q = _labourCalcQty(idx);
-  var ex = _labourCalcExisting();
-  var rows = LABOUR_CALC_DRIVERS.map(function(d){
-    var rate = _labourCalcRate(d.key), label = d.label;
-    if (d.key === 'strip'){
-      if (ex === 'tile'){ rate = rate / _labourCalcTileFactor(); label = 'Strip existing tiles'; }
-      else if (ex === 'none') label = 'Strip existing roof (none \u2014 new build)';
-      else label = 'Strip existing steel';
-    }
-    return { key:d.key, label:label, qty:q[d.key] || 0, unit:(d.unit === 'sheets' || d.unit === 'each') ? '' : d.unit, rate:rate, optional:(d.key === 'purlins' && !_labourCalcPurlins()) };
-  }).filter(function(r){ return !r.optional; });
+  var rows = [
+    { key:'roof',   label:'Roofing',                qty:q.roof,   unit:'m²', rate:_labourCalcRate('roof') },
+    { key:'sheets', label:'Sheets',                 qty:q.sheets, unit:'',   rate:_labourCalcRate('sheets') },
+    { key:'cuts',   label:'Cuts (valleys/ridging)', qty:q.cuts,   unit:'lm', rate:_labourCalcRate('cuts') },
+    { key:'flash',  label:'Flashings',              qty:q.flash,  unit:'lm', rate:_labourCalcRate('flash') },
+    { key:'pen',    label:'Penetrations',           qty:q.pen,    unit:'',   rate:_labourCalcRate('pen') }
+  ];
   var sum = 0;
   rows.forEach(function(r){ r.hours = (r.rate > 0) ? (r.qty / r.rate) : 0; sum += r.hours; });
   var h2 = Math.ceil(sum);
@@ -19206,7 +19008,7 @@ function _labourCalcPanelHtml(ri){
   var head = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:'+(show?'10px':'0')+'">'+
     '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;font-weight:700;color:#0a1628">'+
       '<input type="checkbox" '+(show?'checked':'')+' onchange="_toggleShowLabourCalc(this.checked)" style="width:auto;margin:0"> Show labour auto-calculations</label>'+
-    '<span class="px-note" style="font-size:10.5px;color:var(--text2);margin-left:auto;padding:0;border:none;background:none">'+
+    '<span style="font-size:10.5px;color:var(--text2);margin-left:auto">'+
       (manual ? 'calculated: '+calc.hours2+' hrs' : calc.hours2+' hrs auto-applied · roofing only')+'</span>'+
   '</div>'+
   // Typed-over hours are easy to forget about — say so, and make the way back
@@ -19220,32 +19022,21 @@ function _labourCalcPanelHtml(ri){
   if (!show) {
     return '<div style="margin-bottom:12px;padding:9px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+'</div>';
   }
-  // THE QUANTITIES IN LINE (2026-11-10, the owner: "tidy up the quantities,
-  // make them in line so it looks tidier"): fixed columns, one box width, the
-  // unit inside the column, the rate read-only here — rates are the
-  // business's and are edited in Settings ("Edit auto-calculations").
-  var ex = _labourCalcExisting();
-  var qtyInput  = function(r){ return '<input type="number" step="0.1" min="0" value="'+r.qty+'" onchange="_setLabourCalcQty('+ri+',\''+r.key+'\',this.value)" class="lc-qty" data-lc-qty="'+r.key+'">'; };
+  var rateInput = function(r){ return '<input type="number" step="0.5" min="0" value="'+r.rate+'" onchange="_setLabourCalcRate(\''+r.key+'\',this.value)" style="width:54px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
+  var qtyInput  = function(r){ return '<input type="number" step="0.1" min="0" value="'+r.qty+'" onchange="_setLabourCalcQty('+ri+',\''+r.key+'\',this.value)" style="width:66px;font-size:11px;padding:3px 5px;text-align:right;margin:0">'; };
   var rows = calc.rows.map(function(r){
     return '<tr>'+
-      '<td class="lc-lab">'+esc(r.label)+'</td>'+
-      '<td class="lc-q">'+qtyInput(r)+'<span class="lc-u">'+esc(r.unit)+'</span></td>'+
-      '<td class="lc-r">\u00f7 '+(Math.round(r.rate * 100) / 100)+' <span class="lc-u">'+(r.unit ? esc(r.unit) + '/hr' : '/hr')+'</span></td>'+
-      '<td class="lc-h">'+r.hours.toFixed(2)+' hr</td>'+
+      '<td style="padding:3px 6px;font-size:11.5px;color:#0a1628">'+esc(r.label)+'</td>'+
+      '<td style="padding:3px 6px;text-align:right">'+qtyInput(r)+' <span style="font-size:10px;color:var(--text2)">'+esc(r.unit)+'</span></td>'+
+      '<td style="padding:3px 3px;text-align:center;color:var(--text2);font-size:11px">÷</td>'+
+      '<td style="padding:3px 6px;text-align:right">'+rateInput(r)+' <span style="font-size:10px;color:var(--text2)">/hr</span></td>'+
+      '<td style="padding:3px 6px;text-align:right;font-weight:600;font-size:11.5px">'+r.hours.toFixed(2)+' hr</td>'+
     '</tr>';
   }).join('');
-  var choices = '<div class="lc-choices">'+
-      '<label>Existing roof <select onchange="_setLabourCalcExisting(this.value)" data-lc-existing>'+
-        '<option value="steel"'+(ex === 'steel' ? ' selected' : '')+'>Steel</option>'+
-        '<option value="tile"'+(ex === 'tile' ? ' selected' : '')+'>Tiles (\u00d7'+_labourCalcTileFactor()+' to strip)</option>'+
-        '<option value="none"'+(ex === 'none' ? ' selected' : '')+'>None \u2014 new build</option>'+
-      '</select></label>'+
-      '<label><input type="checkbox" '+(_labourCalcPurlins() ? 'checked' : '')+' onchange="_setLabourCalcPurlins(this.checked)" data-lc-purlins> New purlins / battens</label>'+
-      '<button type="button" class="tool-btn lc-edit" onclick="_labourCalcSettingsGo()" title="The rates behind these hours live in Settings \u2192 Labour pricing">\u270e Edit auto-calculations</button>'+
-    '</div>';
-  return '<div style="margin-bottom:12px;padding:10px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+choices+
-    '<table class="lc-table">'+
-      '<thead><tr><th class="lc-lab">Driver</th><th class="lc-q">Quantity</th><th class="lc-r">Rate</th><th class="lc-h">Hours</th></tr></thead>'+
+  return '<div style="margin-bottom:12px;padding:10px 11px;background:#f1f7ff;border:1px solid #cfe0f5;border-radius:8px">'+head+
+    '<table style="width:100%;border-collapse:collapse">'+
+      '<thead><tr style="font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--text2)">'+
+        '<th style="text-align:left;padding:2px 6px">Driver</th><th style="text-align:right;padding:2px 6px">Quantity</th><th></th><th style="text-align:right;padding:2px 6px">Rate</th><th style="text-align:right;padding:2px 6px">Hours</th></tr></thead>'+
       '<tbody>'+rows+'</tbody>'+
     '</table>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:7px 10px;background:#0a1628;border-radius:7px;color:#fff">'+
@@ -27284,97 +27075,11 @@ function _scaffoldEff(sc){
       mult: 1, diy: true, hrs: n(d.leadHrs) + n(d.appHrs), d: d
     };
   }
-  // OUTSOURCED BY THE METRE (2026-11-10): the building's perimeter in lineal
-  // metres (_scaffoldLmSync keeps it off the drawing until one is typed) at
-  // the scaffolder's $/lm, cost and price each.
-  if (sc.outMode === 'lm'){
-    var per = parseFloat(sc.lmPerim) || 0, rate = parseFloat(sc.lmRate) || 0, lc = parseFloat(sc.lmCost) || 0;
-    return { cost: +(per * lc).toFixed(2), price: +(per * rate).toFixed(2), mult: 1, lm: true, perim: per, rate: rate, lmCost: lc };
-  }
   return {
     cost:  parseFloat(sc.cost)  || 0,
     price: parseFloat(sc.price) || 0,
     mult:  1,
   };
-}
-// THE BUILDING'S PERIMETER (2026-11-10, the owner: "with the scaffolding cost
-// for outsource, make a linear meter charge. Which would calculate the
-// perimeter of the building in linear meters and then the user inputs their
-// custom price"). The roof's outline, every wall, in plan metres — plus the
-// roofs folded into it, each its own building. Read the way _roofMeasForIdx
-// reads a roof: loaded into DRAW and put back.
-function _scaffoldPerimFor(i){
-  var idxs = [i || 0];
-  try { var g = _pricingRoofGroup(i || 0); if (g && g.length) idxs = g; } catch(e){}
-  var one = function(){
-    var o = (window.DRAW && DRAW.outline) || [], sc = parseFloat(DRAW && DRAW.scaleMetresPerPx) || 0;
-    if (o.length < 3 || !sc) return 0;
-    var L = 0;
-    for (var k = 0; k < o.length; k++){ var a = o[k], b = o[(k + 1) % o.length]; L += Math.hypot(b[0] - a[0], b[1] - a[1]); }
-    return L * sc;
-  };
-  var multi = !!(window.DRAW && DRAW.roofs && DRAW.roofs.length > 1);
-  if (!multi) return one();
-  var saved = DRAW.activeRoofIdx, tot = 0;
-  try { _syncCurrentToRoof(); idxs.forEach(function(k){ _loadRoofToCurrent(k); tot += one(); }); }
-  catch(e){}
-  finally { try { if (saved >= 0 && saved < DRAW.roofs.length) _loadRoofToCurrent(saved); } catch(e){} }
-  return tot;
-}
-function _scaffoldLmRateDefault(){ var d = parseFloat(_lpDefaults().scaffold_lm); return (isFinite(d) && d > 0) ? d : 0; }
-// The perimeter follows the drawing until the office types one; the rate
-// starts at Settings' default (Labour pricing) until one is typed.
-function _scaffoldLmSync(i){
-  var sc = (i >= 1) ? ((S.quote && S.quote.roofScaffold) || {})[i] : (S.quote && S.quote.scaffold);
-  if (!sc || sc.outMode !== 'lm' || sc.excluded || sc.mode === 'diy') return sc;
-  if (!sc.lmPerimManual) sc.lmPerim = +(_scaffoldPerimFor(i || 0)).toFixed(1);
-  if (!sc.lmRateManual && !(parseFloat(sc.lmRate) > 0)) sc.lmRate = _scaffoldLmRateDefault();
-  return sc;
-}
-// The strategy is one of four, read off the scaffold's own fields.
-function _scaffoldStrategy(sc){
-  sc = sc || {};
-  if (sc.excluded) return 'none';
-  if (sc.mode === 'diy') return 'diy';
-  return sc.outMode === 'lm' ? 'out_lm' : 'out_flat';
-}
-function _scaffoldSetStrategy(v){
-  var ri = _pricingRoofIdx();
-  var sc = _roofScaffold(ri);
-  if (v === 'none'){ sc.excluded = true; }
-  else {
-    delete sc.excluded;
-    if (v === 'diy'){ sc.mode = 'diy'; }
-    else { delete sc.mode; if (v === 'out_lm') sc.outMode = 'lm'; else delete sc.outMode; }
-  }
-  delete sc.exclAuto; sc.exclTouched = true;
-  if (ri === 0) S.quote.scaffoldCustom = true;
-  _scaffoldDiySync(ri); _scaffoldLmSync(ri);
-  _scaffoldChanged();
-}
-function _scaffoldSetOutMode(m){
-  var ri = _pricingRoofIdx();
-  var sc = _roofScaffold(ri);
-  if (m === 'lm') sc.outMode = 'lm'; else delete sc.outMode;
-  if (ri === 0) S.quote.scaffoldCustom = true;
-  _scaffoldLmSync(ri);
-  _scaffoldChanged();
-}
-function _scaffoldLmUpd(key, val){
-  var ri = _pricingRoofIdx();
-  var sc = _roofScaffold(ri); if (sc.outMode !== 'lm') return;
-  if (key === 'perim'){
-    if (val === '' || val == null){ delete sc.lmPerimManual; }
-    else { sc.lmPerim = Math.max(0, parseFloat(val) || 0); sc.lmPerimManual = true; }
-  } else if (key === 'rate'){
-    sc.lmRate = Math.max(0, parseFloat(val) || 0); sc.lmRateManual = true;
-    try { _labourRateAskDefault('scaffold_lm', sc.lmRate, 'Outsourced scaffolding', 'lm'); } catch(e){}
-  } else if (key === 'cost'){
-    sc.lmCost = Math.max(0, parseFloat(val) || 0);
-  }
-  if (ri === 0) S.quote.scaffoldCustom = true;
-  _scaffoldLmSync(ri);
-  _scaffoldChanged();
 }
 // THE SCAFFOLD: ON THE QUOTE OR NOT, AND OURS OR OUTSOURCED (2026-11-04, the
 // owner: "have a button to click to exclude scaffold from this quote ... in
@@ -27596,7 +27301,7 @@ function calcLabour(){
   try { _shedLabourToHours(); } catch(e){}
   try {
     var _scAll = [0]; try { if (window.DRAW && DRAW.roofs && DRAW.roofs.length > 1) _scAll = _pricingRoofTabIdxs(); } catch(e){}
-    _scAll.forEach(function(i){ try { _scaffoldDiySync(i); } catch(e){} try { _scaffoldLmSync(i); } catch(e){} });
+    _scAll.forEach(function(i){ try { _scaffoldDiySync(i); } catch(e){} });
   } catch(e){}
   function row(label, hrsKey, costKey, priceKey){
     var hrs=f(L[hrsKey]), cost=f(L[costKey]), price=f(L[priceKey]);
@@ -27682,7 +27387,7 @@ function calcLabour(){
   var scR = _roofScaffold(ri);
   var html =
     (_multiRoofLab
-      ? '<div class="px-note">Editing <strong style="color:#0a1628">'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+' Switch roofs at the top of the panel.</div>'
+      ? '<div style="font-size:11.5px;color:var(--text2);background:#f4f5f7;border:1px solid #e3e6ea;border-radius:8px;padding:7px 10px;margin-bottom:10px">Editing <strong style="color:#0a1628">'+esc(_pricingRoofName(ri))+'</strong>'+(isBaseRoof?' — the base quote.':' — an optional extra roof (its own price).')+' Switch roofs at the top of the panel.</div>'
       : '')+
     _labourModeButtonsHtml(ri)+
     _labourCalcPanelHtml(ri)+
@@ -27709,7 +27414,7 @@ function calcLabour(){
       : '')+
     _qCustomRowsHtml(_qCustomArea('labour', ri))+
     // Combined labour total (for the selected roof)
-    '<div class="px-sum" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:13px">'+esc(_pricingRoofName(ri))+' labour · '+
         ((_labM2 > 0) ? (_labourAreaForRoof(ri).toFixed(1)+' m\u00b2 @ $'+_labM2+'/m\u00b2') : (dispHrs.toFixed(1)+' hrs'))+'</strong>'+
       '<span style="font-size:18px;font-weight:700;color:#2e7d32">$'+dispPrice.toFixed(2)+'</span>'+
@@ -27725,44 +27430,17 @@ function calcLabour(){
     var _scOff = !!scR.excluded;
     var _scDiy = !_scOff && scR.mode === 'diy';
     var _scDiyOk = !_isGutterJob() && !_psIsShed();
-    // ONE DROP-DOWN, THE PRICING STRATEGY (2026-11-10, the owner: "make their
-    // like some sort of master drop-down button, call it pricing strategy ...
-    // by default, have it outsourced ... the options would be no scaffolding
-    // ... DIY priced hourly ... outsource priced by the meter, or outsource
-    // priced in bulk"). It reads and writes the same scaffold fields
-    // (excluded / mode / outMode), so a quote saved before reads as it did.
-    var _scLm = !_scOff && !_scDiy && scR.outMode === 'lm';
-    var _scStrat = _scaffoldStrategy(scR);
-    var _scOpt = function(v, label){ return '<option value="'+v+'"'+(_scStrat === v ? ' selected' : '')+'>'+label+'</option>'; };
     var _scHead =
-      '<div id="scIncl" style="margin-bottom:10px">'+
-        '<label for="scStrategy" class="sc-strat"><span class="sc-strat-k">Pricing strategy</span>'+
-        '<select id="scStrategy" onchange="_scaffoldSetStrategy(this.value)">'+
-          _scOpt('out_flat', 'Outsourced \u2014 priced in bulk')+
-          _scOpt('out_lm', 'Outsourced \u2014 priced by the metre')+
-          (_scDiyOk ? _scOpt('diy', 'DIY \u2014 priced hourly') : '')+
-          _scOpt('none', 'No scaffolding')+
-        '</select><span class="sc-strat-ch">\u25be</span></label>'+
-      '</div>';
-    var _scLmHtml = '';
-    if (_scLm){
-      var _per = f(scR.lmPerim), _rate = f(scR.lmRate), _lcost = f(scR.lmCost), _drawn = _scaffoldPerimFor(ri);
-      _scLmHtml =
-        '<div class="sc-lm-row" id="scLmBox">'+
-          '<div><label>Perimeter (lm)</label><input type="number" step="0.1" min="0" value="'+_per+'" data-sclm="perim" onchange="_scaffoldLmUpd(\'perim\',this.value)"></div>'+
-          '<div><label>Price ($/lm)</label><input type="number" step="0.5" min="0" value="'+_rate+'" data-sclm="rate" placeholder="'+(_scaffoldLmRateDefault() || 'set a rate')+'" onchange="_scaffoldLmUpd(\'rate\',this.value)"></div>'+
-          '<div><label>Cost ($/lm)</label><input type="number" step="0.5" min="0" value="'+_lcost+'" data-sclm="cost" onchange="_scaffoldLmUpd(\'cost\',this.value)"></div>'+
-        '</div>'+
-        '<div class="px-note" style="margin-top:6px">'+
-          (scR.lmPerimManual
-            ? 'Perimeter typed for this job. <a href="#" onclick="_scaffoldLmUpd(\'perim\',\'\');return false">\u21bb Back to the drawing\u2019s '+_drawn.toFixed(1)+' lm</a>'
-            : 'Perimeter from the building outline on the map: '+_drawn.toFixed(1)+' lm, every wall. Change the rate and RoofMap offers to keep it as your default.')+
-          (!(_rate > 0) ? ' <strong style="color:#b45309">Set a $/lm rate \u2014 nothing is charged until you do.</strong>' : '')+
-        '</div>'+
-        '<div class="px-sum" style="display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
-          '<strong style="font-size:12.5px">Scaffolding \u00b7 '+_per.toFixed(1)+' lm @ $'+_rate.toFixed(2)+'/lm</strong>'+
-          '<span style="font-weight:700;color:#2e7d32" id="scLmTotal">$'+_scEff.price.toFixed(2)+'</span></div>';
-    }
+      '<div style="display:flex;gap:8px;margin-bottom:10px" id="scIncl">'+
+        _labourModeBtnHtml('_scaffoldSetExcluded(false)', 'Scaffolding included', 'priced on this quote', !_scOff)+
+        _labourModeBtnHtml('_scaffoldSetExcluded(true)', 'No scaffolding', 'not on this quote', _scOff)+
+      '</div>'+
+      ((!_scOff && _scDiyOk)
+        ? '<div style="display:flex;gap:8px;margin-bottom:10px" id="scMode">'+
+            _labourModeBtnHtml("_scaffoldSetMode('diy')", 'Do it ourselves', 'our crew\u2019s hours', _scDiy)+
+            _labourModeBtnHtml("_scaffoldSetMode('out')", 'Outsource', 'a scaffolder\u2019s price', !_scDiy)+
+          '</div>'
+        : '');
     var _scDiyHtml = '';
     if (_scDiy){
       var _d = scR.diy || {};
@@ -27783,17 +27461,17 @@ function calcLabour(){
           _drow('Lead Roofer', 'leadHrs', 'leadCost', 'leadPrice')+
           _drow('Apprentice', 'appHrs', 'appCost', 'appPrice')+
         '</tbody></table>'+
-        '<div class="px-note" style="margin-top:6px">'+
+        '<div style="margin-top:6px;font-size:11.5px;color:var(--text2)">'+
           (_d.hrsManual
             ? 'Hours typed for this job. <a href="#" onclick="_scaffoldDiyReset();return false">\u21bb Back to the roof area\u2019s hours</a>'
             : 'Hours from the roof area: '+_scArea.toFixed(1)+' m\u00b2 \u2192 '+_scaffoldDiyHrsForArea(_scArea)+' hrs each. Rates follow the roof labour table.')+
         '</div>'+
-        '<div class="px-sum" style="display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+        '<div style="display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
           '<strong style="font-size:12.5px">Scaffolding labour \u00b7 '+(f(_d.leadHrs)+f(_d.appHrs)).toFixed(1)+' hrs</strong>'+
           '<span style="font-weight:700;color:#2e7d32" id="scDiyTotal">$'+_scEff.price.toFixed(2)+'</span></div>';
     }
     scw.innerHTML =
-      '<div class="px-note">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(_scOff ? '\u00b7 not on this quote' : (isBaseRoof?'· included in every quote':'· added to this roof’s price'))+'</div>'+
+      '<div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">For <strong>'+esc(_pricingRoofName(ri))+'</strong> '+(_scOff ? '\u00b7 not on this quote' : (isBaseRoof?'· included in every quote':'· added to this roof’s price'))+'</div>'+
       _scHead+
       (_scOff
         ? '<div style="margin-bottom:6px;font-size:11.5px;color:#0a1628;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px" id="scOffNote">No scaffolding on this quote \u2014 nothing is charged for it, and \u201cWhat we will do\u201d leaves it out.</div>'+
@@ -27805,7 +27483,7 @@ function calcLabour(){
           '<option value="edge"'+(_scPlat?'':' selected')+'>Edge-Protection (standard)</option>'+
           '<option value="platform"'+(_scPlat?' selected':'')+'>Platform Scaffolding</option>'+
         '</select></div>'+
-      (_scDiy ? _scDiyHtml : _scLm ? _scLmHtml :
+      (_scDiy ? _scDiyHtml :
       '<div class="f2">'+
         '<div><label>Scaffolding cost ($)</label><input type="number" step="1" min="0" value="'+f(scR.cost)+'" onchange="updateScaffold(\'cost\',this.value)"></div>'+
         '<div><label>Scaffolding price ($)</label><input type="number" step="1" min="0" value="'+f(scR.price)+'" onchange="updateScaffold(\'price\',this.value)"></div>'+
@@ -27816,7 +27494,7 @@ function calcLabour(){
       (isBaseRoof ? (function(){
         var _g = parseFloat((S.quote && S.quote.gstRate)) || 0;
         var _ex = _scEff.price + _roofCustomTotal('scaffold', ri);
-        return '<div id="scOnQuote" class="px-note" style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:7px 10px">On the quote summary: <strong>'+
+        return '<div id="scOnQuote" style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:7px 10px">On the quote summary: <strong>'+
           fmtMoney(_ex * (1 + _g/100))+'</strong> incl. GST ('+fmtMoney(_ex)+' + '+_g+'% GST)'+(_qpScaffoldHidden() ? ' \u2014 folded into the re-roof price, not shown on its own' : '')+'</div>';
       })() : '')+
       // What the type means for the customer's gutter option. The prices
@@ -27824,10 +27502,10 @@ function calcLabour(){
       // choosing a gutter adds the edge-protection → platform upgrade.
       (isBaseRoof
         ? (_scPlat
-          ? '<div class="px-note" style="margin-top:8px">Platform scaffold — charged as entered. If the customer adds guttering there is <strong>no scaffolding upcharge</strong>: the platform is already there.</div>'
+          ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Platform scaffold — charged as entered. If the customer adds guttering there is <strong>no scaffolding upcharge</strong>: the platform is already there.</div>'
           : (_gutterNoPlatform()
-              ? '<div class="px-note" style="margin-top:8px">Edge protection, and the gutters go in off it — <strong>no platform upgrade</strong> is charged if the customer adds guttering.</div>'
-              : '<div class="px-note" style="margin-top:8px">Edge protection — if the customer adds guttering, a platform upgrade of <strong>+'+_scPct+'%</strong> of the price above is added to their quote.</div>'))+
+              ? '<div style="margin-top:8px;font-size:11.5px;color:#0a1628;background:#eef6ff;border:1px solid #cfe0f5;border-radius:8px;padding:8px 10px">Edge protection, and the gutters go in off it — <strong>no platform upgrade</strong> is charged if the customer adds guttering.</div>'
+              : '<div style="margin-top:8px;font-size:11.5px;color:var(--text2);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px">Edge protection — if the customer adds guttering, a platform upgrade of <strong>+'+_scPct+'%</strong> of the price above is added to their quote.</div>'))+
           _gutterNoPlatformTickHtml('scaffold')
         : '')+
       // Roofs folded into the main one no longer have a tab of their own, so
@@ -27994,7 +27672,7 @@ function renderGutterDownpipePricing(){
   var bufferedMat = matBase + bufAmt;
   var mkPct = _gutterMatMarkupPct(gtype), mkAmt = bufferedMat * (mkPct/100);
   var matCharge = bufferedMat + mkAmt;
-  var gComputed = matCharge + labCharge, dComputed = _downpipeQty() * _downpipeEach();
+  var gComputed = matCharge + labCharge, dComputed = _downpipeUnitPrice() * lines;
   var gOv = parseFloat(q.gutterPriceOverride), dOv = parseFloat(q.downpipePriceOverride);
   var gVal = (isFinite(gOv) && gOv >= 0) ? gOv : gComputed;
   var dOn = p.downpipes === 'yes';
@@ -28065,10 +27743,10 @@ function renderGutterDownpipePricing(){
     '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">'+
       typePicker+
       '<span style="font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:20px;'+
-        (gOnQuote ? 'background:#0a1628;color:#fff">On the customer\'s quote' : 'background:#eef2f6;color:#64748b">Priced, not yet on the quote')+'</span>'+
+        (gOnQuote ? 'background:#e8f5e9;color:#2e7d32">On the customer\'s quote' : 'background:#eef2f6;color:#64748b">Priced, not yet on the quote')+'</span>'+
       _gutterExcludeToggleHtml('margin-left:auto;')+
     '</div>'+
-    '<div class="px-note">'+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span>'+
+    '<div style="font-size:12px;color:var(--text2);margin-bottom:12px">'+lm.toFixed(1)+' lm gutter run &nbsp;·&nbsp; '+lines+' line'+(lines===1?'':'s')+' &nbsp;·&nbsp; '+corners+' corner'+(corners===1?'':'s')+' <span style="color:var(--text3)">(ex GST)</span>'+
       (lm > 0 ? '' : ' <span style="color:#b45309">— no gutter line drawn yet, so only labour is costed. Draw the gutter on Map Roof for a full price.</span>')+'</div>'+
     // Labour — two big buttons for how it is charged (2026-10-08), then the
     // editable hour lines like the re-roof labour table (lead + apprentice).
@@ -28082,7 +27760,7 @@ function renderGutterDownpipePricing(){
         labRow('Lead Roofer','leadHrs','leadPrice',gls.leadHrs,gls.leadPrice)+
         labRow('Apprentice','appHrs','appPrice',gls.appHrs,gls.appPrice)+
       '</tbody>'+
-      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">'+(labByLm?'Hourly equivalent — not what this job is charged':'Labour')+'</td><td style="text-align:right;font-weight:700;color:'+(labByLm?'var(--text2)':'#0a1628')+'">'+money(labHourly)+'</td></tr></tfoot>'+
+      '<tfoot><tr><td colspan="3" style="text-align:right;font-weight:700">'+(labByLm?'Hourly equivalent — not what this job is charged':'Labour')+'</td><td style="text-align:right;font-weight:700;color:'+(labByLm?'var(--text2)':'#2e7d32')+'">'+money(labHourly)+'</td></tr></tfoot>'+
     '</table>'+
     // Material — itemised list like the re-roof material table (invoice per-unit pricing)
     '<div style="font-size:11px;font-weight:700;color:var(--text);margin:12px 0 6px">Gutter material <span style="font-weight:400;color:var(--text3)">· '+(gtype === 'marley_typhoon' ? 'Typhoon invoice pricing' : 'itemised \u00b7 brackets every 800mm, a dropper every 8m')+'</span></div>'+
@@ -28093,29 +27771,19 @@ function renderGutterDownpipePricing(){
         '<tr><td colspan="3" style="text-align:right;color:var(--text2)">Material subtotal</td><td style="text-align:right;color:var(--text2)">'+money(matBase)+'</td></tr>'+
         '<tr><td colspan="3" style="text-align:right">'+pctNote+'<span style="color:var(--text2)">&nbsp;Add quantity safety buffer&nbsp;</span><input type="number" step="1" min="0" value="'+bufPct+'" onchange="_setGutterMatQtyBuffer(this.value,\''+esc(gtype)+'\')" style="width:56px;font-size:12px;padding:3px 6px;text-align:right'+(pctOwn?';border-color:#8b5cf6;background:#faf7ff':'')+'">&nbsp;%</td><td style="text-align:right">+'+money(bufAmt)+'</td></tr>'+
         '<tr><td colspan="3" style="text-align:right"><span style="color:var(--text2)">Add mark-up&nbsp;</span><input type="number" step="1" min="0" value="'+mkPct+'" onchange="_setGutterMatMarkup(this.value,\''+esc(gtype)+'\')" style="width:56px;font-size:12px;padding:3px 6px;text-align:right'+(pctOwn?';border-color:#8b5cf6;background:#faf7ff':'')+'">&nbsp;%</td><td style="text-align:right">+'+money(mkAmt)+'</td></tr>'+
-        '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#0a1628">'+money(matCharge)+'</td></tr>'+
+        '<tr><td colspan="3" style="text-align:right;font-weight:700">Material</td><td style="text-align:right;font-weight:700;color:#2e7d32">'+money(matCharge)+'</td></tr>'+
       '</tfoot>'+
     '</table>'+
-    // OPTIONAL DOWNPIPE PRICE (2026-11-10, the owner: "it shouldn't be a tick
-    // box because the customer should get to include the gutters or not ...
-    // change the words from new downpipes to optional downpipe price ... the
-    // quantity of downpipes and then the price per downpipe. Default the price
-    // per downpipe to $100 ... one downpipe every 20 meters"). The customer
-    // picks downpipes on their quote; this is what that pick costs.
-    '<div style="margin-top:12px" id="gdDownpipes">'+
-      '<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">Optional downpipe price <span class="px-note" style="display:inline;font-weight:400;color:var(--text3);padding:0;border:none;background:none">\u00b7 added when the customer takes new downpipes</span></div>'+
-      '<div class="sc-lm-row">'+
-        '<div><label>Downpipes (qty)</label><input type="number" step="1" min="0" value="'+_downpipeQty()+'" data-dp="qty" onchange="_setDownpipeQty(this.value)"></div>'+
-        '<div><label>Price each ($)</label><input type="number" step="1" min="0" value="'+_downpipeEach()+'" data-dp="each" onchange="_setDownpipeEach(this.value)"></div>'+
-        '<div><label>Downpipes total ($)</label><input type="number" step="1" min="0" value="'+dVal.toFixed(2)+'" data-dp="total" onchange="_setDownpipePriceOverride(this.value)"><div class="px-note" style="font-size:10.5px;margin-top:2px;padding:0;border:none;background:none">computed '+money(dComputed)+'</div></div>'+
-      '</div>'+
+    '<div style="margin-top:12px">'+
+      '<div><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" '+(dOn?'checked':'')+' onchange="_toggleDownpipesPricing(this.checked)" style="width:auto;margin:0"> New downpipes</label>'+
+        '<input type="number" step="1" min="0" '+(dOn?'':'disabled')+' value="'+dVal.toFixed(2)+'" onchange="_setDownpipePriceOverride(this.value)" style="'+(dOn?'':'opacity:.5')+'"><div style="font-size:10.5px;color:var(--text3);margin-top:2px">computed '+money(dComputed)+'</div></div>'+
     '</div>'+
     (scUp > 0 ?
       '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;margin-top:8px;font-size:12px;color:var(--text2)">'+
         '<span>Platform scaffolding upgrade <span style="color:var(--text3)">(edge protection → platform · +25% of scaffold '+money(scaffBase)+')</span></span>'+
         '<span style="font-weight:600;color:var(--text)">+'+money(scUp)+'</span>'+
       '</div>' : '')+
-    '<div class="px-sum" style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-top:10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin-top:10px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
       '<strong style="font-size:12px">Guttering'+(scUp>0?' + scaffold upgrade':'')+(dOn?' + downpipes':'')+' (ex GST)</strong>'+
       '<span style="font-weight:700;color:#2e7d32">'+money(gVal + scUp + (dOn ? dVal : 0))+'</span>'+
     '</div>'+
@@ -28133,29 +27801,6 @@ function _gdChanged(){
 function _setGutterPriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.gutterPriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
 function _setDownpipePriceOverride(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipePriceOverride=(isFinite(f)&&f>=0)?f:null; _gdChanged(); }
 function _toggleDownpipesPricing(on){ if(!S.quote) return; if(!S.quote.proposalOptions) S.quote.proposalOptions={}; S.quote.proposalOptions.downpipes=on?'yes':'no'; _gdChanged(); }
-// One downpipe every 20 m of gutter (never none), unless the office types a count;
-// $100 each unless the office types a price. The total is qty × each, or the
-// typed total (the old override, kept).
-var DOWNPIPE_EVERY_M = 20, DOWNPIPE_EACH_DEFAULT = 100;
-function _downpipeQty(){
-  var q = (window.S && S.quote) || {};
-  var t = parseFloat(q.downpipeQty); if (isFinite(t) && t >= 0) return t;
-  var lm = 0; try { lm = _selGutterLm(); } catch(e){}
-  return Math.max(1, Math.ceil((lm || 0) / DOWNPIPE_EVERY_M));
-}
-function _downpipeEach(){
-  var q = (window.S && S.quote) || {};
-  var e = parseFloat(q.downpipeEach); if (isFinite(e) && e >= 0) return e;
-  return DOWNPIPE_EACH_DEFAULT;
-}
-function _downpipeTotal(){
-  var q = (window.S && S.quote) || {};
-  var ov = parseFloat(q.downpipePriceOverride);
-  if (isFinite(ov) && ov >= 0) return ov;
-  return _downpipeQty() * _downpipeEach();
-}
-function _setDownpipeQty(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipeQty=(isFinite(f)&&f>=0)?f:null; S.quote.downpipePriceOverride=null; _gdChanged(); }
-function _setDownpipeEach(v){ if(!S.quote) return; var f=parseFloat(v); S.quote.downpipeEach=(isFinite(f)&&f>=0)?f:null; S.quote.downpipePriceOverride=null; _gdChanged(); }
 function _clearGutterDownpipeOverrides(){ if(!S.quote) return; S.quote.gutterPriceOverride=null; S.quote.downpipePriceOverride=null; _gdChanged(); }
 
 // Job profitability dashboard.
@@ -28346,16 +27991,9 @@ function _pxToggle(id, ev){
 // A Gutters only job keeps its OWN fold for the scaffold, closed until the
 // office opens it (the scaffold is off by default there).
 function _pxFoldKey(id){ return (id === 'scaffoldCard' && _isGutterJob()) ? 'scaffoldCard_gj' : id; }
-// The "i" on a banner shows that section's notes (every .px-note in the card);
-// they are hidden otherwise so the drawer reads as figures and controls.
-function _pxInfo(id, ev){
-  try { if (ev){ ev.stopPropagation(); ev.preventDefault(); } } catch(e){}
-  var card = document.getElementById(id); if (!card) return;
-  card.classList.toggle('px-info-on');
-}
 function _pxFoldsApply(){
   var folds = _pxFolds();
-  ['scaffoldCard', 'roofPriceTile', 'roofMaterialCard', 'gutterDownpipeCard', 'profitCard'].forEach(function(id){
+  ['scaffoldCard', 'roofPriceTile', 'gutterDownpipeCard', 'profitCard'].forEach(function(id){
     var card = document.getElementById(id); if (!card) return;
     var k = _pxFoldKey(id);
     var on = (k in folds) ? !!folds[k] : (k === 'scaffoldCard_gj');
@@ -28377,10 +28015,8 @@ function _pxHeadTotals(){
     var ri2 = _pricingRoofIdx();
     var lab = ri2 === 0 ? f(S.labour) : _labourPriceForRoof(ri2);
     var mat = ri2 === 0 ? f(S.materials) : (_materialsCostForRoofIdx(ri2) + _roofCustomTotal('material', ri2));
-    // Two banners since 2026-11-10: the labour's and the material's, each its own.
-    set('roofPriceTile', fmtMoney(lab), !(lab > 0));
-    set('roofMaterialCard', fmtMoney(mat), !(mat > 0));
-  } catch(e){ set('roofPriceTile', ''); set('roofMaterialCard', ''); }
+    set('roofPriceTile', fmtMoney(lab + mat), !(lab + mat > 0));
+  } catch(e){ set('roofPriceTile', ''); }
   try {
     if (_psIsShed()) set('gutterDownpipeCard', '');
     else if (_gutterExcluded()) set('gutterDownpipeCard', 'Excluded', true);
@@ -28617,8 +28253,8 @@ function renderProfitability(){
     // Compact so all four tiles fit on one row even on a phone.
     return '<div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 9px;min-width:0">'+
       '<div style="font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+label+'</div>'+
-      '<div style="font-size:17px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:3px;letter-spacing:-.02em;display:flex;align-items:center;flex-wrap:wrap;gap:2px 0;min-width:0">'+val+'</div>'+
-      (sub?'<div class="px-note" style="font-size:9.5px;margin-top:2px;padding:0;border:none;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div>':'')+
+      '<div style="font-size:17px;font-weight:700;color:'+(color||'#0a1628')+';margin-top:3px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+val+'</div>'+
+      (sub?'<div style="font-size:9.5px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sub+'</div>':'')+
     '</div>';
   }
   var gpColor = gpPct >= 40 ? '#15803d' : (gpPct >= 25 ? '#b45309' : '#b91c1c');
@@ -28630,10 +28266,10 @@ function renderProfitability(){
     (g.items || []).map(function(it, i){
       var igp = f(it.revenue) - f(it.cost);
       return '<div class="profit-item" data-profit-item="'+esc(it.key)+'" style="display:grid;grid-template-columns:minmax(0,1fr) 78px 78px 70px;gap:6px;padding:6px 10px;border-top:1px solid var(--border);font-size:12px;align-items:center">'+
-        '<span style="min-width:0"><strong>'+(i + 1)+'. '+esc(it.label)+'</strong>'+(it.sub ? '<span class="px-note" style="display:block;font-size:10px;color:var(--text2);padding:0;border:none;background:none">'+esc(it.sub)+(f(it.hrs) > 0 && it.key !== 'gutter' ? ' \u00b7 '+f(it.hrs).toFixed(1)+' hrs' : '')+'</span>' : '')+'</span>'+
+        '<span style="min-width:0"><strong>'+(i + 1)+'. '+esc(it.label)+'</strong>'+(it.sub ? '<span style="display:block;font-size:10px;color:var(--text2)">'+esc(it.sub)+(f(it.hrs) > 0 && it.key !== 'gutter' ? ' \u00b7 '+f(it.hrs).toFixed(1)+' hrs' : '')+'</span>' : '')+'</span>'+
         '<span style="text-align:right;white-space:nowrap">'+fmtMoney(it.revenue)+'</span>'+
         '<span style="text-align:right;white-space:nowrap;color:var(--text2)">'+fmtMoney(it.cost)+'</span>'+
-        '<span style="text-align:right;white-space:nowrap;font-weight:600;color:'+(igp >= 0 ? '#0a1628' : '#b91c1c')+'">'+fmtMoney(igp)+'</span>'+
+        '<span style="text-align:right;white-space:nowrap;font-weight:600;color:'+(igp >= 0 ? '#15803d' : '#b91c1c')+'">'+fmtMoney(igp)+'</span>'+
       '</div>';
     }).join('')+
     '</div>';
@@ -28641,14 +28277,8 @@ function renderProfitability(){
     '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px">'+
       stat('Job revenue', fmtMoney(revenue), 'ex GST · everything in the list below') +
       stat('Material cost', fmtMoney(mat), 'from the price book') +
-      // GP % AND GP / hr ARE CONTROLS (2026-11-10, the owner: "add a plus or
-      // minus on the gross profit percentage ... let the user click to enter
-      // their actual numbers ... type in 40 and then click enter, and the GP
-      // percentage will change to 40%. Which would also increase the gross
-      // profit per hour"). Click the figure, type, Enter: the charge-out rates
-      // move so the job lands there (_profitTarget); ± steps one point / $1.
-      stat('GP %', '<span id="profitGpPct" class="pf-edit" title="Click to type a target GP %" onclick="_profitEditStart(this,\'gppct\')">' + gpPct.toFixed(1) + '%</span>' + nudge('gppct', g.hrs > 0), 'gross profit ÷ revenue · click to set', gpColor) +
-      stat('GP / hr', '<span id="profitGpHr" class="pf-edit" title="Click to type a target GP per hour" onclick="_profitEditStart(this,\'gphr\')">' + whole(gpHr) + '</span>' + nudge('gphr', g.hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates · click to set') +
+      stat('GP %', gpPct.toFixed(1)+'%', 'gross profit ÷ revenue', gpColor) +
+      stat('GP / hr', '<span id="profitGpHr">' + whole(gpHr) + '</span>' + nudge('gphr', g.hrs > 0), hrs.toFixed(1)+' labour hrs · ±$1 moves the charge-out rates', gpColor) +
     '</div>'+
     itemsHtml+
     // Per square metre sits apart from the job figures, under a rule.
@@ -28732,11 +28362,6 @@ function _profitNudge(kind, dir){
   if (kind === 'gphr'){
     var cur = gp / hrsAll, target = Math.round(cur) + (dir > 0 ? 1 : -1);
     deltaPrice = (target - cur) * hrsAll;
-  } else if (kind === 'gppct'){
-    // One percentage point of GP: the revenue that puts (rev − cost) / rev there.
-    var curP = g.revenue > 0 ? gp / g.revenue * 100 : 0, tP = Math.round(curP) + (dir > 0 ? 1 : -1);
-    if (tP >= 99 || tP < 0) return;
-    deltaPrice = g.cost / (1 - tP / 100) - g.revenue;
   } else {
     var area = g.area;
     if (!(area > 0)) return;
@@ -28756,79 +28381,6 @@ function _profitNudge(kind, dir){
   S.quote.labourRatesCustom = true;   // this job's rates, not the settings default
   calcLabour();
   try { refreshQuoteProposal(); } catch(e){}
-  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
-  try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
-}
-// CLICK A FIGURE, TYPE THE TARGET (GP % or GP / hr), ENTER. The gap to the
-// target in dollars goes onto the charge-out rates exactly as the ± does.
-function _profitEditStart(el, kind){
-  if (!el || el.querySelector('input')) return;
-  var g = _profitFigures(_profitView());
-  var gp = g.revenue - g.cost;
-  var cur = kind === 'gppct' ? (g.revenue > 0 ? gp / g.revenue * 100 : 0) : (g.hrsAll > 0 ? gp / g.hrsAll : 0);
-  var inp = document.createElement('input');
-  inp.type = 'number'; inp.step = kind === 'gppct' ? '0.1' : '1'; inp.min = '0';
-  inp.value = String(Math.round(cur * 10) / 10);
-  inp.className = 'pf-edit-inp'; inp.setAttribute('data-pf-edit', kind);
-  var done = false;
-  var finish = function(commit){
-    if (done) return; done = true;
-    if (commit) _profitTarget(kind, inp.value); else { try { renderProfitability(); } catch(e){} }
-  };
-  inp.addEventListener('keydown', function(ev){ if (ev.key === 'Enter'){ ev.preventDefault(); finish(true); } else if (ev.key === 'Escape'){ finish(false); } });
-  inp.addEventListener('blur', function(){ finish(true); });
-  el.textContent = ''; el.appendChild(inp);
-  try { inp.focus(); inp.select(); } catch(e){}
-}
-function _profitTarget(kind, val){
-  var n = parseFloat(val);
-  if (!isFinite(n) || n < 0){ try { renderProfitability(); } catch(e){} return; }
-  if (!S.quote) return;
-  var g = _profitFigures(_profitView());
-  var gp = g.revenue - g.cost, deltaPrice = 0;
-  if (kind === 'gppct'){
-    if (n >= 99){ try { renderProfitability(); } catch(e){} return; }
-    deltaPrice = g.cost / (1 - n / 100) - g.revenue;
-  } else {
-    if (!(g.hrsAll > 0)){ try { renderProfitability(); } catch(e){} return; }
-    deltaPrice = n * g.hrsAll - gp;
-  }
-  if (Math.abs(deltaPrice) < 0.005){ try { renderProfitability(); } catch(e){} return; }
-  _profitSpread(deltaPrice, g);
-}
-// Put a dollar change in revenue onto the labour charge-out rates — the gutter's
-// on a gutters job, the $/m² when charged by area, else every hourly rate — so
-// the GP tiles land where they were asked to.
-function _profitSpread(deltaPrice, g){
-  var f = function(v){ return parseFloat(v) || 0; };
-  if (_isGutterJob()){
-    var glm = 0; try { glm = f(_selGutterLm()); } catch(e){}
-    if (_gutterLabourMode() === 'lm' && _gutterLmRate() > 0 && glm > 0){
-      _setGutterLabourLm(Math.max(0, Math.round((_gutterLmRate() + deltaPrice / glm) * 10000) / 10000), false);
-    } else {
-      var st = _gutterLabourState(glm), ghrs = f(st.leadHrs) + f(st.appHrs);
-      if (!(ghrs > 0)) return;
-      var gper = deltaPrice / ghrs;
-      if (!S.quote.gutterLabour || typeof S.quote.gutterLabour !== 'object') S.quote.gutterLabour = {};
-      S.quote.gutterLabour.leadPrice = Math.max(0, Math.round((f(st.leadPrice) + gper) * 100) / 100);
-      S.quote.gutterLabour.appPrice  = Math.max(0, Math.round((f(st.appPrice)  + gper) * 100) / 100);
-      _gdChanged();
-    }
-  } else {
-    if (!S.quote.labour) return;
-    var byArea = (_labourMode() === 'm2' && _labourM2Rate() > 0 && g.area > 0);
-    if (byArea){ _setLabourM2(Math.max(0, Math.round((_labourM2Rate() + deltaPrice / g.area) * 10000) / 10000), false); return; }
-    var hrs = g.hrs; if (!(hrs > 0)) return;
-    var perHr = deltaPrice / hrs, L = S.quote.labour;
-    var bump = function(v){ return Math.max(0, Math.round((f(v) + perHr) * 100) / 100); };
-    L.leadPrice = bump(L.leadPrice); L.appPrice = bump(L.appPrice);
-    (L.extras || []).forEach(function(x){ x.price = bump(x.price); });
-    S.quote.labourRatesCustom = true;
-    calcLabour();
-  }
-  try { resyncQuoteLines(); } catch(e){}
-  try { refreshQuoteProposal(); } catch(e){}
-  try { renderProfitability(); } catch(e){}
   try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
   try { if (typeof _scheduleAutosave === 'function') _scheduleAutosave(); } catch(e){}
 }
@@ -30811,156 +30363,11 @@ var COLORBOND_COLOURS = [
   { name:'Surfmist®', hex:'#e4e2d5' }, { name:'Wallaby®', hex:'#7f7c78' },
   { name:'Windspray®', hex:'#888b8a' }, { name:'Woodland Grey®', hex:'#4b4c46' }
 ];
-function _paletteForGradeIdAll(id){
+function _paletteForGradeId(id){
   id = String(id || '').toLowerCase();
   if (_isAU()) return COLORBOND_COLOURS;
   if (id.indexOf('colorzen') >= 0 || id.indexOf('armorsteel') >= 0) return ARMORSTEEL_COLOURS;
   return MAXAM_COLOURS;
-}
-// The colours the BUSINESS offers off that chart (2026-11-09, the owner:
-// "make each section have all colours ticked in by default, then click to
-// un-tick some of the colour so they aren't displayed in the quotes colour
-// sections"). Every reader of a grade's or a gutter's colours comes through
-// here, so an unticked colour is gone from the swatch grid, the picker, the
-// order form and the customer's page alike.
-function _paletteForGradeId(id){ return _colourOffered('grade', id || 'maxam'); }
-// ── COLOUR OPTIONS ──
-// THE SYSTEM COLOURS are the built-in charts (MAXAM_COLOURS, ARMORSTEEL_COLOURS,
-// COLORBOND_COLOURS, MARLEY_TYPHOON_COLOURS, Classic's white) and are never
-// edited; what the business turns OFF is `materials_catalog.colourOff =
-// { 'grade:<id>' | 'gutter:<id>': { '<colour name>': true } }`, saved with the
-// flashing library (it rides price_book.__materials_catalog). No entry = every
-// colour ticked, so no account that never opens the page changes. The customer
-// has no Settings: _qStampCustomerCopy puts the map on the quote as
-// `colourOff` and the customer's page reads that.
-function _colourScope(kind, id){ return (kind === 'gutter' ? 'gutter:' : 'grade:') + String(id || ''); }
-function _colourOffMap(write){
-  try {
-    if (window.__CUSTOMER_MODE) return (S.quote && S.quote.colourOff && typeof S.quote.colourOff === 'object') ? S.quote.colourOff : {};
-    var c = (S.settings && S.settings.materials_catalog) || null;
-    if (!c){ if (!write) return {}; c = _matCatalog(); }
-    if (!c.colourOff || typeof c.colourOff !== 'object' || Array.isArray(c.colourOff)){ if (!write) return {}; c.colourOff = {}; }
-    return c.colourOff;
-  } catch(e){ return {}; }
-}
-// Every colour the chart has for this grade or gutter, with `on`.
-function _colourAllFor(kind, id){
-  var list = [];
-  try { list = (kind === 'gutter') ? (_gjPaletteAll(id).list || []) : (_paletteForGradeIdAll(id) || []); } catch(e){}
-  var off = (_colourOffMap()[_colourScope(kind, id)]) || {};
-  return list.map(function(c){ return { name:c.name, hex:c.hex, on:!off[c.name] }; });
-}
-function _colourOffered(kind, id){
-  return _colourAllFor(kind, id).filter(function(c){ return c.on; }).map(function(c){ return { name:c.name, hex:c.hex }; });
-}
-function _colourIsOff(kind, id, name){
-  var off = (_colourOffMap()[_colourScope(kind, id)]) || {};
-  return !!off[name];
-}
-var _COLOUR_SAVE_T = null;
-function _colourSet(kind, id, name, on){
-  if (window.__CUSTOMER_MODE) return;
-  var m = _colourOffMap(true); if (!m) return;
-  var k = _colourScope(kind, id);
-  if (!m[k] || typeof m[k] !== 'object') m[k] = {};
-  if (on) delete m[k][name]; else m[k][name] = true;
-  if (!Object.keys(m[k]).length) delete m[k];
-  _colourSaveSoon();
-  try { refreshQuoteProposal(); } catch(e){}
-}
-function _colourSetAll(kind, id, on){
-  if (window.__CUSTOMER_MODE) return;
-  var m = _colourOffMap(true); if (!m) return;
-  var k = _colourScope(kind, id);
-  if (on) delete m[k];
-  else { m[k] = {}; _colourAllFor(kind, id).forEach(function(c){ m[k][c.name] = true; }); }
-  _colourSaveSoon();
-  try { refreshQuoteProposal(); } catch(e){}
-}
-// One save for a run of ticks, through the flashing library's own persist.
-function _colourSaveSoon(){
-  clearTimeout(_COLOUR_SAVE_T);
-  _COLOUR_SAVE_T = setTimeout(function(){ try { _persistCatalogSilently(); } catch(e){} }, 700);
-}
-function _colourScopeTitle(kind, id){
-  if (kind === 'gutter'){
-    var g = null; try { g = _selGutterOf(id); } catch(e){}
-    return (g && g.name) || String(id || 'gutter');
-  }
-  var gr = null; try { gr = _selById(_selGradesAll(), id); } catch(e){}
-  return (gr && gr.name) || String(id || 'steel');
-}
-function _colourChartName(kind, id){
-  if (kind === 'gutter'){ var P = _gjPaletteAll(id); return P.kind === 'classic' ? 'Marley Classic (white only)' : P.kind === 'typhoon' ? 'Marley Typhoon range' : (_isAU() ? 'COLORBOND\u00ae chart' : 'Colorsteel\u00ae chart'); }
-  try { return _paletteBrandForGradeId(id).title + ' chart'; } catch(e){ return 'colour chart'; }
-}
-// The tickable grid: one card a colour, ticked = offered on quotes.
-function _colourGridHtml(kind, id, opts){
-  opts = opts || {};
-  var all = _colourAllFor(kind, id);
-  var fixed = (kind === 'gutter' && _gjPaletteAll(id).kind === 'classic');
-  var fn = function(name, on){ return '_colourSet(\'' + kind + '\',\'' + esc2(String(id).replace(/'/g, "\\'")) + '\',\'' + esc2(String(name).replace(/'/g, "\\'")) + '\',' + (on ? 'false' : 'true') + ')'; };
-  var cards = all.map(function(c){
-    return '<button type="button" class="co-sw' + (c.on ? ' on' : ' off') + '" data-co-colour="' + esc2(c.name) + '" title="' + (c.on ? 'Offered on quotes \u2014 click to hide it' : 'Hidden from quotes \u2014 click to offer it') + '"' +
-      (fixed ? ' disabled' : ' onclick="' + fn(c.name, c.on) + '"') + '>' +
-      '<span class="co-chip" style="background:' + esc2(c.hex || '#999') + '"></span>' +
-      '<span class="co-tick">' + (c.on ? '<svg viewBox="0 0 20 20" width="12" height="12"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '') + '</span>' +
-      '<i>' + esc2(c.name) + '</i></button>';
-  }).join('');
-  var onN = all.filter(function(c){ return c.on; }).length;
-  var tools = fixed ? '<span class="co-count">White only</span>' :
-    '<span class="co-count" data-co-count>' + onN + ' of ' + all.length + ' offered</span>' +
-    '<button type="button" class="tool-btn co-all" onclick="_colourSetAll(\'' + kind + '\',\'' + esc2(String(id).replace(/'/g, "\\'")) + '\',true)">Tick all</button>' +
-    '<button type="button" class="tool-btn co-all" onclick="_colourSetAll(\'' + kind + '\',\'' + esc2(String(id).replace(/'/g, "\\'")) + '\',false)">Untick all</button>';
-  return '<div class="co-tools">' + tools + '</div><div class="co-grid' + (opts.big ? ' co-big' : '') + '">' + (cards || '<p class="qb-para">No colour chart for this one.</p>') + '</div>';
-}
-// EDIT COLOURS on the quote (the owner: "a button next to the roof colour
-// called Edit Colours, this should pop-up a big window showing all the colour
-// options for that steel selection"). The same ticks as Settings, saved to
-// the account, so a colour hidden here is hidden on every quote.
-function _colourEditOpen(kind, id){
-  if (window.__CUSTOMER_MODE) return;
-  var old = document.getElementById('coModal'); if (old) old.remove();
-  var host = document.createElement('div');
-  host.id = 'coModal'; host.className = 'no-print';
-  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.5);z-index:100006;display:flex;align-items:center;justify-content:center;padding:16px');
-  host._kind = kind; host._id = id;
-  document.body.appendChild(host);
-  _colourEditPaint();
-  host.addEventListener('click', function(e){ if (e.target === host) host.remove(); });
-}
-function _colourEditPaint(){
-  var host = document.getElementById('coModal'); if (!host) return;
-  var kind = host._kind, id = host._id;
-  host.innerHTML = '<div class="qsel co-modal">' +
-    '<div class="qsel-hd"><b>Colours for ' + esc2(_colourScopeTitle(kind, id)) + '</b><span>' + esc2(_colourChartName(kind, id)) + '. Ticked colours are offered on your quotes; click one to hide it or bring it back. This is saved to your account \u2014 the same list is under Settings \u2192 Colour Options.</span></div>' +
-    '<div class="co-body">' + _colourGridHtml(kind, id, { big:true }) + '</div>' +
-    '<div class="qsel-ft"><button type="button" class="qa-btn" onclick="_colourEditClose();_colourSettingsGo()">All colour options\u2026</button><span style="flex:1"></span>' +
-      '<button type="button" class="qa-btn qa-btn-primary" onclick="_colourEditClose()">Done</button></div>' +
-    '</div>';
-}
-function _colourEditClose(){ var h = document.getElementById('coModal'); if (h) h.remove(); }
-function _colourSettingsGo(){
-  try { gotoTab('settings'); } catch(e){}
-  try { switchSettingsSub('set-colours'); } catch(e){}
-}
-function _colourEditBtnHtml(kind, id){
-  if (window.__CUSTOMER_MODE || window.__PRINTING_QUOTE || window.__PRINTING_MODERN) return '';
-  return '<button type="button" class="qb-cond-link no-print co-edit-btn" onclick="_colourEditOpen(\'' + kind + '\',\'' + esc2(String(id).replace(/'/g, "\\'")) + '\')" title="Choose which colours this quote offers">\u270E Edit colours</button>';
-}
-// SETTINGS → COLOUR OPTIONS: a tile a steel grade (Zincalume is unpainted and
-// has none), then a tile a gutter type, each its own chart and its own ticks.
-function _colourOptionsRender(){
-  var root = document.getElementById('coSettingsRoot'); if (!root) return;
-  var out = '';
-  var grades = []; try { grades = _selGradesAll().filter(function(g){ return g && g.id && !g.removed && String(g.id) !== 'zincalume'; }); } catch(e){}
-  var guts = []; try { guts = _selGuttersAll().filter(function(g){ return g && g.id && !g.removed; }); } catch(e){}
-  var tile = function(kind, it){
-    return '<div class="set-sec co-sec" data-co-scope="' + esc2(_colourScope(kind, it.id)) + '"><div class="set-sec-hd"><strong>' + esc2(it.name || it.id) + '</strong><span class="set-sec-note">' + esc2(_colourChartName(kind, it.id)) + '</span></div>' + _colourGridHtml(kind, it.id) + '</div>';
-  };
-  out += '<h3 class="co-h">Steel grades</h3>' + (grades.length ? grades.map(function(g){ return tile('grade', g); }).join('') : '<p class="qb-para">No painted steel grades on your product list.</p>');
-  out += '<h3 class="co-h">Gutter types</h3>' + (guts.length ? guts.map(function(g){ return tile('gutter', g); }).join('') : '<p class="qb-para">No gutters on your product list.</p>');
-  root.innerHTML = out;
 }
 function _paletteBrandForGradeId(id){
   id = String(id || '').toLowerCase();
@@ -32659,7 +32066,7 @@ function _gutterNoPlatformTickHtml(where){
   return '<label class="no-print gnp-tick" data-gnp="'+esc2(where)+'" style="display:flex;align-items:flex-start;gap:8px;margin:10px 0 0;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:#f8fafc;font-size:12px;color:#0a1628;cursor:pointer;text-align:left;font-style:normal">'+
       '<input type="checkbox" '+(on ? 'checked' : '')+' onchange="_setGutterNoPlatform(this.checked)" style="width:16px;height:16px;margin:1px 0 0;flex:0 0 auto">'+
       '<span><strong>Upgrade to platform scaffolding isn\u2019t required for the gutter install</strong> (a low roof)'+
-      '<span class="px-note" style="display:block;font-size:11px;color:var(--text2);font-weight:400;margin-top:2px;padding:0;border:none;background:none">'+why+'</span></span>'+
+      '<span style="display:block;font-size:11px;color:var(--text2);font-weight:400;margin-top:2px">'+why+'</span></span>'+
     '</label>';
 }
 function _setGutterNoPlatform(on){
@@ -32699,7 +32106,9 @@ function _selDownpipeDelta(){
   var q = (window.S && S.quote) || {};
   var p = q.proposalOptions || {};
   if (!p.gutterType || p.gutterType === 'none') return 0;
-  return _downpipeTotal();
+  var ov = parseFloat(q.downpipePriceOverride);
+  if (isFinite(ov) && ov >= 0) return ov;
+  return _downpipeUnitPrice() * _selGutterLineCount();
 }
 
 // ── "Selections" page pricing (page 4) ──────────────────────────
@@ -32853,7 +32262,9 @@ function _qpBuildPriced(){
     // gates them on a gutter being chosen instead.
     downpipes: (function(){
       if (_gutterExcluded()) return 0;
-      return _downpipeTotal();
+      var ov = parseFloat(q.downpipePriceOverride);
+      if (isFinite(ov) && ov >= 0) return ov;
+      return _downpipeUnitPrice() * _selGutterLineCount();
     })(),
     extraRoof: (q.extraRoofs || []).map(function(rr){ return parseFloat(rr.price) || 0; }),
     extraRoofLabel: (q.extraRoofs || []).map(function(rr, i){ return rr.name || ('Roof ' + (i + 2)); }),
@@ -33305,7 +32716,7 @@ function _selAddProfilePrompt(pick){
 function _setProposalOption_gutter(v){
   // On a Gutters only quote the colour follows the gutter: one the new gutter
   // does not come in is cleared, and Marley Classic is white.
-  try { if (S.quote){ var _p = S.quote.proposalOptions || (S.quote.proposalOptions = {}); var _o = _p.gutterType; _p.gutterType = v; _gjColourFit(_p); _p.gutterType = _o; } } catch(e){}
+  try { if (_isGutterJob() && S.quote){ var _p = S.quote.proposalOptions || (S.quote.proposalOptions = {}); var _o = _p.gutterType; _p.gutterType = v; _gjColourFit(_p); _p.gutterType = _o; } } catch(e){}
   _setProposalOption('gutterType', v);
 }
 function _setProposalOption_bracket(v){   _setProposalOption('gutterBracket', v); }
@@ -34999,8 +34410,8 @@ function _companyQuoteBase(){
   var own = String(c.domain || '').trim().toLowerCase();
   if (own) return 'https://' + own;
   var slug = String(c.slug || '').trim().toLowerCase();
-  // No business subdomains on roofmap.com yet (its DNS is not Vercel's, so a
-  // wildcard cannot be served): an Australian link is plain roofmap.com.
+  // No business subdomains on roofmap.net yet (its DNS is not Vercel's, so a
+  // wildcard cannot be served): an Australian link is plain roofmap.net.
   if (_isAU()) return '';
   return slug ? ('https://' + slug + '.' + ROOFMAP_ROOT) : '';
 }
@@ -35080,9 +34491,6 @@ function _qStampCustomerCopy(){
     S.quote.selectablesSnapshot = JSON.parse(JSON.stringify(
       _selMergeCarried((S.settings && S.settings.selectables) || _defaultSelectables(), S.quote.selectablesSnapshot)));
   } catch (e) {}
-  // The colours the business offers ride with the quote: the customer has no
-  // Settings to read them from (Colour Options, 2026-11-09).
-  try { S.quote.colourOff = JSON.parse(JSON.stringify(_colourOffMap() || {})); } catch (e) {}
   try {
     S.quote.share = S.quote.share || {};
     S.quote.share.priced = _qpBuildPriced();
@@ -35852,10 +35260,8 @@ function _qbPages(){
   if (!gutterOff){
     pages.push({ key:'gutter', label:'Guttering', html:_qbGutter });
     // Brackets and downpipes are decisions ABOUT a gutter: no gutter, no page.
-    if (p.gutterType && p.gutterType !== 'none'){
+    if (p.gutterType && p.gutterType !== 'none')
       pages.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
-      pages.push({ key:'gcolour', label:'Gutter colour', html:_qbGutterColour });
-    }
   }
   pages.push({ key:'disposal', label:'The old roof', html:_qbDisposal });
   // Whatever else this company sells, a page each — same shape as ours.
@@ -35872,14 +35278,6 @@ function _qbPages(){
   var ki = pages.findIndex(function(x){ return x.key === 'gutterkit'; });
   if (ki >= 0 && gi < 0) pages.splice(ki, 1);
   else if (ki >= 0 && ki !== gi + 1){ var kit = pages.splice(ki, 1)[0]; gi = pages.findIndex(function(x){ return x.key === 'gutter'; }); pages.splice(gi + 1, 0, kit); }
-  // And the gutter's colour straight after the kit (after the gutter, with no kit).
-  var ci2 = pages.findIndex(function(x){ return x.key === 'gcolour'; });
-  gi = pages.findIndex(function(x){ return x.key === 'gutter'; });
-  if (ci2 >= 0 && gi < 0) pages.splice(ci2, 1);
-  else if (ci2 >= 0){
-    var after = pages.findIndex(function(x){ return x.key === 'gutterkit'; }); if (after < 0) after = gi;
-    if (ci2 !== after + 1){ var gc = pages.splice(ci2, 1)[0]; after = pages.findIndex(function(x){ return x.key === 'gutterkit'; }); if (after < 0) after = pages.findIndex(function(x){ return x.key === 'gutter'; }); pages.splice(after + 1, 0, gc); }
-  }
   return pages;
 }
 // The page the price appears on, and every page after it.
@@ -37959,7 +37357,6 @@ function _qbColour(){
         : cur ? 'Chosen: <b>'+esc2(cur)+'</b>'
               : _qbNoColourYet(true))+'</div>'+
       _qbColourNote('colour', cur)+
-      _colourEditBtnHtml('grade', p.steelGrade || _quoteGradeId())+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
       // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
       // roofing quote, allow me to delete the roof colour section"), the
@@ -38081,7 +37478,6 @@ function _qbGutterColour(){
     '<div class="qb-chosen">'+(undecided ? 'Chosen: <b>Undecided</b> \u2014 we will confirm it with you'
        : cur ? 'Chosen: <b>'+esc2(cur)+'</b>' : _qbNoColourYet(true))+'</div>'+
     _qbColourNote('gcolour', cur)+
-    _colourEditBtnHtml('gutter', gt)+
     '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
     del + '</div>';
 }
@@ -38794,13 +38190,6 @@ function _qbPicksAutoBase(){
     try { out.push(['Guttering', name(_selGutters(), gt, gt), 'gutter']); } catch(e){ out.push(['Guttering', gt, 'gutter']); }
     out.push(['Gutter brackets', (p.gutterBracket === 'external') ? 'External' : 'Internal', 'brackets']);
     out.push(['Downpipes', (p.downpipes === 'yes') ? 'New downpipes' : 'Existing downpipes', 'downpipes']);
-    if (_parked.indexOf('gcolour') < 0){
-      try {
-        var _gP = _gjPalette(gt);
-        var _gc = _gP.kind === 'classic' ? 'White' : (p.gutterColour === QB_COLOUR_UNDECIDED ? 'Undecided \u2014 to be confirmed' : (p.gutterColour || ''));
-        if (_gc) out.push(['Gutter colour', _gc, 'gcolour']);
-      } catch(e){}
-    }
   }
   if (_parked.indexOf('disposal') < 0) out.push(['The old roofing', (p.disposal === 'keep') ? 'Left on site for you' : 'We take it away', 'disposal']);
   return out.filter(function(r){ return r[1]; });
@@ -38872,7 +38261,7 @@ function _fergusJobSummary(){
 // the sections card and the editor all agree.
 var QD_LABELS = { psplans:'Plans & elevations', psdetails:'Your shed', psplan:'Plan option', psgrade:'Steel grade', psprofile:'Profile',
   psthickness:'Thickness', pscolour:'Colour', psgutter:'Guttering', psroller:'Roller door', psaddons:'Add-ons', psincluded:"What's included",
-  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', gcolour:'Gutter colour', disposal:'Old roof', review:'Review', summary:'Your total', inclx:'Extras' };
+  cover:'Your quote', condition:'Existing roof condition', proposal:'Proposal', grade:'Steel grade', profile:'Profile', thickness:'Thickness', colour:'Colour', gutter:'Guttering', gutterkit:'Brackets & downpipes', disposal:'Old roof', review:'Review', summary:'Your total', inclx:'Extras' };
 function _qModernLabel(key){ return QD_LABELS[key] || (/^extra\d+$/.test(key) ? 'Options' : key); }
 function _qModernFixed(key, lastKey){ return key === 'cover' || key === 'proposal' || key === lastKey; }
 function _qModernApply(list){
@@ -38937,10 +38326,6 @@ function _qdSectionsRaw(){
     // Only once a gutter has actually been chosen — until then there is
     // nothing to put brackets on.
     if (_qdGutterKitOn()) list.push({ key:'gutterkit', label:'Brackets & downpipes', html:_qbGutterKit });
-    // THE GUTTER'S COLOUR UNDER THE GUTTER (2026-11-09, the owner: "if a colour
-    // is selected, show a section under the gutter section of the colour
-    // options for that gutter type") — the gutters-only quote's own section.
-    if (_qdGutterKitOn()) list.push({ key:'gcolour', label:'Gutter colour', html:_qbGutterColour });
   }
   list.push({ key:'disposal', label:'Old roof', html:_qbDisposal });
   try {
@@ -77564,8 +76949,8 @@ function _scopePricingRows(){
       if (scUp) put('Guttering', 'Platform scaffolding upgrade', '25% of the scaffold', null, null, null, scUp);
       var gDown = 0;
       if (((S.quote || {}).proposalOptions || {}).downpipes === 'yes'){
-        gDown = _downpipeTotal();
-        put('Guttering', 'Downpipes', '', _downpipeQty(), 'ea', _downpipeEach(), gDown);
+        gDown = _downpipeUnitPrice() * glines;
+        put('Guttering', 'Downpipes', '', glines, 'ea', _downpipeUnitPrice(), gDown);
       }
       put('Guttering', 'Guttering total', gOwn ? 'this roof\u2019s share' : '', null, null, null,
           gOwn ? (gBuffered * (1 + gMk / 100) + _gutterLabourCharge(glm) + gDown) : window._gdCardTotal);

@@ -1,4 +1,4 @@
-# RoofMap (Australia) — https://roofmap.com
+# RoofMap (Australia) — https://roofmap.net
 # GENERATED from ../robots.txt by floodroofing/tools/build-au-site.mjs — do not edit.
 #
 # Everything under / is a hand-written marketing page and is meant to be read,
@@ -187,4 +187,4 @@ Disallow: /manifest.webmanifest
 Disallow: /signup
 Disallow: /signup.html
 
-Sitemap: https://roofmap.com/sitemap-au.xml
+Sitemap: https://roofmap.net/sitemap-au.xml

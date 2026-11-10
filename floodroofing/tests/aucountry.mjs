@@ -1,11 +1,11 @@
 // AUSTRALIA, THE SERVER'S HALF (2026-11-04, the owner: "set up the AUD prices
-// and invoice wording, also setup my domain roofmap.com ... make the user
+// and invoice wording, also setup my domain roofmap.net ... make the user
 // enter their country (New Zealand or Australia) on sign up"). Against the
 // real server on the fake PostgREST, with a Stripe stand-in:
 //   - a sign-up that says AU makes an Australian business; none says NZ;
 //   - /subscription answers the country and the currency;
 //   - an Australian checkout asks Stripe for AUD at the same price and lands
-//     back on roofmap.com; a New Zealand one is unchanged;
+//     back on roofmap.net; a New Zealand one is unchanged;
 //   - only the owner moves the business between countries;
 //   - the AUD price options are added once, at the NZD numbers.
 import { fileURLToPath as _f, pathToFileURL } from 'node:url';
@@ -136,7 +136,7 @@ r = await call('POST', '/billing/checkout', { plan: 'team' }, tok(U_AU, AU, 'aus
 let cs = calls.slice(n0).find(c => c.path === '/v1/checkout/sessions');
 check('an Australian checkout is Stripe Checkout at the same price, in AUD', r.status === 200 && cs && cs.body.get('line_items[0][price]') === 'price_team_299' && cs.body.get('currency') === 'aud' && r.body.currency === 'aud',
   JSON.stringify([r.status, r.body, cs && cs.body.toString().slice(0, 160)]));
-check('…marked as an Australian business and coming back to roofmap.com', cs && cs.body.get('metadata[country]') === 'AU' && /^https:\/\/roofmap\.com\//.test(cs.body.get('success_url') || ''), cs && cs.body.get('success_url'));
+check('…marked as an Australian business and coming back to roofmap.net', cs && cs.body.get('metadata[country]') === 'AU' && /^https:\/\/roofmap\.net\//.test(cs.body.get('success_url') || ''), cs && cs.body.get('success_url'));
 n0 = calls.length;
 r = await call('POST', '/billing/checkout', { plan: 'team' }, tok(U_NZ, NZ, 'kiwi@example.co.nz'));
 cs = calls.slice(n0).find(c => c.path === '/v1/checkout/sessions');

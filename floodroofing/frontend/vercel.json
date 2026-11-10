@@ -150,7 +150,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/robots.txt",
@@ -161,7 +161,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/sitemap-au.xml",
@@ -329,7 +329,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/landing.html"
@@ -339,7 +339,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/pricing.html"
@@ -349,7 +349,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/signup.html"
@@ -359,7 +359,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/features-measuring.html"
@@ -369,7 +369,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/features-quotes.html"
@@ -379,7 +379,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/features-job-pack.html"
@@ -389,7 +389,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/fergus.html"
@@ -399,7 +399,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/about.html"
@@ -409,7 +409,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/early-access.html"
@@ -419,7 +419,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/tools-roof-pitch-calculator.html"
@@ -429,7 +429,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/tools-roofing-sheet-calculator.html"
@@ -439,7 +439,7 @@
       "has": [
         {
           "type": "host",
-          "value": "roofmap.com"
+          "value": "roofmap.net"
         }
       ],
       "destination": "/au/sitemap.xml"
