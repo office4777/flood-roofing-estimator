@@ -3556,7 +3556,7 @@ html.print-modern .qb-gauge-edit, html.pdf-modern .qb-gauge-edit{ display:none !
 .sched-shade.shut{ background:rgba(255,102,120,.16); }
 .sched-shade.cap{ background:rgba(245,158,11,.25); }
 .sched-shade.hol{ background:rgba(251,146,60,.28); border-left:1px solid rgba(234,88,12,.35); border-right:1px solid rgba(234,88,12,.35); overflow:hidden; }
-.sched-shade.hol span{ position:absolute; top:46px; left:50%; transform:translateX(-50%) rotate(180deg); writing-mode:vertical-rl;
+.sched-shade.hol span{ position:absolute; bottom:70px; left:50%; transform:translateX(-50%) rotate(180deg); writing-mode:vertical-rl;
   white-space:nowrap; font-size:calc(10px * var(--sched-tz, 1)); font-weight:700; letter-spacing:.03em; color:#9a3412; }
 .sched-day-hd.hol{ color:#c2410c; font-weight:800; }
 .sched-shade.today{ background:transparent; border-left:2px solid #0099cc; width:0; }
@@ -5595,7 +5595,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T22:57:20Z';
+  window.APP_BUILT_AT = '2026-11-10T23:00:37Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8192,7 +8192,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <span id="schedUpdating" class="sched-updating" style="display:none"><span class="sched-spin"></span>Updating…</span>
     </div>
     <div class="sched-scroll" id="schedScroll"><div id="schedGrid"></div></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Click an empty day (or hold and drag across days) and pick the pencil or a crew from the popup — or pick one up top first and click. The job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block for email &amp; more. Type a client name into a blank row to start one; drag a folder heading to move it down the board. Ctrl + scroll zooms the calendar.</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Click an empty day (or hold and drag across days) and pick the pencil or a crew from the popup — or pick one up top first and click. The job's length paints itself around weekends and holidays. Drag a block to move it, drag its right edge to resize, click a pencilled block with a crew selected to solid-book it. Click a block to change its colour or remove it; drag it up or down to move it to another job; the ✉ emails the customer, suppliers and trades. Type a client name into a blank row to start one; drag a folder heading to move it down the board. Ctrl + scroll zooms the calendar.</div>
   </div>
 
   <!-- Compose customer email -->
