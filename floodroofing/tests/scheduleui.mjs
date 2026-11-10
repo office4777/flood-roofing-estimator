@@ -531,8 +531,8 @@ await pg.waitForTimeout(400);
 v = await pg.evaluate(() => document.querySelectorAll('.sched-hd-row:not(.months) .sched-cell.hd').length);
 // Acceptance date, length, notes and % came off the board and into the
 // popup: four columns of squeezed text that were eating the calendar.
-check('…and » brings the full set back — open, job, site and the milestones',
-  v === 8, v + ' header cells');
+check('…and » brings the full set back — open, job, site, customer and the milestones',
+  v === 9, v + ' header cells');
 
 // The ✎ chip edits crews & colours right from the header bar.
 calls.length = 0;
@@ -677,7 +677,7 @@ check('the column icons show a pointer finger', v.pointer === 'pointer', v.point
 check('the job button is a round badge', /50%/.test(v.badge), v.badge);
 
 // Hover half a second over a column icon → a legend says what it means.
-await pg.hover('.sched-hd-row [data-tip]:nth-of-type(4)');
+await pg.hover('.sched-hd-row [data-tip]:nth-of-type(5)');
 await pg.waitForTimeout(60);
 v = await pg.evaluate(() => (document.querySelector('.sched-tip') || {}).textContent || '');
 check('the legend for a column icon pops up at once (2026-11-10)', /Deposit/.test(v), v);
@@ -785,7 +785,7 @@ check('an empty day clicked with nothing selected opens the pencil/crew popup',
 check('…with the picked day highlighted', v.sel === 1, v.sel + ' boxes');
 check('…and nothing painted yet', !calls.some(c => c[0] === 'POST blocks'));
 // Clicking anywhere else closes it.
-await pg.mouse.click(box.x - 300, box.y + 15);
+{ const sc = await pg.locator('#schedScroll').boundingBox(); await pg.mouse.click(sc.x + sc.width / 2, sc.y + 8); }   // the months band
 await pg.waitForTimeout(100);
 v = await pg.evaluate(() => ({ menu: document.querySelectorAll('.sched-menu').length, sel: document.querySelectorAll('.sched-selbox').length }));
 check('clicking elsewhere closes the popup and clears the highlight', v.menu === 0 && v.sel === 0, JSON.stringify(v));
@@ -842,9 +842,9 @@ await pg.waitForTimeout(800);
 await pg.evaluate(() => { _SCHED.sel = null; try { window.getSelection().removeAllRanges(); } catch(e){} });
 {
   const sb = await pg.locator('[data-strip="r2"]').boundingBox();
-  await pg.mouse.move(sb.x + 40 * 24 + 12, sb.y + 15);
+  await pg.mouse.move(sb.x + 34 * 24 + 12, sb.y + 15);
   await pg.mouse.down();
-  await pg.mouse.move(sb.x + 34 * 24, sb.y - 60, { steps: 8 });     // out over the day numbers
+  await pg.mouse.move(sb.x + 30 * 24, sb.y - 60, { steps: 8 });     // out over the day numbers
   const mid = await pg.evaluate(() => ({ sel: String(window.getSelection()), cls: document.body.classList.contains('sched-noselect') }));
   await pg.mouse.up();
   await pg.waitForTimeout(150);
@@ -1310,6 +1310,136 @@ await ctx.close();
   await pg.waitForTimeout(400);
   const added = calls.find(c => c[0] === 'POST rows');
   check('…and a pick from the search adds that job to the board', !!added && added[1].job_id === 'j7', JSON.stringify(added));
+  await ctx.close();
+}
+
+// ── 2026-11-11: frozen headings, a Customer column that folds, the job
+// window's summary folded and its map fitted and zoomable, another person's
+// drag shown live, and each person's own zoom.
+{
+  const big = mkSched();
+  for (let i = 0; i < 40; i++) big.rows.push({ id:'x' + i, job_id:null, client_name:'Client ' + i, site_address:i + ' Some Road, Town', email:'', length_days:2,
+    notes:'', progress_pct:null, deposit_paid:false, ordered:false, delivery_check:false, handover_done:false, last_notified:null, job_no:'',
+    archived:false, created_at:'2026-08-1' + (i % 9), accepted_at:null, auto:{} });
+  const { ctx, pg, calls } = await boot({ sched: big });
+  await pg.evaluate(() => localStorage.setItem('fr_user', JSON.stringify({ id: 'aron', name: 'Aron' })));
+  let v = await pg.evaluate(() => {
+    const sc = document.getElementById('schedScroll');
+    const r = sc.getBoundingClientRect();
+    sc.scrollTop = 700;
+    const hd = document.querySelector('.sched-hd-row.cols').getBoundingClientRect();
+    return { bottom: r.bottom, inner: innerHeight, scrolls: sc.scrollHeight > sc.clientHeight, hdTop: hd.top, scTop: sc.getBoundingClientRect().top,
+      over: getComputedStyle(sc).overscrollBehaviorY };
+  });
+  check('the board ends at the foot of the window, so the BOARD scrolls rather than the page', v.bottom <= v.inner + 1 && v.scrolls, JSON.stringify(v));
+  check('…and scrolled down, the Job / Site / icon headings stay at its top', Math.abs(v.hdTop - (v.scTop + 21)) < 3, JSON.stringify(v));
+  check('…and a wheel at its end does not carry on into the page', v.over === 'contain', v.over);
+  await pg.evaluate(() => { document.getElementById('schedScroll').scrollTop = 0; });
+  v = await pg.evaluate(() => ({
+    heads: [...document.querySelectorAll('.sched-hd-row.cols .sched-cell.hd')].map(e => e.textContent.trim()),
+    cust: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(4)') || {}).textContent,
+    x0: document.querySelector('[data-strip="r1"]').getBoundingClientRect().left }));
+  check('a Customer column sits beside the Site, with the customer’s name', v.heads.some(h => /^Customer/.test(h)) && v.cust === 'Brian Lewis', JSON.stringify(v));
+  await pg.evaluate(() => document.querySelector('[data-colfold="cust"]').click());
+  await pg.waitForTimeout(150);
+  let f = await pg.evaluate(() => ({
+    w: document.querySelector('.sched-hd-row.cols .sched-cell.hd:nth-child(4)').getBoundingClientRect().width,
+    cust: (document.querySelector('[data-rowzone="r1"] .sched-cell:nth-child(4)') || {}).textContent,
+    x: document.querySelector('[data-strip="r1"]').getBoundingClientRect().left,
+    key: localStorage.getItem('fr_sched_colshut:aron') }));
+  check('clicking the Customer heading folds it to a narrow tab and the calendar moves left', f.w < 30 && f.cust === '' && f.x < v.x0 - 60 && /cust/.test(f.key || ''), JSON.stringify(f));
+  await pg.evaluate(() => document.querySelector('[data-colfold="site"]').click());
+  await pg.waitForTimeout(150);
+  let f2 = await pg.evaluate(() => document.querySelector('[data-strip="r1"]').getBoundingClientRect().left);
+  check('…the Site folds the same way', f2 < f.x - 50, f.x + ' -> ' + f2);
+  await pg.evaluate(() => { document.querySelector('[data-colfold="cust"]').click(); });
+  await pg.evaluate(() => { document.querySelector('[data-colfold="site"]').click(); });
+  await pg.waitForTimeout(150);
+  f = await pg.evaluate(() => document.querySelector('[data-strip="r1"]').getBoundingClientRect().left);
+  check('…and a second click opens each again', Math.abs(f - v.x0) < 2, v.x0 + ' vs ' + f);
+
+  // Each person's own zoom.
+  v = await pg.evaluate(() => {
+    _schedSetTextZoom(1.4); _schedSetDayW(36);
+    const mine = { tz: localStorage.getItem('fr_sched_tz:aron'), dw: localStorage.getItem('fr_sched_dayw:aron'), shared: localStorage.getItem('fr_sched_tz') };
+    localStorage.setItem('fr_user', JSON.stringify({ id: 'ethan', name: 'Ethan' }));
+    _SCHED.textZoom = null;
+    const ethan = _schedTextZoom(), ethanDw = parseInt(_schedPrefGet('fr_sched_dayw') || '24', 10);
+    localStorage.setItem('fr_user', JSON.stringify({ id: 'aron', name: 'Aron' }));
+    _SCHED.textZoom = null;
+    return { mine, ethan, ethanDw, back: _schedTextZoom() };
+  });
+  check('the zooms are kept per person on the device and never shared', v.mine.tz === '1.4' && v.mine.dw === '36' && v.mine.shared == null && v.ethan === 1 && v.ethanDw === 24 && v.back === 1.4, JSON.stringify(v));
+  await pg.evaluate(() => { _schedSetTextZoom(1); _schedSetDayW(24); });
+
+  // The job window: summary folded, choices and hours open, the map fitted, zoomable.
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(800);
+  v = await pg.evaluate(() => {
+    const d = document.querySelector('#schedInfoJob details.sij-fold');
+    const cards = [...document.querySelectorAll('#schedInfoJob .sij-card')].map(c => c.textContent.slice(0, 30));
+    return { has: !!d, open: d && d.open, sum: d && d.querySelector('summary').textContent, chose: cards.some(t => /What the customer chose/.test(t)),
+      hours: !!document.querySelector('#sijHours'), zoom: !!document.querySelector('#sijMap .sij-mapzoom svg') };
+  });
+  check('the Quote summary is folded by default, its total on the heading', v.has && !v.open && /Quote summary/.test(v.sum) && /\$/.test(v.sum), JSON.stringify(v));
+  check('…What the customer chose and the Allocated hours stay open', v.chose && v.hours, JSON.stringify(v));
+  const vb0 = await pg.evaluate(() => document.querySelector('#sijMap .sij-mapzoom svg').getAttribute('viewBox'));
+  const fitted = await pg.evaluate(() => {
+    const st = S.quote; let out = null;
+    try { const j = window._SCHED_JOB_CACHE && Object.values(window._SCHED_JOB_CACHE)[0]; } catch(e){}
+    return out;
+  });
+  const mb = await pg.locator('#sijMap .sij-mapzoom').boundingBox();
+  await pg.mouse.move(mb.x + mb.width / 2, mb.y + mb.height / 2);
+  await pg.mouse.wheel(0, -300);
+  await pg.waitForTimeout(100);
+  const vb1 = await pg.evaluate(() => document.querySelector('#sijMap .sij-mapzoom svg').getAttribute('viewBox'));
+  check('the wheel over the customer’s roofs zooms in', +vb1.split(' ')[2] < +vb0.split(' ')[2], vb0 + ' -> ' + vb1);
+  await pg.mouse.down(); await pg.mouse.move(mb.x + mb.width / 2 + 80, mb.y + mb.height / 2 + 30, { steps: 4 }); await pg.mouse.up();
+  const vb2 = await pg.evaluate(() => document.querySelector('#sijMap .sij-mapzoom svg').getAttribute('viewBox'));
+  check('…a drag moves the picture inside its box', vb2.split(' ')[0] !== vb1.split(' ')[0] && vb2.split(' ')[2] === vb1.split(' ')[2], vb1 + ' -> ' + vb2);
+  await pg.mouse.dblclick(mb.x + mb.width / 2, mb.y + mb.height / 2);
+  const vb3 = await pg.evaluate(() => document.querySelector('#sijMap .sij-mapzoom svg').getAttribute('viewBox'));
+  check('…and a double-click fits it again', vb3 === vb0, vb3);
+  v = await pg.evaluate(() => {
+    // fitted to the roofs: narrower than the canvas framing it used to copy
+    const keep = S.quote, sv = document.querySelector('#sijMap .sij-mapzoom svg').getAttribute('viewBox').split(' ').map(Number);
+    return sv;
+  });
+  await pg.evaluate(() => _schedInfoClose());
+
+  // Another person's drag, live.
+  let pres = { ver: 5, users: [] }, posts = [];
+  await pg.route('**/schedule/presence', r => { posts.push(JSON.parse(r.request().postData() || '{}')); r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(pres) }); });
+  pres = { ver: 5, users: [{ id: 'u2', name: 'Ethan', hold: { what: 'drag', block: 'b2', row: 'r1', start: '2026-09-14', to: 'r2', len: 0 } }] };
+  await pg.waitForTimeout(1900);
+  posts.length = 0;
+  await pg.waitForTimeout(1000);
+  v = await pg.evaluate(() => {
+    const el = document.querySelector('[data-block="b2"]');
+    return { cls: el.className, left: parseFloat(el.style.left), want: _SCHED.dayIdx['2026-09-14'] * _SCHED.dayW, tf: el.style.transform, name: el.getAttribute('data-held') };
+  });
+  check('another person’s block moves on this screen as they drag it, to the day and the row under their pointer',
+    /held-live/.test(v.cls) && Math.abs(v.left - v.want) < 1 && /translateY\(-?\d/.test(v.tf) && v.name === 'Ethan', JSON.stringify(v));
+  check('…the board asks several times a second while anyone holds a block', posts.length >= 3, posts.length + ' beats in 1 s');
+  pres = { ver: 5, users: [{ id: 'u2', name: 'Ethan', hold: null }] };
+  await pg.waitForTimeout(600);
+  v = await pg.evaluate(() => { const b = _SCHED.data.blocks.find(x => x.id === 'b2'); return { start: b.start_date, row: b.row_id,
+    onRow: !!document.querySelector('[data-strip="r2"] [data-block="b2"]') }; });
+  check('…and the moment they let go it sits where they dropped it, before the reload confirms it', v.start === '2026-09-14' && v.row === 'r2' && v.onRow, JSON.stringify(v));
+  // My own drag says where it is.
+  pres = { ver: 5, users: [] };
+  await pg.waitForTimeout(400);
+  posts.length = 0;
+  await pg.evaluate(() => document.querySelector('[data-block="b1"]').scrollIntoView({ block: 'center', inline: 'center' }));
+  const bb = await pg.locator('[data-block="b1"]').boundingBox();
+  await pg.mouse.move(bb.x + 10, bb.y + bb.height / 2); await pg.mouse.down();
+  await pg.mouse.move(bb.x + 10 + 3 * 24, bb.y + bb.height / 2, { steps: 6 });
+  await pg.waitForTimeout(400);
+  const mid = posts.filter(p => p.hold && p.hold.what === 'drag').map(p => p.hold.start);
+  await pg.mouse.up();
+  await pg.waitForTimeout(300);
+  check('my own drag sends the day it is over, as it moves', mid.length >= 1 && mid.some(d => /^2026-09-/.test(d)), JSON.stringify(mid));
   await ctx.close();
 }
 

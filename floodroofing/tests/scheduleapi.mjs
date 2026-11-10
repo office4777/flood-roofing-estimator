@@ -270,12 +270,16 @@ check('a Fergus-only row keeps its Fergus id and answers it as fergus_id with it
 // A heartbeat says what this person holds and hears who else is here (same
 // company only) and the board's version, which every write moves.
 const A2 = { user: 'user-a2', company: 'company-a' };
-r = await as(A, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Paula', hold: { what: 'drag', block: 'blk-1', row: rowQ.id } }) });
+r = await as(A, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Paula', hold: { what: 'drag', block: 'blk-1', row: rowQ.id, start: '2026-09-14', to: 'row-x', len: 3 } }) });
 body = await j(r);
 const ver0 = body.ver;
 check('a heartbeat answers the board version and nobody else yet', r.status === 200 && typeof ver0 === 'number' && body.users.length === 0, JSON.stringify(body));
 body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
 check('a colleague hears who holds what', body.users.length === 1 && body.users[0].name === 'Paula' && body.users[0].hold.block === 'blk-1', JSON.stringify(body.users));
+check('…and where the drag has got to: the day, the row under the pointer, the length', body.users[0] && body.users[0].hold.start === '2026-09-14' && body.users[0].hold.to === 'row-x' && body.users[0].hold.len === 3, JSON.stringify(body.users));
+{ const rx = await j(await as(A, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Paula', hold: { what: 'drag', block: 'blk-1', row: rowQ.id, start: '<b>soon</b>' } }) }));
+  const bx = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
+  check('…and a day that is not a date is dropped', bx.users[0] && bx.users[0].hold.start === '', JSON.stringify(bx.users)); }
 body = await j(await as(B, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Rival' }) }));
 check('the rival next door hears nobody', body.users.length === 0, JSON.stringify(body.users));
 body = await j(await as(A2, '/schedule/presence', { method: 'POST', body: JSON.stringify({ name: 'Hannah' }) }));
