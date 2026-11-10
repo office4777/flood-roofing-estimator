@@ -5510,7 +5510,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T05:25:51Z';
+  window.APP_BUILT_AT = '2026-11-10T17:19:41Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -10319,8 +10319,11 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       </div>
       <div class="set-sec">
         <div class="set-sec-hd"><strong>Done by your own crew</strong><span class="set-sec-note">&mdash; the hours a job starts on, by roof area</span></div>
-        <div class="set-sec-sub">When a job's scaffold is set to <em>Do it ourselves</em>, these hours go on the Lead Roofer and the Apprentice at their own rates. Any job can type its own.</div>
+        <div class="set-sec-sub">When a job's scaffold is set to <em>Do it ourselves</em>, these hours go on the Lead Roofer and the Apprentice at their own rates. Type your own hours for each band; a blank box is RoofMap's figure. Any job can type its own.</div>
         <div id="lpScaffTiers"></div>
+        <div class="f2" style="margin-top:12px">
+          <div><label>Two-storey multiplier <span style="font-weight:400;color:var(--text2)">&mdash; the job complexity multiplier a two-storey house starts on; it lifts the scaffold hours, the auto-calculated roof hours and the $/m&sup2; rate</span></label><input type="number" id="lpStoreyMult" min="1" step="0.05" placeholder="1.5"></div>
+        </div>
       </div>
     </div>
 
@@ -14491,10 +14494,26 @@ function _lpExampleRender(){
 }
 function _lpScaffTiersRender(){
   var box = document.getElementById('lpScaffTiers'); if (!box) return;
+  var own = (_lpDefaults().scaff_tiers || []);
   var rows = '', prev = 0;
-  SCAFF_DIY_TIERS.forEach(function(t){ rows += '<tr><td>' + (prev ? (prev + 1) : 0) + ' \u2013 ' + t[0] + ' m\u00b2</td><td>' + t[1] + ' hrs</td></tr>'; prev = t[0]; });
-  rows += '<tr><td>over ' + prev + ' m\u00b2</td><td>15 hrs</td></tr>';
+  var cell = function(i, def){
+    var v = own[i]; v = (v == null || v === '') ? '' : v;
+    return '<td style="text-align:right"><input type="number" min="0" step="0.5" value="' + v + '" placeholder="' + def + '" data-lp-tier="' + i + '" onchange="_lpScaffTierSet(' + i + ', this.value)" style="width:84px;text-align:right;display:inline-block;margin:0"> <span style="font-size:11px;color:var(--text2)">hrs</span></td>';
+  };
+  SCAFF_DIY_TIERS.forEach(function(t, i){ rows += '<tr><td>' + (prev ? (prev + 1) : 0) + ' \u2013 ' + t[0] + ' m\u00b2</td>' + cell(i, t[1]) + '</tr>'; prev = t[0]; });
+  rows += '<tr><td>over ' + prev + ' m\u00b2</td>' + cell(SCAFF_DIY_TIERS.length, SCAFF_DIY_OVER_HRS) + '</tr>';
   box.innerHTML = '<table class="lp-tiers"><tbody>' + rows + '</tbody></table>';
+}
+function _lpScaffTierSet(i, v){
+  if (!S.settings.labour_pricing) S.settings.labour_pricing = defaultSettings().labour_pricing;
+  var lp = S.settings.labour_pricing;
+  var t = Array.isArray(lp.scaff_tiers) ? lp.scaff_tiers.slice() : [];
+  var n = parseFloat(v);
+  t[i] = (isFinite(n) && n >= 0 && String(v).trim() !== '') ? n : null;
+  while (t.length && t[t.length - 1] == null) t.pop();
+  if (t.length) lp.scaff_tiers = t; else delete lp.scaff_tiers;
+  try { _scheduleSettingsAutosave(); } catch(e){}
+  try { calcLabour(); } catch(e){}
 }
 function switchSettingsSub(id,btn){
   // Opening the price book is the moment the disclaimer matters, so it is
@@ -15624,6 +15643,10 @@ function collectLabourPricingFromUI(){
   lp.scaffold_cost  = numOr('lpScaffoldCost', 2000);
   lp.scaffold_price = numOr('lpScaffoldPrice', 2500);
   lp.scaffold_platform_pct = numOr('lpScaffoldPlatformPct', 25);
+  // The two-storey multiplier (1.5 is RoofMap's); the own-crew hours table
+  // writes itself (`_lpScaffTierSet`), so a save never reads it back.
+  var smEl = document.getElementById('lpStoreyMult');
+  if (smEl){ var sm = parseFloat(smEl.value); if (isFinite(sm) && sm >= 1) lp.storey_mult = sm; else delete lp.storey_mult; }
   lp.labour_m2 = numOr('lpLabourM2', 0);
   lp.gutter_lm = numOr('lpGutterLm', 0);
   lp.scaffold_lm = numOr('lpScaffoldLm', 0);
@@ -15661,6 +15684,7 @@ function renderLabourPricingUI(){
   setN('lpScaffoldCost',  lp.scaffold_cost);
   setN('lpScaffoldPrice', lp.scaffold_price);
   setN('lpScaffoldPlatformPct', lp.scaffold_platform_pct);
+  setN('lpStoreyMult', lp.storey_mult);
   setN('lpLabourM2', lp.labour_m2);
   setN('lpGutterLm', lp.gutter_lm);
   setN('lpScaffoldLm', lp.scaffold_lm);
@@ -19230,8 +19254,9 @@ function _labourM2Rate(){
   var j = parseFloat(S.quote && S.quote.labourM2);
   if (isFinite(j) && j > 0) return j;
   var d = parseFloat(_lpDefaults().labour_m2);
-  return (isFinite(d) && d > 0) ? d : 0;
+  return (isFinite(d) && d > 0) ? Math.round(d * _jobMult() * 100) / 100 : 0;
 }
+function _labourM2RateIsDefault(){ var j = parseFloat(S.quote && S.quote.labourM2); return !(isFinite(j) && j > 0); }
 function _gutterLmRate(){
   var j = parseFloat(S.quote && S.quote.gutterLabourLm);
   if (isFinite(j) && j > 0) return j;
@@ -19334,8 +19359,9 @@ function _labourModeButtonsHtml(ri){
     _labourModeBtnHtml("_setLabourMode('m2')", 'By the m\u00b2', 'roof area \u00d7 your rate', m2)+
   '</div>';
   if (!m2) return html;
+  var mnote = (_jobMult() !== 1 && _labourM2RateIsDefault()) ? 'Standard rate \u00d7 ' + _jobMult() + ' (job complexity). ' : '';
   return html + _labourRateRowHtml(_labourAreaForRoof(ri || 0), 'm\u00b2', _labourM2Rate(),
-    '_setLabourM2(this.value)', 'Hours below still set your cost and GP.');
+    '_setLabourM2(this.value)', mnote + 'Hours below still set your cost and GP.');
 }
 function _gutterLabourModeButtonsHtml(lm){
   var per = (_gutterLabourMode() === 'lm');
@@ -19611,8 +19637,9 @@ function _labourCalcHours(idx){
   }).filter(function(r){ return !r.optional; });
   var sum = 0;
   rows.forEach(function(r){ r.hours = (r.rate > 0) ? (r.qty / r.rate) : 0; sum += r.hours; });
-  var h2 = Math.ceil(sum);
-  return { rows: rows, raw: sum, hours2: h2, hours3: Math.ceil(h2 * 0.7) };
+  var mult = _jobMult();
+  var h2 = Math.ceil(sum * mult);
+  return { rows: rows, raw: sum, mult: mult, hours2: h2, hours3: Math.ceil(h2 * 0.7) };
 }
 // Write the computed 2-man hours into the Lead + Apprentice hours for a roof
 // (both work the full crew duration). Roof 0 = the main labour table.
@@ -27875,10 +27902,59 @@ function _scaffoldLmUpd(key, val){
 // {leadHrs, appHrs, leadPrice, appPrice, leadCost, appCost, hrsManual, own}.
 // A quote that has none of these reads exactly as it did.
 var SCAFF_DIY_TIERS = [[50, 4], [100, 6], [160, 8], [230, 10], [330, 12]];
+var SCAFF_DIY_OVER_HRS = 15;
+// The hours a band starts on: Settings → Scaffolding's own figure where one
+// is typed (`labour_pricing.scaff_tiers[i]`), else RoofMap's.
+function _scaffTierHrs(i){
+  var own = (_lpDefaults().scaff_tiers || [])[i];
+  var n = parseFloat(own);
+  if (isFinite(n) && n >= 0 && own !== null && own !== '') return n;
+  return i < SCAFF_DIY_TIERS.length ? SCAFF_DIY_TIERS[i][1] : SCAFF_DIY_OVER_HRS;
+}
+// JOB COMPLEXITY MULTIPLIER (2026-11-10, the owner: "put a multiplier for a
+// two-story house ... 1.5 by default ... in the roof labor ... that
+// complexity multiplier will up the calculated hours for that job ... in the
+// price by square meters, put it inside that yellow banner as well. That will
+// increase the default rate"). `S.quote.jobMult` (1 = standard); it scales
+// the auto-calculated roof hours, the own-crew scaffold hours and the
+// Settings $/m² rate — never hours or a rate the office typed on this job.
+function _jobMult(){
+  var m = parseFloat(S.quote && S.quote.jobMult);
+  return (isFinite(m) && m > 0) ? m : 1;
+}
+function _storeyMult(){
+  var m = parseFloat(_lpDefaults().storey_mult);
+  return (isFinite(m) && m >= 1) ? m : 1.5;
+}
+function _setJobMult(v){
+  if (!S.quote) return;
+  var m = parseFloat(v);
+  if (!isFinite(m) || m <= 0 || Math.abs(m - 1) < 1e-9) delete S.quote.jobMult; else S.quote.jobMult = Math.round(m * 100) / 100;
+  try { calcLabour(); } catch(e){}
+  try { refreshQuoteProposal(); } catch(e){}
+  try { renderProfitability(); } catch(e){}
+  try { if (typeof onQuoteEdit === 'function') onQuoteEdit(); } catch(e){}
+  try { _scheduleAutosave(); } catch(e){}
+}
+function _jobMultRowHtml(){
+  var m = _jobMult(), sm = _storeyMult(), two = Math.abs(m - sm) < 1e-9;
+  var btn = function(label, val, on){
+    return '<button type="button" onclick="_setJobMult(' + val + ')" style="font-size:11.5px;font-weight:700;padding:5px 11px;border-radius:7px;cursor:pointer;font-family:inherit;border:1px solid ' + (on ? '#0099e0' : 'var(--border)') + ';background:' + (on ? '#0099e0' : '#fff') + ';color:' + (on ? '#fff' : '#0a1628') + '">' + label + '</button>';
+  };
+  return '<div id="jobMultRow" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin:0 0 8px;border-radius:9px;background:#f1f5f9;border:1px solid #e2e8f0">' +
+    '<span style="font-size:12.5px;font-weight:700;color:#0a1628">Job complexity multiplier <span style="font-weight:400;color:var(--text2)">(i.e. two-storey / poor access etc.)</span></span>' +
+    btn('Standard \u00d71', 1, Math.abs(m - 1) < 1e-9) +
+    btn('Two-storey \u00d7' + sm, sm, two) +
+    '<span style="display:inline-flex;align-items:center;gap:3px"><span style="font-size:11px;color:var(--text2)">\u00d7</span>' +
+      '<input type="number" id="jobMultInput" min="0.1" step="0.05" value="' + m + '" onchange="_setJobMult(this.value)" style="width:70px;font-size:12px;padding:5px 7px"></span>' +
+    '<span class="px-note" style="font-size:10.5px;color:var(--text3);margin-left:auto;padding:0;border:none;background:none">Lifts the auto-calculated hours, the own-crew scaffold hours and the standard $/m\u00b2 rate. Hours or a rate you type are left as typed.</span>' +
+  '</div>';
+}
 function _scaffoldDiyHrsForArea(a){
   a = parseFloat(a) || 0;
-  for (var i = 0; i < SCAFF_DIY_TIERS.length; i++) if (a <= SCAFF_DIY_TIERS[i][0]) return SCAFF_DIY_TIERS[i][1];
-  return 15;
+  var h = _scaffTierHrs(SCAFF_DIY_TIERS.length);
+  for (var i = 0; i < SCAFF_DIY_TIERS.length; i++) if (a <= SCAFF_DIY_TIERS[i][0]) { h = _scaffTierHrs(i); break; }
+  return Math.round(h * _jobMult() * 10) / 10;
 }
 function _scaffoldAreaFor(i){
   var idxs = [i || 0];
@@ -28172,6 +28248,7 @@ function calcLabour(){
       : '')+
     _labourModeButtonsHtml(ri)+
     _labourCalcPanelHtml(ri)+
+    _jobMultRowHtml()+
     '<table class="price-tbl" style="table-layout:fixed;width:100%">'+
     '<thead><tr>'+
       '<th style="width:26%">Worker</th>'+
@@ -28272,7 +28349,7 @@ function calcLabour(){
         '<div class="px-note" style="margin-top:6px">'+
           (_d.hrsManual
             ? 'Hours typed for this job. <a href="#" onclick="_scaffoldDiyReset();return false">\u21bb Back to the roof area\u2019s hours</a>'
-            : 'Hours from the roof area: '+_scArea.toFixed(1)+' m\u00b2 \u2192 '+_scaffoldDiyHrsForArea(_scArea)+' hrs each. Rates follow the roof labour table.')+
+            : 'Hours from the roof area: '+_scArea.toFixed(1)+' m\u00b2 \u2192 '+_scaffoldDiyHrsForArea(_scArea)+' hrs each'+(_jobMult() !== 1 ? ' (\u00d7 '+_jobMult()+' job complexity)' : '')+'. Rates follow the roof labour table.')+
         '</div>'+
         '<div class="px-sum" style="display:flex;justify-content:space-between;padding:8px 10px;margin-top:6px;background:#e8f5e9;border-left:3px solid #2e7d32;border-radius:8px">'+
           '<strong style="font-size:12.5px">Scaffolding labour \u00b7 '+(f(_d.leadHrs)+f(_d.appHrs)).toFixed(1)+' hrs</strong>'+
@@ -31728,6 +31805,15 @@ function _selWorking(){
   return w;
 }
 function _selKindList(kind){ var w = _selWorking(); return w[kind] || []; }
+// The "Display on quote" tick: ticked = offered on every new quote; unticked =
+// kept here, offered only when a quote ticks it in. The base grade is always
+// offered (every price is measured against it).
+function _selOnQuoteCell(kind, i, r){
+  var locked = kind === 'grades' && !!r.base;
+  return '<td style="text-align:center"><input type="checkbox" class="sel-onquote" ' + (r.offQuote ? '' : 'checked') + (locked ? ' disabled' : '') +
+    ' title="' + (locked ? 'The base grade is always offered' : 'Ticked: offered on every new quote. Unticked: kept here and offered only when a quote adds it under Edit this quote\u2019s selections') + '"' +
+    ' onchange="_selEdit(\'' + kind + '\',' + i + ',\'offQuote\',!this.checked)" style="width:auto;margin:0"></td>';
+}
 function _selEdit(kind, i, field, val){
   var list = _selKindList(kind), row = list[i]; if (!row) return;
   if (field === 'pct') {
@@ -31745,6 +31831,9 @@ function _selEdit(kind, i, field, val){
     else row[field] = nb;
   } else if (field === 'extBracketLm' || field === 'coverMm' || field === 'rate') {
     var n = parseFloat(val); row[field] = isFinite(n) ? n : 0;
+  } else if (field === 'offQuote') {
+    // Unticked "Display on quote": kept on the list, left off new quotes.
+    if (val) row.offQuote = true; else delete row.offQuote;
   } else if (field === 'scaffoldUplift' || field === 'base') {
     row[field] = !!val;
     // Exactly one grade is the base every other delta is measured from.
@@ -31858,9 +31947,10 @@ function renderSelectablesUI(){
   box.innerHTML =
     section('grades', 'Steel grades',
       'The price difference is a percentage of the material cost, measured against whichever grade is ticked as the base. A dearer grade is a positive number, a cheaper one negative.',
-      '<th>Name</th><th style="width:96px">Price diff %</th><th style="width:64px">Base</th><th>Shown to the customer as</th>',
+      '<th>Name</th><th style="width:72px">Display on quote</th><th style="width:96px">Price diff %</th><th style="width:64px">Base</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('grades', i, 'name', r.name, 'Grade name') + '</td>' +
+          _selOnQuoteCell('grades', i, r) +
           '<td>' + inp('grades', i, 'pct', (r.pct == null ? 0 : (r.pct * 100).toFixed(1)), '0', ' type="number" step="0.1"') + '</td>' +
           '<td style="text-align:center"><input type="radio" name="selBaseGrade" ' + (r.base ? 'checked' : '') +
             ' onchange="_selEdit(\'grades\',' + i + ',\'base\',true)" style="width:auto;margin:0"></td>' +
@@ -31868,9 +31958,10 @@ function renderSelectablesUI(){
       }) +
     section('profiles', 'Roof profiles',
       'Cover is the width ONE sheet covers once it is lapped — the number of sheets is worked out from it, so a 500mm tray takes half again as many as 762mm corrugate. If a profile is only supplied in one gauge, put that here too: choosing it then locks the gauge and folds the upgrade into its price, instead of the charge appearing from nowhere. <strong>Own price</strong> is for a profile that does not come at your standard sheet rate — leave it blank and Corrugate, 5-Rib and anything else share the price in Default Items; set it and that profile is priced at its own rate, on the quote, in the Pricing tab and as the extra the customer sees.',
-      '<th>Name</th><th style="width:96px">Cover (mm)</th><th style="width:96px">Locks gauge</th><th style="width:92px">Own price $</th><th style="width:76px">per</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
+      '<th>Name</th><th style="width:72px">Display on quote</th><th style="width:96px">Cover (mm)</th><th style="width:96px">Locks gauge</th><th style="width:92px">Own price $</th><th style="width:76px">per</th><th style="width:96px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         return '<td>' + inp('profiles', i, 'name', r.name, 'Profile name') + '</td>' +
+          _selOnQuoteCell('profiles', i, r) +
           '<td>' + inp('profiles', i, 'coverMm', r.coverMm, '762', ' type="number" step="1" min="100" max="2000" title="The width ONE sheet covers once lapped — what the sheet count is worked out from"') + '</td>' +
           '<td><select onchange="_selEdit(\'profiles\',' + i + ',\'locksGauge\',this.value)" style="width:100%;font-size:12px;padding:4px 6px;margin:0">' +
             '<option value=""' + (!r.locksGauge ? ' selected' : '') + '>No</option>' +
@@ -31890,7 +31981,7 @@ function renderSelectablesUI(){
       }) +
     section('gutters', 'Gutter profiles',
       'Fitting a gutter usually lifts the site from edge protection to a working platform &mdash; 25% on the scaffolding. Leave that ticked unless this product genuinely does not. Each gutter&rsquo;s bracket spacing and prices are set once, on Material costs &rarr; Guttering.',
-      '<th>Name</th><th style="width:86px">Scaffold +25%</th><th style="width:170px">Brackets</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
+      '<th>Name</th><th style="width:72px">Display on quote</th><th style="width:86px">Scaffold +25%</th><th style="width:170px">Brackets</th><th style="width:88px">Picture</th><th>Shown to the customer as</th>',
       function(r, i){
         // The DEFAULT is the placeholder, never the value: one source of
         // truth (GUTTER_BRACKET_DEFAULTS) and a box that reads "800" in grey
@@ -31903,6 +31994,7 @@ function renderSelectablesUI(){
           (_ie > 0 ? ', ' + fmtMoney(_ie) + ' ea' : '') +
           (r.bracketExtEa > 0 ? ' / ext ' + fmtMoney(r.bracketExtEa) : (r.extBracketLm > 0 ? ' / ext +' + fmtMoney(r.extBracketLm) + '/lm' : ''));
         return '<td>' + inp('gutters', i, 'name', r.name, 'Gutter name') + '</td>' +
+          _selOnQuoteCell('gutters', i, r) +
           '<td style="text-align:center"><input type="checkbox" ' + (r.scaffoldUplift === false ? '' : 'checked') +
             ' onchange="_selEdit(\'gutters\',' + i + ',\'scaffoldUplift\',this.checked)" style="width:auto;margin:0"></td>' +
           '<td style="font-size:11px;color:var(--text2);line-height:1.35">' + esc(_bsum) +
@@ -32266,7 +32358,31 @@ function _selProfilesAll(){
   return base.concat(cp.filter(function(x){ return x && x.id && !seen[x.id]; }));
 }
 function _selGuttersAll(){ return _selectables().gutters || []; }
-function _selLive(list, kind){ return list.filter(function(x){ return x && !x.removed && !(kind && _selQuoteHidden(kind, x.id)); }); }
+// DISPLAY ON QUOTE (2026-11-10, the owner: "I want to be able to add all my
+// possible steel grades and gutter profiles but to 90% of my customers I'd
+// like to only offer them the basic view, but to the odd customer I'd like to
+// select different profiles to add in"). A row with `offQuote` stays on the
+// company's list and off every new quote; "Edit this quote's selections"
+// ticks it in for ONE quote (`S.quote.selShow[kind][id]`), and a quote that
+// already has it picked keeps it, so nothing sent before this moves.
+function _selQuoteShown(kind, id){
+  try { var sh = (window.S && S.quote && S.quote.selShow) || {}; return !!(sh[kind] && sh[kind][id]); }
+  catch(e){ return false; }
+}
+function _selPickedNow(kind, id){
+  try {
+    var p = (window.S && S.quote && S.quote.proposalOptions) || {};
+    if (kind === 'grades') return p.steelGrade === id || (!p.steelGrade && _selBaseGradeId() === id);
+    if (kind === 'profiles') return p.profile === id;
+    if (kind === 'gutters') return p.gutterType === id;
+  } catch(e){}
+  return false;
+}
+function _selOffQuote(kind, x){
+  return !!(kind && x && x.offQuote && !_selQuoteShown(kind, x.id) && !_selPickedNow(kind, x.id) && !x.base);
+}
+function _selLive(list, kind){ return list.filter(function(x){ return x && !x.removed && !(kind && _selQuoteHidden(kind, x.id)) && !_selOffQuote(kind, x); }); }
+function _selListed(list){ return list.filter(function(x){ return x && !x.removed; }); }
 function _selGrades(){ return _selLive(_selGradesAll(), 'grades'); }
 function _selProfiles(){ return _selLive(_selProfilesAll(), 'profiles'); }
 function _selGutters(){ return _selLive(_selGuttersAll(), 'gutters'); }
@@ -34680,7 +34796,7 @@ function _qvBackToDraft(opts){
 // the roof are not counted. A draft with no baseline (an older one) counts as
 // worked on: an extra saved draft is better than lost work.
 var Q_CONTENT_KEYS = ['coverTitle','aboutText','terms','inclusions','exclusions','timeline','scope','notes','custDesc','custExcl','custNotes','sectionDesc',
-  'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','condPhotos','coverPhoto','imageSlots',
+  'proposalTitle','pages','parked','modernOrder','modernParked','options','selHide','selShow','condPhotos','coverPhoto','imageSlots',
   'conditionSummary','conditionObservations','condMajor','condMinor','condReco','proposalOptions','style','customProfiles',
   'jobTitle','showLineItemsInQuote','proposalSections','validUntil','gutterNoPlatform','lineItems','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','psAddons','psChoiceEdit','inclExtras','optNotes','recLabel','recColour','recOff'];
 function _qContentFp(q){
@@ -37720,6 +37836,7 @@ function _qselOpen(filter){
   document.body.appendChild(host);
   host.addEventListener('click', function(e){ if (e.target === host) _qselClose(); });
   host._hide = JSON.parse(JSON.stringify(_selQuoteHide()));
+  host._show = JSON.parse(JSON.stringify((S.quote && S.quote.selShow) || {}));
   _qselPaint();
 }
 var QSEL_GUTTER_KINDS = ['gutters', 'brackets', 'downpipes'];
@@ -37738,14 +37855,18 @@ function _qselGroupsAll(){
   // the standard one and the picked one included. The window keeps at least
   // one in each group, and Save moves a pick that was taken off onto the
   // first choice left. The notes only say what a row is.
-  g.push({ kind:'grades', title:'Steel grades', rows:_selLive(_selGradesAll()).map(function(x, i){
-    return { id:x.id, label:x.name || x.id, note: x.id === (p.steelGrade || base) ? 'picked on this quote' : (x.id === base ? 'the base grade' : '') }; }) });
-  var prs = _selLive(_selProfilesAll());
+  // Every product on the company's list is offered here, the ones unticked
+  // "Display on quote" in Settings included (`offQuote`): ticking one here
+  // adds it to THIS quote only.
+  var offNote = function(x){ return x.offQuote ? 'not shown by default' : ''; };
+  g.push({ kind:'grades', title:'Steel grades', rows:_selListed(_selGradesAll()).map(function(x, i){
+    return { id:x.id, label:x.name || x.id, offQuote: !!x.offQuote && !x.base, note: x.id === (p.steelGrade || base) ? 'picked on this quote' : (x.id === base ? 'the base grade' : offNote(x)) }; }) });
+  var prs = _selListed(_selProfilesAll());
   g.push({ kind:'profiles', title:'Roof profiles', rows:prs.map(function(x, i){
-    return { id:x.id, label:x.name || x.id, img: x.img || '', custom: !!x.custom,
-             note: x.id === (p.profile || (prs[0] || {}).id) ? 'picked on this quote' : (x.custom ? 'this job only' : '') }; }) });
-  g.push({ kind:'gutters', title:'Guttering (\u201cNo new guttering\u201d is always offered)', rows:_selLive(_selGuttersAll()).map(function(x){
-    return { id:x.id, label:x.name || x.id, note: x.id === p.gutterType ? 'picked on this quote' : '', canEmpty: true }; }) });
+    return { id:x.id, label:x.name || x.id, img: x.img || '', custom: !!x.custom, offQuote: !!x.offQuote,
+             note: x.id === (p.profile || (prs[0] || {}).id) ? 'picked on this quote' : (x.custom ? 'this job only' : offNote(x)) }; }) });
+  g.push({ kind:'gutters', title:'Guttering (\u201cNo new guttering\u201d is always offered)', rows:_selListed(_selGuttersAll()).map(function(x){
+    return { id:x.id, label:x.name || x.id, offQuote: !!x.offQuote, note: x.id === p.gutterType ? 'picked on this quote' : offNote(x), canEmpty: true }; }) });
   var cur = { thickness: p.steelThickness || '40', brackets: p.gutterBracket || 'internal', downpipes: p.downpipes || 'no', disposal: p.disposal || 'dispose' };
   _selFixedGroups().forEach(function(fg){
     var copy = _selCopy()[fg.kind] || {};
@@ -37761,10 +37882,11 @@ function _qselGroupsAll(){
 function _qselPaint(){
   var host = document.getElementById('qselModal'); if (!host) return;
   var list = document.getElementById('qselList'); if (!list) return;
-  var hide = host._hide;
+  var hide = host._hide, show = host._show || {};
   list.innerHTML = _qselGroups(host._filter).map(function(g){
     return '<div class="qsel-g">'+esc2(g.title)+'</div>'+g.rows.map(function(r){
-      var off = !!(hide[g.kind] && hide[g.kind][r.id]);
+      var off = !!(hide[g.kind] && hide[g.kind][r.id]) ||
+                (r.offQuote && !(show[g.kind] && show[g.kind][r.id]) && !_selPickedNow(g.kind, r.id));
       return '<label class="qsel-row'+(off ? ' off' : '')+'">'+
           '<input type="checkbox" data-qsel-kind="'+esc2(g.kind)+'" data-qsel-id="'+esc2(r.id)+'"'+(off ? '' : ' checked')+' onchange="_qselToggle(\''+esc2(g.kind)+'\',\''+esc2(r.id)+'\',this.checked)">'+
           (g.kind === 'profiles' && r.img ? '<img class="qsel-pic" src="'+esc2(r.img)+'" alt="">' : '')+
@@ -37784,19 +37906,29 @@ function _qselToggle(kind, id, on){
   if (!on){
     var grp = _qselGroupsAll().filter(function(x){ return x.kind === kind; })[0];
     if (grp && grp.rows.length && !grp.rows[0].canEmpty){
-      var left = grp.rows.filter(function(r){ return r.id !== id && !h[kind][r.id]; }).length;
+      var sh0 = host._show || {};
+      var left = grp.rows.filter(function(r){ return r.id !== id && !h[kind][r.id] && !(r.offQuote && !(sh0[kind] && sh0[kind][r.id]) && !_selPickedNow(kind, r.id)); }).length;
       if (!left){ host._msg = 'Keep at least one ' + grp.title.toLowerCase().replace(/s$/, '') + ' on the quote.'; _qselPaint(); return; }
     }
   }
   if (on) delete h[kind][id]; else h[kind][id] = true;
   if (!Object.keys(h[kind]).length) delete h[kind];
+  // A product unticked "Display on quote" in Settings is added to THIS quote
+  // by ticking it here (`selShow`), and taken back off by unticking it.
+  var row = (_qselGroupsAll().filter(function(x){ return x.kind === kind; })[0] || { rows: [] }).rows.filter(function(r){ return r.id === id; })[0];
+  if (row && row.offQuote){
+    var sh = host._show = host._show || {}; if (!sh[kind]) sh[kind] = {};
+    if (on) sh[kind][id] = true; else delete sh[kind][id];
+    if (!Object.keys(sh[kind]).length) delete sh[kind];
+  }
   _qselPaint();
 }
 function _qselClose(){ var h = document.getElementById('qselModal'); if (h) h.remove(); }
 function _qselSave(){
   var host = document.getElementById('qselModal'); if (!host || !S.quote) return;
-  var h = host._hide;
+  var h = host._hide, sh = host._show || {};
   if (Object.keys(h).length) S.quote.selHide = h; else delete S.quote.selHide;
+  if (Object.keys(sh).length) S.quote.selShow = sh; else delete S.quote.selShow;
   _qselClose();
   try { _selRepickHidden(); } catch(e){ console.warn('repick', e); }
   try { refreshQuoteProposal(); } catch(e){}
@@ -49049,7 +49181,7 @@ function _qtApplySnapshot(t){
   // A template that carries the wording sets all of it — a field it does not
   // have goes back to the default, so its quote reads as the template does.
   if (t.wording && typeof t.wording === 'object'){
-    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','customExtras','inclExtras'].forEach(function(k){
+    ['proposalTitle','summaryBaseLabel','summaryRowLabels','custDesc','custExcl','custNotes','sectionDesc','summaryPicks','selHide','selShow','customExtras','inclExtras'].forEach(function(k){
       if (t.wording[k] != null) q[k] = JSON.parse(JSON.stringify(t.wording[k])); else delete q[k];
     });
   }
@@ -49215,7 +49347,7 @@ function _qtApplySaved(id){
 // new saved draft for the current quote I had open with all my photos etc —
 // I want it to open a new draft" from a saved template). A worked-on draft on
 // screen is kept in the Viewing list first; an untouched one is not.
-var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes','recOff',
+var Q_FRESH_DROP = ['dupFrom','condPhotos','coverPhoto','imageSlots','custDesc','custExcl','custNotes','sectionDesc','proposalTitle','selHide','selShow','jobTitle','summaryPicks','summaryBaseLabel','summaryRowLabels','customExtras','inclExtras','optNotes','recOff',
   'accepted','declined','recommended','templateId','templateName','tplFp','tplFresh','draftId','draftStartedAt'];
 function _qChangeTemplate(id){
   if (!S.quote) return;

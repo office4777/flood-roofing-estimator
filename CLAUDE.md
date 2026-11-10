@@ -1700,6 +1700,42 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   Pins re-pointed: colouroptions, custompb, gradeprices, matordering, pbdefaults,
   pricebookpick, quoteeditor, setupguide. Screenshots: every pane, the chooser's
   three states, search, save status, four phone pages.
+- DISPLAY ON QUOTE (2026-11-10, the owner: "put in another column for each of
+  these items called display on quote ... a tick box so the user can select
+  which of the items he wants the customer to be able to select from ... to 90%
+  of my customers I'd like to only offer them the basic view, but to the odd
+  customer I'd like to select different profiles to add in ... steel grades,
+  roof profiles, gutter profiles"). A row on Settings → Products carries
+  `offQuote` (the tick unticked, `_selOnQuoteCell`, `_selEdit(kind,i,'offQuote')`;
+  the base grade's tick is locked): kept on the company's list, left off every
+  NEW quote. `_selLive(list, kind)` drops it through `_selOffQuote` unless THIS
+  quote shows it (`S.quote.selShow[kind][id]`) or already has it picked
+  (`_selPickedNow`), so nothing sent before moves. "Edit this quote's
+  selections" (`_qselGroupsAll` over `_selListed`, every non-removed row)
+  lists it unticked, "not shown by default"; ticking it there writes `selShow`
+  (`host._show`, `_qselToggle`, `_qselSave`) for this quote only. `selShow`
+  rides in Q_CONTENT_KEYS, Q_FRESH_DROP and a template's `wording` beside
+  `selHide`. `tests/onquote.mjs` (14, UI list).
+- THE JOB COMPLEXITY MULTIPLIER AND THE OWN-CREW SCAFFOLD HOURS (2026-11-10,
+  the owner: "the scaffolding done by your crew should be editable ... put a
+  multiplier for a two-story house ... 1.5 by default ... in the roof labor ...
+  just above the worker hours ... 'job complexity multiplier' ... (i.e.
+  two-story / poor access etc.) ... will up the calculated hours ... in the
+  price by square meters, put it inside that yellow banner as well. That will
+  increase the default rate"). SETTINGS → Scaffolding: the six bands are
+  inputs (`_lpScaffTiersRender`, `_lpScaffTierSet` → `labour_pricing.scaff_tiers`
+  [hrs…], blank = RoofMap's; `_scaffTierHrs(i)` reads them, `SCAFF_DIY_OVER_HRS`
+  15) and `#lpStoreyMult` → `labour_pricing.storey_mult` (`_storeyMult`, 1.5
+  when unset). THE QUOTE: `S.quote.jobMult` (`_jobMult`, absent = 1;
+  `_setJobMult`), `_jobMultRowHtml` on the ROOF LABOUR card between the
+  auto-calc panel and the crew table — Standard ×1 / Two-storey ×<settings> /
+  a typed box. It multiplies `_labourCalcHours`'s raw sum before the ceil
+  (`mult` on its answer), `_scaffoldDiyHrsForArea` (so Do it ourselves hours
+  follow it, the card's note says "× 1.5 job complexity") and the SETTINGS
+  $/m² default in `_labourM2Rate` (the banner says "Standard rate × 1.5 (job
+  complexity)"; a rate typed on the job, `labourM2`, is charged as typed —
+  `_labourM2RateIsDefault`); hours typed by hand (`labourHrsManual`,
+  `diy.hrsManual`) are never touched. `tests/jobmult.mjs` (15, UI list).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info
