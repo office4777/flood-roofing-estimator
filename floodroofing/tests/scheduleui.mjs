@@ -735,6 +735,90 @@ check('…and never even asks the server for the board',
   !calls.some(c => c[0] === 'GET /schedule'), JSON.stringify(calls));
 await ctx.close();
 
+// ── 2026-11-10: names in the blocks, the flags centred and ticked once sent,
+// the history, the length from the labour, the two zooms, the sticky columns
+// over the envelopes, the To address from the row ──
+{
+  const sched = mkSched();
+  sched.rows[0].notify_log = [{ at: '2026-08-28T03:00:00Z', kind: 'pencil', to: 'b@l.nz', subject: 'Your roofing job — expected timing' }];
+  sched.rows[0].quote_sent_at = '2026-08-20T01:00:00Z';
+  sched.rows[0].order_sent_at = '2026-08-28T20:00:00Z';
+  sched.rows[0].labour_days = 4; sched.rows[0].length_set = false; sched.rows[0].length_days = 4;
+  sched.rows[1].email = 'mod@space.nz';
+  const { ctx, pg, calls } = await boot({ sched });
+  let v = await pg.evaluate(() => {
+    const blk = [...document.querySelectorAll('.sched-block')].map(b => ({ pencil: b.classList.contains('pencil'), lbl: (b.querySelector('.sched-block-lbl') || {}).textContent }));
+    const flag = document.querySelector('.sched-flag'), st = flag && getComputedStyle(flag);
+    const sent = document.querySelector('.sched-flag.sent');
+    const deliv = document.querySelector('.sched-deliv'), ds = deliv && getComputedStyle(deliv);
+    const info = document.querySelector('.sched-row .sched-info'), is = info && getComputedStyle(info);
+    const strip = flag && flag.closest('.sched-strip').getBoundingClientRect(), fr = flag && flag.getBoundingClientRect(), dr = deliv && deliv.getBoundingClientRect();
+    // each against ITS OWN row's strip — the first envelope and the first truck are on different rows
+    const dstrip = deliv && deliv.closest('.sched-strip').getBoundingClientRect();
+    const mid = (r, st) => r && st && Math.abs((r.top + r.height / 2) - (st.top + st.height / 2)) < 3;
+    return { blk, flagTop: st && st.top, flagTr: st && st.transform, flagMid: mid(fr, strip), delivMid: mid(dr, dstrip), sentTick: !!(sent && sent.querySelector('.sched-flag-tick')), sentKind: sent && sent.getAttribute('data-flag'),
+             sentTitle: sent && sent.title, delivTr: ds && ds.transform, infoZ: is && parseInt(is.zIndex, 10), flagZ: st && parseInt(st.zIndex, 10), delivZ: ds && parseInt(ds.zIndex, 10) };
+  });
+  check('every block carries its crew\'s name, a pencilled one says so', v.blk.some(x => x.lbl === 'Nick') && v.blk.some(x => x.pencil && x.lbl === 'pencilled'), JSON.stringify(v.blk));
+  check('the envelopes and the truck sit in the middle of the day box', v.flagMid && v.delivMid, JSON.stringify([v.flagMid, v.delivMid, v.flagTop]));
+  check('an envelope whose email has gone wears a tick and says when', v.sentTick && v.sentKind === 'pencil' && /sent 28 Aug/.test(v.sentTitle), v.sentTitle);
+  check('the job columns ride over the envelopes and the truck as the board scrolls', v.infoZ > v.flagZ && v.infoZ > v.delivZ, JSON.stringify([v.infoZ, v.flagZ, v.delivZ]));
+  // the info window
+  v = await pg.evaluate(() => {
+    _schedInfoOpen('r1');
+    const m = document.getElementById('schedInfoModal');
+    return { desc: !!document.getElementById('schedInfoDesc'), hist: document.getElementById('schedInfoHistory').innerText,
+             lenNote: document.getElementById('schedInfoLenNote').textContent, len: m.querySelector('[data-iedit="length_days"]').value,
+             theJob: /The job/.test(m.querySelector('.sched-info-body').innerText) };
+  });
+  check('the write-up of the job is gone from the window', !v.desc && !v.theJob);
+  check('the History lists the quote sent, accepted, the order and every schedule email, oldest first',
+    /20 Aug 2026.*Quote sent/.test(v.hist.replace(/\n/g, ' ')) && /27 Aug 2026.*Quote accepted/.test(v.hist.replace(/\n/g, ' ')) &&
+    /28 Aug 2026.*Part of month email sent to b@l\.nz/.test(v.hist.replace(/\n/g, ' ')) && /Order emailed to the supplier/.test(v.hist) &&
+    v.hist.indexOf('Quote sent') < v.hist.indexOf('Quote accepted') && v.hist.indexOf('Part of month') < v.hist.indexOf('Order emailed'), v.hist.slice(0, 200));
+  check('the length reads the labour\'s four days and says where it came from', v.len === '4' && /32 crew hours/.test(v.lenNote), JSON.stringify([v.len, v.lenNote]));
+  await pg.evaluate(() => { const i = document.querySelector('#schedInfoModal [data-iedit="length_days"]'); i.value = '6'; i.dispatchEvent(new Event('change')); });
+  v = await pg.evaluate(() => ({ note: document.getElementById('schedInfoLenNote').textContent, set: _SCHED.data.rows[0].length_set }));
+  check('a typed length is the office\'s from then on', v.set === true && /labour priced: 4 days/.test(v.note), JSON.stringify(v));
+  await pg.evaluate(() => _schedInfoClose());
+  // the email box takes the row's own address when the server hands none
+  await pg.evaluate(() => { _schedMailOpen('r2', 'pencil'); });
+  await pg.waitForTimeout(900);
+  v = await pg.evaluate(() => document.getElementById('schedMailTo').value);
+  check('the To box falls back to the row\'s own address', v === 'b@l.nz' || v === 'mod@space.nz', v);
+  await pg.evaluate(() => { document.getElementById('schedMailTo').value = 'mod@space.nz'; });
+  await pg.click('#schedMailSendBtn'); await pg.waitForTimeout(400);
+  const sendCall = calls.find(c => c[0] === 'send');
+  check('…and the send says which email it was', !!sendCall && sendCall[1].kind === 'pencil', JSON.stringify(sendCall && sendCall[1]));
+  await pg.evaluate(() => _schedMailClose());
+  // the two zooms
+  v = await pg.evaluate(() => {
+    const grid = document.getElementById('schedGrid');
+    const fz0 = parseFloat(getComputedStyle(document.querySelector('.sched-row .sched-cell')).fontSize);
+    const w0 = document.querySelector('.sched-row .sched-info').getBoundingClientRect().width;
+    const h0 = document.querySelector('.sched-row .sched-strip').getBoundingClientRect().height;
+    const d0 = _SCHED.dayW;
+    _schedSetTextZoom(1.4);
+    const fz1 = parseFloat(getComputedStyle(document.querySelector('.sched-row .sched-cell')).fontSize);
+    const w1 = document.querySelector('.sched-row .sched-info').getBoundingClientRect().width;
+    const h1 = document.querySelector('.sched-row .sched-strip').getBoundingClientRect().height;
+    const d1 = _SCHED.dayW;
+    const bar = document.getElementById('schedZoomText').value, lbl = document.getElementById('schedZoomTextLbl').textContent;
+    const info = document.querySelector('.sched-row .sched-info');
+    const r = info.getBoundingClientRect();
+    info.dispatchEvent(new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, clientX: r.left + 5, clientY: r.top + 5, bubbles: true, cancelable: true }));
+    const fzW = _schedTextZoom(), dW = _SCHED.dayW;
+    _schedSetDayW(12); const d2 = _SCHED.dayW, dayBar = document.getElementById('schedZoomDays').value;
+    _schedSetTextZoom(1); _schedSetDayW(d0);
+    return { fz0, fz1, w0, w1, h0, h1, d0, d1, bar, lbl, fzW, dW, d2, dayBar, stored: localStorage.getItem('fr_sched_tz') };
+  });
+  check('the Text zoom bar grows the words, the columns and the rows, and leaves the calendar alone',
+    v.fz1 > v.fz0 * 1.3 && v.w1 > v.w0 * 1.3 && v.h1 > v.h0 && v.d1 === v.d0 && v.bar === '1.4' && v.lbl === '140%', JSON.stringify(v));
+  check('Ctrl + wheel over the job columns zooms the words only', v.fzW === 1.5 && v.dW === v.d0, JSON.stringify([v.fzW, v.dW]));
+  check('the Calendar bar sets the day width and remembers it', v.d2 === 12 && v.dayBar === '12' && v.stored === '1', JSON.stringify([v.d2, v.dayBar, v.stored]));
+  await ctx.close();
+}
+
 await b.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

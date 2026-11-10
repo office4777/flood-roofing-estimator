@@ -1736,6 +1736,40 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   complexity)"; a rate typed on the job, `labourM2`, is charged as typed —
   `_labourM2RateIsDefault`); hours typed by hand (`labourHrsManual`,
   `diy.hrsManual`) are never touched. `tests/jobmult.mjs` (15, UI list).
+- THE SCHEDULE BOARD, THE SECOND PASS (2026-11-10, the owner with two
+  screenshots: the email's To box empty, "put their names in that block of
+  colour", "remove this job with that information write-up", "a bit of a
+  history ... when the order email was sent, when the quote was sent, when the
+  quote was accepted", "job 3349 is only showing 1 day ... more like 4 days",
+  the truck and the envelopes "right on the edge ... put it in the middle of
+  the box", a tick on the envelopes sent; then "a zoom bar at the top ... make
+  the calendar zoom and the wording zoom different ... hold down control ...
+  purely zoom in and out of the words", and the envelopes not sliding under
+  the job columns). SERVER (`GET /schedule`): the customer's email from
+  `quote.client.email`, then `quote.email`, then `share.sentTo` (the compose
+  route reads the same three); `quote_sent_at` (`share.sentAt`),
+  `order_sent_at` (`order_sent.at`), `labour_days` (`_schedLabourDays`: the
+  crew hours priced ÷ 8, rounded up) and a row whose length nobody typed reads
+  those days (`length_set`, a boot-DDL column set by a PATCH of
+  `length_days`); `/send` takes `kind` and keeps it on each `notify_log`
+  entry. THE BOARD: every block carries its crew's name (`.sched-block-lbl`,
+  "pencilled" on a pencil; the name starts a day in when the truck sits on
+  the block's first day); the envelopes and the truck are centred in the day
+  box (`top:50%`, an explicit 18px height) and an envelope whose kind is in
+  `notify_log` wears a green `.sched-flag-tick` with "sent 28 Aug" in its
+  title; `.sched-info` is z-index 6 (header 8) so the sticky job columns ride
+  over the flags (4) and the truck (5) as the board scrolls. THE WINDOW: the
+  "The job" write-up is gone from both halves; a History block
+  (`_schedInfoHistoryHtml`: quote sent, accepted, order emailed, every
+  schedule email with its address and subject, oldest first); the Length box
+  says "from the 32 crew hours priced" (`#schedInfoLenNote`) until typed; the
+  email box's To falls back to the row's own address. TWO ZOOMS: `--sched-tz`
+  (`_schedTextZoom`, `fr_sched_tz`, 0.8–1.8; the Text bar `#schedZoomText`;
+  Ctrl + wheel over `.sched-info`) scales every size in the job columns, their
+  widths and the row height (`_schedRowH`, the strips' heights and the shade
+  layer follow it); the Calendar bar `#schedZoomDays` is the old day width,
+  Ctrl + wheel over the strip as before; `_schedZoomBarSync` keeps both bars
+  honest. `tests/scheduleui.mjs` (107).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info

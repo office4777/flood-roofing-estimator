@@ -3509,14 +3509,26 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-row.sched-fold:hover .sched-info{ background:#e2e8f0; }
 .sched-hd-row{ position:sticky; top:0; z-index:6; background:#fff; }
 .sched-hd-row.months{ height:20px; }
+/* TWO ZOOMS (2026-11-10, the owner: "make the calendar zoom and the wording
+   zoom different, because the rows with the addresses and the job number
+   ... are quite small"): --sched-tz scales the words in the info columns
+   (and their widths and the row height with them); --sched-dayw is the
+   calendar's own. */
 .sched-cell{ flex:0 0 auto; border-right:1px solid #eef1f4; border-bottom:1px solid #eef1f4;
-  font-size:11.5px; padding:3px 6px; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.sched-cell.hd{ font-weight:700; color:#334155; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; }
+  font-size:calc(11.5px * var(--sched-tz, 1)); padding:3px 6px; background:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sched-cell.hd{ font-weight:700; color:#334155; font-size:calc(10.5px * var(--sched-tz, 1)); text-transform:uppercase; letter-spacing:.03em; }
 .sched-cell input[type=text], .sched-cell input[type=number]{
-  width:100%; border:none; background:transparent; font-size:11.5px; padding:0; margin:0; color:#0a1628; }
+  width:100%; border:none; background:transparent; font-size:calc(11.5px * var(--sched-tz, 1)); padding:0; margin:0; color:#0a1628; }
+.sched-cell input[type=checkbox]{ transform:scale(var(--sched-tz, 1)); transform-origin:left center; }
+.sched-zoom{ display:inline-flex; align-items:center; gap:5px; font-size:11px; color:var(--text2); }
+.sched-zoom input[type=range]{ width:86px; margin:0; }
 .sched-cell input:focus{ outline:1px solid #0099cc; border-radius:3px; }
-.sched-info{ position:sticky; z-index:4; background:#fff; }
-.sched-hd-row .sched-info{ z-index:7; }
+/* The info columns ride OVER everything on the strip as the board scrolls
+   sideways (2026-11-10, the owner: "the little email symbols, they don't
+   disappear, so it makes it a bit messy"): above the blocks (1), the flags
+   (4) and the truck (5). */
+.sched-info{ position:sticky; z-index:6; background:#fff; }
+.sched-hd-row .sched-info{ z-index:8; }
 .sched-strip{ flex:0 0 auto; position:relative; border-bottom:1px solid #eef1f4;
   background-image:repeating-linear-gradient(to right, transparent 0, transparent calc(var(--sched-dayw, 24px) - 1px), #f1f5f9 calc(var(--sched-dayw, 24px) - 1px), #f1f5f9 var(--sched-dayw, 24px)); }
 .sched-day-hd{ position:absolute; top:0; width:var(--sched-dayw, 24px); text-align:center; font-size:9.5px; color:#64748b; line-height:20px; }
@@ -3529,18 +3541,26 @@ body[data-tab="inbox"] .content{ max-width:none; margin-left:0; margin-right:0; 
 .sched-block{ position:absolute; top:3px; bottom:3px; border-radius:5px; z-index:1; cursor:grab;
   box-shadow:0 1px 3px rgba(10,22,40,.25); }
 .sched-block.pencil{ background:#c00000; }
+.sched-block-lbl{ position:absolute; left:5px; right:9px; top:0; bottom:0; display:flex; align-items:center; color:#fff; font-size:10px; font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none; text-shadow:0 1px 1px rgba(0,0,0,.35); }
 .sched-block .rz{ position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; }
 .sched-block.dragging{ opacity:.75; cursor:grabbing; z-index:3; }
 /* The envelopes were 11px and half-faded — small enough to miss on a board
    this dense, and they are the buttons that send the customer their emails. */
-.sched-flag{ position:absolute; top:-4px; width:var(--sched-dayw, 24px); text-align:center; font-size:16px;
-  line-height:18px; opacity:.72; z-index:4; cursor:pointer; }
-.sched-flag:hover{ opacity:1; transform:scale(1.12); }
+/* IN THE MIDDLE OF THE DAY BOX (2026-11-10, the owner: "it's right on the
+   edge ... put it in the middle of the box, and as well as all the email
+   symbols"). */
+.sched-flag{ position:absolute; top:50%; transform:translateY(-50%); width:var(--sched-dayw, 24px); text-align:center; font-size:16px;
+  line-height:18px; height:18px; opacity:.78; z-index:4; cursor:pointer; }
+.sched-flag:hover{ opacity:1; transform:translateY(-50%) scale(1.12); }
+.sched-flag.sent{ opacity:1; }
+.sched-flag-tick{ position:absolute; right:-1px; top:-5px; font-style:normal; font-size:9px; line-height:11px; width:11px; height:11px; border-radius:50%;
+  background:#16a34a; color:#fff; font-weight:900; text-align:center; box-shadow:0 0 0 1.5px #fff; }
 /* The delivery the roof was ordered for. Orange is what the supplier was
    ASKED for; green is what they came back and confirmed. */
-.sched-deliv{ position:absolute; bottom:-3px; width:var(--sched-dayw, 24px); text-align:center;
-  font-size:14px; line-height:15px; z-index:5; cursor:pointer; }
-.sched-deliv:hover{ transform:scale(1.15); }
+.sched-deliv{ position:absolute; top:50%; transform:translateY(-50%); width:var(--sched-dayw, 24px); text-align:center;
+  font-size:14px; line-height:18px; height:18px; z-index:5; cursor:pointer; }
+.sched-deliv:hover{ transform:translateY(-50%) scale(1.15); }
 .sched-empty{ padding:26px; font-size:13px; color:var(--text2); }
 .sched-menu{ position:fixed; z-index:9999; background:#fff; border:1px solid var(--border); border-radius:10px;
   box-shadow:0 10px 34px rgba(10,22,40,.22); padding:6px; min-width:190px; }
@@ -5510,7 +5530,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T17:19:41Z';
+  window.APP_BUILT_AT = '2026-11-10T17:35:08Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8073,6 +8093,9 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     <div class="card sched-topbar">
       <strong style="font-size:13px;color:#0a1628;margin-right:2px">Schedule</strong>
       <span id="schedPalette" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center"></span>
+      <!-- THE TWO ZOOM BARS (2026-11-10): the words in the job columns, and the calendar's days. -->
+      <span class="sched-zoom" title="Size of the words in the job columns (Ctrl + wheel over them does the same)">Text <input type="range" id="schedZoomText" min="0.8" max="1.8" step="0.05" oninput="_schedSetTextZoom(this.value)"> <span id="schedZoomTextLbl">100%</span></span>
+      <span class="sched-zoom" title="Width of a day on the calendar (Ctrl + wheel over the calendar does the same)">Calendar <input type="range" id="schedZoomDays" min="6" max="48" step="2" oninput="_schedSetDayW(this.value)"></span>
       <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <button class="sched-chip" id="schedExtBtn" onclick="_schedExtToggle()" title="Overlay the board across the whole screen">⛶ Extended view</button>
         <button class="sched-chip" onclick="_schedAddOpen()">＋ Add job</button>
@@ -8153,9 +8176,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <label style="color:var(--text2)">Site address</label><input type="text" data-iedit="site_address" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Customer email</label><input type="email" data-iedit="email" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
         <label style="color:var(--text2)">Quote accepted</label><span id="schedInfoAccepted" style="color:#0a1628"></span>
-        <label style="color:var(--text2)">Length (days)</label><input type="number" min="1" max="120" data-iedit="length_days" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
+        <label style="color:var(--text2)">Length (days)</label><div style="display:flex;align-items:center;gap:8px"><input type="number" min="1" max="120" data-iedit="length_days" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px"><span id="schedInfoLenNote" style="font-size:11px;color:var(--text2)"></span></div>
         <label style="color:var(--text2)">Progress %</label><input type="number" min="0" max="100" data-iedit="progress_pct" style="width:90px;padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px">
-        <label style="color:var(--text2)">The job</label><div id="schedInfoDesc" style="color:#0a1628;line-height:1.35;max-height:84px;overflow-y:auto"></div>
         <label style="color:var(--text2)">Colour</label><div id="schedInfoColour" style="display:flex;align-items:center;gap:7px;color:#0a1628"></div>
         <label style="color:var(--text2)">Special notes</label><textarea data-iedit="notes" rows="2" style="padding:7px 9px;border:1px solid #cbd5e1;border-radius:7px;font-size:12.5px;resize:vertical" placeholder="Anything the crew or the office needs to know"></textarea>
       </div>
@@ -8181,6 +8203,13 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           <input type="checkbox" id="schedInfoDelivOk"> Delivery confirmed by the supplier
         </label>
         <div style="font-size:11px;color:var(--text2);margin-top:4px">Orange on the board is the day you asked for. Ticking this turns it green.</div>
+      </div>
+      <!-- THE HISTORY (2026-11-10, the owner: "a bit of a history, like when
+           the order email was sent, when the quote was sent, when the quote
+           was accepted ... all the history of those emails sent"). -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin-bottom:6px">History</div>
+        <div id="schedInfoHistory" style="font-size:12px;line-height:1.5"></div>
       </div>
       <div style="display:flex;gap:10px;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
         <span id="schedInfoNotified" style="flex:1;font-size:11.5px;color:var(--text2)"></span>
@@ -11200,6 +11229,9 @@ var _SCHED_COLS_MIN = [
 // week-of (two weeks before the start), green = confirm (three days out).
 // Clicking one opens the email box with that wording ready — the flags
 // prompt the office; nothing sends itself.
+function _schedWhen(d, withYear){
+  try { return new Date(d).toLocaleDateString('en-NZ', withYear ? { day:'numeric', month:'short', year:'numeric' } : { day:'numeric', month:'short' }); } catch(e){ return ''; }
+}
 function _schedRowFlags(r){
   var out = [];
   var shift = function(iso, days){
@@ -11220,8 +11252,40 @@ function _schedRowFlags(r){
 // Ctrl + wheel over the calendar: zoom the day width, keeping the date
 // under the cursor where it is. Zoomed right out (6px/day) a desktop shows
 // well over a year of forward work.
+function _schedTextZoom(){
+  var v = parseFloat(_SCHED.textZoom);
+  if (!(isFinite(v) && v > 0)){ try { v = parseFloat(localStorage.getItem('fr_sched_tz')); } catch(e){} }
+  if (!(isFinite(v) && v > 0)) v = 1;
+  _SCHED.textZoom = Math.max(0.8, Math.min(1.8, v));
+  return _SCHED.textZoom;
+}
+function _schedRowH(){ return Math.round(30 * Math.max(1, _schedTextZoom())); }
+function _schedSetTextZoom(v){
+  var z = Math.max(0.8, Math.min(1.8, Math.round(parseFloat(v) * 20) / 20 || 1));
+  _SCHED.textZoom = z;
+  try { localStorage.setItem('fr_sched_tz', String(z)); } catch(e){}
+  _schedRender(); _schedZoomBarSync();
+}
+function _schedSetDayW(v){
+  var next = Math.max(6, Math.min(48, parseInt(v, 10) || 24));
+  _SCHED.dayW = next;
+  try { localStorage.setItem('fr_sched_dayw', String(next)); } catch(e){}
+  _schedRender(); _schedZoomBarSync();
+}
+function _schedZoomBarSync(){
+  var t = document.getElementById('schedZoomText'), d = document.getElementById('schedZoomDays');
+  if (t) t.value = String(_schedTextZoom());
+  if (d) d.value = String(_SCHED.dayW);
+  var tl = document.getElementById('schedZoomTextLbl'); if (tl) tl.textContent = Math.round(_schedTextZoom() * 100) + '%';
+}
+// Ctrl + wheel: over the info columns it is the WORDS that zoom; over the
+// calendar it is the days, keeping the date under the cursor where it is.
 function _schedZoomWheel(e){
   e.preventDefault();
+  if (e.target.closest && e.target.closest('.sched-info')){
+    _schedSetTextZoom(_schedTextZoom() + (e.deltaY > 0 ? -0.1 : 0.1));
+    return;
+  }
   var scroll = document.getElementById('schedScroll');
   var old = _SCHED.dayW;
   var next = Math.max(6, Math.min(48, old + (e.deltaY > 0 ? -2 : 2)));
@@ -11231,7 +11295,7 @@ function _schedZoomWheel(e){
   var dayAt = (scroll.scrollLeft + xIn - _SCHED.infoW) / old;
   _SCHED.dayW = next;
   try { localStorage.setItem('fr_sched_dayw', String(next)); } catch(err){}
-  _schedRender();
+  _schedRender(); _schedZoomBarSync();
   scroll.scrollLeft = Math.max(0, dayAt * next + _SCHED.infoW - xIn);
 }
 // Column widths the office has dragged, per device. Blank = the shipped width.
@@ -11254,9 +11318,11 @@ function _schedRender(){
   // border-box everywhere in this app: a cell's rendered width IS c.w, so
   // the sticky left offsets are the plain running sum. (+13/col overshot
   // and shoved the last info cells over the day strip.)
-  var _cw = _schedColW();
+  var _cw = _schedColW(), _tz = _schedTextZoom();
   var cols = (_SCHED.compact ? _SCHED_COLS_MIN : _SCHED_COLS).map(function(c){
-    return _cw[c.key] ? Object.assign({}, c, { w: _cw[c.key] }) : c; });
+    var w = _cw[c.key] ? _cw[c.key] : c.w;
+    return Object.assign({}, c, { w: Math.round(w * _tz) }); });
+  var rh = _schedRowH();
   var infoW = 0, lefts = [];
   cols.forEach(function(c){ lefts.push(infoW); infoW += c.w; });
   _SCHED.infoW = infoW; _SCHED.dayIdx = dayIdx; _SCHED.days = days;
@@ -11333,12 +11399,12 @@ function _schedRender(){
       cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + w + 'px">' + inner + '</div>';
     });
     var out = '<div class="sched-row sched-add" data-addrow="' + esc(fid) + '">' + cells +
-      '<div class="sched-strip" style="width:' + stripW + 'px;height:30px"></div></div>';
+      '<div class="sched-strip" style="width:' + stripW + 'px;height:' + rh + 'px"></div></div>';
     _bands++;
     if (gap){
       _bands++;
       out += '<div class="sched-row sched-gap"><div class="sched-cell sched-info" style="left:0;width:' + infoW + 'px"></div>' +
-        '<div class="sched-strip" style="width:' + stripW + 'px;height:30px;background:none"></div></div>';
+        '<div class="sched-strip" style="width:' + stripW + 'px;height:' + rh + 'px;background:none"></div></div>';
     }
     return out;
   };
@@ -11358,7 +11424,7 @@ function _schedRender(){
         '<span style="color:#64748b">' + (_open ? '▾' : '▸') + '</span>' +
         '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(_schedFolderLabel(_fid)) + '</span>' +
         '<span style="color:#94a3b8;font-weight:400">' + _n + '</span></div>' +
-        '<div class="sched-strip" style="width:' + stripW + 'px;height:30px;background:none"></div></div>';
+        '<div class="sched-strip" style="width:' + stripW + 'px;height:' + rh + 'px;background:none"></div></div>';
     }
     if (_useFolders && !_schedFoldOpen(_fid)){ _hiddenRows++; return; }
     var cells = '';
@@ -11383,8 +11449,8 @@ function _schedRender(){
       if (c.key === 'job'){
         var _short = String(r.site_address || '').split(',')[0];
         inner = '<div style="line-height:1.25;overflow:hidden">' +
-          '<div data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700;font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.client_name) + '">' + esc(r.job_no || r.client_name) + '</div>' +
-          '<div style="font-size:9px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.site_address) + '">' + esc(_short) + '</div></div>';
+          '<div data-rowmenu="' + r.id + '" style="cursor:pointer;font-weight:700;font-size:calc(9.5px * var(--sched-tz, 1));white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.client_name) + '">' + esc(r.job_no || r.client_name) + '</div>' +
+          '<div style="font-size:calc(9px * var(--sched-tz, 1));color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="' + esc(r.site_address) + '">' + esc(_short) + '</div></div>';
       }
       if (c.key === 'site') inner = '<span data-rowmenu="' + r.id + '" style="cursor:pointer"' +
         ' title="' + esc(r.site_address) + (r.client_name ? (' — ' + esc(r.client_name)) : '') + '">' +
@@ -11397,6 +11463,11 @@ function _schedRender(){
       cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
     var blocks = '';
+    // The truck on a block's first day (the roof arriving the morning the
+    // crew starts) would sit on the first letters of the name — the name
+    // starts a day in.
+    var _dDay = r.confirmed_delivery || r.requested_delivery;
+    var _dIdx = _dDay ? dayIdx[String(_dDay).slice(0, 10)] : null;
     (_SCHED.data.blocks || []).filter(function(b){ return b.row_id === r.id; }).forEach(function(b){
       var span = _schedSpan(b), i2 = dayIdx[span.from], j2 = dayIdx[span.to];
       // A block that started before the window still shows the part that
@@ -11409,13 +11480,24 @@ function _schedRender(){
         ' title="' + esc(r.client_name) + ' — ' + b.work_days + ' working day' + (b.work_days > 1 ? 's' : '') +
         (crew ? ' · ' + esc(crew.name) : ' · pencilled') + '"' +
         ' style="left:' + (i2 * _SCHED.dayW) + 'px;width:' + ((j2 - i2 + 1) * _SCHED.dayW - 2) + 'px;background:' + col + '">' +
+        // THE NAMES IN THE BLOCK (2026-11-10, the owner: "the orange is Nick
+        // and Jesse, so put the name of Nick and Jesse in the blocked out
+        // colour"). A pencilled block says so.
+        '<span class="sched-block-lbl"' + (_dIdx != null && _dIdx === i2 ? ' style="left:' + (_SCHED.dayW + 2) + 'px"' : '') + '>' + esc(crew ? crew.name : 'pencilled') + '</span>' +
         '<span class="rz"></span></div>';
     });
+    // SENT ONES WEAR A TICK (2026-11-10, the owner: "if we've clicked them
+    // and sent the email, can you put a tick on those?") — the row's own
+    // notify_log says which kinds have gone.
+    var _sentKinds = {};
+    (r.notify_log || []).forEach(function(e){ if (e && e.kind) _sentKinds[e.kind] = e.at; });
     _schedRowFlags(r).forEach(function(f){
       var fi = dayIdx[f.date];
       if (fi == null) return;
-      blocks += '<span class="sched-flag" data-flag="' + f.kind + '" data-flagrow="' + r.id + '"' +
-        ' title="Send the ' + f.label + ' email" style="left:' + (fi * _SCHED.dayW) + 'px;color:' + f.col + '">✉</span>';
+      var sentAt = _sentKinds[f.kind];
+      blocks += '<span class="sched-flag' + (sentAt ? ' sent' : '') + '" data-flag="' + f.kind + '" data-flagrow="' + r.id + '"' +
+        ' title="' + (sentAt ? (f.label + ' email sent ' + _schedWhen(sentAt) + ' — click to send again') : 'Send the ' + f.label + ' email') + '" style="left:' + (fi * _SCHED.dayW) + 'px;color:' + f.col + '">✉' +
+        (sentAt ? '<i class="sched-flag-tick">✓</i>' : '') + '</span>';
     });
     // The delivery. Confirmed wins over requested, and only one shows — two
     // truck icons on one row would read as two deliveries.
@@ -11430,7 +11512,7 @@ function _schedRender(){
           (dOk ? '#16a34a' : '#ea580c') + '">🚚</span>';
     }
     h += '<div class="sched-row" data-rowzone="' + r.id + '">' + cells +
-         '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:30px">' + blocks + '</div></div>';
+         '<div class="sched-strip" data-strip="' + r.id + '" style="width:' + stripW + 'px;height:' + rh + 'px">' + blocks + '</div></div>';
   });
   if (rows.length){
     if (_useFolders){ if (_schedFoldOpen(_lastFolder)) h += _addRow(_lastFolder, false); }
@@ -11449,17 +11531,19 @@ function _schedRender(){
       pcells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
     });
     h += '<div class="sched-row pad">' + pcells +
-         '<div class="sched-strip" style="width:' + stripW + 'px;height:30px"></div></div>';
+         '<div class="sched-strip" style="width:' + stripW + 'px;height:' + rh + 'px"></div></div>';
   }
   // One shade layer over everything below the header (weekends, holidays,
   // shutdowns, over-capacity warnings, today). pointer-events:none.
-  var bodyH = (rows.length - _hiddenRows + _bands + pad) * 31 + 4;
+  var bodyH = (rows.length - _hiddenRows + _bands + pad) * (rh + 1) + 4;
   h += '<div style="position:absolute;left:' + infoW + 'px;top:40px;width:' + stripW + 'px;height:' + bodyH + 'px;pointer-events:none;z-index:2">' + shades + '</div>';
   grid.style.position = 'relative';
   grid.style.setProperty('--sched-dayw', _SCHED.dayW + 'px');
+  grid.style.setProperty('--sched-tz', String(_tz));
   grid.innerHTML = h;
   _schedRenderPalette();
   _schedWire(grid);
+  _schedZoomBarSync();
 }
 function _schedRenderPalette(){
   var pal = document.getElementById('schedPalette');
@@ -11895,12 +11979,10 @@ function _schedInfoOpen(rowId){
   if (oj) oj.style.display = r.job_id ? '' : 'none';
   // What the job is, and the colour going on it — both read off the quote,
   // so they cannot drift from what the customer accepted.
-  var dEl = document.getElementById('schedInfoDesc');
-  if (dEl){
-    var _d = String(r.description || '').trim();
-    dEl.textContent = _d || '—';
-    dEl.style.color = _d ? '#0a1628' : 'var(--text2)';
-  }
+  var lnEl = document.getElementById('schedInfoLenNote');
+  if (lnEl) lnEl.textContent = (!r.length_set && r.labour_days > 1) ? 'from the ' + (r.labour_days * 8) + ' crew hours priced' : (r.labour_days > 1 ? 'labour priced: ' + r.labour_days + ' days' : '');
+  var hEl = document.getElementById('schedInfoHistory');
+  if (hEl) hEl.innerHTML = _schedInfoHistoryHtml(r);
   var cEl = document.getElementById('schedInfoColour');
   if (cEl){
     var _c = String(r.colour || '').trim();
@@ -11935,7 +12017,7 @@ function _schedInfoOpen(rowId){
     else inp.value = (r[f] == null) ? '' : r[f];
     inp.onchange = function(){
       var val = inp.type === 'checkbox' ? inp.checked : inp.value;
-      if (f === 'length_days') val = Math.max(1, parseInt(val, 10) || 1);
+      if (f === 'length_days'){ val = Math.max(1, parseInt(val, 10) || 1); r.length_set = true; var _ln = document.getElementById('schedInfoLenNote'); if (_ln) _ln.textContent = (r.labour_days > 1 ? 'labour priced: ' + r.labour_days + ' days' : ''); }
       if (f === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
       // A date column will not take an empty string; cleared means null.
       if (f === 'requested_delivery' || f === 'confirmed_delivery') val = inp.value || null;
@@ -11987,6 +12069,27 @@ function _schedInfoOpen(rowId){
 // screen's live take-off, which belongs to whatever job is open on the Map
 // Roof tab. Everything is put back in a finally, whatever happens.
 var _SCHED_JOB_CACHE = {};
+// The job's own timeline: the quote sent, accepted, the order sent, and
+// every schedule email that went (`notify_log`, newest last) — the three
+// kinds named as they are on the board.
+function _schedInfoHistoryHtml(r){
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var ev = [];
+  if (r.quote_sent_at) ev.push({ at: r.quote_sent_at, what: 'Quote sent to the customer' });
+  if (r.accepted_at) ev.push({ at: r.accepted_at, what: 'Quote accepted' });
+  if (r.order_sent_at) ev.push({ at: r.order_sent_at, what: 'Order emailed to the supplier' });
+  var kinds = { pencil: 'Part of month', week: 'Week of\u2026', confirm: 'Confirm start date' };
+  (r.notify_log || []).forEach(function(e){
+    if (!e || !e.at) return;
+    ev.push({ at: e.at, what: (kinds[e.kind] || 'Schedule') + ' email sent' + (e.to ? ' to ' + e.to : ''), sub: e.subject || '' });
+  });
+  if (!ev.length) return '<span style="color:var(--text2)">Nothing yet \u2014 the quote has not been sent from RoofMap.</span>';
+  ev.sort(function(a, b){ return String(a.at) < String(b.at) ? -1 : 1; });
+  return ev.map(function(e){
+    return '<div style="display:grid;grid-template-columns:92px 1fr;gap:8px"><span style="color:var(--text2);white-space:nowrap">' + esc(_schedWhen(e.at, true)) + '</span>' +
+      '<span>' + esc(e.what) + (e.sub ? '<span style="display:block;font-size:11px;color:var(--text2)">' + esc(e.sub) + '</span>' : '') + '</span></div>';
+  }).join('');
+}
 function _schedInfoJobLoad(r){
   var box = document.getElementById('schedInfoJob');
   if (!box) return;
@@ -12072,8 +12175,6 @@ function _schedInfoJobHtml(job, r){
     else h += '<div style="color:var(--text2)">No selections recorded.</div>';
   }
   h += '</div>';
-  var d = String(r.description || '').trim();
-  if (d) h += '<div class="sij-card"><div class="sij-h">The job</div><div style="line-height:1.4;white-space:pre-wrap">' + esc(d) + '</div></div>';
   return h;
 }
 function _schedInfoClose(){
@@ -12397,7 +12498,8 @@ function _schedMailSetKind(kind){
   var seq = ++_schedMailSeq;
   api('POST', '/schedule/rows/' + _schedMailRow + '/compose', { kind: kind }).then(function(d){
     if (seq !== _schedMailSeq) return;   // a newer kind was picked meanwhile
-    document.getElementById('schedMailTo').value = d.to || '';
+    var _rowTo = ((_SCHED.data && _SCHED.data.rows) || []).filter(function(x){ return x.id === _schedMailRow; }).map(function(x){ return x.email; })[0] || '';
+    document.getElementById('schedMailTo').value = d.to || _rowTo;
     document.getElementById('schedMailSubject').value = d.subject || '';
     document.getElementById('schedMailBody').value = d.body || '';
     if (sb) sb.disabled = false;
@@ -12418,6 +12520,7 @@ async function _schedMailSend(){
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
     await api('POST', '/schedule/rows/' + _schedMailRow + '/send', {
+      kind: _schedMailKind,
       to: document.getElementById('schedMailTo').value.trim(),
       subject: document.getElementById('schedMailSubject').value,
       body: document.getElementById('schedMailBody').value,

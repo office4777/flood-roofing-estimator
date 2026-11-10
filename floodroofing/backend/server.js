@@ -10758,6 +10758,11 @@ async function _schedSaveCfg(req, cfg){
 const _schedGate = [requireAuth, requireSubscription, requirePlan('schedule', 'The schedule board', 'Team')];
 
 // ── the board, in one read ──
+function _schedLabourDays(lab){
+  if (!lab || typeof lab !== 'object') return 0;
+  const h = Math.max(parseFloat(lab.leadHrs) || 0, parseFloat(lab.appHrs) || 0);
+  return h > 0 ? Math.max(1, Math.ceil(h / 8)) : 0;
+}
 app.get('/schedule', ..._schedGate, async (req, res) => {
   try {
     const cfg = await _schedCfg(req);
@@ -10781,6 +10786,13 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
           .select('id, status, order_sent, ' +
                   'q_accepted:draw_state->state->quote->accepted, ' +
                   'q_client:draw_state->state->quote->client, ' +
+                  // THE HISTORY AND THE DAYS (2026-11-10): the quote's email
+                  // address wherever it lives, when the quote went out, and
+                  // the crew hours priced so the row's length can follow them.
+                  'q_email:draw_state->state->quote->email, ' +
+                  'q_sent_at:draw_state->state->quote->share->sentAt, ' +
+                  'q_sent_to:draw_state->state->quote->share->sentTo, ' +
+                  'q_labour:draw_state->state->quote->labour, ' +
                   'q_scope:draw_state->state->quote->scope, ' +
                   'q_opts:draw_state->state->quote->proposalOptions, ' +
                   // The Fergus job this RoofMap job is linked to — the board
@@ -10794,7 +10806,11 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
           auto[j.id] = {
             ordered: !!(j.order_sent || j.status === 'ordered'),
             accepted_at: acc.at || acc.date || null,
-            client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || '',
+            client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || j.q_email || j.q_sent_to || '',
+            quote_sent_at: j.q_sent_at || null,
+            order_sent_at: (j.order_sent && typeof j.order_sent === 'object') ? (j.order_sent.at || null) : null,
+            // The crew hours the labour was priced on, as working days of 8.
+            labour_days: _schedLabourDays(j.q_labour),
             job_no: (j.q_ref == null) ? '' : String(j.q_ref),
             // What the job IS and what steel is going on it — the two things
             // the office looked up in the spreadsheet every time.
@@ -10822,6 +10838,12 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         ordered:      (r.ordered == null)      ? !!a.ordered      : r.ordered,
         email:        r.email || a.client_email || '',
         accepted_at:  a.accepted_at || null,
+        quote_sent_at: a.quote_sent_at || null,
+        order_sent_at: a.order_sent_at || null,
+        labour_days:  a.labour_days || 0,
+        // A row whose length nobody typed follows the labour priced on the
+        // job (job 3349 read 1 day beside four days of labour).
+        length_days:  (!r.length_set && a.labour_days > 1) ? a.labour_days : r.length_days,
         job_no:       a.job_no || '',
         description:  a.description || '',
         fergus_id:    a.fergus_id || '',
@@ -10917,7 +10939,7 @@ const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   const patch = {};
   for (const k of SCHED_ROW_WRITABLE) if (req.body && req.body[k] !== undefined) patch[k] = req.body[k];
-  if ('length_days' in patch) patch.length_days = Math.max(1, Math.min(120, parseInt(patch.length_days, 10) || 1));
+  if ('length_days' in patch){ patch.length_days = Math.max(1, Math.min(120, parseInt(patch.length_days, 10) || 1)); patch.length_set = true; }
   if ('progress_pct' in patch && patch.progress_pct != null)
     patch.progress_pct = Math.max(0, Math.min(100, parseInt(patch.progress_pct, 10) || 0));
   try {
@@ -11034,9 +11056,9 @@ app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
     if (!toAddr && row.job_id) {
       try {
         const { data: jj } = await _scopeCompany(supabase.from('jobs')
-          .select('id, q_client:draw_state->state->quote->client'), req).eq('id', row.job_id);
-        const qc = jj && jj[0] && jj[0].q_client;
-        toAddr = (qc && (qc.email || qc.mail)) || '';
+          .select('id, q_client:draw_state->state->quote->client, q_email:draw_state->state->quote->email, q_sent_to:draw_state->state->quote->share->sentTo'), req).eq('id', row.job_id);
+        const j0 = jj && jj[0], qc = j0 && j0.q_client;
+        toAddr = (qc && (qc.email || qc.mail)) || (j0 && (j0.q_email || j0.q_sent_to)) || '';
       } catch (e) {}
     }
     const settings = await _companySettingsRow(req);
@@ -11101,7 +11123,8 @@ app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
         .select('notify_log'), req).eq('id', req.params.id).maybeSingle();
       if (cur && Array.isArray(cur.notify_log)) log = cur.notify_log;
     } catch (e) {}
-    log.push({ at: stamp, to: String(b.to).slice(0, 200), subject: String(b.subject).slice(0, 250) });
+    const kind = ['confirm', 'week', 'pencil'].includes(b.kind) ? b.kind : '';
+    log.push({ at: stamp, kind, to: String(b.to).slice(0, 200), subject: String(b.subject).slice(0, 250) });
     if (log.length > 50) log = log.slice(-50);
     await _scopeCompany(supabase.from('schedule_rows')
       .update({ last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
@@ -14931,6 +14954,7 @@ const _MIGRATION_SQL = [
   // A Fergus job number typed by hand, for a row that is not linked to a
   // synced job. The board shows it in the Job column and links it.
   "alter table public.schedule_rows add column if not exists job_ref text not null default ''",
+  "alter table public.schedule_rows add column if not exists length_set boolean not null default false",
   // The company's own product list (Settings → Products). Null means the
   // shipped list, which is what every account that has never touched it has.
   "alter table public.user_settings add column if not exists selectables jsonb",
