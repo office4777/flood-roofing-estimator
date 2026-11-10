@@ -2247,7 +2247,13 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   it and www.roofmap.net (308 to the apex, NOT "redirect apex to www" — the
   host rules match the apex) to the Vercel project (the MCP is refused, 403),
   and set its nameservers to ns1/ns2.vercel-dns.com. CHECK A DOMAIN IS HIS
-  before building on it.
+  before building on it. LIVE 2026-11-10 7:24 pm NZ: Vercel nameservers did
+  NOT work (the domain was added to the project before the NS change, so
+  Vercel never made a DNS zone — `zone:false`, "DNS zone not enabled", and
+  `create_or_transfer_domain` with zone:true does not flip it), so the DNS
+  stays at Crazy Domains: A @ 216.150.1.1, CNAME www → cname.vercel-dns.com.
+  roofmap.com is NOT his (a Crazy Domains backorder only) and should come off
+  the Vercel project.
   `tests/australia.mjs` (UI), `aucountry.mjs` (API), `ausite.mjs` (UI),
   `signup.mjs`.
 - AN AUSTRALIAN BUSINESS SAYS ITS STATE, AND NSW GETS ITS GOVERNMENT'S OWN
