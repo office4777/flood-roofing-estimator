@@ -2794,6 +2794,15 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   one job queue (`_fgAcceptQ`) so the accept-email call, the 90 s catch-up and
   the sweep never upload twice. Each success is a `fergus-accept` share event.
   `tests/custevents.mjs` (60), `acceptstale.mjs`.
+  THE PRICED QUOTE PDF NO LONGER GOES INTO THE JOB'S FILES (2026-11-11, the
+  owner with job 3344's Fergus files — #17 the selections, #18 the 1 MB quote:
+  "make it so roofmap doesn't push the quote to fergus, but keep adding the
+  Customer selections to fergus (i don't want my roofers to see the price)").
+  `_fergusOnAcceptNow`'s `needFile` is behind `FERGUS_ACCEPT_QUOTE_PDF` (env,
+  off; `=true` brings the accepted quote's PDF back); the selections PDF, the
+  note and the description are unchanged. The office's own Push to Fergus and
+  the automatic accepted QUOTE VERSION (`_fergusAutoVersionNow`, the priced
+  quote Fergus invoices from) are NOT this and still run. `custevents` (65).
 - LOOKING AT THE ACCEPTED VERSION IS NOT A NEW ACCEPTANCE (2026-11-06, the
   owner: "when i switch between a draft and then click on the accepted
   version, it pushed a new quote to fergus everytime"). `_fergusAutoPushOnAccept`

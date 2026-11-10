@@ -11957,6 +11957,7 @@ function _selectionsPdf(job, quote, acc, company){
 // re-reads the job and claims what it does - so they queue, and the second
 // sees the first's claims instead of uploading the same page twice.
 const _fgAcceptQ = new Map();
+const FERGUS_ACCEPT_QUOTE_PDF = /^(1|true|yes)$/i.test(String(process.env.FERGUS_ACCEPT_QUOTE_PDF || ''));
 function _fergusOnAccept(jobId, attachment){
   const k = String(jobId || '');
   const prev = _fgAcceptQ.get(k) || Promise.resolve();
@@ -11990,7 +11991,13 @@ async function _fergusOnAcceptNow(jobId, attachment){
     const acc = aq.accepted || {};
     const fa = sh.fergusAccept || {};
     const needDesc = !sh.fergusAcceptDescAt && !sh.fergusAcceptDescSkip;
-    const needFile = !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
+    // THE PRICED QUOTE STAYS OUT OF THE JOB'S FILES (2026-11-11, the owner with
+    // job 3344's Fergus files: "make it so roofmap doesn't push the quote to
+    // fergus, but keep adding the Customer selections to fergus (i don't want
+    // my roofers to see the price)"). The crew opens the job's files; the
+    // selections PDF carries no price and is what they need. FERGUS_ACCEPT_QUOTE_PDF
+    // =true brings the accepted quote's PDF back.
+    const needFile = FERGUS_ACCEPT_QUOTE_PDF && !!(attachment && attachment.base64) && !sh.fergusAcceptFileAt;
     // A Fergus upload that answered 2xx without a body we recognise may still
     // have landed, so the selections PDF is tried at most three times - a
     // job's files must never fill up with copies from the hourly retry.
