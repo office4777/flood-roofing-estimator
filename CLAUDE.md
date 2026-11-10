@@ -1657,6 +1657,49 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   merged by `_getBuiltinFlashings` behind the shipped presets. A back-tray the
   owner draws or edits reaches everyone on his next Settings save.
   `tests/flashdefaults.mjs` (19, UI), `tests/builtinflash.mjs` (13, API).
+- SETTINGS IS SIX DESTINATIONS (2026-11-10, the owner with another developer's
+  review, "Settings that roofers can use with confidence": "Make these
+  modifications to the settings tab, send me full set of screenshots before going
+  live"; he had the 36 pictures and said "Go"). THE NAV (`<nav class="set-nav">`):
+  six navy `.set-dest` buttons — My business, Materials & suppliers, Labour & job
+  costs, Quotes & emails, Team & account, Connections & app — each with a
+  `.set-subs[data-dest]` of `.tab-sm` sub-tabs shown only while it is open
+  (`_setDest`, `_setDestOpen`; `switchSettingsSub` opens whichever destination
+  holds the pane asked for and writes `#setPaneGroup` / `#setPaneTitle`; pane IDS
+  ARE UNCHANGED, `set-pricebook` still aliases `set-defaultpricing`). Renamed:
+  Default Items → Material costs, Custom Price Book → Supplier price list,
+  Quote's Product Options → Products, Colour Options → Colours, Material
+  calculations → Quantity rules; Guides is a `.set-nav-foot` link "Help & guides"
+  (`SET_PANE_TITLES`) and the help bot's "Guides & tutorials" chip. SEARCH
+  (`#setSearch`, `_setSearch`, `_setSearchIndex` built once over every pane's
+  labels / headings / row titles after rendering the lazy panes — a price-book
+  disclaimer a render opens is put back; `SET_SYN` maps spouting, deposit,
+  hourly rate, logo, paper, screws, Fergus …; a hit opens the pane and flashes
+  the field, `.set-hit-flash`). LABOUR opens on `#lpMethod` "How do you normally
+  price roofing labour?" (hourly / m² / RoofMap's estimated hours; `_lpMethodSet`,
+  device-only `fr_lp_method`, default from `labour_m2`) with the matching card
+  first (`.lp-first` / `.lp-dim`) and `_lpExampleRender` — a 150 m² hip at the
+  page's rates; the Crew defaults card is gone (nothing read `default_workers /
+  rate / complexity`; `collectLabourPricingFromUI` keeps the stored values).
+  SCAFFOLDING is its own pane `#set-scaffold` (the four scaffold defaults and
+  `_lpScaffTiersRender` from `SCAFF_DIY_TIERS`). FOLDS (`_setFoldInit`,
+  `SET_FOLD_SHUT`: Back-trays, Clearlite, Fixings, Pipe penetrations, One-off
+  items start shut with "n of m set"; `fr_set_folds`), and the Products wording
+  tables sit in a `<details class="set-fold-d">`. THE BRACKET FIGURES ARE EDITED
+  IN ONE PLACE — Material costs → Guttering (`_pbGutBracketsHtml`, placeholders
+  "Standard · $x" / "Not priced"); the Products gutter table shows one Brackets
+  summary cell with "Edit in Material costs". EMAILS: each template's CC and
+  reply-to sit in `<details class="emx-moreopts">` (opened by `_emxFill` when
+  set); the RoofMap address + own-domain block renders into `#emAddressHost`
+  from `renderTeam` (Team keeps it only on a page without the host). GST and
+  country are together on Business details & brand (`#qdGst` moved); Quote
+  defaults' two legacy lists are under "Older settings". SAVE STATUS
+  (`#setSaveStatus`, `_settingsSaveStatus` — NOT `_setSaveStatus`, which already
+  existed and swallowed the first build silently; `_settingsAutosaveRun`):
+  Saving… / ✓ Saved h:mm / Couldn't save — retry. Phone: destinations as chips.
+  Pins re-pointed: colouroptions, custompb, gradeprices, matordering, pbdefaults,
+  pricebookpick, quoteeditor, setupguide. Screenshots: every pane, the chooser's
+  three states, search, save status, four phone pages.
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info
