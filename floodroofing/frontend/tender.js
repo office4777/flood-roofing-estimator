@@ -67,9 +67,80 @@
       '.tn-note{font-size:12.5px;color:#64748b;margin:0 0 10px}.tn-err{padding:12px 14px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;margin-bottom:14px}',
       '.tn-empty{color:#64748b;font-size:13px;padding:8px 0}',
       '@media screen and (max-width:760px){.tn-tbl .hide-sm{display:none}}',
+      '.tn-ai-banner{display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;padding:10px 14px;border-radius:10px;background:#fffbeb;border:1px solid #f59e0b;color:#78350f;font-size:13px;line-height:1.45}',
+      '.tn-ai-banner .ic{flex:0 0 auto;font-size:16px;line-height:1.2}.tn-ai-banner b{color:#7c2d12}.tn-ai-banner a{color:#92400e;font-weight:700;text-decoration:underline;cursor:pointer}',
+      '#tnCaution{position:fixed;inset:0;z-index:10060;background:rgba(10,22,40,.62);display:flex;align-items:center;justify-content:center;padding:16px}',
+      '#tnCaution .tc-card{background:#fff;border-radius:16px;max-width:620px;width:100%;max-height:calc(100vh - 32px);overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.35);border-top:6px solid #f59e0b}',
+      '#tnCaution .tc-hd{display:flex;align-items:center;gap:12px;padding:20px 24px 6px}#tnCaution .tc-hd .ic{font-size:30px}#tnCaution h2{margin:0;font-size:22px;font-weight:800;color:#0a1628}',
+      '#tnCaution .tc-bd{padding:6px 24px 4px;font-size:14.5px;line-height:1.55;color:#334155}#tnCaution .tc-bd p{margin:0 0 10px}#tnCaution .tc-bd ul{margin:0 0 12px 20px;padding:0}#tnCaution .tc-bd li{margin:6px 0}',
+      '#tnCaution .tc-big{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px;color:#7c2d12;font-weight:600}',
+      '#tnCaution .tc-tick{display:flex;gap:10px;align-items:flex-start;margin:14px 0 6px;font-size:14px;font-weight:600;color:#0a1628;cursor:pointer}#tnCaution .tc-tick input{width:20px;height:20px;margin:1px 0 0;flex:0 0 auto}',
+      '#tnCaution .tc-ft{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;padding:14px 24px 20px}#tnCaution .tc-ft .tn-btn{padding:11px 18px;font-size:14px}',
     ].join('\n');
     document.head.appendChild(st);
   })();
+
+  // ── THE AI CAUTION (2026-11-11, the owner: "as soon as the user first
+  // clicks into the AI tendering ... pop up a big caution window, like a
+  // disclaimer to say that this is all off AI and that all quantities and
+  // measurements, pricing and product specs should always be checked over by
+  // a real person, and that roof map will not be liable for any mistakes ...
+  // every other time ... just have a small banner at the top"). The window
+  // asks each PERSON once — a tick and a button, so it is read, not clicked
+  // through — and the answer is kept on this device and on the account
+  // (ui_flags.tender_ack[user id], so a second device does not ask again).
+  // The banner is on the tab every time, the first time included.
+  function ackUser(){ try { var u = JSON.parse(localStorage.getItem('fr_user') || '{}'); return String(u.id || u.email || ''); } catch (e) { return ''; } }
+  function acked(){
+    var u = ackUser();
+    try { if (localStorage.getItem('fr_tender_ack:' + u)) return true; } catch (e) {}
+    try { var f = window.__uiFlags && window.__uiFlags.tender_ack; if (f && u && f[u]) return true; } catch (e) {}
+    return false;
+  }
+  window._tenderAcked = acked;
+  function bannerHtml(){
+    return '<div class="tn-ai-banner" id="tnAiBanner"><span class="ic">\u26a0\ufe0f</span><span><b>AI-generated \u2014 check everything.</b> ' +
+      'Every quantity, measurement, labour figure, price and product spec here is drafted by AI and must be checked by a person ' +
+      'before you submit a tender, order material or confirm a price. RoofMap is a guide and is not liable for its mistakes. ' +
+      '<a onclick="_tenderCautionOpen(true)">Read the caution</a> \u00b7 <a href="/terms#ai" target="_blank" rel="noopener">Terms</a></span></div>';
+  }
+  window._tenderCautionOpen = function(again){
+    var old = document.getElementById('tnCaution'); if (old) old.remove();
+    var w = document.createElement('div'); w.id = 'tnCaution';
+    w.innerHTML = '<div class="tc-card" role="dialog" aria-modal="true" aria-labelledby="tcTitle">' +
+      '<div class="tc-hd"><span class="ic">\u26a0\ufe0f</span><h2 id="tcTitle">Before you use AI Tendering</h2></div>' +
+      '<div class="tc-bd">' +
+        '<p>AI Tendering uses artificial intelligence to read plan sets and specifications and to draft quantities, measurements, labour, pricing and product specifications.</p>' +
+        '<p><b>AI makes mistakes.</b> It can misread a drawing or a dimension, miss a page or a note, pick the wrong product, or get a quantity, a length or a price wrong \u2014 and it can sound sure of itself when it is wrong.</p>' +
+        '<ul>' +
+          '<li>Everything it produces is a <b>draft for you to check</b>, not an answer.</li>' +
+          '<li>A real person must check <b>every quantity, measurement, labour figure, price and product spec</b> against the plans, the specification and your supplier before you submit a tender, place an order or confirm a price.</li>' +
+          '<li>The same goes for everything RoofMap calculates \u2014 material quantities and estimated labour are a guide.</li>' +
+        '</ul>' +
+        '<p class="tc-big">RoofMap is not liable for any mistake in anything AI Tendering or RoofMap produces, or for any loss from relying on it without checking. See the <a href="/terms#ai" target="_blank" rel="noopener">Terms of Service</a>.</p>' +
+        (again ? '' : '<label class="tc-tick"><input type="checkbox" id="tcAgree" onchange="document.getElementById(\'tcGo\').disabled=!this.checked"> I understand that everything AI Tendering produces must be checked by a person before it is used, and that RoofMap is not liable for its mistakes.</label>') +
+      '</div>' +
+      '<div class="tc-ft">' +
+        (again ? '<button type="button" class="tn-btn" onclick="_tenderCautionClose()">Close</button>'
+               : '<button type="button" class="tn-btn sec" onclick="_tenderCautionLeave()">Not now</button>' +
+                 '<button type="button" class="tn-btn" id="tcGo" disabled onclick="_tenderCautionAgree()">I understand \u2014 open AI Tendering</button>') +
+      '</div></div>';
+    document.body.appendChild(w);
+  };
+  window._tenderCautionClose = function(){ var w = document.getElementById('tnCaution'); if (w) w.remove(); };
+  window._tenderCautionAgree = function(){
+    var box = document.getElementById('tcAgree'); if (box && !box.checked) return;
+    var u = ackUser(), at = new Date().toISOString();
+    try { localStorage.setItem('fr_tender_ack:' + u, at); } catch (e) {}
+    try { window.__uiFlags = window.__uiFlags || {}; var f = window.__uiFlags.tender_ack = window.__uiFlags.tender_ack || {}; if (u) f[u] = at; } catch (e) {}
+    try { api('PUT', '/settings/ui-flags', { tender_ack: true }).catch(function(){}); } catch (e) {}
+    window._tenderCautionClose();
+  };
+  // "Not now" leaves the tab: the tool is not opened on an unread caution.
+  window._tenderCautionLeave = function(){
+    window._tenderCautionClose();
+    try { gotoTab('home'); } catch (e) { try { gotoTab('roof'); } catch (e2) {} }
+  };
 
   // ── the tender behind the job ───────────────────────────────────────
   async function ensure(){
@@ -93,13 +164,14 @@
   window._tenderTabOpen = async function(){
     var r = root(); if (!r) return;
     T.err = '';
+    if (!acked() && !document.getElementById('tnCaution')) window._tenderCautionOpen(false);
     if (!(window.S && S.quote && S.quote.quoteKind === 'tender')) {
       var pp = document.getElementById('tnPlansPop'); if (pp) pp.classList.remove('has-pages');
-      r.innerHTML = '<div class="tn-card"><div class="tn-card-bd"><div class="tn-empty">This job is not an AI Tendering job. Set the job type to AI Tendering in the job details (or the Quote tab’s More menu) to use the plan-set reader on it.</div></div></div>';
+      r.innerHTML = bannerHtml() + '<div class="tn-card"><div class="tn-card-bd"><div class="tn-empty">This job is not an AI Tendering job. Set the job type to AI Tendering in the job details (or the Quote tab’s More menu) to use the plan-set reader on it.</div></div></div>';
       return;
     }
     if (!T.data || T.id !== S.quote.tenderId) { T.data = null; T.thumbs = {}; }
-    if (!T.data) r.innerHTML = '<div class="tn-empty">Opening the tender…</div>';
+    if (!T.data) r.innerHTML = bannerHtml() + '<div class="tn-empty">Opening the tender…</div>';
     try {
       T.id = await ensure();
       await load();
@@ -116,7 +188,7 @@
   function busy(){ var d = T.data; return !!(d && (d.status === 'queued' || d.status === 'processing')) || T.uploads.some(function(u){ return !u.done; }); }
   function render(){
     var r = root(); if (!r) return;
-    if (T.err) { r.innerHTML = '<div class="tn-err">' + esc(T.err) + '</div>'; return; }
+    if (T.err) { r.innerHTML = bannerHtml() + '<div class="tn-err">' + esc(T.err) + '</div>'; return; }
     var d = T.data; if (!d) return;
     var h = '';
     h += '<div class="tn-hd"><h2>AI Tendering</h2><span class="tn-pill ' + esc(d.status) + '">' + esc(statusWord(d.status)) + '</span>' +
@@ -124,6 +196,7 @@
       '<span style="margin-left:auto;display:flex;gap:8px">' +
       (d.files && d.files.length ? '<button type="button" class="tn-btn sec" onclick="_tenderRun()" ' + (busy() ? 'disabled' : '') + '>↻ Read the set again</button>' : '') +
       '</span></div>';
+    h += bannerHtml();
     if (!d.ai) h += '<p class="tn-note">The AI classifier is not available on the server (no API key), so pages are classed by their title blocks alone. Check the classes below.</p>';
     h += progressHtml(d);
     h += '<div class="tn-card" id="tnPlanSet"><div class="tn-card-hd">Plan set<span class="tn-r">' + (d.files || []).length + ' file' + ((d.files || []).length === 1 ? '' : 's') + '</span></div><div class="tn-card-bd">' +
