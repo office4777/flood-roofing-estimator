@@ -1927,6 +1927,9 @@ app.get('/subscription', requireAuth, async (req, res) => {
     status: (sub && sub.status) || 'none',
     billing: BILLING_ENABLED,        // false = the gate is open regardless
     live: !BILLING_ENABLED || _subscriptionLive(sub),
+    // A complimentary account (COMP_SIGNUPS): the app says so instead of
+    // counting a trial down.
+    comp: (function(){ const c = _compOf(sub); return c ? { plan: c.plan, until: c.until } : null; })(),
     trial: !onTrial ? null : Object.assign({
       ends_at: sub.trial_ends_at,
       // Round UP: with 6 hours left a roofer should read "1 day", not "0".
@@ -2787,6 +2790,104 @@ function _blockedEmail(email){
   const domain = norm.slice(at + 1);
   return !NEVER_BLOCK_DOMAIN.has(domain) && BLOCKED_SIGNUPS.has(domain);
 }
+// COMPLIMENTARY ACCOUNTS (2026-11-11, the RANZ pilot: Luke Boustridge asked
+// for free accounts for four testers after the demo of 9 Nov, a fifth to be
+// confirmed). A comped business is NOT a trial: no 3-roof cap, no trial drip
+// ("Four days left on your trial" to the CEO of the association deciding
+// whether to endorse us is the wrong email), on a named plan, until a date.
+// Entries are "email:plan:YYYY-MM-DD" (the date is the last day, NZ time);
+// COMP_SIGNUPS on Railway adds more without a ship. Applied the moment the
+// address registers, and by _compSweep for an account that already exists.
+// A PAYING row (status active) is never touched — it belongs to Stripe.
+// When the date passes the account is an ended trial like any other: the
+// trial-ended email goes and the plans are offered.
+const COMP_SIGNUPS_BUILTIN = [
+  'ceo@ranz.co.nz:team:2027-03-31',                  // Luke Boustridge, RANZ
+  'ben@protechroofing.co.nz:team:2027-03-31',        // Ben Clisby, Protech Roofing
+  'michael@projectunite.co.nz:team:2027-03-31',      // Michael Sentch, Project Unite
+  'madison.taylor@roofguard.co.nz:team:2027-03-31',  // Madison Taylor, Roofguard (Gary McNamara's nominee)
+].join(' ');
+function _parseCompList(txt){
+  const out = new Map();
+  String(txt || '').split(/[\s,;]+/).forEach(function(x){
+    const m = /^([^:\s]+@[^:\s]+):([a-z]+):(\d{4}-\d{2}-\d{2})$/i.exec(String(x).trim());
+    if (!m) return;
+    // The page calls the middle plan Trade; PLANS keys it 'solo'.
+    let plan = m[2].toLowerCase();
+    if (plan === 'trade') plan = 'solo';
+    if (!PLANS[plan]) return;
+    // The end of that day in New Zealand (NZDT, +13 — every comp ends in summer
+    // or near enough; an hour either way at the change of clocks does not matter).
+    const until = new Date(m[3] + 'T23:59:59+13:00');
+    if (isNaN(until.getTime())) return;
+    out.set(_normaliseEmail(m[1]), { email: m[1].toLowerCase(), plan: plan, until: until.toISOString() });
+  });
+  return out;
+}
+let COMP_SIGNUPS = new Map();
+function _compFor(email){
+  if (!COMP_SIGNUPS.size) COMP_SIGNUPS = _parseCompList(COMP_SIGNUPS_BUILTIN + ' ' + String(process.env.COMP_SIGNUPS || ''));
+  return COMP_SIGNUPS.get(_normaliseEmail(email)) || null;
+}
+// What a subscription row is given to be comped. trial_drip carries the
+// marker (no new column) and every drip step stamped, so the drip has nothing
+// left to send; the gone-quiet alert to support@ still fires, on purpose —
+// a tester who has not traced a roof in three days is worth a phone call.
+function _compPatch(entry, sub){
+  const at = new Date().toISOString();
+  const drip = Object.assign({}, (sub && sub.trial_drip) || {});
+  TRIAL_DRIP_STEPS.forEach(function(st){ if (!drip[st.key]) drip[st.key] = 'comped ' + at; });
+  drip.comp = { plan: entry.plan, until: entry.until, at: at };
+  return { trial_ends_at: entry.until, trial_roof_limit: null, trial_drip: drip };
+}
+function _compOf(sub){
+  const c = sub && sub.status !== 'active' && sub.trial_drip && sub.trial_drip.comp;
+  return c && c.until ? c : null;
+}
+// The accounts on the list that already exist. Idempotent: a row already
+// comped to the same plan and date is left alone. Boot + hourly + POST /admin/comp/run.
+async function _compSweep(){
+  const out = { checked: 0, applied: [], skipped: [] };
+  if (!COMP_SIGNUPS.size) _compFor('');
+  for (const entry of COMP_SIGNUPS.values()){
+    out.checked++;
+    try {
+      const { data: profs, error: perr } = await supabase.from('profiles').select('id, email').ilike('email', entry.email.replace(/([%_\\])/g, '\\$1')).limit(5);
+      if (perr) throw new Error(perr.message);
+      if (!profs || !profs.length){ out.skipped.push({ email: entry.email, why: 'not signed up yet' }); continue; }
+      for (const prof of profs){
+        const cid = await _companyOf(prof.id);
+        if (!cid){ out.skipped.push({ email: entry.email, why: 'no business' }); continue; }
+        const sub = await _companySubscription(cid, prof.id);
+        if (sub && sub.status === 'active'){ out.skipped.push({ email: entry.email, why: 'paying — left alone' }); continue; }
+        const was = _compOf(sub);
+        const { data: co } = await supabase.from('companies').select('plan').eq('id', cid).maybeSingle();
+        if (was && was.until === entry.until && was.plan === entry.plan && !(Number(sub.trial_roof_limit) > 0) &&
+            sub.trial_ends_at && new Date(sub.trial_ends_at).getTime() === new Date(entry.until).getTime() &&
+            co && co.plan === entry.plan){
+          out.skipped.push({ email: entry.email, why: 'already comped' }); continue;
+        }
+        const patch = Object.assign(_compPatch(entry, sub), { updated_at: new Date().toISOString() });
+        if (sub && sub.id){
+          const { error } = await supabase.from('subscriptions').update(patch).eq('id', sub.id);
+          if (error) throw new Error(error.message);
+        } else {
+          const { error } = await supabase.from('subscriptions').insert(Object.assign({ user_id: prof.id, company_id: cid, status: 'trialing' }, patch));
+          if (error) throw new Error(error.message);
+        }
+        const { error: cerr } = await supabase.from('companies').update({ plan: entry.plan }).eq('id', cid);
+        if (cerr) throw new Error(cerr.message);
+        _planCache.clear();
+        out.applied.push({ email: entry.email, company_id: cid, plan: entry.plan, until: entry.until });
+      }
+    } catch (e) {
+      out.skipped.push({ email: entry.email, why: 'failed: ' + e.message });
+      recordError('comp-sweep', e, { email: entry.email });
+    }
+  }
+  if (out.applied.length) console.log('[comp] applied ' + out.applied.map(function(a){ return a.email; }).join(', '));
+  return out;
+}
 function _cleanPhone(p){
   const s = String(p || '').trim().slice(0, 40);
   return s.replace(/\D/g, '').length >= 7 ? s : '';
@@ -2904,6 +3005,9 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
     // and the integrations but NOT GET /jobs, so a lapsed trial can still sign
     // in and read what it made.
     const subRow = _newTrialRow(userId, cid);
+    // A complimentary account (COMP_SIGNUPS) starts on its plan and its date.
+    const _comp = _compFor(email);
+    if (_comp) Object.assign(subRow, _compPatch(_comp, subRow));
     let { error: serr } = await supabase.from('subscriptions').insert(subRow);
     if (serr && /company_id/.test(serr.message || '')) {
       delete subRow.company_id;   // column not migrated yet
@@ -2916,6 +3020,10 @@ app.post('/auth/register', rateLimit(15, 3600000), rateLimit(5, 3600000, _emailK
       ({ error: serr } = await supabase.from('subscriptions').insert(subRow));
     }
     if (serr) console.warn('[auth] subscription row insert failed:', serr.message);
+    if (_comp && !serr){
+      try { await supabase.from('companies').update({ plan: _comp.plan }).eq('id', cid); _planCache.clear(); }
+      catch (e) { recordError('comp-signup', e, { email: email }); }
+    }
     recordUsage('signed_up', { companyId: cid, user: { id: userId } });
     // Tell the owner. A trial starting is the one event worth a ring, and
     // until now nobody was told — signups were a number in the metrics.
@@ -9309,6 +9417,11 @@ app.post('/admin/builtin-flashings/run', async (req, res) => {
 app.post('/admin/email-switch-repair/run', async (req, res) => {
   if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
   try { res.json(await _emailSwitchRepairOnce()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+app.post('/admin/comp/run', async (req, res) => {
+  if (!_adminOk(req)) return res.status(404).json({ error: 'Not found' });
+  try { res.json(await _compSweep()); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 app.post('/admin/office-owed/run', async (req, res) => {
@@ -16495,7 +16608,9 @@ app.post('/admin/grandfather', async (req, res) => {
       const change = { company_id: id, name: row.name, people: row.people,
         comped_until: until.toISOString(), plan: plan || row.plan || '(unchanged)' };
       if (dryRun){ applied.push(change); continue; }
-      const patch = { trial_ends_at: until.toISOString(), updated_at: new Date().toISOString() };
+      const patch = Object.assign(
+        _compPatch({ plan: plan || row.plan || 'team', until: until.toISOString() }, row.subscription),
+        { updated_at: new Date().toISOString() });
       if (row.subscription){
         const { error } = await supabase.from('subscriptions').update(patch).eq('company_id', id);
         if (error){ skipped.push({ company_id: id, why: 'subscription update failed: ' + error.message }); continue; }
@@ -16645,6 +16760,11 @@ app.listen(PORT, () => {
   const _pfKick = setTimeout(function(){ _platformFlashSync().catch(function(e){ console.warn('[flashings] platform sync: ' + e.message); }); }, 70e3);
   if (_pfKick.unref) _pfKick.unref();
   // The paid-since dates of businesses that were paying before they were kept.
+  // Complimentary accounts that already exist (COMP_SIGNUPS): a minute after
+  // boot, then hourly — four reads each, nothing written once they are done.
+  const _cpKick = setTimeout(function(){ _compSweep().catch(function(){}); }, 60e3);
+  if (_cpKick.unref) _cpKick.unref();
+  setInterval(function(){ _compSweep().catch(function(){}); }, 3600e3).unref();
   const _psKick = setTimeout(function(){ _paidSinceBackfill().catch(function(e){ console.warn('[stripe] paid-since backfill: ' + e.message); }); }, 75e3);
   if (_psKick.unref) _psKick.unref();
   // Every Stripe price gets its AUD option (AUSTRALIA, 2026-11-04). Only

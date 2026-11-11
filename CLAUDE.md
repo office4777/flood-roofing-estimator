@@ -6281,6 +6281,40 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   business's line ends "paying since 23 Oct 2026" ("not recorded" where Stripe
   had no paid invoice), and a "New paying subscribers yesterday" section leads
   when there are any. `tests/newpayer.mjs` (17, API list).
+- COMPLIMENTARY ACCOUNTS (2026-11-11, the RANZ pilot: Luke Boustridge, CEO of
+  RANZ, named four testers after the 9 Nov demo — "Go on all"). A comped
+  business is not a trial: `COMP_SIGNUPS_BUILTIN` in server.js (and
+  `COMP_SIGNUPS` on Railway, no ship needed) lists `email:plan:YYYY-MM-DD`
+  (the last day, NZ; 'trade' = 'solo'). The four: ceo@ranz.co.nz,
+  ben@protechroofing.co.nz, michael@projectunite.co.nz,
+  madison.taylor@roofguard.co.nz — Team to 31 March 2027; a fifth still to be
+  confirmed. `_compFor(email)` at `/auth/register` gives the new row
+  `_compPatch`: `trial_ends_at` = the date, `trial_roof_limit` null (no 3-roof
+  cap), every drip step stamped `comped …` and `trial_drip.comp = {plan,
+  until}` (the marker — no new column), and `companies.plan` = the plan.
+  `_compSweep` (60 s after boot, hourly, `POST /admin/comp/run`) does the same
+  for an address that signed up BEFORE it was listed; idempotent; never a
+  PAYING (active) row. The gone-quiet alert to support@ still fires on purpose.
+  `/subscription.comp` = {plan, until}; the app's `_planGateHtml` then says
+  "Complimentary RoofMap Team access until 31 March 2027" (`#compBar`) instead
+  of a countdown. When the date passes it is an ended trial like any other.
+  `POST /admin/grandfather` now comps the same way (it only moved the date,
+  so a comped trial kept its 3-roof cap and its "Four days left" email).
+  `tests/compaccounts.mjs` (15, API), `trialui`.
+- ORDER A COLORSTEEL® SAMPLE (2026-11-11, NZ Steel's Senior Brand Manager,
+  Laura Clark: fine to reference COLORSTEEL®, "please send over final
+  links/screen shots of how it will appear for approval before going live",
+  and link back to their order-a-sample page). `_colorsteelSampleHtml` under
+  the roof colour (`_qbColour`) and a COLORSTEEL box gutter's colour
+  (`_qbGutterColour`): a note and an "Order a COLORSTEEL® sample ↗" button —
+  never ColorZen, COLORBOND®, Marley, Australia or paper. BUILT AND OFF
+  (`COLORSTEEL_SAMPLE_ON = false`; `window.__COLORSTEEL_SAMPLE = true` to
+  picture it) until she approves the screenshots (drafted to her 11 Nov, not
+  sent) and confirms the URL — `COLORSTEEL_SAMPLE_URL` is the home page for
+  now. Her two PDFs (colour codes for digital, TSR/LRV/SRI) sit on
+  colorsteelassets.co.nz, which this container cannot reach; check the
+  `MAXAM_COLOURS` hexes against the first once it is in hand.
+  `quotedesk.mjs` pins it off, and on.
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted

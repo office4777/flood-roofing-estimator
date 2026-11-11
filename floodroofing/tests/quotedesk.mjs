@@ -302,6 +302,18 @@ check('…the review reads "Quote accepted", the rail too, and the picks are fro
   acc.h === 'Quote accepted' && acc.rail === 'Quote accepted' && acc.frozen, JSON.stringify(acc));
 check('…and the page is still the computer layout afterwards (the PDF pass did not leave the A4 behind)', acc.desk && acc.qd);
 check('nothing on the computer threw', d.errs.length === 0, d.errs.join(' | ') || 'clean');
+// ORDER A COLORSTEEL® SAMPLE (2026-11-11): built, OFF until NZ Steel approves.
+const cs = await d.pg.evaluate(() => {
+  const off = !document.querySelector('#qd-colour .qb-cs-sample');
+  window.__COLORSTEEL_SAMPLE = true;
+  const on = _colorsteelSampleHtml(true), notCs = _colorsteelSampleHtml(false);
+  window.__PRINTING_MODERN = true; const paper = _colorsteelSampleHtml(true); window.__PRINTING_MODERN = false;
+  window.__COLORSTEEL_SAMPLE = undefined;
+  return { off, on, notCs, paper };
+});
+check('the COLORSTEEL sample link is off by default (awaiting NZ Steel)', cs.off, JSON.stringify(cs).slice(0,160));
+check('…switched on it links out in a new tab under a COLORSTEEL chart only, never on paper',
+  /Order a COLORSTEEL\u00ae sample|Order a COLORSTEEL® sample/.test(cs.on) && /target="_blank"/.test(cs.on) && cs.notCs === '' && cs.paper === '', cs.on.slice(0,120));
 await d.ctx.close();
 
 // ── the same quote on a phone reads the same lines and the same total ─

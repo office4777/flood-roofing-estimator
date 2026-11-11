@@ -226,6 +226,17 @@ const roofTrial = (left, extra) => Object.assign({ status:'trialing', billing:tr
   await ctx.close();
 }
 
+// ── a COMPLIMENTARY account (COMP_SIGNUPS, the RANZ pilot) ──
+{
+  const until = new Date('2027-03-31T23:59:59+13:00').toISOString();
+  const { ctx: c2, txt: t2 } = await open({ status:'trialing', billing:true, live:true, plan:'team',
+    comp:{ plan:'team', until }, trial:{ ends_at: until, days_left: 141, expired:false, days:14 } });
+  check('a complimentary account reads "Complimentary RoofMap Team access until 31 March 2027"',
+    /Complimentary RoofMap Team access until 31 March 2027/.test(t2.txt) && /tb-calm/.test(t2.cls), t2.txt.slice(0,120));
+  check('…with no trial countdown, roofs left or plan to pick', !/days left|free roof|Choose a plan/.test(t2.txt), t2.txt);
+  await c2.close();
+}
+
 await b.close();
 const pass = results.filter(Boolean).length;
 console.log('\n'+pass+'/'+results.length+' passed');
