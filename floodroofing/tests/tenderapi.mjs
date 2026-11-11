@@ -207,6 +207,10 @@ check('the worker ran through to a drafted tender', done && done.status === 'dra
 r = await call(T1, 'GET', '/tender/' + TID);
 const T = r.body;
 check('six pages recorded', T.pages.length === 6, String(T.pages.length));
+const tk = (T.tasks || []).find(t => t.progress && t.progress.times);
+check('the read records how long each stage took and what the A.I. cost (2026-11-12)',
+  tk && tk.progress.times.ingest >= 0 && tk.progress.times.classify >= 0 && tk.progress.times.draft >= 0 && tk.progress.times.total > 0 && typeof tk.progress.costUsd === 'number',
+  JSON.stringify(tk && tk.progress));
 check('the file is ingested with its page count', T.files[0].status === 'ingested' && T.files[0].pages === 6);
 const pg = (n) => T.pages.find(p => p.page_no === n);
 check('page 4 reads AO-05 rev C ROOF PLAN', pg(4).sheet_id === 'AO-05' && pg(4).revision === 'C' && /ROOF PLAN/.test(pg(4).title), JSON.stringify([pg(4).sheet_id, pg(4).revision, pg(4).title]));

@@ -52,6 +52,21 @@ function mount(app, deps){
     return res.status(403).json({ error: 'AI Tendering is part of the Team plan.', code: 'TENDERING_OFF', needs: 'Team' });
   }
   const gate = [requireAuth, requireSubscription, requireTendering];
+  // The month's A.I. allowance (2026-11-12): anything that spends A.I. is
+  // refused once the business has used it, with the figures so the tab can
+  // say so and offer the add-on. A failed read lets the request through —
+  // stopping a paying business because a usage lookup hiccuped is worse.
+  const aiUsage = deps.aiUsage || null;
+  async function aiBudget(req, res, next){
+    if (!aiUsage) return next();
+    if (req.body && req.body.run === false) return next();
+    let u = null;
+    try { u = await aiUsage(req); } catch (e) { return next(); }
+    if (u && u.blocked) return res.status(402).json({ code: 'AI_USAGE_USED', usage: u,
+      error: 'This month\'s AI Tendering allowance is used up (' + u.allowanceTenders + ' plan sets). ' +
+        (u.canBuy ? 'Add more with the AI add-on, or it resets on the 1st.' : 'It resets on the 1st of the month.') });
+    next();
+  }
 
   async function tenderFor(req, id){
     const { data, error } = await scopeCompany(supabase.from('tender_jobs').select('*').eq('id', id), req).limit(1);
@@ -152,7 +167,9 @@ function mount(app, deps){
       (files || []).forEach(f => f.storage_path && paths.push(f.storage_path));
       (pages || []).forEach(p => ['image_path', 'thumb_path', 'tb_path', 'words_path'].forEach(k => p[k] && paths.push(p[k])));
       try { await storage.remove(paths); } catch (e) { recordError('tender', e, { route: 'DELETE /tender/:id storage' }); }
-      for (const tbl of ['tender_ai_runs', 'tender_pages', 'tender_files', 'tender_tasks']) await supabase.from(tbl).delete().eq('tender_id', t.id);
+      // tender_ai_runs stay: they are what the month's A.I. allowance is
+      // counted from, and deleting a tender must not hand it back.
+      for (const tbl of ['tender_pages', 'tender_files', 'tender_tasks']) await supabase.from(tbl).delete().eq('tender_id', t.id);
       await supabase.from('tender_jobs').delete().eq('id', t.id);
       res.json({ ok: true });
     } catch (e) { oops(res, e, 'DELETE /tender/:id'); }
@@ -186,7 +203,7 @@ function mount(app, deps){
     } catch (e) { oops(res, e, 'POST /tender/:id/files/sign'); }
   });
 
-  app.post('/tender/:id/files/:fid/landed', ...gate, async (req, res) => {
+  app.post('/tender/:id/files/:fid/landed', ...gate, aiBudget, async (req, res) => {
     try {
       const t = await tenderFor(req, req.params.id);
       if (!t) return res.status(404).json({ error: 'Tender not found' });
@@ -212,7 +229,6 @@ function mount(app, deps){
       const paths = [f.storage_path].filter(Boolean);
       (pages || []).forEach(p => ['image_path', 'thumb_path', 'tb_path', 'words_path'].forEach(k => p[k] && paths.push(p[k])));
       try { await storage.remove(paths); } catch (e) { recordError('tender', e, { route: 'DELETE file storage' }); }
-      await supabase.from('tender_ai_runs').delete().eq('tender_id', t.id).in('page_id', (pages || []).map(p => p.id).concat(['-']));
       await supabase.from('tender_pages').delete().eq('file_id', f.id);
       await supabase.from('tender_files').delete().eq('id', f.id);
       // The index no longer describes the set: rebuild it from what is left.
@@ -222,7 +238,7 @@ function mount(app, deps){
   });
 
   // ── running and watching ──────────────────────────────────────────
-  app.post('/tender/:id/run', ...gate, async (req, res) => {
+  app.post('/tender/:id/run', ...gate, aiBudget, async (req, res) => {
     try {
       const t = await tenderFor(req, req.params.id);
       if (!t) return res.status(404).json({ error: 'Tender not found' });
@@ -269,7 +285,7 @@ function mount(app, deps){
   });
 
   // Draft the tender again from the set already read (no re-reading).
-  app.post('/tender/:id/draft', ...gate, async (req, res) => {
+  app.post('/tender/:id/draft', ...gate, aiBudget, async (req, res) => {
     try {
       const t = await tenderFor(req, req.params.id);
       if (!t) return res.status(404).json({ error: 'Tender not found' });
@@ -287,7 +303,7 @@ function mount(app, deps){
     simplify: 'Simplify the scope of work: fewer, shorter, plainer bullets with every commitment kept. Change nothing priced.',
     minimise: 'Minimise the scope of work to the core roofing this company must do. Move everything else to the exclusions and take its items and labour out.',
   };
-  app.post('/tender/:id/amend', ...gate, rateLimit(30, 60000), async (req, res) => {
+  app.post('/tender/:id/amend', ...gate, aiBudget, rateLimit(30, 60000), async (req, res) => {
     try {
       const t = await tenderFor(req, req.params.id);
       if (!t) return res.status(404).json({ error: 'Tender not found' });
@@ -393,7 +409,7 @@ function mount(app, deps){
   // that moves the price goes through /amend, which rewrites the tender whole.
   const SECTION_LABEL = { price: 'Tender price', intro: 'Introduction', terms: 'Terms', accept: 'Acceptance', priceNote: 'Note under the tender price', progNote: 'Note above the programme',
     exclusions: 'Exclusions', assumptions: 'Assumptions & clarifications', rfis: 'Questions for the builder (RFIs)', org: 'Organisation structure' };
-  app.post('/tender/:id/section', ...gate, rateLimit(40, 60000), async (req, res) => {
+  app.post('/tender/:id/section', ...gate, aiBudget, rateLimit(40, 60000), async (req, res) => {
     try {
       const t = await tenderFor(req, req.params.id);
       if (!t) return res.status(404).json({ error: 'Tender not found' });
