@@ -6301,6 +6301,28 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   `POST /admin/grandfather` now comps the same way (it only moved the date,
   so a comped trial kept its 3-roof cap and its "Four days left" email).
   `tests/compaccounts.mjs` (15, API), `trialui`.
+- AI TENDERING CARRIES A CAUTION, AND THE TERMS SAY RoofMap IS A GUIDE
+  (2026-11-11, the owner: "as soon as the user first clicks into the AI
+  tendering ... pop up a big caution window ... all quantities and
+  measurements, pricing and product specs should always be checked over by a
+  real person ... roof map will not be liable for any mistakes ... every other
+  time ... a small banner at the top ... put it in the terms ... roof map will
+  not be liable for any calculated materials and or estimated labor"). In
+  `tender.js`: `_tenderTabOpen` opens `#tnCaution` (`_tenderCautionOpen`) the
+  first time a PERSON opens the tab — a tick (`#tcAgree`) before "I understand
+  — open AI Tendering" (`#tcGo`, `_tenderCautionAgree`) goes on; "Not now"
+  (`_tenderCautionLeave`) leaves the tab. The answer is kept per login, on the
+  device (`fr_tender_ack:<fr_user id or email>`) and on the account
+  (`PUT /settings/ui-flags {tender_ack:true}` → `ui_flags.tender_ack[user id]
+  = first time`, read from `window.__uiFlags`; `_tenderAcked`). The amber
+  `#tnAiBanner` (`bannerHtml`) heads the tab every time, with "Read the caution"
+  (the window again, no tick) and a link to `/terms#ai`. TERMS v1.1 (in force
+  11 Nov 2026): the Measurements clause adds "RoofMap is a guide" (calculated
+  materials and estimated labour checked by a person before an order or a
+  price, not liable) and an "AI Tendering" sub-clause (`#ai`, a callout); the
+  liability callout names both. Clause numbers unchanged. The terms promise 30
+  days' email notice for material changes — told to the owner.
+  `tenderui` (95), `legal` (72), `ferguskey` (45).
 - ORDER A COLORSTEEL® SAMPLE (2026-11-11, NZ Steel's Senior Brand Manager,
   Laura Clark: fine to reference COLORSTEEL®, "please send over final
   links/screen shots of how it will appear for approval before going live",

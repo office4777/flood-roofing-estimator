@@ -270,6 +270,20 @@ body = await j(await as(B, '/settings'));
 check('…so any device reads both on login', body.ui_flags &&
   body.ui_flags.tour_done === true && body.ui_flags.setup_done === true, JSON.stringify(body.ui_flags));
 
+// The AI Tendering caution (2026-11-11): agreed once per person, kept with who and when.
+r = await as(B, '/settings/ui-flags', { method: 'PUT', body: JSON.stringify({ tender_ack: true }) });
+body = await j(r);
+const _ta = body.ui_flags && body.ui_flags.tender_ack;
+check('agreeing to the AI Tendering caution is kept per login, with the time', r.status === 200 && _ta &&
+  Object.keys(_ta).length === 1 && !isNaN(Date.parse(Object.values(_ta)[0])) && body.ui_flags.tour_done === true, JSON.stringify(body.ui_flags));
+const _ta0 = Object.values(_ta)[0];
+r = await as(B, '/settings/ui-flags', { method: 'PUT', body: JSON.stringify({ tender_ack: true }) });
+body = await j(r);
+check('…and agreeing again keeps the first time', Object.values(body.ui_flags.tender_ack)[0] === _ta0, JSON.stringify(body.ui_flags.tender_ack));
+r = await as(B, '/settings/ui-flags', { method: 'PUT', body: JSON.stringify({ tender_ack: 'yes please' }) });
+body = await j(r);
+check('…and only a true is taken', Object.keys(body.ui_flags.tender_ack).length === 1, JSON.stringify(body.ui_flags.tender_ack));
+
 // ── the browser half: one business's link never outlives its session ──
 // The trial account that saw Flood Roofing's jobs also came up showing
 // "Fergus: connected" with an empty key box, because fr_jms_linked (and the

@@ -22,6 +22,7 @@ const landing = flat(await readFile(_j(DIR, 'landing.html'), 'utf8'));
 const security = flat(await readFile(_j(DIR, 'security.html'), 'utf8'));
 const server  = await readFile(_j(_ROOT, 'backend', 'server.js'), 'utf8');
 const app     = await readFile(_j(DIR, 'app.html'), 'utf8');
+const tenderJs = await readFile(_j(DIR, 'tender.js'), 'utf8');
 
 // ── every third party the code actually calls is named in the policy ──
 // Each entry: the thing to look for in the source, and the name the policy
@@ -159,6 +160,16 @@ check('…which is exactly what the terms say happens',
 check('the terms set out fair use of the service',
   /Fair use/.test(terms) && /per business and per login/.test(terms) &&
   /without telling you first/.test(terms));
+// AI Tendering's caution (2026-11-11): the terms say what the app's window says.
+check('the terms carry the AI Tendering caution: a draft, checked by a person, not liable',
+  /id="ai"/.test(terms) && /AI makes mistakes/.test(terms) &&
+  /A real person must check every quantity,\s*measurement, labour figure, price and product specification/.test(terms) &&
+  /not liable for any mistake in anything AI Tendering produces/.test(terms));
+check('…and say RoofMap is a guide: calculated materials and estimated labour checked before an order or a price',
+  /RoofMap is a guide/.test(terms) && /not liable for any\s*calculated material quantity or estimated labour figure/.test(terms) &&
+  /estimated labour figure that was wrong/.test(terms));
+check('…and the app links the banner and the window to that clause',
+  /\/terms#ai/.test(tenderJs) && /RoofMap is not liable/.test(tenderJs));
 check('…and warn that supplier prices move under a saved price book',
   /Supplier prices move/.test(terms) && /indicative retail figures/.test(terms));
 

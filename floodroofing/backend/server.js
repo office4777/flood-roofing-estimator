@@ -5551,6 +5551,12 @@ app.put('/settings/ui-flags', requireAuth, async (req, res) => {
   }
   try {
     const row = await _companySettingsRow(req);
+    // The AI Tendering caution (2026-11-11): each PERSON agrees once, so it is
+    // kept per login — who and when — and a second device does not ask again.
+    if (b.tender_ack === true){
+      const was = (row && row.ui_flags && row.ui_flags.tender_ack && typeof row.ui_flags.tender_ack === 'object') ? row.ui_flags.tender_ack : {};
+      patch.tender_ack = Object.assign({}, was, { [req.user.id]: was[req.user.id] || new Date().toISOString() });
+    }
     const flags = Object.assign({}, (row && row.ui_flags) || {}, patch);
     if (row && row.user_id) {
       const { error } = await supabase.from('user_settings').update({ ui_flags: flags }).eq('user_id', row.user_id);

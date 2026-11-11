@@ -157,6 +157,28 @@ await pg.evaluate(() => { document.getElementById('jobClient').value = 'Whangaro
 await pg.waitForTimeout(900);
 r = await pg.evaluate(() => ({ tab: document.body.getAttribute('data-tab'), tid: S.quote.tenderId, root: (document.getElementById('tenderRoot') || {}).innerText || '' }));
 check('Start lands on the AI Tendering tab and the tender is made behind the job', r.tab === 'tender' && r.tid === 'tn-1' && /Drop the plan-set PDFs/.test(r.root), JSON.stringify([r.tab, r.tid]));
+// ── THE AI CAUTION (2026-11-11): the first time a person opens the tab ──
+r = await pg.evaluate(() => { const w = document.getElementById('tnCaution'), go = document.getElementById('tcGo');
+  return { up: !!w, text: w ? w.innerText : '', goOff: !!(go && go.disabled), banner: !!document.querySelector('#tenderRoot #tnAiBanner') }; });
+check('the first time into AI Tendering a big caution window comes up', r.up && /Before you use AI Tendering/.test(r.text) && /AI makes mistakes/.test(r.text) &&
+  /every quantity, measurement, labour figure, price and product spec/i.test(r.text) && /RoofMap is not liable/.test(r.text), r.text.slice(0, 200));
+check('…its button stays off until the tick is ticked', r.goOff, JSON.stringify(r));
+check('…and the tab carries the small banner under it', r.banner);
+await pg.evaluate(() => { const c = document.getElementById('tcAgree'); c.checked = true; c.dispatchEvent(new Event('change')); });
+r = await pg.evaluate(() => ({ goOn: !document.getElementById('tcGo').disabled }));
+check('ticking it turns the button on', r.goOn);
+await pg.click('#tcGo');
+await pg.waitForTimeout(300);
+const ackCall = calls.find(c => c.p === '/settings/ui-flags' && c.m === 'PUT' && c.body && c.body.tender_ack === true);
+r = await pg.evaluate(() => ({ gone: !document.getElementById('tnCaution'), kept: !!localStorage.getItem('fr_tender_ack:sam@floodroofing.co.nz'), acked: _tenderAcked() }));
+check('agreeing closes it and keeps the answer on the device and on the account', r.gone && r.kept && r.acked && !!ackCall, JSON.stringify(r) + ' ' + JSON.stringify(ackCall));
+await pg.evaluate(() => gotoTab('roof')); await pg.evaluate(() => gotoTab('tender')); await pg.waitForTimeout(400);
+r = await pg.evaluate(() => ({ up: !!document.getElementById('tnCaution'), banner: (document.getElementById('tnAiBanner') || {}).innerText || '' }));
+check('every time after: no window, just the banner at the top', !r.up && /AI-generated/.test(r.banner) && /checked by a person/.test(r.banner) && /not liable/.test(r.banner), JSON.stringify(r));
+await pg.evaluate(() => _tenderCautionOpen(true));
+r = await pg.evaluate(() => ({ up: !!document.getElementById('tnCaution'), tick: !!document.getElementById('tcAgree') }));
+check('the banner re-opens the caution to read, with no tick to give again', r.up && !r.tick, JSON.stringify(r));
+await pg.evaluate(() => _tenderCautionClose());
 const made = calls.find(c => c.p === '/tender' && c.m === 'POST');
 check('the tender is named for the job', made && /Whangaroa Community Hall/.test(made.body.name), JSON.stringify(made && made.body));
 r = await pg.evaluate(() => { gotoTab('quote'); _qkMenuRender(); const b = document.getElementById('qkBtn_tender'); return { there: !!b, on: b && b.classList.contains('qk-on') }; });
