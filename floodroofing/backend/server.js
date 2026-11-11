@@ -1997,7 +1997,7 @@ const PLANS = {
   // link and the schedule board from exactly the firms that buy for them.
   // Since 2026-10-23 Team carries the inbox and the domain (Business is off
   // sale), so the trial does too — it is Team, row for row.
-  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
+  trial:    { label: 'Trial',    seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0, tenderUsd: 5 },
   // Measuring and materials: the aerial, the outline, the sheet counts,
   // flashings, the cut list — and, since 2026-10-23, the merchant order,
   // because "calculate your materials" ends at the order. No customer quote
@@ -2005,12 +2005,12 @@ const PLANS = {
   // price for it exists (STRIPE_PRICE_MEASURE), so it can sit here unpriced.
   // 2026-11-03 (the owner): 30 roofs a month, and the merchant order moves to
   // Team. A business already paying keeps what it bought (PLANS_LEGACY).
-  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: false, tender: false, roofsMonth: 30  },
+  measure:  { label: 'Measure',  seats: 1,        slug: false, domain: false, jms: false, activity: false, reminders: false, maildomain: false, schedule: false, inbox: false, quote: false, order: false, tender: false, roofsMonth: 30, tenderUsd: 0 },
   // Being told a quote was opened or accepted is what a one-person business
   // needs MOST, not least — there is no office watching the folder for them.
   // Nobody has ever upgraded a plan to receive a notification; they leave.
   // 2026-11-03: 100 roofs a month; merchant orders are Team's.
-  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: false, tender: false, roofsMonth: 100 },
+  solo:     { label: 'Trade',     seats: 1,        slug: false, domain: false, jms: false, activity: true,  reminders: true,  maildomain: false, schedule: false, inbox: false, quote: true,  order: false, tender: false, roofsMonth: 100, tenderUsd: 0 },
   // A schedule board is meaningless at one person and hurting by three, and
   // firms running Fergus are Team-shaped. Both sit here so that "more than
   // one person" is the reason to leave Solo. Since 2026-10-23 it is the top
@@ -2018,10 +2018,10 @@ const PLANS = {
   // task board, the company's own domain — at five people.
   // 2026-11-03: unlimited roofs, the merchant order, and AI Tendering (the QS
   // and the tender quote PDF), which the business opts into by using it.
-  team:     { label: 'Team',     seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
+  team:     { label: 'Team',     seats: 5,        slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0, tenderUsd: 15 },
   // OFF SALE since 2026-10-23. Kept so a business already on it keeps its
   // limits; /billing/checkout refuses it for anybody not already there.
-  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0   },
+  business: { label: 'Business', seats: 15,       slug: true,  domain: true,  jms: true,  activity: true,  reminders: true,  maildomain: true,  schedule: true,  inbox: true,  quote: true,  order: true,  tender: true,  roofsMonth: 0, tenderUsd: 30 },
 };
 // THE TERMS A BUSINESS ALREADY PAYING KEEPS (2026-11-03, the owner: "don't
 // change it for the existing paying customers though"). Measure and Trade
@@ -2192,7 +2192,7 @@ async function _companyBrief(cid, userId){
       const lim = _limitsFor(plan, pi.legacy);
       brief.plan = plan;
       brief.limits = { seats: lim.seats === Infinity ? null : lim.seats, slug: !!lim.slug, domain: !!lim.domain, jms: !!lim.jms, schedule: !!lim.schedule, inbox: !!lim.inbox,
-                       order: !!lim.order, tender: !!lim.tender, roofsMonth: lim.roofsMonth || 0 };
+                       order: !!lim.order, tender: !!lim.tender, roofsMonth: lim.roofsMonth || 0, tenderUsd: lim.tenderUsd || 0 };
     } catch (e) {}
     return brief;
   } catch (e) { return { id: cid, role: '' }; }
@@ -7908,7 +7908,12 @@ async function _stripeWebhook(req, res){
       const _periodEnd = (_item0 && _item0.current_period_end) || obj.current_period_end;
       if (_periodEnd) patch.current_period_end = new Date(_periodEnd * 1000).toISOString();
       // A plan changed through the portal shows up as a new price on the sub.
-      const priceId = obj.items && obj.items.data && obj.items.data[0] && obj.items.data[0].price && obj.items.data[0].price.id;
+      // The AI Tendering add-on is a second item on the same subscription: it
+      // never names the plan, and its quantity is the packs bought.
+      const _items = (obj.items && obj.items.data) || [];
+      const _mainItem = _items.find(function(it){ return !_isAiPackItem(it); }) || _items[0];
+      const priceId = _mainItem && _mainItem.price && _mainItem.price.id;
+      if (_items.length){ const _ai = _items.find(_isAiPackItem); patch.ai_packs = _ai ? Math.max(0, +_ai.quantity || 0) : 0; }
       const newPlan = _stripePlanOfPrice(priceId);
       if (newPlan && status === 'active') patch.plan = newPlan;
       const { data: rows } = await supabase.from('subscriptions').update(patch)
@@ -15304,6 +15309,7 @@ const _MIGRATION_SQL = [
   "alter table public.subscriptions add column if not exists trial_ended_mail_at timestamptz",
   "alter table public.subscriptions add column if not exists trial_drip jsonb",
   "alter table public.subscriptions add column if not exists quiet_alert_at timestamptz",
+  "alter table public.subscriptions add column if not exists ai_packs integer default 0",
   // A NEW PAYING SUBSCRIBER (2026-10-28): when they started paying, and the
   // claim that the owner has been told.
   "alter table public.subscriptions add column if not exists paid_since timestamptz",
@@ -15779,6 +15785,132 @@ const METRICS = require('./metrics').createMetrics({
 });
 
 // ══════════════════════════════════════════════════════════════════
+// AI TENDERING'S MONTHLY ALLOWANCE AND ITS ADD-ON (2026-11-12, the owner: "I
+// don't want to lose money on my team plan if they're using too much ... I
+// want them to pay for it. But I do want to offer just some AI data").
+// Every A.I. call already records what it cost (tender_ai_runs.cost_usd), so
+// the allowance is that, summed over the NZ calendar month for the business.
+// A plan's tenderUsd is its monthly allowance in US dollars of A.I. (what
+// Anthropic bills); the app shows it as "plan sets", one being about
+// TENDER_USD_EACH. Team's US$15 is about ten plan sets. Each add-on pack adds
+// AI_PACK_USD a month for AI_PACK_PRICE NZ$/A$ a month (ex GST), at most
+// AI_PACK_MAX packs — the pack is priced at about twice what it can cost.
+// The owner's own logins (TENDERING_USERS) are never stopped.
+// ══════════════════════════════════════════════════════════════════
+const TENDER_USD_EACH = +process.env.TENDER_USD_EACH || 1.5;
+const AI_PACK_USD = +process.env.AI_PACK_USD || 15;
+const AI_PACK_PRICE = +process.env.AI_PACK_PRICE || 49;
+const AI_PACK_MAX = +process.env.AI_PACK_MAX || 5;
+const AI_PACK_LOOKUP = { month: 'roofmap_ai_pack_month_v1', year: 'roofmap_ai_pack_year_v1' };
+const _AI_UNLIMITED = String(process.env.TENDERING_USERS || 'office@floodroofing.co.nz, aron@floodroofing.co.nz, ethan@floodroofing.co.nz')
+  .split(/[\s,]+/).map(function(x){ return x.trim().toLowerCase(); }).filter(Boolean);
+async function _tenderUsage(req){
+  const cid = req.companyId;
+  const month = _nzMonth(Date.now());
+  const lim = cid ? await _limitsOf(cid) : PLANS.trial;
+  let packs = 0, paying = false;
+  try {
+    const sub = cid ? await _companySubscription(cid, req.user && req.user.id) : null;
+    paying = !!(sub && sub.status === 'active' && sub.stripe_subscription_id);
+    if (paying) packs = Math.max(0, Math.min(AI_PACK_MAX, +sub.ai_packs || 0));
+  } catch (e) {}
+  const base = +lim.tenderUsd || 0;
+  const allowance = base + packs * AI_PACK_USD;
+  // This month's runs: read back 32 days and kept to the NZ month.
+  const since = new Date(Date.now() - 32 * 864e5).toISOString();
+  const { data, error } = await supabase.from('tender_ai_runs').select('cost_usd, created_at')
+    .eq('company_id', cid || '00000000-0000-0000-0000-000000000000').gte('created_at', since);
+  if (error) { const e = new Error('Could not read this month\'s AI usage — try again in a moment.'); e.upstream = true; throw e; }
+  const byDay = {};
+  let used = 0;
+  (data || []).forEach(function(r){
+    if (_nzMonth(r.created_at) !== month) return;
+    const c = +r.cost_usd || 0; used += c;
+    const d = new Date(r.created_at).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' });
+    byDay[d] = (byDay[d] || 0) + c;
+  });
+  const em = String((req.user && req.user.email) || '').trim().toLowerCase();
+  const unlimited = !!(em && _AI_UNLIMITED.indexOf(em) >= 0);
+  const left = Math.max(0, allowance - used);
+  return {
+    month, unlimited, usedUsd: +used.toFixed(4), allowanceUsd: allowance, baseUsd: base,
+    pct: allowance > 0 ? Math.min(100, Math.round(100 * used / allowance)) : (used > 0 ? 100 : 0),
+    usedTenders: +(used / TENDER_USD_EACH).toFixed(1),
+    includedTenders: Math.round(base / TENDER_USD_EACH), allowanceTenders: Math.round(allowance / TENDER_USD_EACH),
+    tendersLeft: Math.floor(left / TENDER_USD_EACH),
+    blocked: !unlimited && used >= allowance,
+    packs, maxPacks: AI_PACK_MAX, packTenders: Math.round(AI_PACK_USD / TENDER_USD_EACH), packPrice: AI_PACK_PRICE,
+    canBuy: paying, plan: (await _planInfo(cid)).plan, usdEach: TENDER_USD_EACH,
+    days: Object.keys(byDay).sort().map(function(d){ return { d: d, tenders: +(byDay[d] / TENDER_USD_EACH).toFixed(2) }; }),
+  };
+}
+app.get('/tender/usage', requireAuth, async (req, res) => {
+  try { res.json(await _tenderUsage(req)); }
+  catch (e) { res.status(e.upstream ? 503 : 500).json({ error: e.message, code: e.upstream ? 'UPSTREAM_UNAVAILABLE' : undefined }); }
+});
+async function _stripeDelete(path){
+  const key = process.env.STRIPE_SECRET_KEY || '';
+  if (!key) { const e = new Error('Billing is not switched on yet.'); e.status = 400; throw e; }
+  const r = await fetch(STRIPE_API_BASE + path, { method: 'DELETE', headers: { Authorization: 'Bearer ' + key } });
+  const j = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { const e = new Error((j.error && j.error.message) || ('Stripe refused (' + r.status + ')')); e.status = 502; throw e; }
+  return j;
+}
+// The add-on's Stripe price for the subscription's interval: named on the
+// environment (STRIPE_PRICE_AI_PACK / _ANNUAL), else found by its lookup key,
+// else made once (NZ$49 a month with an A$49 currency option; a yearly plan
+// gets ten months' worth, its own two months free).
+const _aiPackPriceIds = {};
+async function _aiPackPrice(interval){
+  const env = interval === 'year' ? process.env.STRIPE_PRICE_AI_PACK_ANNUAL : process.env.STRIPE_PRICE_AI_PACK;
+  if (env) return env;
+  if (_aiPackPriceIds[interval]) return _aiPackPriceIds[interval];
+  const lk = AI_PACK_LOOKUP[interval] || AI_PACK_LOOKUP.month;
+  const found = await _stripeGet('/v1/prices?active=true&lookup_keys[]=' + encodeURIComponent(lk));
+  let id = found && found.data && found.data[0] && found.data[0].id;
+  if (!id) {
+    const cents = Math.round(AI_PACK_PRICE * 100) * (interval === 'year' ? 10 : 1);
+    const made = await _stripeCall('/v1/prices', {
+      currency: 'nzd', unit_amount: cents, 'recurring[interval]': interval === 'year' ? 'year' : 'month',
+      'currency_options[aud][unit_amount]': cents, 'currency_options[aud][tax_behavior]': 'exclusive',
+      tax_behavior: 'exclusive', lookup_key: lk,
+      'product_data[name]': 'RoofMap AI Tendering add-on — ' + Math.round(AI_PACK_USD / TENDER_USD_EACH) + ' more plan sets a month',
+    });
+    id = made.id;
+  }
+  _aiPackPriceIds[interval] = id;
+  return id;
+}
+const _isAiPackItem = function(it){ const p = it && it.price || {}; return /^roofmap_ai_pack_/.test(p.lookup_key || '') ||
+  (p.id && (p.id === process.env.STRIPE_PRICE_AI_PACK || p.id === process.env.STRIPE_PRICE_AI_PACK_ANNUAL)); };
+// POST /billing/ai-addon {packs: 0..AI_PACK_MAX} — the owner sets how many
+// packs ride on the subscription; Stripe prorates the change.
+app.post('/billing/ai-addon', requireAuth, rateLimit(20, 3600000), async (req, res) => {
+  try {
+    if (!(await _requireBillingOwner(req, res))) return;
+    const packs = Math.round(+((req.body || {}).packs));
+    if (!(packs >= 0 && packs <= AI_PACK_MAX)) return res.status(400).json({ error: 'Pick 0 to ' + AI_PACK_MAX + ' add-on packs.' });
+    if (!(await _limitsOf(req.companyId)).tender) return res.status(400).json({ error: 'AI Tendering is part of the Team plan — change plan first.', code: 'TENDERING_OFF' });
+    const sub = await _companySubscription(req.companyId, req.user.id);
+    if (!(sub && sub.status === 'active' && sub.stripe_subscription_id))
+      return res.status(400).json({ error: 'The AI add-on rides on a paid subscription — choose your plan first (Settings → Billing).', code: 'NO_SUBSCRIPTION' });
+    const ssub = await _stripeGet('/v1/subscriptions/' + encodeURIComponent(sub.stripe_subscription_id));
+    const items = (ssub.items && ssub.items.data) || [];
+    const mine = items.find(_isAiPackItem);
+    const main = items.find(function(it){ return !_isAiPackItem(it); }) || items[0] || {};
+    const interval = (main.price && main.price.recurring && main.price.recurring.interval) === 'year' ? 'year' : 'month';
+    if (packs === 0) { if (mine) await _stripeDelete('/v1/subscription_items/' + encodeURIComponent(mine.id) + '?proration_behavior=create_prorations'); }
+    else if (mine) await _stripeCall('/v1/subscription_items/' + encodeURIComponent(mine.id), { quantity: packs, proration_behavior: 'create_prorations' });
+    else await _stripeCall('/v1/subscription_items', { subscription: sub.stripe_subscription_id, price: await _aiPackPrice(interval), quantity: packs, proration_behavior: 'create_prorations' });
+    await supabase.from('subscriptions').update({ ai_packs: packs }).eq('stripe_subscription_id', sub.stripe_subscription_id);
+    res.json(Object.assign({ ok: true }, await _tenderUsage(req)));
+  } catch (e) {
+    if (e && e.upstream) return res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' });
+    res.status(e.status || 500).json({ error: e.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════
 // AI TENDERING (Phase 1, 2026-10-23) — the plan-set reader. Everything
 // lives in ./tender/*; this is the one place it meets the server. The
 // worker polls tender_tasks in this process (see tender/worker.js).
@@ -15790,7 +15922,8 @@ const TENDER = (function(){
     const worker = require('./tender/worker').createWorker({ supabase, storage, ai, recordError, dispatchMail: _dispatchMail, warn: function(m){ console.warn(m); } });
     require('./tender/routes').mount(app, { supabase, storage, worker, ai, requireAuth, requireSubscription,
       scopeCompany: _scopeCompany, settingsRow: _companySettingsRow, adminOk: _adminOk, recordError, recordUsage, rateLimit,
-      planTender: async function (req) { return !!(req.companyId && (await _limitsOf(req.companyId)).tender); } });
+      planTender: async function (req) { return !!(req.companyId && (await _limitsOf(req.companyId)).tender); },
+      aiUsage: _tenderUsage });
     return { storage, worker, ai };
   } catch (e) {
     recordError('tender-boot', e, { route: 'boot' });

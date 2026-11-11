@@ -23,11 +23,26 @@ const POLL_MS = +process.env.TENDER_POLL_MS || 4000;
 const STALE_MS = 10 * 60 * 1000;
 const TEXT_KEEP = 40000;          // chars of page text kept on the row
 const PAGE_DPI = 150, PAGE_MAX_PX = 2000, TB_DPI = 300, TB_MAX_PX = 1600, THUMB_PX = 360;
-const CLASSIFY_AT_ONCE = +process.env.TENDER_CLASSIFY_AT_ONCE || 6;
+// Twelve pages at a time (2026-11-12, was six: "is there a way to speed that
+// up?"), and a page is classified the moment it has been read rather than
+// after the whole set has been (see `early` in run()).
+const CLASSIFY_AT_ONCE = +process.env.TENDER_CLASSIFY_AT_ONCE || 12;
 const DRAFT_IMAGES = 14;          // pictures of pages handed to the draft
 const DRAFT_IMG_CLS = ['roof_plan', 'detail_roof', 'elevation', 'section', 'roof_framing', 'spec', 'schedule'];
 const pricebook = require('./pricebook');
 
+// At most n of the functions handed to it run at once; each call answers
+// with its own function's result.
+function limiter(n){
+  let active = 0; const q = [];
+  const next = () => {
+    if (active >= n || !q.length) return;
+    active++;
+    const it = q.shift();
+    Promise.resolve().then(it.fn).then(it.res, it.rej).finally(() => { active--; next(); });
+  };
+  return (fn) => new Promise((res, rej) => { q.push({ fn, res, rej }); next(); });
+}
 // Run fn over items, n at a time.
 async function pool(items, n, fn){
   let next = 0;
@@ -53,6 +68,8 @@ function createWorker(deps){
       type, status: 'queued', attempts: 0, error: '', progress: {}, heartbeat_at: null, created_at: now(), started_at: null, done_at: null };
     const { error } = await supabase.from('tender_tasks').insert(row);
     if (error) throw new Error(error.message || 'could not queue the task');
+    // Start now, not at the next poll (up to four seconds away).
+    if (timer) setTimeout(() => { tick().catch(() => {}); }, 30);
     return row;
   }
 
@@ -106,28 +123,46 @@ function createWorker(deps){
     if (!tender) { const e = new Error('tender ' + task.tender_id + ' is gone'); e.permanent = true; throw e; }
     if (task.type !== 'process' && task.type !== 'draft') { const e = new Error('unknown task type ' + task.type); e.permanent = true; throw e; }
     await supabase.from('tender_jobs').update({ status: 'processing', updated_at: now() }).eq('id', tender.id);
+    // How long each stage took, and what the A.I. cost, kept on the task so
+    // the tab can say "Read in 58 s — pages 12 s, sorting 9 s, drafting 37 s".
+    const t0 = Date.now(), times = {};
+    const lap = async (k, fn) => { const a = Date.now(); try { return await fn(); } finally { times[k] = Date.now() - a; } };
     if (task.type === 'process') {
-      await ingest(task, tender);
-      await classify(task, tender);
-      await index(task, tender);
+      // Pages are classified as they come off the reader, twelve at a time,
+      // instead of waiting for the whole set to be read first.
+      const early = (ai.available() && process.env.TENDER_EARLY_CLASSIFY !== 'false') ? { lim: limiter(CLASSIFY_AT_ONCE), jobs: [], done: 0 } : null;
+      await lap('ingest', () => ingest(task, tender, early));
+      await lap('classify', async () => {
+        if (early) await Promise.allSettled(early.jobs);
+        await classify(task, tender);
+      });
+      await lap('index', () => index(task, tender));
     }
     // The set is read whatever happens to the draft: a draft that fails on
     // a reading run leaves the index standing and says why, rather than
     // failing (and re-reading) the whole set. A draft asked for on its own
     // is the whole task, and retries like one.
     let drafted = false;
-    try { drafted = await draft(task, tender); }
+    try { drafted = await lap('draft', () => draft(task, tender)); }
     catch (e) {
       if (task.type === 'draft') throw e;
       await progress(task, { stage: 'draft', error: String(e && e.message || e).slice(0, 400) });
       try { recordError('tender-draft', e, { route: 'tender/draft', company: tender.company_id || '' }); } catch (e2) {}
     }
+    times.total = Date.now() - t0;
+    let costUsd = 0;
+    try {
+      const since = task.started_at || new Date(t0).toISOString();
+      const { data: runs } = await supabase.from('tender_ai_runs').select('cost_usd,created_at').eq('tender_id', tender.id).gte('created_at', since);
+      costUsd = (runs || []).filter(r => !r.created_at || r.created_at >= since).reduce((n, r) => n + (+r.cost_usd || 0), 0);
+    } catch (e) {}
+    await progress(task, { times, costUsd: +costUsd.toFixed(4) });
     await supabase.from('tender_jobs').update({ status: drafted ? 'drafted' : 'indexed', updated_at: now() }).eq('id', tender.id);
     await notify(tender, task);
   }
 
   // ── stage 1: every landed file → pages ─────────────────────────────
-  async function ingest(task, tender){
+  async function ingest(task, tender, early){
     const { data: files } = await supabase.from('tender_files').select('*').eq('tender_id', tender.id);
     const todo = (files || []).filter(f => f.status === 'landed' || f.status === 'ingesting');
     const { data: have } = await supabase.from('tender_pages').select('file_id,page_no').eq('tender_id', tender.id);
@@ -152,6 +187,10 @@ function createWorker(deps){
         const { error } = await supabase.from('tender_pages').insert(row);
         if (error) throw new Error('could not record page ' + pageNo + ' of ' + f.name + ': ' + error.message);
         done.add(f.id + ':' + pageNo);
+        if (early) {
+          const bufs = { img: assets.img && assets.img.buf, tb: assets.tile && assets.tile.buf };
+          early.jobs.push(early.lim(() => classifyOne(tender, row, bufs)));
+        }
         await progress(task, { stage: 'ingest', file: f.name, pageNo, pagesDone: done.size, pagesTotal: Math.max(totalKnown, done.size + want.filter(x => !done.has(f.id + ':' + x)).length) });
       });
       try { await doc.destroy(); } catch (e) {}
@@ -200,9 +239,16 @@ function createWorker(deps){
     await pool(todo, CLASSIFY_AT_ONCE, async (p) => {
       i++;
       await progress(task, { stage: 'classify', pageNo: p.page_no, done: i - 1, total: todo.length });
+      await classifyOne(tender, p);
+    });
+    await progress(task, { stage: 'classify', done: todo.length, total: todo.length });
+  }
+  // One page through the classifier. `bufs` carries the page's pictures when
+  // it has just been read (no need to fetch them back from storage).
+  async function classifyOne(tender, p, bufs){
       let img = '', tbi = '';
-      try { if (p.image_path) img = (await storage.download(p.image_path)).toString('base64'); } catch (e) {}
-      try { if (p.tb_path) tbi = (await storage.download(p.tb_path)).toString('base64'); } catch (e) {}
+      try { if (bufs && bufs.img) img = Buffer.from(bufs.img).toString('base64'); else if (p.image_path) img = (await storage.download(p.image_path)).toString('base64'); } catch (e) {}
+      try { if (bufs && bufs.tb) tbi = Buffer.from(bufs.tb).toString('base64'); else if (p.tb_path) tbi = (await storage.download(p.tb_path)).toString('base64'); } catch (e) {}
       const heur = (p.meta && p.meta.heuristic) || { cls: p.cls, conf: p.cls_conf };
       const parsed = (p.meta && p.meta.parsed) || {};
       const runRow = { id: crypto.randomUUID(), tender_id: tender.id, company_id: tender.company_id || null, user_id: tender.user_id || null,
@@ -230,8 +276,6 @@ function createWorker(deps){
         log('classify failed on page ' + p.page_no + ': ' + runRow.error);
       }
       await supabase.from('tender_ai_runs').insert(runRow);
-    });
-    await progress(task, { stage: 'classify', done: todo.length, total: todo.length });
   }
 
   // ── stage 4: the tender itself (2026-10-27) ───────────────────────
@@ -356,7 +400,7 @@ function createWorker(deps){
   }
   function stop(){ if (timer) clearInterval(timer); timer = null; }
 
-  return { enqueue, tick, start, stop, run, ingest, classify, index, draft, saveDoc, settingsFor, POLL_MS };
+  return { enqueue, tick, start, stop, run, ingest, classify, classifyOne, index, draft, saveDoc, settingsFor, POLL_MS };
 }
 
 // The AI's answer → the document the tab edits. Prices from the book are

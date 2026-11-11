@@ -24,7 +24,12 @@ const calls = [];
 const TENDER = { id: 'tn-1', company_id: 'c1', user_id: 'u1', job_id: null, name: 'Tender', status: 'new', settings: {}, sheet_index: null, files: [], pages: [], tasks: [], ai: true };
 let progressTicks = 0;
 let flagOn = true;
-let liveOn = null;   // the server's per-login answer, when it differs from the business flag
+let liveOn = null;
+// The month's AI usage (2026-11-12).
+let USAGE = { month: '2026-11', unlimited: false, usedUsd: 6.75, allowanceUsd: 15, baseUsd: 15, pct: 45, usedTenders: 4.5, includedTenders: 10, allowanceTenders: 10,
+  tendersLeft: 5, blocked: false, packs: 0, maxPacks: 5, packTenders: 10, packPrice: 49, canBuy: true, plan: 'team', usdEach: 1.5,
+  days: [{ d: '2026-11-03', tenders: 2 }, { d: '2026-11-10', tenders: 2.5 }] };
+let addonBodies = [], runRefuse = false;   // the server's per-login answer, when it differs from the business flag
 await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async r => {
   const req = r.request();
   const u = new URL(req.url());
@@ -96,6 +101,9 @@ await pg.route('**/flood-roofing-estimator-production.up.railway.app/**', async 
     TENDER.doc = d;
     return j({ ok: true, doc: d, summary: 'Changed ' + body.section });
   }
+  if (p === '/tender/usage') return j(USAGE);
+  if (p === '/billing/ai-addon' && m === 'POST') { addonBodies.push(body); USAGE = Object.assign({}, USAGE, { packs: body.packs, allowanceTenders: 10 + 10 * body.packs, allowanceUsd: 15 + 15 * body.packs }); return j(Object.assign({ ok: true }, USAGE)); }
+  if (p === '/tender/tn-1/run' && runRefuse) return j({ code: 'AI_USAGE_USED', error: 'This month\'s AI Tendering allowance is used up (10 plan sets). Add more with the AI add-on, or it resets on the 1st.', usage: Object.assign({}, USAGE, { blocked: true, pct: 100, usedTenders: 10.3, tendersLeft: 0, packs: 0 }) }, 402);
   if (p === '/tender/tn-1/run') { TENDER.status = 'queued'; progressTicks = 0; return j({ ok: true, task: { id: 't-2', status: 'queued' } }); }
   if (/^\/tender\/enabled/.test(p)) return j({ enabled: liveOn == null ? flagOn : liveOn, ai: true });
   return j([]);
@@ -553,6 +561,27 @@ if (process.env.SHOTS) {   // pictures for the owner: the page, the phone and th
   await pg.screenshot({ path: dir + '/m1.png' });
   await pg.setViewportSize({ width: 1280, height: 900 });
 }
+
+// ── THE MONTH'S AI USAGE, THE ADD-ON, THE LAST READ'S TIMES (2026-11-12) ──
+TENDER.tasks = [{ id: 't-9', type: 'process', status: 'done', progress: { stage: 'done', times: { ingest: 12000, classify: 9000, index: 300, draft: 37000, total: 58400 }, costUsd: 0.9 } }];
+r = await pg.evaluate(async () => { gotoTab('tender'); await window._tenderTabOpen(); await new Promise(res => setTimeout(res, 400));
+  const c = document.getElementById('tnUsage'), t = document.getElementById('tnTimes');
+  return { has: !!c, txt: c ? c.innerText : '', bars: c ? c.querySelectorAll('svg rect').length : 0, lit: c ? [...c.querySelectorAll('svg rect')].filter(x => x.getAttribute('fill') === '#0099cc').length : 0,
+    addon: !!document.getElementById('tnAddon'), times: t ? t.innerText : '' }; });
+check('the tab shows this month\'s AI usage in plan sets, with what is left and what the plan includes',
+  r.has && /4\.5 of 10 plan sets used/.test(r.txt) && /About 5 plan sets left/.test(r.txt) && /plan includes 10/.test(r.txt) && /resets on the 1st/i.test(r.txt), r.txt.slice(0, 300));
+check('…a bar a day across the month, the days used lit', r.bars >= 28 && r.lit === 2, r.bars + ' / ' + r.lit);
+check('…and the add-on: 10 more plan sets for $49 a month + GST', r.addon && /10 plan sets a month for NZ\$49 a month \+ GST/.test(r.txt), r.txt);
+check('the last read says how long each stage took and what it used',
+  /Last read took 58 s/.test(r.times) && /reading pages 12 s/.test(r.times) && /sorting 9 s/.test(r.times) && /drafting 37 s/.test(r.times) && /0\.6 plan sets/.test(r.times), r.times);
+r = await pg.evaluate(async () => { _tnAddonStep(1); _tnAddonStep(1); const go = document.getElementById('tnAddonGo'); const lbl = go ? go.textContent : '';
+  await _tnAddonSave(); await new Promise(res => setTimeout(res, 200)); const c = document.getElementById('tnUsage'); return { lbl, txt: c.innerText, n: document.getElementById('tnAddonN').textContent }; });
+check('two packs: the button says the monthly price, and after saving the allowance is 30',
+  /NZ\$98\/month \+ GST/.test(r.lbl) && addonBodies.length === 1 && addonBodies[0].packs === 2 && /of 30 plan sets used/.test(r.txt) && r.n === '2' && /\+ 20 from the add-on/.test(r.txt), JSON.stringify(r) + ' ' + JSON.stringify(addonBodies));
+runRefuse = true;
+r = await pg.evaluate(async () => { await _tenderRun(); await new Promise(res => setTimeout(res, 200)); const c = document.getElementById('tnUsage'); return c ? c.innerText : ''; });
+check('used up: a refusal turns the card red with what happens next', /used up for this month/i.test(r) && /allowance is used up/.test(r) && /stays open and editable/.test(r), r);
+runRefuse = false;
 
 // ── the flag off: nothing offered, a tender job falls back ──────────
 flagOn = false;

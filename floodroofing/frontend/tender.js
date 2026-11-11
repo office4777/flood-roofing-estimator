@@ -12,7 +12,7 @@
 // API but the facts about the file.
 (function(){
   'use strict';
-  var T = { id: null, data: null, poll: null, uploads: [], err: '', thumbs: {} };
+  var T = { id: null, data: null, poll: null, uploads: [], err: '', thumbs: {}, usage: null };
   var CLASSES = ['cover','index','site_plan','floor_plan','roof_plan','roof_framing','elevation','section','detail_roof','detail_other','spec','schedule','structural','services','other'];
   var CLASS_LABEL = { cover: 'Cover sheet', index: 'Drawing register', site_plan: 'Site plan', floor_plan: 'Floor plan', roof_plan: 'Roof plan', roof_framing: 'Roof framing',
     elevation: 'Elevations', section: 'Sections', detail_roof: 'Roofing details', detail_other: 'Other details', spec: 'Specification / notes', schedule: 'Schedule',
@@ -64,6 +64,16 @@
       '.tn-src{font-size:10.5px;color:#64748b;white-space:nowrap}.tn-src b{color:#0a1628}.tn-src.user b{color:#7c3aed}.tn-src.ai b{color:#0369a1}',
       '.tn-conf{display:inline-block;width:44px;height:6px;border-radius:999px;background:#e2e8f0;vertical-align:middle;overflow:hidden}.tn-conf i{display:block;height:100%;background:#16a34a}.tn-conf.low i{background:#f59e0b}',
       '.tn-sup{font-size:11px;color:#92400e;background:#fff4d6;border-radius:6px;padding:2px 6px;white-space:nowrap}',
+      '.tn-use{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:14px 22px;align-items:start}',
+      '@media (max-width:760px){.tn-use{grid-template-columns:1fr}}',
+      '.tn-use-big{font-size:15px;font-weight:800;color:#0a1628}.tn-use-sub{font-size:12.5px;color:#64748b;margin-top:3px}',
+      '.tn-use-bar{height:10px;border-radius:6px;background:#e2e8f0;overflow:hidden;margin:9px 0 4px}.tn-use-bar i{display:block;height:100%;background:#0099cc}',
+      '.tn-use-bar.warn i{background:#f59e0b}.tn-use-bar.full i{background:#dc2626}',
+      '.tn-use-g svg{width:100%;height:64px;display:block}.tn-use-g .ax{display:flex;justify-content:space-between;font-size:10.5px;color:#94a3b8;margin-top:2px}',
+      '.tn-use-add{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding-top:10px;border-top:1px solid #eef2f6;font-size:12.5px;color:#334155}',
+      '.tn-use-add .stp{display:inline-flex;align-items:center;border:1px solid #cbd5e1;border-radius:8px;overflow:hidden}.tn-use-add .stp button{border:none;background:#f8fafc;width:30px;height:30px;font-size:16px;cursor:pointer;font-family:inherit}.tn-use-add .stp b{min-width:28px;text-align:center}',
+      '.tn-use-out{background:#fee2e2;color:#991b1b;border-radius:8px;padding:8px 11px;font-size:12.5px;grid-column:1/-1}',
+      '.tn-times{font-size:12px;color:#64748b;margin:-6px 0 12px}',
       '.tn-note{font-size:12.5px;color:#64748b;margin:0 0 10px}.tn-err{padding:12px 14px;border-radius:10px;background:#fee2e2;color:#991b1b;font-size:13px;margin-bottom:14px}',
       '.tn-empty{color:#64748b;font-size:13px;padding:8px 0}',
       '@media screen and (max-width:760px){.tn-tbl .hide-sm{display:none}}',
@@ -172,6 +182,7 @@
     }
     if (!T.data || T.id !== S.quote.tenderId) { T.data = null; T.thumbs = {}; }
     if (!T.data) r.innerHTML = bannerHtml() + '<div class="tn-empty">Opening the tender…</div>';
+    loadUsage();
     try {
       T.id = await ensure();
       await load();
@@ -183,6 +194,108 @@
     syncPoll();
   };
   window._tenderTabSync = function(){ if (onTab()) window._tenderTabOpen(); };
+
+  // ── THE MONTH'S A.I. ALLOWANCE (2026-11-12) ─────────────────────────
+  // How much of this month's AI Tendering the business has used (counted in
+  // plan sets, about one tender read each), a bar a day across the month, and
+  // the add-on packs the owner can put on the subscription.
+  async function loadUsage(){
+    try { T.usage = await api('GET', '/tender/usage'); } catch (e) { if (!T.usage) T.usage = null; }
+    var host = document.getElementById('tnUsageHost'); if (host) host.innerHTML = usageHtml();
+    return T.usage;
+  }
+  window._tnLoadUsage = loadUsage;
+  function cur(){ try { return (typeof _isAU === 'function' && _isAU()) ? 'A$' : 'NZ$'; } catch (e) { return 'NZ$'; } }
+  function usageGraph(u){
+    var m = String(u.month || '').split('-'), y = +m[0], mo = +m[1];
+    var days = (y && mo) ? new Date(y, mo, 0).getDate() : 30;
+    var by = {}; (u.days || []).forEach(function(x){ by[+String(x.d).slice(8, 10)] = +x.tenders || 0; });
+    var max = 1; Object.keys(by).forEach(function(k){ if (by[k] > max) max = by[k]; });
+    var W = 300, H = 60, bw = W / days, bars = '';
+    for (var d = 1; d <= days; d++) {
+      var v = by[d] || 0, h = v ? Math.max(2, Math.round((H - 4) * v / max)) : 0;
+      bars += '<rect x="' + ((d - 1) * bw + 1).toFixed(1) + '" y="' + (H - h) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="' + h + '" rx="1.5" fill="' + (v ? '#0099cc' : '#e2e8f0') + '"><title>' + d + ': ' + (Math.round(v * 10) / 10) + ' plan sets</title></rect>';
+      if (!v) bars += '<rect x="' + ((d - 1) * bw + 1).toFixed(1) + '" y="' + (H - 2) + '" width="' + Math.max(1, bw - 2).toFixed(1) + '" height="2" fill="#e2e8f0"></rect>';
+    }
+    var mon = (y && mo) ? new Date(y, mo - 1, 1).toLocaleDateString('en-NZ', { month: 'short' }) : '';
+    return '<div class="tn-use-g"><svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-label="AI use a day this month">' + bars + '</svg>' +
+      '<div class="ax"><span>1 ' + esc(mon) + '</span><span>' + Math.round(days / 2) + '</span><span>' + days + ' ' + esc(mon) + '</span></div></div>';
+  }
+  function usageHtml(){
+    var u = T.usage;
+    if (!u) return '';
+    var r = function(n){ return Math.round(n * 10) / 10; };
+    var h = '<div class="tn-card" id="tnUsage"><div class="tn-card-hd">AI usage this month<span class="tn-r" style="margin-left:auto;font-weight:600;text-transform:none;letter-spacing:0">resets on the 1st</span></div><div class="tn-card-bd"><div class="tn-use">';
+    if (u.unlimited) {
+      h += '<div><div class="tn-use-big">Unlimited — RoofMap staff login</div><div class="tn-use-sub">' + r(u.usedTenders) + ' plan sets\u2019 worth used this month (US$' + (+u.usedUsd || 0).toFixed(2) + ' of A.I.)</div></div>';
+    } else {
+      var cls = u.pct >= 100 ? 'full' : (u.pct >= 80 ? 'warn' : '');
+      h += '<div><div class="tn-use-big">' + r(u.usedTenders) + ' of ' + u.allowanceTenders + ' plan sets used</div>' +
+        '<div class="tn-use-bar ' + cls + '"><i style="width:' + Math.min(100, u.pct) + '%"></i></div>' +
+        '<div class="tn-use-sub">' + (u.blocked ? 'Used up for this month' : ('About ' + u.tendersLeft + ' plan set' + (u.tendersLeft === 1 ? '' : 's') + ' left')) +
+        ' \u00b7 your plan includes ' + u.includedTenders + (u.packs ? ' + ' + (u.packs * u.packTenders) + ' from the add-on' : '') + ' a month. A plan set is one tender read and drafted; questions and changes to it use a little more.</div></div>';
+    }
+    h += usageGraph(u);
+    if (u.blocked) h += '<div class="tn-use-out">This month\u2019s AI Tendering allowance is used up. Reading a new plan set, redrafting and asking Claude for changes start again on the 1st' + (u.canBuy ? ', or straight away with an add-on pack below.' : '.') + ' Everything already drafted stays open and editable.</div>';
+    if (!u.unlimited) {
+      if (u.canBuy) {
+        var n = (T.addonWant != null) ? T.addonWant : u.packs;
+        h += '<div class="tn-use-add" id="tnAddon"><span><b>AI add-on:</b> each pack adds ' + u.packTenders + ' plan sets a month for ' + cur() + u.packPrice + ' a month + GST, on your subscription.</span>' +
+          '<span class="stp"><button type="button" onclick="_tnAddonStep(-1)" aria-label="Fewer packs">\u2212</button><b id="tnAddonN">' + n + '</b><button type="button" onclick="_tnAddonStep(1)" aria-label="More packs">+</button></span>' +
+          '<span style="color:#64748b">pack' + (n === 1 ? '' : 's') + ' (up to ' + u.maxPacks + ')</span>' +
+          (n !== u.packs ? '<button type="button" class="tn-btn" id="tnAddonGo" onclick="_tnAddonSave()">Update add-on \u2014 ' + cur() + (n * u.packPrice) + '/month + GST</button>' : '') + '</div>';
+      } else {
+        h += '<div class="tn-use-add">Need more? AI add-on packs (' + u.packTenders + ' more plan sets a month for ' + cur() + u.packPrice + ' + GST) come with a paid Team plan \u2014 Settings \u2192 Billing.</div>';
+      }
+    }
+    return h + '</div></div></div>';
+  }
+  window._tnAddonStep = function(d){
+    var u = T.usage; if (!u) return;
+    var n = (T.addonWant != null ? T.addonWant : u.packs) + d;
+    T.addonWant = Math.max(0, Math.min(u.maxPacks, n));
+    var host = document.getElementById('tnUsageHost'); if (host) host.innerHTML = usageHtml();
+  };
+  window._tnAddonSave = async function(){
+    var u = T.usage; if (!u || T.addonWant == null) return;
+    var n = T.addonWant;
+    var msg = n > u.packs
+      ? ('Add ' + (n - u.packs) + ' AI pack' + (n - u.packs === 1 ? '' : 's') + '? Your subscription goes up by ' + cur() + ((n - u.packs) * u.packPrice) + ' a month + GST (charged pro rata for the rest of this billing period), and you get ' + (n * u.packTenders) + ' extra plan sets a month straight away.')
+      : (n ? ('Drop to ' + n + ' AI pack' + (n === 1 ? '' : 's') + '?') : 'Remove the AI add-on?') + ' Your allowance goes down straight away and Stripe credits the unused part.';
+    if (!confirm(msg)) return;
+    var b = document.getElementById('tnAddonGo'); if (b) { b.disabled = true; b.textContent = 'Updating\u2026'; }
+    try { T.usage = await api('POST', '/billing/ai-addon', { packs: n }); T.addonWant = null; }
+    catch (e) { alert('The add-on was not changed: ' + (e && e.message || e)); }
+    var host = document.getElementById('tnUsageHost'); if (host) host.innerHTML = usageHtml();
+  };
+  // A refusal for the month's allowance shows the figures and says so.
+  function aiAlert(e){
+    if (e && e.code === 'AI_USAGE_USED') {
+      if (e.data && e.data.usage) T.usage = e.data.usage;
+      var host = document.getElementById('tnUsageHost'); if (host) host.innerHTML = usageHtml();
+      try { var el = document.getElementById('tnUsage'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e2) {}
+    }
+    alert(e && e.message || e);
+  }
+  window._tnAiAlert = aiAlert;
+  function usageRefusal(e){
+    if (!(e && e.code === 'AI_USAGE_USED' && e.data && e.data.usage)) return;
+    T.usage = e.data.usage;
+    var host = document.getElementById('tnUsageHost'); if (host) host.innerHTML = usageHtml();
+  }
+  function secs(ms){ ms = +ms || 0; return ms >= 60000 ? (Math.floor(ms / 60000) + ' min ' + Math.round((ms % 60000) / 1000) + ' s') : (Math.max(1, Math.round(ms / 1000)) + ' s'); }
+  function timesHtml(d){
+    if (busy()) return '';
+    var t = (d.tasks || []).find(function(x){ return x && x.progress && x.progress.times; });
+    if (!t) return '';
+    var tm = t.progress.times, parts = [];
+    if (tm.ingest) parts.push('reading pages ' + secs(tm.ingest));
+    if (tm.classify) parts.push('sorting ' + secs(tm.classify));
+    if (tm.draft) parts.push('drafting ' + secs(tm.draft));
+    var c = +t.progress.costUsd || 0, each = (T.usage && T.usage.usdEach) || 1.5;
+    var cost = c ? (' \u00b7 used about ' + (Math.round(10 * c / each) / 10) + ' plan sets of your allowance' + (T.usage && T.usage.unlimited ? ' (US$' + c.toFixed(2) + ')' : '')) : '';
+    return '<div class="tn-times" id="tnTimes">Last ' + (t.type === 'draft' ? 'draft' : 'read') + ' took ' + secs(tm.total) + (parts.length ? ' \u2014 ' + parts.join(' \u00b7 ') : '') + cost + '</div>';
+  }
 
   // ── rendering ───────────────────────────────────────────────────────
   function busy(){ var d = T.data; return !!(d && (d.status === 'queued' || d.status === 'processing')) || T.uploads.some(function(u){ return !u.done; }); }
@@ -197,6 +310,8 @@
       (d.files && d.files.length ? '<button type="button" class="tn-btn sec" onclick="_tenderRun()" ' + (busy() ? 'disabled' : '') + '>↻ Read the set again</button>' : '') +
       '</span></div>';
     h += bannerHtml();
+    h += timesHtml(d);
+    h += '<div id="tnUsageHost">' + usageHtml() + '</div>';
     if (!d.ai) h += '<p class="tn-note">The AI classifier is not available on the server (no API key), so pages are classed by their title blocks alone. Check the classes below.</p>';
     h += progressHtml(d);
     h += '<div class="tn-card" id="tnPlanSet"><div class="tn-card-hd">Plan set<span class="tn-r">' + (d.files || []).length + ' file' + ((d.files || []).length === 1 ? '' : 's') + '</span></div><div class="tn-card-bd">' +
@@ -833,7 +948,9 @@
       var x = await api('POST', '/tender/' + T.id + '/amend', { mode: mode, instruction: instr, change: change, said: change ? pending.text : '', doc: d, secs: change ? undefined : secsNow() });
       T.data.doc = x.doc;
       if (!x.answered) T.data.history = [{ at: new Date().toISOString(), why: mode }].concat(T.data.history || []);
+      loadUsage();
     } catch (e) {
+      usageRefusal(e);
       d.chat = d.chat.filter(function(m){ return m !== pending; });
       d.chat.push({ who: 'ai', text: 'Sorry — that did not work: ' + (e && e.message || e), at: new Date().toISOString(), err: true });
     } finally { DOC.chatBusy = false; docRerender(); }
@@ -845,7 +962,7 @@
   window._tnDraft = async function(){
     if (T.data && T.data.doc && !confirm('Draft the whole tender again from the plans? Your changes are kept as a version you can go back to with Undo.')) return;
     try { await api('POST', '/tender/' + T.id + '/draft', {}); await load(); render(); syncPoll(); }
-    catch (e) { alert(e && e.message || e); }
+    catch (e) { aiAlert(e); }
   };
 
   // ── the page ───────────────────────────────────────────────────────
@@ -1021,9 +1138,11 @@
       editBusy(false);
       window._tnEditClose();
       docRerender();
+      loadUsage();
       var target = document.getElementById(SEC_TEXT[sec] && sec !== 'exclusions' && sec !== 'assumptions' && sec !== 'rfis' ? 'tq-sec-' + sec : 'tn-a-' + sec) || document.getElementById('tq-sec-' + sec);
       if (target) { target.classList.add('tn-flash'); setTimeout(function(){ target.classList.remove('tn-flash'); }, 1800); }
     } catch (e) {
+      usageRefusal(e);
       editBusy(false);
       msg.textContent = 'That did not work: ' + (e && e.message || e);
     }
@@ -1758,7 +1877,7 @@
   };
   window._tenderRun = async function(){
     try { await api('POST', '/tender/' + T.id + '/run', {}); await load(); render(); syncPoll(); }
-    catch (e) { alert(e && e.message || e); }
+    catch (e) { aiAlert(e); }
   };
   window._tenderFileDelete = async function(fid){
     var f = (T.data && T.data.files || []).find(function(x){ return x.id === fid; });
@@ -1792,7 +1911,8 @@
         await putFile(sg.signedUrl, f, function(pct){ u.pct = pct; renderProgressOnly(); });
         await api('POST', '/tender/' + T.id + '/files/' + sg.fileId + '/landed', { run: i === pdfs.length - 1 });
       } catch (e) {
-        alert('Upload of ' + f.name + ' failed: ' + (e && e.message || e));
+        if (e && e.code === 'AI_USAGE_USED') aiAlert(e);
+        else alert('Upload of ' + f.name + ' failed: ' + (e && e.message || e));
       }
       u.done = true; u.pct = 100;
     }
@@ -1830,7 +1950,7 @@
         try {
           var p = await api('GET', '/tender/' + T.id + '/progress');
           if (T.data) { T.data.status = p.status; T.data.tasks = p.task ? [p.task] : T.data.tasks; }
-          if (p.status === 'indexed' || p.status === 'drafted' || p.status === 'failed' || p.status === 'new') { clearInterval(T.poll); T.poll = null; await load(); render(); }
+          if (p.status === 'indexed' || p.status === 'drafted' || p.status === 'failed' || p.status === 'new') { clearInterval(T.poll); T.poll = null; await load(); render(); loadUsage(); }
           else renderProgressOnly();
         } catch (e) {}
       }, window.__TENDER_POLL_MS || 2500);
