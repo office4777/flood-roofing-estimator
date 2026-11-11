@@ -5610,7 +5610,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-10T23:42:24Z';
+  window.APP_BUILT_AT = '2026-11-11T00:59:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -12683,12 +12683,12 @@ function _schedRowIsFergusOnly(r){ return !!(r && !r.job_id && r.fergus_id); }
 // sections. HOURS are the lines in a section named for labour or scaffolding,
 // or priced by the hour — their quantity is the hours.
 var _SCHED_FG_CACHE = {};
-function _schedInfoFergusLoad(r){
+function _schedInfoFergusLoad(r, opt){
   var box = document.getElementById('schedInfoJob');
   var fid = String(r.fergus_id), rowId = r.id;
-  var paint = function(q, err){ if (_schedInfoId !== rowId) return; box.innerHTML = _schedInfoFergusHtml(q, r, err); };
+  var paint = function(q, err){ if (_schedInfoId !== rowId) return; box.innerHTML = _schedInfoFergusHtml(q, r, err, opt); };
   if (_SCHED_FG_CACHE[fid]){ paint(_SCHED_FG_CACHE[fid]); return; }
-  box.innerHTML = _schedInfoFergusHtml(null, r, '') + '<div class="sij-card" style="color:var(--text2)">Reading the accepted quote from Fergus…</div>';
+  box.innerHTML = _schedInfoFergusHtml(null, r, '', opt) + '<div class="sij-card" style="color:var(--text2)">Reading the accepted quote from Fergus…</div>';
   (async function(){
     try {
       var lr = await fergusCall('GET', '/jobs/' + encodeURIComponent(fid) + '/quotes');
@@ -12709,23 +12709,63 @@ function _schedInfoFergusLoad(r){
     } catch(e){ paint(null, (e && e.message) || String(e)); }
   })();
 }
-function _schedInfoFergusHtml(q, r, err){
+// A Fergus description is the quote editor's own HTML (bold, bullets, links):
+// read as plain lines, bullets kept, nothing of its markup let through.
+function _fgDescText(v){
+  var t = String(v == null ? '' : v);
+  if (!/<[a-z!\/]/i.test(t)) return t.trim();
+  t = t.replace(/<\s*br\s*\/?>/gi, '\n').replace(/<\s*li[^>]*>/gi, '\n\u2022 ').replace(/<\/(p|div|li|ul|ol|h\d)>/gi, '\n').replace(/<[^>]*>/g, '');
+  var d = document.createElement('textarea'); d.innerHTML = t; t = d.value;
+  return t.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+// THE FERGUS QUOTE STANDS IN FOR A ROOFMAP QUOTE THAT WAS NEVER WRITTEN
+// (2026-11-11, the owner on job 3275: "what the customer chose is wrong ...
+// it's defaulted just to the defaults ... I want the quote description to be
+// pulled through ... call it Fergus quote description ... the Fergus quote
+// total ... the allocated labor time from Fergus ... 2 guys, 25 hours each").
+// The description is the quote's own and every section's; the total is the
+// line items' (qty × price, ex GST — Fergus's own total where there are no
+// lines); a labour line is one person's hours.
+function _schedInfoFergusHtml(q, r, err, opt){
+  opt = opt || {};
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); };
   var money = function(n){ return '$' + (Math.round((+n || 0) * 100) / 100).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
-  var h = '<div class="sij-fgbanner">Fergus-only job (not in RoofMap yet)' + (r && (r.job_ref || r.fergus_no) ? ' · Fergus #' + esc(r.job_ref || r.fergus_no) : '') + '</div>';
+  var no = r && (r.job_ref || r.fergus_no);
+  var h = '<div class="sij-fgbanner">' + (opt.inRoofMap ? 'Quoted in Fergus — not priced in RoofMap' : 'Fergus-only job (not in RoofMap yet)') + (no ? ' · Fergus #' + esc(no) : '') + '</div>';
   if (err) return h + '<div class="sij-card" style="color:#b91c1c">' + esc(err) + '</div>';
   if (!q) return h;
   var secs = q.sections || q.quoteSections || [];
   var items = [];
   secs.forEach(function(s){ (s.lineItems || s.items || []).forEach(function(it){ items.push({ sec: s.name || s.title || '', it: it }); }); });
-  var isHrs = function(x){ var u = String(x.it.unitOfMeasureSell || x.it.unitOfMeasure || x.it.unit || '').toLowerCase(); return /labour|labor|scaffold/i.test(x.sec) || /^h(ou)?rs?$/.test(u); };
-  var hrs = items.filter(isHrs), tot = 0;
-  var hrows = hrs.map(function(x){ var n = +(x.it.itemQuantity != null ? x.it.itemQuantity : x.it.quantity) || 0; tot += n;
-    return '<tr><td>' + esc(x.sec ? x.sec + ' — ' : '') + esc(x.it.itemName || x.it.name || x.it.description) + '</td><td style="text-align:right">' + n + '</td></tr>'; });
-  h += '<div class="sij-card"><div class="sij-h">Quote' + (q._accepted ? ' — accepted' : '') + (q.title ? ' · ' + esc(q.title) : '') + '</div>' +
-    (q.total != null ? '<div style="font-size:13px;margin-bottom:6px"><b>Total ' + money(q.total) + '</b> incl. GST</div>' : '') +
-    ((q.notes || q.description) ? '<div class="sij-fgdesc">' + esc(q.notes || q.description) + '</div>' : '<div style="color:var(--text2);font-size:12px">No quote description.</div>') + '</div>';
-  h += '<div class="sij-card"><div class="sij-h">Allocated hours</div>' + (hrows.length ?
+  var qtyOf = function(it){ return +(it.itemQuantity != null ? it.itemQuantity : it.quantity) || 0; };
+  var priceOf = function(it){ return +(it.itemPrice != null ? it.itemPrice : it.price) || 0; };
+  var isHrs = function(x){ var u = String(x.it.unitOfMeasureSell || x.it.unitOfMeasure || x.it.unit || '').toLowerCase();
+    return x.it.isLabour === true || /labour|labor|scaffold/i.test(x.sec) || /^h(ou)?rs?$/.test(u); };
+  var hrs = items.filter(function(x){ return isHrs(x) && qtyOf(x.it) > 0; }), tot = 0;
+  var hrows = hrs.map(function(x){ var n = qtyOf(x.it); tot += n;
+    return '<tr><td>' + esc(x.sec ? x.sec + ' — ' : '') + esc(x.it.itemName || x.it.name || x.it.description) + '</td><td style="text-align:right">' + (Math.round(n * 100) / 100) + '</td></tr>'; });
+  var same = hrs.length > 1 && hrs.every(function(x){ return Math.abs(qtyOf(x.it) - qtyOf(hrs[0].it)) < 0.01; });
+  var hrsHead = hrs.length ? (same
+    ? hrs.length + ' guys \u00d7 ' + (Math.round(qtyOf(hrs[0].it) * 100) / 100) + ' hours each = ' + (Math.round(tot * 100) / 100) + ' hours'
+    : (Math.round(tot * 100) / 100) + ' hours across ' + hrs.length + ' labour line' + (hrs.length === 1 ? '' : 's')) : '';
+  // The total: the lines, ex GST, else what Fergus reports.
+  var ex = items.reduce(function(a, x){ return a + qtyOf(x.it) * priceOf(x.it); }, 0);
+  var gst = (S && S.quote && +S.quote.gstRate > 0) ? +S.quote.gstRate : ((typeof _defaultGstRate === 'function') ? _defaultGstRate() : 15);
+  var totHtml = '';
+  if (ex > 0.004) totHtml = '<div class="sij-row tot"><span>Fergus quote total</span><b>' + money(ex * (1 + gst / 100)) + '</b></div>' +
+    '<div style="font-size:11.5px;color:var(--text2)">' + money(ex) + ' + GST</div>';
+  else { var ft = q.totalIncl != null ? q.totalIncl : (q.total != null ? q.total : null);
+    if (ft != null) totHtml = '<div class="sij-row tot"><span>Fergus quote total</span><b>' + money(ft) + '</b></div>'; }
+  var desc = [];
+  [q.description, q.notes, q.summary, q.longDescription].forEach(function(v){ var t = _fgDescText(v); if (t && desc.indexOf(t) < 0) desc.push(t); });
+  secs.forEach(function(s){ [s.description, s.sectionDescription, s.summary, s.notes].forEach(function(v){ var t = _fgDescText(v); if (t && desc.indexOf(t) < 0) desc.push(t); }); });
+  h += '<div class="sij-card sij-fgquote"><div class="sij-h">Fergus quote' + (q._accepted ? ' — accepted' : '') + (q.title ? ' · ' + esc(q.title) : '') + '</div>' +
+    (totHtml || '<div style="color:var(--text2);font-size:12px">No total on the Fergus quote.</div>') + '</div>';
+  h += '<div class="sij-card"><div class="sij-h">Fergus quote description</div>' + (desc.length
+    ? '<div class="sij-fgdesc">' + esc(desc.join('\n\n')) + '</div>'
+    : '<div style="color:var(--text2);font-size:12px">No quote description.</div>') + '</div>';
+  h += '<div class="sij-card" id="sijFgHours"><div class="sij-h">Allocated hours (from Fergus)</div>' + (hrows.length ?
+    '<div class="sij-fghead" style="font-size:13px;font-weight:700;margin-bottom:6px">' + esc(hrsHead) + '</div>' +
     '<table class="sij-hrs sij-fghrs"><thead><tr><th>Line</th><th style="text-align:right">Hours</th></tr></thead><tbody>' + hrows.join('') +
     '</tbody><tfoot><tr><td><b>Total combined hours</b></td><td style="text-align:right"><b>' + (Math.round(tot * 100) / 100) + '</b></td></tr></tfoot></table>' :
     '<div style="color:var(--text2);font-size:12px">No labour lines on the quote.</div>') + '</div>';
@@ -12737,6 +12777,16 @@ function _schedInfoFergusHtml(q, r, err){
         return '<tr><td>' + esc(it.itemName || it.name || it.description) + '</td><td style="text-align:right">' + n + '</td><td style="text-align:right">' + money(p) + '</td><td style="text-align:right">' + money(n * p) + '</td></tr>'; }).join(''); }).join('') +
     '</tbody></table>' : '<div style="color:var(--text2);font-size:12px">No line items.</div>') + '</div>';
   return h;
+}
+function _schedJobUnquoted(job){
+  var ds = job && job.draw_state, st = ds && ds.state, q = st && st.quote;
+  if (!q) return true;
+  var v = q.versions || {};
+  if ((q.share && (q.share.sentAt || q.share.status === 'accepted')) || q.accepted || v.sent || v.accepted) return false;
+  var drawn = function(d){ return !!(d && ((d.outline || []).length >= 3 || (d.roofs || []).some(function(rf){ return (rf.outline || []).length >= 3; }))); };
+  if (drawn(ds.draw)) return false;
+  if ((q.roofMapGeom && (q.roofMapGeom.roofs || []).length)) return false;
+  return true;
 }
 function _schedInfoJobLoad(r){
   var box = document.getElementById('schedInfoJob');
@@ -12750,6 +12800,10 @@ function _schedInfoJobLoad(r){
   var id = r.job_id, rowId = r.id;
   var paint = function(job){
     if (_schedInfoId !== rowId) return;
+    // A RoofMap job made off a Fergus job and never quoted here carries only
+    // the default quote — its picks and its $2,875 are nobody's. The Fergus
+    // quote is the real one.
+    if (r.fergus_id && _schedJobUnquoted(job)){ _schedInfoFergusLoad(r, { inRoofMap: true }); return; }
     box.innerHTML = _schedInfoJobHtml(job, r);
   };
   if (_SCHED_JOB_CACHE[id]){ paint(_SCHED_JOB_CACHE[id]); return; }
@@ -89188,7 +89242,29 @@ function _roofOrientForOutline(outline){
 function _gableHvLines(outline, rot){
   var odd = (Math.round((((rot || 0) % 360) + 360) % 360 / 90) % 2) === 1;
   if (odd && outline && outline.length === 4 && typeof buildGableRoofLines === 'function') return buildGableRoofLines(outline, true);
+  // PAST AN L IT IS THE HIP & VALLEY ROOF WITH ITS ENDS GABLED (feedback
+  // reports 89/90, 2026-11-11, the owner: "it should just be the same as a
+  // normal hip and valley, except the 3x ends are converted to gable ends").
+  // The square L keeps the rule he set on reports 17-20 (_gableHvL); any
+  // other outline of more than six corners is the hip builder (bumps and all)
+  // with every hip end made a gable, or what the office chose for that end.
+  if (outline && outline.length > 6 && !_gableHvL(outline)){
+    try {
+      var hv = _gableHvHipGabled(outline);
+      if (hv) return hv;
+    } catch(e){}
+  }
   return buildGableRoofLines_legacy(outline);
+}
+function _gableHvHipGabled(outline){
+  var base = _hipLinesWithBumps(outline);
+  if (!base || !base.length) return null;
+  var lines = base.map(function(l){ var c = Object.assign({}, l); c.pts = [l.pts[0].slice(), l.pts[1].slice()]; return c; });
+  var ends = _skelHipEnds(lines, outline);
+  if (!ends.length) return null;
+  var ek = _endKindsOf('e:') || {};
+  ends.forEach(function(e){ var k = ek[e.key] || 'gable'; if (k !== 'hip') _endTransform(lines, e, k); });
+  return lines;
 }
 // Does a quarter (or half) turn about the middle lay the outline back on
 // itself? Only then can the built lines be turned with it.

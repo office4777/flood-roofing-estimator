@@ -951,7 +951,8 @@ await ctx.close();
     { id: 902, title: 'Quote v3', status: 'Accepted', isAccepted: true, acceptedAt: '2026-11-10T20:00:00Z', total: 23460,
       notes: 'Strip and re-roof the house in Colorsteel.',
       sections: [
-        { name: 'Roof Labour', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 24, itemPrice: 140 }, { itemName: 'Apprentice', itemQuantity: 24, itemPrice: 90 }] },
+        { name: 'Roof Labour', description: '<p><b>This quote is for the Re-Roof</b> &amp; the sleepout;</p><ul><li>Remove and dispose of existing Roofing</li><li>Leave site clean</li></ul>',
+          lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 24, itemPrice: 140 }, { itemName: 'Apprentice', itemQuantity: 24, itemPrice: 90 }] },
         { name: 'Scaffolding', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 6, itemPrice: 140 }] },
         { name: 'Roof Material', lineItems: [{ itemName: 'Corrugate 0.40 Colorsteel', itemQuantity: 180, itemPrice: 42.5, unitOfMeasureSell: 'm2' }] },
       ] } ] };
@@ -962,6 +963,10 @@ await ctx.close();
     const u = r.request().url(); fgCalls.push(u.split('/fergus')[1]);
     if (/\/jobs\?/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(/3275|Crawford/i.test(decodeURIComponent(u)) ? { data: [fgJob] } : { data: [] }) });
     if (/\/jobs\/15590001\/quotes$/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fgQuotes) });
+    if (/\/jobs\/15590002\/quotes$/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [
+      { id: 903, title: 'Quote v1', status: 'Accepted', isAccepted: true, acceptedAt: '2026-11-09T20:00:00Z', sections: [
+        { name: 'Labour', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 25, itemPrice: 100, isLabour: true }, { itemName: 'Apprentice', itemQuantity: 25, itemPrice: 50, isLabour: true }] },
+        { name: 'Materials', description: 'This quote is for the Re-Roof to the main house roof', lineItems: [{ itemName: 'Corrugate', itemQuantity: 10, itemPrice: 100 }] } ] } ] }) });
     r.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
   await pg.evaluate(() => { S.fergConnected = true; _schedAddOpen(); });
@@ -988,11 +993,14 @@ await ctx.close();
     const rows = Array.from(b.querySelectorAll('.sij-fghrs tbody tr')).map(tr => tr.textContent.replace(/\s+/g, ' ').trim());
     return { banner: (b.querySelector('.sij-fgbanner') || {}).textContent, desc: (b.querySelector('.sij-fgdesc') || {}).textContent,
       rows, tot: (b.querySelector('.sij-fghrs tfoot') || {}).textContent, lines: b.querySelectorAll('.sij-fglines tbody tr').length,
-      total: b.textContent.includes('$23,460.00'), accepted: /Quote — accepted/.test(b.textContent),
+      total: b.textContent.includes('$16,111.50') && b.textContent.includes('$14,010.00 + GST'), accepted: /Fergus quote — accepted/.test(b.textContent),
+      head: (b.querySelector('.sij-fghead') || {}).textContent,
       facts: Array.from(document.querySelectorAll('#schedInfoFacts .sii-show')).map(e => e.textContent + '|' + e.style.display).join(';'),
       inputs: ['client_name', 'job_ref', 'site_address', 'email'].filter(k => document.querySelector('#schedInfoFacts [data-iedit="' + k + '"]').style.display !== 'none').length }; });
   check('its window says it is a Fergus-only job, not in RoofMap yet', /Fergus-only job \(not in RoofMap yet\)/.test(v.banner) && /#3275/.test(v.banner), v.banner);
-  check('…shows the ACCEPTED quote, not the voided one, with its description and total', v.accepted && /Strip and re-roof/.test(v.desc) && v.total, JSON.stringify([v.desc, v.total, v.accepted]));
+  check('…shows the ACCEPTED quote, not the voided one, with its description and the lines\u2019 total', v.accepted && /Strip and re-roof/.test(v.desc) && v.total, JSON.stringify([v.desc, v.total, v.accepted]));
+  check('…the Fergus quote description carries every section\u2019s description as plain text, bullets kept', /This quote is for the Re-Roof & the sleepout;/.test(v.desc) && /\u2022 Remove and dispose of existing Roofing/.test(v.desc) && !/[<>]/.test(v.desc), v.desc);
+  check('…the hours headed with their sum', /54 hours across 3 labour lines/.test(v.head || ''), v.head);
   check('…the allocated hours off the labour and scaffolding lines, 54 combined', v.rows.length === 3 && /Roof Labour — Lead Roofer ?24/.test(v.rows[0]) && /Scaffolding — Lead Roofer ?6/.test(v.rows[2]) && /54/.test(v.tot), JSON.stringify(v));
   check('…and every quote line item by section', v.lines === 7, String(v.lines));
   check('…with the facts as plain text from Fergus', /Alfred Crawford\|/.test(v.facts) && /3275\|/.test(v.facts) && v.inputs === 0, v.facts + ' inputs ' + v.inputs);
@@ -1003,6 +1011,27 @@ await ctx.close();
   await pg.waitForFunction(() => document.querySelector('[data-pickfergus]'), null, { timeout: 5000 });
   v = await pg.evaluate(() => !!document.querySelector('[data-pickfergus] .sched-onboard'));
   check('searched again it wears the On the schedule chip', v);
+  await pg.evaluate(() => { const m = document.getElementById('schedAddModal'); if (m) m.style.display = 'none'; const o = document.getElementById('schedAddOverlay'); if (o) o.style.display = 'none'; });
+  // A RoofMap job made off a Fergus job and never quoted here (job 3275's own
+  // shape): the default quote's picks and price are nobody's, so the window
+  // reads the Fergus quote instead.
+  const blankJob = { id: 'jblank', draw_state: { state: { linkedJobId: '15590002', quote: { ref: '3275', share: {}, proposalOptions: { steelGrade: 'maxam' } } }, draw: { outline: [], roofs: [] } } };
+  await pg.route('**/flood-roofing-estimator-production.up.railway.app/jobs/jblank', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(blankJob) }));
+  await pg.evaluate(() => { _SCHED.data.rows.push({ id: 'rblank', job_id: 'jblank', fergus_id: '15590002', fergus_no: '3275', job_no: '3275', client_name: 'Far North Property Services',
+    site_address: '1622F Matauri Bay Road', email: '', length_days: 1, archived: false, auto: {}, created_at: '2026-11-01' }); _schedRender(); _schedInfoOpen('rblank'); });
+  await pg.waitForFunction(() => document.querySelector('#schedInfoJob .sij-fghead'), null, { timeout: 8000 });
+  v = await pg.evaluate(() => { const b = document.getElementById('schedInfoJob'); return { banner: (b.querySelector('.sij-fgbanner') || {}).textContent, head: b.querySelector('.sij-fghead').textContent,
+    desc: (b.querySelector('.sij-fgdesc') || {}).textContent, tot: b.textContent.includes('$5,462.50'), chose: /What the customer chose/.test(b.textContent), summary: /Quote summary/.test(b.textContent) }; });
+  check('a RoofMap job never quoted here, linked to Fergus, shows the Fergus quote', /Quoted in Fergus/.test(v.banner) && /#3275/.test(v.banner), v.banner);
+  check('…its description, its total, and no RoofMap default picks or price', /Re-Roof to the main house roof/.test(v.desc) && v.tot && !v.chose && !v.summary, JSON.stringify(v));
+  check('…and the allocated hours: 2 guys × 25 hours each = 50 hours', v.head === '2 guys \u00d7 25 hours each = 50 hours', v.head);
+  await pg.evaluate(() => _schedInfoClose());
+  // A quoted RoofMap job linked to Fergus keeps its own quote (r1).
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForFunction(() => /What the customer chose/.test((document.getElementById('schedInfoJob') || {}).textContent || ''), null, { timeout: 8000 }).catch(() => {});
+  v = await pg.evaluate(() => { const b = document.getElementById('schedInfoJob'); return { chose: /What the customer chose/.test(b.textContent), fg: !!b.querySelector('.sij-fgbanner') }; });
+  check('…while a job quoted in RoofMap keeps its own quote', v.chose && !v.fg, JSON.stringify(v));
+  await pg.evaluate(() => _schedInfoClose());
   await ctx.close();
 }
 
