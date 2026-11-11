@@ -1939,6 +1939,33 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   block is drawn there as it moves (`_schedPresPlace`, `.held-live`), and on
   their drop it is put there at once (`_schedPresDrops`) ahead of the reload.
   `scheduleui` (178), `scheduleapi` (63).
+  A JOB QUOTED IN FERGUS SHOWS THE FERGUS QUOTE (2026-11-11, the owner on job
+  3275: "what the customer chose is wrong ... it's defaulted just to the
+  defaults ... I want the quote description to be pulled through ... call it
+  Fergus quote description ... the Fergus quote total ... the allocated labor
+  time from Fergus ... 2 guys, 25 hours each"). A row with a RoofMap job that
+  was never quoted here (`_schedJobUnquoted`: not sent, not accepted, no roof
+  drawn, no roof map) and a `fergus_id` reads the Fergus quote instead
+  (`_schedInfoFergusLoad(r, {inRoofMap:true})`, banner "Quoted in Fergus — not
+  priced in RoofMap"); a quoted RoofMap job keeps its own. The Fergus window
+  (both kinds): "Fergus quote" with the total off the line items (qty × price
+  + GST at the quote's rate; Fergus's own `totalIncl` / `total` only with no
+  lines), "Fergus quote description" — the quote's and EVERY SECTION's
+  description (`_fgDescText` turns the editor's HTML into plain lines, bullets
+  kept) — and "Allocated hours (from Fergus)": every `isLabour` line or line
+  in a labour / scaffold section, one line a person, headed "2 guys × 25
+  hours each = 50 hours" when they match (`.sij-fghead`). `scheduleui` (184).
+- GABLE + HIP & VALLEY PAST AN L IS THE HIP ROOF WITH ITS ENDS GABLED (feedback
+  reports 89 / 90, 2026-11-11, the owner: "it should just be the same as a
+  normal hip and valley, except the 3x ends are converted to gable ends").
+  `_gableHvLines`: the square L keeps `_gableHvL` (reports 17-20); any other
+  outline of more than six corners is `_gableHvHipGabled` — `_hipLinesWithBumps`
+  with every `_skelHipEnds` end put through `_endTransform(…, 'gable')`, or the
+  kind the office chose for it in `endKinds`. Four corners and anything with no
+  hip end keep `buildGableRoofLines_legacy`. The hip T lays line for line as
+  before (its sheet layout unchanged, sheetlayout 451/451). The old path ran a
+  hip corner to corner across report 89's main roof and a barge through it.
+  `tests/report89.mjs` (8, UI list).
 - THE PRICING DRAWER, TIDIED (2026-11-10, the owner: "remove the green totals
   ... the roof section combines the labor and materials ... separate them into
   separate sections ... hide any explanations, maybe hide them behind an info
