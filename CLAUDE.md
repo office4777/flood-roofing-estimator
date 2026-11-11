@@ -6339,6 +6339,46 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   liability callout names both. Clause numbers unchanged. The terms promise 30
   days' email notice for material changes — told to the owner.
   `tenderui` (95), `legal` (72), `ferguskey` (45).
+- AI TENDERING HAS A MONTHLY ALLOWANCE AND A PAID ADD-ON, AND READS FASTER
+  (2026-11-12, the owner: "I don't want to lose money on my team plan if
+  they're using too much ... I want them to pay for it. But I do want to offer
+  just some AI data"; "speed things up as well without using too much usage").
+  Estimated cost of one tender: US$1–1.50 (Haiku sorts the pages at ~US$0.001
+  a page; one Opus draft, capped at 320k chars of text and 18 pictures, is
+  US$0.60–1.25), so MB barely matters. THE ALLOWANCE is A.I. dollars:
+  `PLANS[k].tenderUsd` (trial 5, team 15, business 30, measure / solo 0; in
+  `brief.limits.tenderUsd`), shown as PLAN SETS (`TENDER_USD_EACH` 1.5, so Team
+  is "about 10"). `_tenderUsage(req)` sums `tender_ai_runs.cost_usd` for the
+  company over the NZ month (`_nzMonth`), with a day-by-day list; GET
+  `/tender/usage` answers it. Anything that spends A.I. (`/run`, `/draft`,
+  `/amend`, `/section`, a `landed` that reads) goes through `aiBudget` in
+  tender/routes.js: 402 `AI_USAGE_USED` with the figures once used; a failed
+  read lets it through; TENDERING_USERS logins are `unlimited`. Deleting a
+  tender or a file KEEPS its ai_runs (the usage must not be handed back). THE
+  ADD-ON: `POST /billing/ai-addon {packs 0..AI_PACK_MAX 5}` (owner only, an
+  active paid subscription, a plan with `tender`): each pack +AI_PACK_USD 15
+  (10 plan sets) for AI_PACK_PRICE NZ$/A$49 a month + GST, as a second item on
+  the Stripe subscription (`_aiPackPrice`: STRIPE_PRICE_AI_PACK[_ANNUAL], else
+  found by lookup key `roofmap_ai_pack_month_v1` / `_year_v1`, else MADE once
+  with an AUD currency option; a yearly plan's is 10 months'), prorated;
+  quantity changed in place, DELETE at 0. `subscriptions.ai_packs` (boot DDL)
+  holds the count; the subscription webhook resyncs it from the items and
+  reads the PLAN off the first non-add-on item (`_isAiPackItem`). THE TAB
+  (tender.js): `#tnUsage` — "6.4 of 10 plan sets used", a bar, a bar a day
+  across the month (SVG), the add-on stepper (`_tnAddonStep`, `_tnAddonSave`,
+  confirm with the monthly price), red when used up (`aiAlert`,
+  `usageRefusal`); `#tnTimes` — "Last read took 47 s — reading pages 9 s ·
+  sorting 6 s · drafting 31 s · used about 0.7 plan sets" from the task's
+  `progress.times` / `costUsd` (US$ shown to RoofMap staff only). SPEED
+  (worker.js): a queued task starts at once (`enqueue` kicks `tick`), pages are
+  classified 12 at a time (`CLASSIFY_AT_ONCE`) AS THEY ARE READ (`early`,
+  `limiter`, `classifyOne` with the page's own buffers;
+  `TENDER_EARLY_CLASSIFY=false` turns it off). Not done (cost): fast mode or
+  Sonnet for the draft — measure with `#tnTimes` first. Pricing / landing say
+  "about 10 plan sets a month included, more with the A.I. add-on ($49 a month
+  for 10 more)"; terms `#ai-allowance` (v1.1, not bumped — v1.1 went live the
+  same morning). `tests/tenderusage.mjs` (23, API), `tenderui` (101),
+  `tenderapi` (139).
 - ORDER A COLORSTEEL® SAMPLE (2026-11-11, NZ Steel's Senior Brand Manager,
   Laura Clark: fine to reference COLORSTEEL®, "please send over final
   links/screen shots of how it will appear for approval before going live",
