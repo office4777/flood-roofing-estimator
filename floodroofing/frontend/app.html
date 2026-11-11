@@ -5614,7 +5614,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-11T06:27:54Z';
+  window.APP_BUILT_AT = '2026-11-11T22:12:30Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -6608,6 +6608,10 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
           </div>
         </div>
         <div class="preview-wrap" id="roofPrev"><img id="roofPrevImg" src="" alt="uploaded roof"><span class="prev-badge">Uploaded</span><button class="prev-rm" onclick="clearRoofImg()">× Remove</button><button type="button" class="prev-rm" id="roofPrevToCanvas" onclick="_roofPrevToCanvas()" title="Put this photo under the drawing — on an empty canvas, or over the picture that is there" style="right:auto;left:8px;background:#0099cc;color:#fff;border-color:#0099cc">🗺 Add to canvas</button></div>
+        <div id="roofPlanBar" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 12px 12px;padding:8px 11px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;font-size:12px;color:#0a1628">
+          <span id="roofPlanBarTxt" style="font-weight:600">📄 PDF plan on this job</span>
+          <button type="button" id="roofPlanBarRm" onclick="_clearPdfPlan()" style="margin-left:auto;padding:6px 12px;background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Remove PDF plan</button>
+        </div>
       </div>
     </div>
     </div><!-- end roofBgBody -->
@@ -7556,6 +7560,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <span style="margin-left:auto;font-size:10px;color:var(--text2)">saved with the job</span>
       </div>
       <button type="button" id="jobPhotosClearBg" onclick="_clearCanvasBg()" title="Take the picture off the canvas — the drawing stays" style="width:100%;margin-bottom:8px;padding:7px 8px;background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Delete background photo</button>
+      <button type="button" id="jobPhotosClearPlan" onclick="_clearPdfPlan()" title="Take the PDF plan's pages out of the job photos (and off the canvas) — the drawing stays" style="display:none;width:100%;margin-bottom:8px;padding:7px 8px;background:#fff;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit">🗑 Remove PDF plan</button>
       <div style="display:flex;gap:8px;margin-bottom:9px">
         <button onclick="openRapidCamera()" class="rapidcam-btn" style="flex:1;padding:10px 8px;background:#0a1628;color:#fff;border:none;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">📸 Rapid photos</button>
         <button onclick="document.getElementById('jobPhotoGal').click()" style="flex:1;padding:10px 8px;background:#fff;color:#0a1628;border:1.5px solid #cbd5e1;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">🖼 From gallery</button>
@@ -22268,6 +22273,7 @@ function _roofPrevReset(){
 // either — its LOCK and its version list. A list in three places is a list
 // that drifts; this is the one list, and the three paths call it.
 function _releaseJobContent(){
+  try { _PDF_PLAN_GEN++; DRAW._bgPlanImg = null; } catch(e){}   // a plan still rendering stops here
   try { S.orderSent = null; } catch(e){}      // pre-stamp jobs: never the last job's stamp
   // …nor the last job's "Quote last sent to Fergus" (2026-10-01, the owner:
   // "this is a new job i opened, so there's some crossed wires").
@@ -27423,6 +27429,7 @@ async function _roofPdfUsePage(n){
     // live inside a job row.
     var big = await _pdfRenderPage(page, 2.5);
     _setRoofImgFromDataUrl(big);
+    window._nextBgIsPlan = true;     // _applyCanvasBg remembers this picture IS the plan
     try { _roofPrevToCanvas(); } catch(e){}
     try { _collapseRoofBg(); } catch(e){}
   } catch(e){
@@ -27432,11 +27439,66 @@ async function _roofPdfUsePage(n){
   _roofPdfClose();
   _roofPdfPagesToPhotos(doc);
 }
+// ── ONE PDF PLAN A JOB, AND IT COMES OFF AGAIN (2026-11-12, the owner after
+// a demo: "I cleared the job, cleared the canvas, but there was no way of
+// clearing the PDF plan ... I added a new PDF ... it just added that PDF to the
+// other PDF's photos ... every time I added a PDF"). The plan's pages are job
+// photos marked kind 'plan'. A new PDF REPLACES the last one's pages, Clear
+// takes them with the picture, and "Remove PDF plan" (the Photos panel and the
+// upload card) takes them off by itself — with the canvas picture too when that
+// picture is a page of the plan (DRAW._bgPlanImg, set by _applyCanvasBg).
+// _PDF_PLAN_GEN stops a plan still rendering into the photos after it was
+// cleared, replaced, or the job changed under it.
+var _PDF_PLAN_GEN = 0;
+function _planPhotoCount(){
+  return ((window.S && S.photos) || []).filter(function(p){ return p && p.kind === 'plan'; }).length;
+}
+function _planPhotosDrop(){
+  if (!window.S || !Array.isArray(S.photos)) return 0;
+  var before = S.photos.length;
+  S.photos = S.photos.filter(function(p){ return !(p && p.kind === 'plan'); });
+  return before - S.photos.length;
+}
+function _bgIsPlan(){ return !!(DRAW.bgImg && DRAW._bgPlanImg && DRAW.bgImg === DRAW._bgPlanImg); }
+function _clearPdfPlan(){
+  var n = _planPhotoCount(), bg = _bgIsPlan();
+  if (!n && !bg) return;
+  if (!confirm('Remove the PDF plan from this job?\n\n' +
+      (n ? 'Its ' + n + ' page' + (n === 1 ? '' : 's') + ' come out of the job photos' : 'The plan comes off the canvas') +
+      (n && bg ? ' and the plan comes off the canvas' : '') + '. Your drawing stays.')) return;
+  _PDF_PLAN_GEN++;
+  _planPhotosDrop();
+  if (bg){ try { clearRoofImg(); } catch(e){} }
+  DRAW._bgPlanImg = null;
+  try { renderPhotos(); } catch(e){}
+  try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
+  try { _setSaveStatus && _setSaveStatus('PDF plan removed \u2014 the drawing is still there.', '#0369a1'); } catch(e){}
+}
+function _planBarSync(){
+  var n = _planPhotoCount(), bg = _bgIsPlan();
+  var lbl = n ? 'PDF plan on this job \u00b7 ' + n + ' page' + (n === 1 ? '' : 's') : 'PDF plan on the canvas';
+  var bar = document.getElementById('roofPlanBar');
+  if (bar){
+    bar.style.display = (n || bg) ? 'flex' : 'none';
+    var t = document.getElementById('roofPlanBarTxt'); if (t) t.textContent = '\ud83d\udcc4 ' + lbl;
+  }
+  var b = document.getElementById('jobPhotosClearPlan');
+  if (b){
+    b.style.display = (n || bg) ? '' : 'none';
+    b.textContent = '\ud83d\uddd1 Remove PDF plan' + (n ? ' (' + n + ' page' + (n === 1 ? '' : 's') + ')' : '');
+  }
+}
 function _roofPdfPagesToPhotos(doc){
   var total = Math.min(doc.numPages || 1, PDF_MAX_PAGES);
   if (!Array.isArray(S.photos)) S.photos = [];
+  var gen = ++_PDF_PLAN_GEN;
+  _planPhotosDrop();                    // the last plan's pages go: one plan a job
+  try { renderPhotos(); } catch(e){}
+  var arr = S.photos;
+  var stale = function(){ return gen !== _PDF_PLAN_GEN || S.photos !== arr; };
   var i = 1;
   var next = function(){
+    if (stale()) return;
     if (i > total) {
       try { renderPhotos(); } catch(e){}
       try { _scheduleAutosave && _scheduleAutosave(); } catch(e){}
@@ -27451,6 +27513,7 @@ function _roofPdfPagesToPhotos(doc){
     // biggest size the page-render cap allows and skip the downscaler, so
     // zooming in gets you the pitch and the eaves dimension, not mush.
     doc.getPage(n).then(function(page){ return _pdfRenderPage(page, PDF_PLAN_SCALE, 0.85); }).then(function(src){
+      if (stale()) return;
       S.photos.push({ src: src, caption: 'Plan \u2014 page ' + n, kind: 'plan' });
       try { renderPhotos(); } catch(e){}
       next();
@@ -30772,7 +30835,7 @@ async function handlePriceFile(e){
 // ── INSPECTION ───────────────────────────────────────────────────
 function selectCond(el,c){document.querySelectorAll('.cond-opt').forEach(function(x){x.className='cond-opt';});el.classList.add('sel-'+c);S.condition=c;}
 function addPhotos(e){Array.from(e.target.files).forEach(function(f){var r=new FileReader();r.onload=function(ev){_downscalePhoto(ev.target.result,function(src){S.photos.push({src:src,caption:''});renderPhotos();});};r.readAsDataURL(f);});document.getElementById('photoInput').value='';}
-function renderPhotos(){try{renderJobFiles();}catch(e){} var _pg=document.getElementById('photoGrid');if(_pg)_pg.innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');try{_renderJobPhotosGrid();}catch(e){}}
+function renderPhotos(){try{renderJobFiles();}catch(e){} var _pg=document.getElementById('photoGrid');if(_pg)_pg.innerHTML=S.photos.map(function(p,i){return '<div class="photo-thumb"><img src="'+p.src+'"><button class="photo-rm" onclick="removePhoto('+i+')">x</button><div class="photo-caption"><input type="text" placeholder="Caption..." value="'+p.caption+'" style="width:100%;margin:0;padding:3px 5px;font-size:11px" oninput="S.photos['+i+'].caption=this.value"></div></div>';}).join('');try{_renderJobPhotosGrid();}catch(e){}try{_planBarSync();}catch(e){}}
 function removePhoto(i){S.photos.splice(i,1);renderPhotos();}
 
 // ── JOB PHOTOS (camera / gallery → saved with the job) ─────────────
@@ -31383,7 +31446,7 @@ function _jobPhotoUseAsBg(i){
   // "Use on canvas" left the canvas exactly as it was.
   try {
     var _bi = new Image();
-    _bi.onload = function(){ try { _applyCanvasBg(_bi); } catch(e){} };
+    _bi.onload = function(){ try { window._nextBgIsPlan = (pp.kind === 'plan'); _applyCanvasBg(_bi); } catch(e){} };
     _bi.src = pp.src;
   } catch(e){}
   var pv = document.getElementById('roofPrevImg'); if (pv) pv.src = pp.src;
@@ -65589,7 +65652,7 @@ function redoLast() {
 
 function clearAll(silent) {
   try { _ccStop(); } catch(e){}
-  if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration + all sheet/flashing overrides)')) return;
+  if(!silent && !confirm('Clear everything? (outline, lines, penetrations, calibration, the picture and the PDF plan + all sheet/flashing overrides)')) return;
   try { _lkgForget(); } catch(e){}   // asked for — an empty save is now correct
   DRAW.outline=[]; DRAW.sections=[]; DRAW.lines=[]; DRAW.penetrations=[]; DRAW.notes=[]; DRAW.tapes=[]; DRAW.selTape=-1;
   // THE CLEARLITES GO WITH THE ROOF (2026-11-11, the owner: job 3355 opened
@@ -65640,6 +65703,9 @@ function clearAll(silent) {
   catch(e){ IMG_FINE_ROTATION = 0; }
   try { if (window.S) S.img64 = null; } catch(e){}
   try { _roofPrevReset(); } catch(e){}
+  // …and the PDF plan's pages with it: they came in with the picture, and a
+  // demo cleared and re-done three times stacked three plans in the photos.
+  try { _PDF_PLAN_GEN++; DRAW._bgPlanImg = null; _planPhotosDrop(); _roofPdfClose(); renderPhotos(); } catch(e){}
   try { window._aerialLoadedAddr = null; } catch(e){}
   hidePropPanel(); setTool('outline'); redrawAll(); syncToRoofData();
   try { renderMatRoofMap(); } catch(e){}
@@ -83311,6 +83377,9 @@ async function _fergusPickPhoto(f){
 // the office left it with.
 function _applyCanvasBg(img, view){
   DRAW.bgImg = img;
+  DRAW._bgPlanImg = window._nextBgIsPlan ? img : null;
+  window._nextBgIsPlan = false;
+  try { _planBarSync(); } catch(e){}
   // A NEW picture starts where it is put: bgAdjust belongs to the picture it
   // was nudged for, so carrying it onto the next one would drop the new photo
   // off at the last one's offset. A job being REOPENED hands its own nudge
