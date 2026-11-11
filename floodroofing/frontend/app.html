@@ -4847,6 +4847,10 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 /* colour swatches */
 .qb-chosen{ font-size:13.5px; color:#42556b; margin-bottom:12px; }
 .qb-chosen b{ font-weight:700; color:#0a1628; }
+.qb-cs-sample{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 4px;padding:12px 14px;border:1px solid #cfe3ee;background:#f2f8fb;border-radius:10px;font-size:13.5px;line-height:1.45;color:#334155}
+.qb-cs-sample-txt{flex:1 1 260px}
+.qb-cs-sample-btn{flex:0 0 auto;display:inline-block;padding:8px 14px;border-radius:8px;background:#0a1628;color:#fff!important;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap}
+.qb-cs-sample-btn:hover{background:#13284a}
 .qb-swatches{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
 .qb-sw{ border:1.5px solid #e2e8f0; border-radius:12px; padding:7px 7px 8px; background:#fff; cursor:pointer; font-family:inherit; }
 .qb-sw.on{ border-color:#0099e0; box-shadow:0 0 0 3px rgba(0,153,224,.12); }
@@ -5610,7 +5614,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-11T00:59:27Z';
+  window.APP_BUILT_AT = '2026-11-11T06:27:54Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -25889,6 +25893,16 @@ async function loadSubscription(){
 function _planGateHtml(){
   var s = SUBSCRIPTION;
   if (!s || s.status === 'active') return '';
+  // A COMPLIMENTARY account (COMP_SIGNUPS, the RANZ pilot): no countdown,
+  // no roofs left, no plan to pick — just what it is and until when.
+  if (s.comp && s.comp.until && !(s.trial && s.trial.expired)){
+    var cu = new Date(s.comp.until), cp = String(s.comp.plan || 'team');
+    var cw = isNaN(cu.getTime()) ? '' : cu.toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Pacific/Auckland' });
+    return '<div class="tb tb-calm" id="compBar"><span class="tb-x">\u2b50</span><span>' +
+      '<strong>Complimentary RoofMap ' + cp.charAt(0).toUpperCase() + cp.slice(1) + ' access' + (cw ? ' until ' + cw : '') + '.</strong> ' +
+      'Every feature, no roof limit, no card. Tell us what works and what doesn\u2019t \u2014 Request a Fix in the menu comes straight to Aron.' +
+      '</span></div>';
+  }
   // Once billing is switched on, the way to start is a button, not an
   // email address. Before then (billing:false) the email stays.
   var cta = s.billing
@@ -39892,6 +39906,7 @@ function _qbColour(){
       _qbColourNote('colour', cur)+
       _colourEditBtnHtml('grade', p.steelGrade || _quoteGradeId())+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
+      _colorsteelSampleHtml(_paletteBrandForGradeId(p.steelGrade || _quoteGradeId()).title === 'Colorsteel\u00ae')+
       // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
       // roofing quote, allow me to delete the roof colour section"), the
       // grade / profile / thickness button exactly — the pick goes with it
@@ -39903,6 +39918,30 @@ function _qbColour(){
 // 3347's accepted PDF printed "tap one below, or Undecided above" over a grid
 // nobody could tap). The page you press on keeps its instruction; paper and an
 // accepted quote say what it means for the job.
+// ORDER A COLORSTEEL® SAMPLE (2026-11-11, NZ Steel's Senior Brand Manager:
+// "It would also be good if you can link back to our order a steel sample
+// page, we recommend samples are ordered before making a colour choice as
+// there is so much variation in digital screens" — and "please send over
+// final links/screen shots of how it will appear for approval before going
+// live"). Under a COLORSTEEL® colour chart only (never ColorZen, never
+// COLORBOND®, never Marley). OFF until NZ Steel approves the screenshots:
+// COLORSTEEL_SAMPLE_ON, or window.__COLORSTEEL_SAMPLE = true to picture it.
+// The URL is theirs to confirm (COLORSTEEL_SAMPLE_URL).
+var COLORSTEEL_SAMPLE_ON = false;
+var COLORSTEEL_SAMPLE_URL = 'https://colorsteel.co.nz/';
+function _colorsteelSampleOn(){
+  if (window.__COLORSTEEL_SAMPLE === true) return true;
+  if (window.__COLORSTEEL_SAMPLE === false) return false;
+  return COLORSTEEL_SAMPLE_ON;
+}
+function _colorsteelSampleHtml(isColorsteel){
+  if (!isColorsteel || !_colorsteelSampleOn() || _isAU()) return '';
+  if (window.__PRINTING_MODERN || window.__PRINTING_QUOTE) return '';   // a link on paper goes nowhere
+  return '<div class="qb-cs-sample">'+
+    '<span class="qb-cs-sample-txt"><b>Screens show colours differently.</b> We recommend ordering free genuine COLORSTEEL\u00ae samples before you choose \u2014 they are posted to your door.</span>'+
+    '<a class="qb-cs-sample-btn" href="'+esc2(COLORSTEEL_SAMPLE_URL)+'" target="_blank" rel="noopener">Order a COLORSTEEL\u00ae sample \u2197</a>'+
+  '</div>';
+}
 function _qbNoColourYet(undecidedAbove){
   var accepted = !!(window.S && S.quote && S.quote.accepted);
   if (window.__PRINTING_MODERN || window.__PRINTING_QUOTE || accepted)
@@ -40014,6 +40053,7 @@ function _qbGutterColour(){
     _qbColourNote('gcolour', cur)+
     _colourEditBtnHtml('gutter', gt)+
     '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
+    _colorsteelSampleHtml(P.kind === 'colorsteel' && !_isAU())+
     del + '</div>';
 }
 // THE PICKED GUTTER, SHOWN (2026-10-18, the owner: "make sure the profile is
