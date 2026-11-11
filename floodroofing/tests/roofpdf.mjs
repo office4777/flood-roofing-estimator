@@ -257,6 +257,60 @@ const pickPdf = (pg, name='plans.pdf') => pg.evaluate((n) => {
   await ctx.close();
 }
 
+// ── ONE PLAN A JOB, AND IT COMES OFF (2026-11-12, after a demo: a cleared
+// canvas left the plan in the photos, and every new PDF added another set) ─
+{
+  const { ctx, pg } = await boot(true);
+  await pg.evaluate(() => gotoTab('roof'));
+  await pg.waitForTimeout(300);
+  // a site photo that must survive everything below
+  await pg.evaluate(() => { S.photos = [{ src:'data:image/png;base64,iVBORw0KGgo=', caption:'site', kind:'' }]; renderPhotos(); });
+  pickPdf(pg); await pg.waitForTimeout(900);
+  await pg.evaluate(() => _roofPdfUsePage(1)); await pg.waitForTimeout(2500);
+  let v = await pg.evaluate(() => ({ n: S.photos.length, plan: _planPhotoCount(),
+    bar: getComputedStyle(document.getElementById('roofPlanBar')).display,
+    barTxt: document.getElementById('roofPlanBarTxt').textContent,
+    btn: document.getElementById('jobPhotosClearPlan').style.display,
+    btnTxt: document.getElementById('jobPhotosClearPlan').textContent, bgPlan: _bgIsPlan() }));
+  check('a PDF plan shows "Remove PDF plan" on the Map Roof upload card and in the Photos panel',
+    v.plan === 3 && v.bar === 'flex' && /3 pages/.test(v.barTxt) && v.btn === '' && /Remove PDF plan \(3 pages\)/.test(v.btnTxt) && v.bgPlan, JSON.stringify(v));
+  // a second PDF REPLACES the first plan's pages
+  pickPdf(pg, 'other.pdf'); await pg.waitForTimeout(900);
+  await pg.evaluate(() => _roofPdfUsePage(2)); await pg.waitForTimeout(2500);
+  v = await pg.evaluate(() => ({ n: S.photos.length, plan: _planPhotoCount(), site: S.photos.filter(p => p.caption === 'site').length }));
+  check('a new PDF replaces the last plan\'s pages instead of adding to them', v.plan === 3 && v.n === 4 && v.site === 1, JSON.stringify(v));
+  // Remove PDF plan: pages out, the plan off the canvas, the drawing and the site photo stay
+  await pg.evaluate(() => { DRAW.outline = [[10,10],[200,10],[200,150],[10,150]]; DRAW.outlineDone = true; });
+  await pg.click('#roofPlanBarRm');
+  await pg.waitForTimeout(400);
+  v = await pg.evaluate(() => ({ plan: _planPhotoCount(), site: S.photos.length, bg: !!DRAW.bgImg, outline: DRAW.outline.length,
+    bar: getComputedStyle(document.getElementById('roofPlanBar')).display, btn: document.getElementById('jobPhotosClearPlan').style.display }));
+  check('Remove PDF plan takes its pages out and the plan off the canvas, leaving the drawing and the site photos',
+    v.plan === 0 && v.site === 1 && v.bg === false && v.outline === 4 && v.bar === 'none' && v.btn === 'none', JSON.stringify(v));
+  // Clear takes the plan with the picture; the site photo stays
+  pickPdf(pg); await pg.waitForTimeout(900);
+  await pg.evaluate(() => _roofPdfUsePage(1)); await pg.waitForTimeout(2500);
+  await pg.evaluate(() => clearAll(true)); await pg.waitForTimeout(300);
+  v = await pg.evaluate(() => ({ plan: _planPhotoCount(), site: S.photos.length, bg: !!DRAW.bgImg }));
+  check('Clear takes the PDF plan\'s pages with the picture, and keeps the site photos', v.plan === 0 && v.site === 1 && v.bg === false, JSON.stringify(v));
+  // a Clear while the plan is still rendering stops it landing afterwards
+  pickPdf(pg); await pg.waitForTimeout(900);
+  await pg.evaluate(() => { _roofPdfUsePage(1); });
+  await pg.waitForTimeout(120);
+  await pg.evaluate(() => clearAll(true)); await pg.waitForTimeout(2500);
+  v = await pg.evaluate(() => _planPhotoCount());
+  check('…even when Clear is pressed while the plan is still loading into the photos', v === 0, String(v));
+  // an aerial over the plan is not the plan: Remove PDF plan leaves it
+  pickPdf(pg); await pg.waitForTimeout(900);
+  await pg.evaluate(() => _roofPdfUsePage(1)); await pg.waitForTimeout(2500);
+  await pg.evaluate(() => new Promise(r => { const im = new Image(); im.onload = () => { _applyCanvasBg(im); r(); };
+    const c = document.createElement('canvas'); c.width = 40; c.height = 30; im.src = c.toDataURL(); }));
+  await pg.evaluate(() => _clearPdfPlan()); await pg.waitForTimeout(300);
+  v = await pg.evaluate(() => ({ plan: _planPhotoCount(), bg: !!DRAW.bgImg }));
+  check('a picture put on the canvas after the plan is left there by Remove PDF plan', v.plan === 0 && v.bg === true, JSON.stringify(v));
+  await ctx.close();
+}
+
 // ── no signal: say so, don't sit there ────────────────────────────
 {
   const { ctx, pg } = await boot(false);

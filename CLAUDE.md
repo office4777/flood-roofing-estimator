@@ -3394,6 +3394,22 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   old pale grid was right). Screen-constant at every zoom, exactly as before.
   The ALIGNMENT grid stays orange and stays louder — that one is only up while
   the rotate slider is being dragged and is meant to be shouted.
+- ONE PDF PLAN A JOB, AND IT COMES OFF AGAIN (2026-11-12, the owner after a
+  demo: "I cleared the job, cleared the canvas, but there was no way of clearing
+  the PDF plan ... I added a new PDF ... it just added that PDF to the other
+  PDF's photos"). A plan's pages are job photos with `kind:'plan'`; Clear only
+  ever took the canvas picture. Now `_roofPdfPagesToPhotos` drops the last
+  plan's pages first (a new PDF REPLACES it), `clearAll` drops them with the
+  picture (site photos stay), and "🗑 Remove PDF plan" — `#roofPlanBar` under
+  the Map Roof upload card and `#jobPhotosClearPlan` in the Photos panel, shown
+  only while there is a plan (`_planBarSync`, from `renderPhotos` and
+  `_applyCanvasBg`) — runs `_clearPdfPlan`: the pages out, and the canvas
+  picture too only when it IS a page of the plan (`DRAW._bgPlanImg`, set by
+  `_applyCanvasBg` from `window._nextBgIsPlan`; not saved, so after a reload
+  the background is the "Delete background photo" button's). `_PDF_PLAN_GEN`
+  (bumped by a new plan, Clear, Remove and `_releaseJobContent`) stops a plan
+  still rendering from landing afterwards — or in the next job's photos.
+  `tests/roofpdf.mjs` (42).
 - A NEW JOB STARTS WITH NO CLEARLITES, AND A CLEARLITE IS CLICKED TO DELETE
   (2026-11-11, the owner: job 3355 opened with the four clears of job 3344 on
   its canvas; "it doesn't let me click those clear lights and delete them";
