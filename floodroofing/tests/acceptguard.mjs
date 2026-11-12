@@ -110,6 +110,45 @@ r = await put('/jobs/job-3288/quote', { quote: st2 }); q = held();
 check('a copy that has not seen the customer open the quote does not knock "opened" back to "sent"', q.share.status === 'opened', q.share.status);
 check('…and the customer’s events are kept beside the office’s', q.share.events.length === 2 && q.share.events.some(e => e.type === 'opened'), JSON.stringify(q.share.events));
 
+// ── the customer's picks BEFORE they accept (2026-11-12, quote 3355) ──
+// The customer chose Corrugate on their link, an office screen still holding
+// the recommended 5-Rib saved the job, and when the customer came back to
+// accept, the link showed 5-Rib again — so the confirmation said 5-Rib.
+const openQ = () => { const q0 = storedQuote(); delete q0.accepted; q0.versions.accepted = null;
+  q0.share.status = 'opened'; q0.proposalOptions = { profile: '5rib', steelThickness: '55', extras: {} }; return q0; };
+reset(); db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote = openQ();
+r = await fetch(BASE + '/q/tok-3288/event', { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ type: 'update', selections: { proposalOptions: { profile: 'corrugate', steelThickness: '40' } } }) });
+q = held();
+check('the customer picking Corrugate on their link is saved, and stamped (custPicksAt)',
+  r.status === 200 && q.proposalOptions.profile === 'corrugate' && q.proposalOptions.steelThickness === '40' && !!q.share.custPicksAt, JSON.stringify({ po: q.proposalOptions, at: q.share.custPicksAt }));
+const pickedAt = q.share.custPicksAt;
+const officeOld = () => { const o = openQ(); o.share.status = 'sent'; return o; };   // the screen from before the customer's pick
+r = await put('/jobs/job-3288/quote', { quote: officeOld() }); j = await r.json(); q = held();
+check('an office publish that had not seen the pick keeps the customer’s Corrugate (and its 0.40 gauge)',
+  q.proposalOptions.profile === 'corrugate' && q.proposalOptions.steelThickness === '40' && q.share.custPicksAt === pickedAt, JSON.stringify(q.proposalOptions));
+check('…and tells that screen what the customer picked (keptCustomerPicks)',
+  j.keptCustomerPicks && j.keptCustomerPicks.picks.profile === 'corrugate' && j.keptCustomerPicks.token === 'tok-3288', JSON.stringify(j));
+r = await put('/jobs/job-3288', { draw_state: { draw: { lines: [] }, state: { quote: officeOld() } } }); j = await r.json(); q = held();
+check('…the full job save the same', q.proposalOptions.profile === 'corrugate' && j.keptCustomerPicks && j.keptCustomerPicks.picks.profile === 'corrugate', JSON.stringify({ po: q.proposalOptions, j }));
+const seen = officeOld(); seen.share.custPicksAt = pickedAt; seen.proposalOptions = { profile: '5rib', steelThickness: '55', extras: {} };
+r = await put('/jobs/job-3288/quote', { quote: seen }); j = await r.json(); q = held();
+check('an office screen that HAS seen the pick may change it (its own choice stands)', q.proposalOptions.profile === '5rib' && !j.keptCustomerPicks, JSON.stringify(q.proposalOptions));
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote = openQ();
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote.proposalOptions.profile = 'corrugate';
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote.share.custPicksAt = '2026-11-12T01:00:00.000Z';
+const resend = officeOld(); resend.share.sentAt = '2026-11-12T02:00:00.000Z';
+r = await put('/jobs/job-3288/quote', { quote: resend }); q = held();
+check('a NEW SEND after the customer’s picks is the office re-quoting: its picks stand', q.proposalOptions.profile === '5rib', JSON.stringify(q.proposalOptions));
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote = openQ();
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote.proposalOptions.profile = 'corrugate';
+db.jobs.find(j => j.id === 'job-3288').draw_state.state.quote.share.custPicksAt = '2026-11-12T01:00:00.000Z';
+r = await fetch(BASE + '/q/tok-3288/event', { method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ type: 'accepted', name: 'Miria Lovey Henry', total: 7000, selections: { proposalOptions: { profile: 'corrugate', steelThickness: '40' } } }) });
+r = await put('/jobs/job-3288/quote', { quote: officeOld() }); q = held();
+check('after the customer accepts, a stale office save still cannot turn their Corrugate back into 5-Rib',
+  q.share.status === 'accepted' && q.proposalOptions.profile === 'corrugate', JSON.stringify({ st: q.share.status, po: q.proposalOptions }));
+
 // ── a different link is left alone ────────────────────────────────
 reset();
 const other = stale(); other.share.token = 'tok-new';

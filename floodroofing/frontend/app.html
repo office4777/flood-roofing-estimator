@@ -5614,7 +5614,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-11T22:12:30Z';
+  window.APP_BUILT_AT = '2026-11-12T01:03:27Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16008,6 +16008,7 @@ async function api(method, path, body) {
   if (r.status === 204) return null;
   var _j = await r.json();
   try { if (_j && _j.keptAcceptance) _keptAcceptanceNotice(); } catch(e){}
+  try { if (_j && _j.keptCustomerPicks) _keptCustomerPicksApply(_j.keptCustomerPicks); } catch(e){}
   // A save that just used one of the trial's roofs: the counter moves now.
   try { if (_j && _j.trialRoofCounted) setTimeout(function(){ loadSubscription(); }, 0); } catch(e){}
   return _j;
@@ -16084,6 +16085,18 @@ try { if (document.readyState === 'loading') document.addEventListener('DOMConte
 // the server kept their acceptance rather than take this screen's older copy
 // of the quote. Say so, plainly and once, and offer to reopen the job so the
 // screen shows what the customer accepted.
+// THE CUSTOMER'S PICKS WIN OVER A SCREEN THAT HAD NOT SEEN THEM (2026-11-12,
+// quote 3355). The server kept what the customer chose on their link; this
+// screen takes the same picks, so it shows them and its next save agrees.
+function _keptCustomerPicksApply(kp){
+  if (!kp || !kp.picks || !window.S || !S.quote || S._qvViewing) return;
+  var sh = S.quote.share || {};
+  if (!sh.token || sh.token !== kp.token) return;
+  var po = S.quote.proposalOptions || (S.quote.proposalOptions = {});
+  Object.keys(kp.picks).forEach(function(k){ po[k] = kp.picks[k]; });
+  sh.custPicksAt = kp.at;
+  try { refreshQuoteProposal(); } catch(e){}
+}
 function _keptAcceptanceNotice(){
   if (document.getElementById('keptAccBar')) return;
   var b = document.createElement('div');
