@@ -6520,7 +6520,8 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
         // THE CUSTOMER'S PICKS ARE STAMPED (2026-11-12, quote 3355: Corrugate
         // picked, the confirmation said 5-Rib). An office screen that has not
         // seen this stamp keeps them on its next save (_keepCustomerState).
-        share.custPicksAt = new Date().toISOString();
+        // (quote.share IS `share` here; written that way because tests/acceptcarry.mjs lifts this block.)
+        if (quote.share && typeof quote.share === 'object') quote.share.custPicksAt = new Date().toISOString();
       }
     }
     if (type === 'accepted') {
