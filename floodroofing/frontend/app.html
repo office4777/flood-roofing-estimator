@@ -5614,7 +5614,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T21:09:19Z';
+  window.APP_BUILT_AT = '2026-11-12T21:20:48Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -58472,16 +58472,48 @@ function _setDrawLines(next){
 // corners move onto the squared walls, in place, so the outline, the
 // gutters along it and the roof over it are all dead level, plumb and 45°.
 // An outline with a genuinely angled wall is left exactly as drawn.
+// EACH WALL IS SQUARED ON ITS OWN; TWO WALLS ARE NEVER PULLED INTO LINE
+// (feedback report 21, 2026-11-13, ethan@ on job 3351: "when I drag [the
+// bottom left corner] to the left, it also moves the top left corner ... to
+// force it to keep in line, where that's wrong"). This wrote _roofSquareUp's
+// outline into the drawing, and that one treats two DIFFERENT walls within
+// ~5% of the building's span as the same wall — so a corner moved half a metre
+// off another wall's line was averaged back with it, live, every drag frame.
+// The roof is still BUILT on that merged outline (the builders call
+// _roofSquareUp themselves and put the wall ends back), but the drawing keeps
+// every corner where the roofer put it: only a wall's OWN two ends are brought
+// level or plumb, walls joined end to end along one straight run move together.
 function _squareDrawnOutline(){
   try {
     var ol = DRAW.outline;
     if (!ol || ol.length < 4) return false;
     var sq = _roofSquareUp(ol);
-    if (!sq || !sq.outline || sq.outline.length !== ol.length) return false;
-    var moved = false;
-    for (var i = 0; i < ol.length; i++){
-      if (Math.abs(ol[i][0] - sq.outline[i][0]) > 0.01 || Math.abs(ol[i][1] - sq.outline[i][1]) > 0.01) moved = true;
-      ol[i][0] = sq.outline[i][0]; ol[i][1] = sq.outline[i][1];
+    if (!sq || !sq.outline) return false;            // angled for real, or square already
+    var n = ol.length;
+    var xs = ol.map(function(p){ return p[0]; }), ys = ol.map(function(p){ return p[1]; });
+    var spanX = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+    var spanY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+    var tol = Math.max(2, Math.min(0.05 * Math.min(spanX, spanY), 24));
+    var pX = [], pY = [], i;
+    for (i = 0; i < n; i++){ pX.push(i); pY.push(i); }
+    var find = function(par, a){ while (par[a] !== a){ par[a] = par[par[a]]; a = par[a]; } return a; };
+    var join = function(par, a, b){ a = find(par, a); b = find(par, b); if (a !== b) par[b] = a; };
+    for (i = 0; i < n; i++){
+      var j = (i + 1) % n, a = ol[i], b = ol[j];
+      var dx = Math.abs(b[0] - a[0]), dy = Math.abs(b[1] - a[1]);
+      if (dx <= dy && dx <= tol) join(pX, i, j);        // a plumb wall: one x
+      else if (dy < dx && dy <= tol) join(pY, i, j);    // a level wall: one y
+    }
+    var mean = function(par, vals){
+      var sum = {}, cnt = {}, k;
+      for (k = 0; k < n; k++){ var r = find(par, k); sum[r] = (sum[r] || 0) + vals[k]; cnt[r] = (cnt[r] || 0) + 1; }
+      return function(k2){ var r2 = find(par, k2); return sum[r2] / cnt[r2]; };
+    };
+    var mx = mean(pX, xs), my = mean(pY, ys), moved = false;
+    for (i = 0; i < n; i++){
+      var nx = mx(i), ny = my(i);
+      if (Math.abs(ol[i][0] - nx) > 0.01 || Math.abs(ol[i][1] - ny) > 0.01) moved = true;
+      ol[i][0] = nx; ol[i][1] = ny;
     }
     return moved;
   } catch(e){ return false; }
