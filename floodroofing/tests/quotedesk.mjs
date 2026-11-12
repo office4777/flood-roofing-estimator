@@ -302,18 +302,27 @@ check('…the review reads "Quote accepted", the rail too, and the picks are fro
   acc.h === 'Quote accepted' && acc.rail === 'Quote accepted' && acc.frozen, JSON.stringify(acc));
 check('…and the page is still the computer layout afterwards (the PDF pass did not leave the A4 behind)', acc.desk && acc.qd);
 check('nothing on the computer threw', d.errs.length === 0, d.errs.join(' | ') || 'clean');
-// ORDER A COLORSTEEL® SAMPLE (2026-11-11): built, OFF until NZ Steel approves.
+// REQUEST A COLORSTEEL® COLOUR SAMPLE (2026-11-13): on, in the roof colour
+// section only, and only for a COLORSTEEL grade.
 const cs = await d.pg.evaluate(() => {
-  const off = !document.querySelector('#qd-colour .qb-cs-sample');
-  window.__COLORSTEEL_SAMPLE = true;
-  const on = _colorsteelSampleHtml(true), notCs = _colorsteelSampleHtml(false);
-  window.__PRINTING_MODERN = true; const paper = _colorsteelSampleHtml(true); window.__PRINTING_MODERN = false;
-  window.__COLORSTEEL_SAMPLE = undefined;
-  return { off, on, notCs, paper };
+  const out = {};
+  out.on = _colorsteelSampleHtml(true); out.notCs = _colorsteelSampleHtml(false);
+  window.__PRINTING_MODERN = true; out.paper = _colorsteelSampleHtml(true); window.__PRINTING_MODERN = false;
+  out.maxam = _isColorsteelGrade('maxam'); out.cote = _isColorsteelGrade('colourcote'); out.zen = _isColorsteelGrade('colorzen'); out.zinc = _isColorsteelGrade('zincalume');
+  const p = S.quote.proposalOptions = S.quote.proposalOptions || {}, was = p.steelGrade;
+  p.steelGrade = 'maxam'; refreshQuoteProposal();
+  out.inColour = !!document.querySelector('#qd-colour .qb-cs-sample a[href="https://www.colorsteel.co.nz/order-colour-sample"]');
+  out.inGutter = !!document.querySelector('#qd-gcolour .qb-cs-sample');
+  p.steelGrade = 'colourcote'; refreshQuoteProposal();
+  out.coteShown = !!document.querySelector('.qb-cs-sample');
+  p.steelGrade = was; refreshQuoteProposal();
+  return out;
 });
-check('the COLORSTEEL sample link is off by default (awaiting NZ Steel)', cs.off, JSON.stringify(cs).slice(0,160));
-check('…switched on it links out in a new tab under a COLORSTEEL chart only, never on paper',
-  /Order a COLORSTEEL\u00ae sample|Order a COLORSTEEL® sample/.test(cs.on) && /target="_blank"/.test(cs.on) && cs.notCs === '' && cs.paper === '', cs.on.slice(0,120));
+check('the COLORSTEEL colour-sample link links NZ Steel’s order page in a new tab, never on paper',
+  /Request a COLORSTEEL® colour sample/.test(cs.on) && /href="https:\/\/www\.colorsteel\.co\.nz\/order-colour-sample"/.test(cs.on) && /target="_blank"/.test(cs.on) && cs.notCs === '' && cs.paper === '', cs.on.slice(0,200));
+check('…it is the COLORSTEEL grade alone that offers it (not ColorCote, ColorZen or Zincalume)', cs.maxam && !cs.cote && !cs.zen && !cs.zinc, JSON.stringify(cs));
+check('…on the quote it sits in the roof colour section on MAXAM, and nowhere on ColorCote',
+  cs.inColour && !cs.inGutter && !cs.coteShown, JSON.stringify({ inColour: cs.inColour, inGutter: cs.inGutter, coteShown: cs.coteShown }));
 await d.ctx.close();
 
 // ── the same quote on a phone reads the same lines and the same total ─

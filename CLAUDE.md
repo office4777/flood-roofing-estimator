@@ -6426,20 +6426,20 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   for 10 more)"; terms `#ai-allowance` (v1.1, not bumped — v1.1 went live the
   same morning). `tests/tenderusage.mjs` (23, API), `tenderui` (101),
   `tenderapi` (139).
-- ORDER A COLORSTEEL® SAMPLE (2026-11-11, NZ Steel's Senior Brand Manager,
-  Laura Clark: fine to reference COLORSTEEL®, "please send over final
-  links/screen shots of how it will appear for approval before going live",
-  and link back to their order-a-sample page). `_colorsteelSampleHtml` under
-  the roof colour (`_qbColour`) and a COLORSTEEL box gutter's colour
-  (`_qbGutterColour`): a note and an "Order a COLORSTEEL® sample ↗" button —
-  never ColorZen, COLORBOND®, Marley, Australia or paper. BUILT AND OFF
-  (`COLORSTEEL_SAMPLE_ON = false`; `window.__COLORSTEEL_SAMPLE = true` to
-  picture it) until she approves the screenshots (drafted to her 11 Nov, not
-  sent) and confirms the URL — `COLORSTEEL_SAMPLE_URL` is the home page for
-  now. Her two PDFs (colour codes for digital, TSR/LRV/SRI) sit on
-  colorsteelassets.co.nz, which this container cannot reach; check the
-  `MAXAM_COLOURS` hexes against the first once it is in hand.
-  `quotedesk.mjs` pins it off, and on.
+- REQUEST A COLORSTEEL® COLOUR SAMPLE (2026-11-11, NZ Steel's Senior Brand
+  Manager, Laura Clark, asked for a link to their order-a-sample page and to see
+  screenshots before it went live; SWITCHED ON 2026-11-13 at the owner's ask:
+  "in the Roof colour section ... a small request a Colorsteel sample link
+  button ... (if colour steel is selected as the steel grade) ... other steel
+  grades don't offer a request a colour link"). `_colorsteelSampleHtml` under
+  the ROOF colour's swatches (`_qbColour`) only — the gutter colour's call is
+  gone — when `_isColorsteelGrade(grade)`: a grade NAMED Colorsteel, or the
+  shipped maxam / endura rows under no other maker's name; never ColorCote,
+  ColorZen, Zincalume, COLORBOND, MagnaFlow, Australia or paper.
+  "Request a COLORSTEEL® colour sample ↗" to `COLORSTEEL_SAMPLE_URL`
+  https://www.colorsteel.co.nz/order-colour-sample (new tab).
+  `COLORSTEEL_SAMPLE_ON` true; `window.__COLORSTEEL_SAMPLE = false` hides it.
+  `typesnap.json` regenerated (deskText only). `quotedesk.mjs` (62).
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted
