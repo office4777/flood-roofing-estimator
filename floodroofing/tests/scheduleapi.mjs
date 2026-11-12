@@ -340,6 +340,31 @@ check('leaving takes the person off the list', body.users.length === 0, JSON.str
   check('…but never onto another business\u2019s row', r.status === 400, String(r.status));
 }
 
+// WHO THE MATERIALS WERE ORDERED FROM, AND WHEN (2026-11-12).
+{
+  let brd = await j(await as(A, '/schedule'));
+  let rw = (brd.rows || []).find(x => x.id === rowA.id) || {};
+  check('an order emailed from the board ticks the row and names the supplier (through RoofMap)',
+    rw.ordered === true && (rw.orders || []).some(o => o.via === 'roofmap' && o.supplier === 'Roofing Industries'), JSON.stringify({ o: rw.ordered, orders: rw.orders }));
+  const lk = (brd.rows || []).find(x => x.job_id === JOB) || {};
+  check('…and the job\u2019s own Order Roof is listed as an order through RoofMap', (lk.orders || []).some(o => o.via === 'roofmap' && o.what === 'Roof order' && o.at === '2026-08-01T00:00:00Z'), JSON.stringify(lk.orders));
+  r = await as(A, '/schedule/rows/' + rowQ.id, { method: 'PATCH', body: JSON.stringify({ ordered: true, order_info: { supplier: '  Dimond Roofing ', date: '2026-11-10', junk: 'x' } }) });
+  body = await j(r);
+  check('an order placed outside RoofMap is kept with its supplier and date (and nothing else)',
+    r.status === 200 && body.ordered === true && body.order_info && body.order_info.supplier === 'Dimond Roofing' && body.order_info.date === '2026-11-10' && !('junk' in body.order_info) && /user-a/.test(body.order_info.by),
+    JSON.stringify(body.order_info));
+  brd = await j(await as(A, '/schedule'));
+  rw = (brd.rows || []).find(x => x.id === rowQ.id) || {};
+  check('…and the board lists it as ordered outside RoofMap', (rw.orders || []).some(o => o.via === 'manual' && o.supplier === 'Dimond Roofing' && o.date === '2026-11-10'), JSON.stringify(rw.orders));
+  r = await as(A, '/schedule/rows/' + rowQ.id, { method: 'PATCH', body: JSON.stringify({ order_info: { supplier: '', date: 'yesterday' } }) });
+  body = await j(r);
+  check('an empty or half-typed order is stored as nothing', r.status === 200 && body.order_info == null, JSON.stringify(body.order_info));
+  r = await as(A, '/schedule/rows/' + rowQ.id, { method: 'PATCH', body: JSON.stringify({ ordered: false, order_info: null }) });
+  brd = await j(await as(A, '/schedule'));
+  rw = (brd.rows || []).find(x => x.id === rowQ.id) || {};
+  check('…and unticking takes it off', rw.ordered === false && !(rw.orders || []).length, JSON.stringify({ o: rw.ordered, orders: rw.orders }));
+}
+
 const pass = results.filter(Boolean).length;
 console.log(pass + '/' + results.length + ' passed');
 await new Promise(r2 => relay.close(r2)); try { _mem.close(); } catch (e) {}

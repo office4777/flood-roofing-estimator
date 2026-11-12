@@ -11035,6 +11035,7 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
             client_email: (j.q_client && (j.q_client.email || j.q_client.mail)) || j.q_email || j.q_sent_to || '',
             quote_sent_at: j.q_sent_at || null,
             order_sent_at: (j.order_sent && typeof j.order_sent === 'object') ? (j.order_sent.at || null) : null,
+            order_supplier: (j.order_sent && typeof j.order_sent === 'object') ? String(j.order_sent.supplier || j.order_sent.to || '').slice(0, 200) : '',
             // The crew hours the labour was priced on, as working days of 8.
             labour_days: _schedLabourDays(j.q_labour),
             job_no: (j.q_ref == null) ? '' : String(j.q_ref),
@@ -11066,6 +11067,7 @@ app.get('/schedule', ..._schedGate, async (req, res) => {
         accepted_at:  a.accepted_at || null,
         quote_sent_at: a.quote_sent_at || null,
         order_sent_at: a.order_sent_at || null,
+        orders:       _schedOrdersOf(r, a),
         labour_days:  a.labour_days || 0,
         // A row whose length nobody typed follows the labour priced on the
         // job (job 3349 read 1 day beside four days of labour).
@@ -11164,7 +11166,16 @@ app.post('/schedule/rows', ..._schedGate, async (req, res) => {
 
 const SCHED_ROW_WRITABLE = ['client_name', 'site_address', 'email', 'length_days', 'notes',
   'progress_pct', 'deposit_paid', 'ordered', 'delivery_check', 'confirmed_delivery',
-  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder', 'job_ref', 'fergus_job_id'];
+  'requested_delivery', 'sort_pos', 'archived', 'job_id', 'handover_done', 'folder', 'job_ref', 'fergus_job_id',
+  'order_info'];
+// An order placed outside RoofMap: the supplier and the day, nothing else.
+function _schedOrderInfoClean(v, req){
+  if (!v || typeof v !== 'object') return null;
+  const supplier = String(v.supplier || '').trim().slice(0, 120);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(v.date || '')) ? String(v.date) : '';
+  if (!supplier && !date) return null;
+  return { supplier, date, at: new Date().toISOString(), by: String((req && req.user && (req.user.name || req.user.email)) || '').slice(0, 120) };
+}
 // notify_log is deliberately NOT writable from the client: it is the record
 // of what the server actually sent.
 app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
@@ -11173,9 +11184,16 @@ app.patch('/schedule/rows/:id', ..._schedGate, async (req, res) => {
   if ('length_days' in patch){ patch.length_days = Math.max(1, Math.min(120, parseInt(patch.length_days, 10) || 1)); patch.length_set = true; }
   if ('progress_pct' in patch && patch.progress_pct != null)
     patch.progress_pct = Math.max(0, Math.min(100, parseInt(patch.progress_pct, 10) || 0));
+  if ('order_info' in patch) patch.order_info = _schedOrderInfoClean(patch.order_info, req);
   try {
-    const { data, error } = await _scopeCompany(supabase.from('schedule_rows')
+    let { data, error } = await _scopeCompany(supabase.from('schedule_rows')
       .update(patch), req).eq('id', req.params.id).select('*');
+    // A database the boot migration has not reached yet: keep the tick.
+    if (error && 'order_info' in patch && /order_info/.test(error.message || '')){
+      delete patch.order_info;
+      ({ data, error } = await _scopeCompany(supabase.from('schedule_rows')
+        .update(patch), req).eq('id', req.params.id).select('*'));
+    }
     if (error) return res.status(500).json({ error: error.message });
     if (!data || !data.length) return res.status(404).json({ error: 'Row not found' });
     res.json(data[0]);
@@ -11336,6 +11354,26 @@ app.post('/schedule/rows/:id/compose', ..._schedGate, async (req, res) => {
 // email the electrician and the plumber). Each kind has its own wording in
 // Settings -> Email (the roofing order shares the Job Pack's 'order' one).
 const SCHED_CUST_KINDS = ['confirm', 'week', 'pencil'];
+// WHO THE MATERIALS WERE ORDERED FROM, AND WHEN (2026-11-12, the owner: "if it
+// was ordered through RoofMap, it should automatically tick and it will
+// automatically know which supplier, but any orders outside of RoofMap,
+// prompt the user to say who they ordered it from and what date"). Every
+// order the job knows of, oldest first: Order Roof on the job (order_sent),
+// an order emailed from the board (notify_log ord_*), and one typed in for
+// an order placed elsewhere (order_info).
+function _schedOrdersOf(r, a){
+  const out = [];
+  if (a && a.order_sent_at) out.push({ via: 'roofmap', what: 'Roof order', supplier: a.order_supplier || '', at: a.order_sent_at });
+  (Array.isArray(r.notify_log) ? r.notify_log : []).forEach(function (e){
+    if (e && (e.kind === 'ord_roofing' || e.kind === 'ord_gutter') && e.at)
+      out.push({ via: 'roofmap', what: e.kind === 'ord_gutter' ? 'Gutter order' : 'Roofing material order', supplier: e.supplier || e.to || '', at: e.at });
+  });
+  const m = r.order_info;
+  if (m && typeof m === 'object' && (m.supplier || m.date))
+    out.push({ via: 'manual', what: 'Ordered outside RoofMap', supplier: m.supplier || '', date: m.date || '', at: m.at || null, by: m.by || '' });
+  out.sort(function (x, y){ return String(x.date || x.at || '').localeCompare(String(y.date || y.at || '')); });
+  return out;
+}
 const SCHED_SUPP_KINDS = { ord_roofing: 'order', ord_gutter: 'ord_gutter', scaff_book: 'scaff_book',
   scaff_quote: 'scaff_quote', trade_elec: 'trade_elec', trade_plumb: 'trade_plumb' };
 const SCHED_ATTACH_MAX = 15 * 1024 * 1024;
@@ -11403,8 +11441,10 @@ app.post('/schedule/rows/:id/send', ..._schedGate, async (req, res) => {
     }
     log.push(ent);
     if (log.length > 50) log = log.slice(-50);
+    // A materials order sent from the board IS the order: the row is ticked.
+    const _isOrder = b.kind === 'ord_roofing' || b.kind === 'ord_gutter';
     await _scopeCompany(supabase.from('schedule_rows')
-      .update(supp ? { notify_log: log } : { last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
+      .update(supp ? Object.assign({ notify_log: log }, _isOrder ? { ordered: true } : {}) : { last_notified: stamp, notify_log: log }), req).eq('id', req.params.id);
     res.json({ ok: true, last_notified: stamp, file: fileName || undefined });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
@@ -15240,6 +15280,9 @@ const _MIGRATION_SQL = [
   "alter table public.schedule_rows add column if not exists job_ref text not null default ''",
   "alter table public.schedule_rows add column if not exists fergus_job_id text not null default ''",
   "alter table public.schedule_rows add column if not exists length_set boolean not null default false",
+  // Who the materials were ordered from, and when, for an order placed
+  // OUTSIDE RoofMap (2026-11-12): {supplier, date, by, at}.
+  "alter table public.schedule_rows add column if not exists order_info jsonb",
   // The company's own product list (Settings → Products). Null means the
   // shipped list, which is what every account that has never touched it has.
   "alter table public.user_settings add column if not exists selectables jsonb",

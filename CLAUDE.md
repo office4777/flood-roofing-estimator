@@ -1955,6 +1955,27 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   kept) — and "Allocated hours (from Fergus)": every `isLabour` line or line
   in a labour / scaffold section, one line a person, headed "2 guys × 25
   hours each = 50 hours" when they match (`.sij-fghead`). `scheduleui` (184).
+- THE 📦 TICK SAYS WHO THE MATERIALS CAME FROM AND WHEN (2026-11-12, the owner:
+  "when they tick that, can it prompt the user to input which supplier ... If
+  it was ordered through RoofMap, it should automatically tick and it will
+  automatically know which supplier, but any orders outside of RoofMap, prompt
+  the user to say who they ordered it from and what date ... in the
+  information window ... show ... what date the material was ordered and who
+  it was ordered through"). GET /schedule answers `orders` per row
+  (`_schedOrdersOf`): Order Roof on the job (`order_sent`, its `supplier` now
+  read as `order_supplier`), a roofing / gutter order emailed from the board
+  (`notify_log` ord_*; such a send also sets `ordered: true`), and
+  `schedule_rows.order_info` {supplier, date, at, by} (boot DDL, writable,
+  cleaned by `_schedOrderInfoClean`; a PATCH on an un-migrated table drops it
+  and keeps the tick). THE APP: ticking 📦 on the board or in the info window
+  (`_schedOrderSet`) on a job RoofMap did not order opens `#schedOrderAsk`
+  (`_schedOrderAsk`: the roofing + gutter suppliers or "Someone else…", the
+  date ordered, today by default); Cancel unticks, Save PATCHes `ordered` +
+  `order_info`; unticking clears a typed one. A RoofMap order ticks with no
+  question. The tick's tooltip names the order(s); the info window lists them
+  under the ticks (`#schedInfoOrders`, `_schedInfoOrdersPaint`, Edit on a typed
+  one) and the History carries a typed order. `scheduleapi` (69),
+  `scheduleui` (191).
 - GABLE + HIP & VALLEY PAST AN L IS THE HIP ROOF WITH ITS ENDS GABLED (feedback
   reports 89 / 90, 2026-11-11, the owner: "it should just be the same as a
   normal hip and valley, except the 3x ends are converted to gable ends").
