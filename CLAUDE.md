@@ -1955,6 +1955,22 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   kept) — and "Allocated hours (from Fergus)": every `isLabour` line or line
   in a labour / scaffold section, one line a person, headed "2 guys × 25
   hours each = 50 hours" when they match (`.sij-fghead`). `scheduleui` (184).
+- A CORNER MOVES ITS OWN WALL, NEVER ANOTHER WALL INTO LINE (feedback report
+  21, 2026-11-13, ethan@ on job 3351: dragging the corner where the 13.08 m and
+  7.18 m gutters meet "also moves the top left corner where the two gutters
+  6.73 and 9.95 meters meet ... to force it to keep in line, where that's
+  wrong"). Every corner edit (drag, nudge pad, typed wall length) rebuilds the
+  roof, and `regenerateAutoRoofLines` first ran `_squareDrawnOutline`, which
+  wrote `_roofSquareUp`'s outline into the DRAWING — and that merges two
+  DIFFERENT walls within ~5% of the building's span (max 24 px) into one. A
+  corner moved under ~0.5 m off another wall's line was averaged back with it,
+  live, every frame; a longer drag escaped the tolerance, which is why it only
+  bit on small moves and every pad nudge. `_squareDrawnOutline` now squares
+  each wall on its own (union-find over each edge's own two ends: a plumb wall
+  one x, a level wall one y; walls joined end to end along a run move
+  together); the roof BUILDERS still call `_roofSquareUp` themselves, so the
+  hips and valleys are worked out on the tidied shape exactly as before.
+  `tests/report21.mjs` (12, UI list; 4 fail on the old code).
 - THE 📦 TICK SAYS WHO THE MATERIALS CAME FROM AND WHEN (2026-11-12, the owner:
   "when they tick that, can it prompt the user to input which supplier ... If
   it was ordered through RoofMap, it should automatically tick and it will
