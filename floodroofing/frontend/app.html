@@ -5614,7 +5614,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T01:24:32Z';
+  window.APP_BUILT_AT = '2026-11-12T21:09:19Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -8320,6 +8320,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="ordered"> 📦 Materials ordered</label>
         <label style="display:flex;gap:7px;align-items:center;cursor:pointer;font-size:12.5px"><input type="checkbox" data-iedit="delivery_check"> 🚚 Delivery checked</label>
       </div>
+      <div id="schedInfoOrders" style="margin-top:8px;font-size:12px"></div>
       <!-- Which folder the job sits in. Empty = the main list. -->
       <div style="display:grid;grid-template-columns:96px 1fr;gap:6px 10px;align-items:center;margin-top:10px">
         <label style="color:var(--text2)">Folder</label>
@@ -11887,7 +11888,7 @@ function _schedRender(){
         esc(r.client_name) + '</span>';
       if (c.key === 'dep') inner = '<input type="checkbox"' + (r.deposit_paid ? ' checked' : '') + ' data-edit="deposit_paid" data-row="' + r.id + '" title="Deposit paid' + (r.auto && r.auto.deposit_paid != null ? ' (auto-filled — ticking overrides)' : '') + '">';
       if (c.key === 'hand') inner = '<input type="checkbox"' + (r.handover_done ? ' checked' : '') + ' data-edit="handover_done" data-row="' + r.id + '" title="Hand-over complete">';
-      if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="Materials ordered">';
+      if (c.key === 'ord') inner = '<input type="checkbox"' + (r.ordered ? ' checked' : '') + ' data-edit="ordered" data-row="' + r.id + '" title="' + _schedOrderTitle(r).replace(/"/g, '&quot;') + '">';
       if (c.key === 'del') inner = '<input type="checkbox"' + (r.delivery_check ? ' checked' : '') + ' data-edit="delivery_check" data-row="' + r.id + '" title="Delivery checked">';
       if (c.key === 'mail') inner = '<span data-mail="' + r.id + '" style="cursor:pointer" title="Email the customer, order material, book the scaffold or a trade">✉</span>';
       cells += '<div class="sched-cell sched-info" style="left:' + lefts[i] + 'px;width:' + c.w + 'px">' + inner + '</div>';
@@ -12074,6 +12075,10 @@ function _schedWire(grid){
     inp.onchange = function(){
       var rowId = inp.getAttribute('data-row'), field = inp.getAttribute('data-edit');
       var val = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (field === 'ordered'){
+        var _ro = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
+        if (_ro){ _schedOrderSet(_ro, inp.checked, function(){ inp.checked = !inp.checked; }); return; }
+      }
       if (field === 'length_days') val = Math.max(1, parseInt(val, 10) || 1);
       if (field === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
       var r = (_SCHED.data.rows || []).find(function(x){ return x.id === rowId; });
@@ -12580,6 +12585,7 @@ function _schedInfoOpen(rowId){
   if (lnEl) lnEl.textContent = (!r.length_set && r.labour_days > 1) ? 'from the ' + (r.labour_days * 8) + ' crew hours priced' : (r.labour_days > 1 ? 'labour priced: ' + r.labour_days + ' days' : '');
   var hEl = document.getElementById('schedInfoHistory');
   if (hEl) hEl.innerHTML = _schedInfoHistoryHtml(r);
+  _schedInfoOrdersPaint(r);
   // The three milestones, as icons, right at the top where they can be read
   // at a glance — each one saying what it means on hover.
   var iEl = document.getElementById('schedInfoIcons');
@@ -12602,6 +12608,7 @@ function _schedInfoOpen(rowId){
     else inp.value = (r[f] == null) ? '' : r[f];
     inp.onchange = function(){
       var val = inp.type === 'checkbox' ? inp.checked : inp.value;
+      if (f === 'ordered'){ _schedOrderSet(r, inp.checked, function(){ inp.checked = !inp.checked; }); return; }
       if (f === 'length_days'){ val = Math.max(1, parseInt(val, 10) || 1); r.length_set = true; var _ln = document.getElementById('schedInfoLenNote'); if (_ln) _ln.textContent = (r.labour_days > 1 ? 'labour priced: ' + r.labour_days + ' days' : ''); }
       if (f === 'progress_pct') val = inp.value === '' ? null : Math.max(0, Math.min(100, parseInt(val, 10) || 0));
       // A date column will not take an empty string; cleared means null.
@@ -12657,12 +12664,132 @@ var _SCHED_JOB_CACHE = {};
 // The job's own timeline: the quote sent, accepted, the order sent, and
 // every schedule email that went (`notify_log`, newest last) — the three
 // kinds named as they are on the board.
+// WHO THE MATERIALS WERE ORDERED FROM, AND WHEN (2026-11-12, the owner: "when
+// they tick that, can it prompt the user to input which supplier ... If it was
+// ordered through RoofMap, it should automatically tick and it will
+// automatically know which supplier, but any orders outside of RoofMap, prompt
+// the user to say who they ordered it from and what date they ordered it ...
+// in the information window ... show ... what date the material was ordered
+// and who it was ordered through"). `r.orders` comes from GET /schedule
+// (`_schedOrdersOf` in server.js): Order Roof, an order emailed from the board,
+// and `order_info`, typed here for an order placed elsewhere.
+function _schedOrdersList(r){ return (r && Array.isArray(r.orders)) ? r.orders : []; }
+function _schedOrderedViaRm(r){ return _schedOrdersList(r).some(function(o){ return o.via === 'roofmap'; }); }
+function _schedTodayNz(){ try { return new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }); } catch(e){ return new Date().toISOString().slice(0, 10); } }
+function _schedOrderDay(o){ return o.date ? _schedWhen(o.date + 'T12:00:00', true) : (o.at ? _schedWhen(o.at, true) : ''); }
+function _schedOrderText(o){
+  return (o.supplier || 'Supplier not named') + (_schedOrderDay(o) ? ' \u00b7 ' + _schedOrderDay(o) : '') +
+    ' \u00b7 ' + (o.via === 'roofmap' ? 'ordered through RoofMap' : 'ordered outside RoofMap');
+}
+function _schedOrderTitle(r){
+  var l = _schedOrdersList(r);
+  return l.length ? 'Materials ordered: ' + l.map(_schedOrderText).join('; ') : 'Materials ordered';
+}
+function _schedInfoOrdersPaint(r){
+  var el = document.getElementById('schedInfoOrders'); if (!el) return;
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
+  var l = _schedOrdersList(r);
+  if (!l.length){ el.innerHTML = r.ordered ? '<span style="color:var(--text2)">📦 Ordered — supplier and date not recorded. <a href="#" data-soedit="1" style="color:#0369a1">Add them</a></span>' : ''; }
+  else el.innerHTML = l.map(function(o){
+    return '<div class="sched-order-line" style="display:flex;gap:6px;align-items:baseline;padding:3px 0">📦 <span><b>' + esc(o.supplier || 'Supplier not named') + '</b>' +
+      (_schedOrderDay(o) ? ' \u00b7 ' + esc(_schedOrderDay(o)) : '') +
+      ' <span style="color:var(--text2)">' + (o.via === 'roofmap' ? '\u00b7 ' + esc(o.what || 'Order') + ' through RoofMap' : '\u00b7 ordered outside RoofMap') + '</span>' +
+      (o.via === 'manual' ? ' <a href="#" data-soedit="1" style="color:#0369a1">Edit</a>' : '') + '</span></div>';
+  }).join('');
+  el.querySelectorAll('[data-soedit]').forEach(function(a){
+    a.onclick = function(ev){ ev.preventDefault();
+      var cur = _schedOrdersList(r).filter(function(o){ return o.via === 'manual'; })[0] || null;
+      _schedOrderAsk(r, cur, function(info){ _schedOrderSave(r, info); }, function(){});
+    };
+  });
+}
+function _schedOrderSave(r, info){
+  r.ordered = true;
+  r.order_info = info;
+  r.orders = _schedOrdersList(r).filter(function(o){ return o.via !== 'manual'; })
+    .concat([{ via: 'manual', what: 'Ordered outside RoofMap', supplier: info.supplier, date: info.date, at: new Date().toISOString() }]);
+  _schedApi('PATCH', '/schedule/rows/' + r.id, { ordered: true, order_info: info });
+  _schedRender();
+  if (_schedInfoId === r.id){
+    var t = document.querySelector('#schedInfoModal [data-iedit="ordered"]'); if (t) t.checked = true;
+    _schedInfoOrdersPaint(r);
+    var hEl = document.getElementById('schedInfoHistory'); if (hEl) hEl.innerHTML = _schedInfoHistoryHtml(r);
+  }
+}
+// The tick. RoofMap knows an order it sent; anything else is asked for.
+function _schedOrderSet(r, checked, revert){
+  if (checked && !_schedOrderedViaRm(r)){
+    _schedOrderAsk(r, null, function(info){ _schedOrderSave(r, info); }, revert);
+    return;
+  }
+  r.ordered = !!checked;
+  var patch = { ordered: !!checked };
+  if (!checked && _schedOrdersList(r).some(function(o){ return o.via === 'manual'; })){
+    patch.order_info = null; r.order_info = null;
+    r.orders = _schedOrdersList(r).filter(function(o){ return o.via !== 'manual'; });
+  }
+  _schedApi('PATCH', '/schedule/rows/' + r.id, patch);
+  _schedRender();
+  if (_schedInfoId === r.id){
+    var t = document.querySelector('#schedInfoModal [data-iedit="ordered"]'); if (t) t.checked = !!checked;
+    _schedInfoOrdersPaint(r);
+    var hEl = document.getElementById('schedInfoHistory'); if (hEl) hEl.innerHTML = _schedInfoHistoryHtml(r);
+  }
+}
+function _schedOrderAsk(r, cur, onSave, onCancel){
+  var old = document.getElementById('schedOrderAsk'); if (old) old.remove();
+  var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); };
+  var sups = [];
+  try { ['roofing', 'gutter'].forEach(function(c){ _suppliersOf(c).forEach(function(x){ var n = x.name || x.email; if (n && sups.indexOf(n) < 0) sups.push(n); }); }); } catch(e){}
+  var curSup = (cur && cur.supplier) || '';
+  var known = curSup && sups.indexOf(curSup) >= 0;
+  var host = document.createElement('div');
+  host.id = 'schedOrderAsk'; host.className = 'no-print';
+  host.setAttribute('style', 'position:fixed;inset:0;background:rgba(10,22,40,.45);z-index:9300;display:flex;align-items:center;justify-content:center;padding:16px');
+  host.innerHTML = '<div style="background:#fff;border-radius:14px;box-shadow:0 16px 52px rgba(10,22,40,.3);width:420px;max-width:96vw;padding:18px 18px 14px;font-size:13px">' +
+    '<div style="font-size:16px;font-weight:800;color:#0a1628;margin-bottom:2px">📦 Materials ordered</div>' +
+    '<div style="color:var(--text2);margin-bottom:12px">' + esc(r.client_name || 'This job') + ' \u2014 who did you order them from, and when?</div>' +
+    '<label style="display:block;font-weight:600;margin-bottom:4px">Supplier</label>' +
+    (sups.length ? '<select id="soSupp" style="width:100%;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;margin-bottom:6px">' +
+      sups.map(function(n){ return '<option value="' + esc(n) + '"' + (n === curSup ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') +
+      '<option value="__other"' + ((curSup && !known) ? ' selected' : '') + '>Someone else\u2026</option></select>' : '') +
+    '<input id="soOther" type="text" maxlength="120" placeholder="Supplier name" value="' + esc(known ? '' : curSup) + '" style="width:100%;box-sizing:border-box;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;margin-bottom:10px">' +
+    '<label style="display:block;font-weight:600;margin-bottom:4px">Date ordered</label>' +
+    '<input id="soDate" type="date" value="' + esc((cur && cur.date) || _schedTodayNz()) + '" style="padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px">' +
+    '<div id="soErr" style="color:#b91c1c;font-size:12px;min-height:16px;margin-top:6px"></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">' +
+      '<button type="button" id="soCancel" class="tool-btn">Cancel</button>' +
+      '<button type="button" id="soSave" class="tool-btn" style="background:#0099e0;color:#fff;border-color:#0099e0;font-weight:700">Save</button></div></div>';
+  document.body.appendChild(host);
+  var sel = host.querySelector('#soSupp'), oth = host.querySelector('#soOther');
+  var sync = function(){ oth.style.display = (!sel || sel.value === '__other') ? '' : 'none'; };
+  if (sel) sel.onchange = function(){ sync(); if (sel.value === '__other') oth.focus(); };
+  sync();
+  var done = false;
+  var close = function(saved){ if (done) return; done = true; host.remove(); if (!saved && onCancel) onCancel(); };
+  host.querySelector('#soCancel').onclick = function(){ close(false); };
+  host.onclick = function(ev){ if (ev.target === host) close(false); };
+  host.querySelector('#soSave').onclick = function(){
+    var supplier = (sel && sel.value !== '__other') ? sel.value : String(oth.value || '').trim();
+    var date = host.querySelector('#soDate').value || '';
+    if (!supplier){ host.querySelector('#soErr').textContent = 'Say who the materials were ordered from.'; return; }
+    if (!date){ host.querySelector('#soErr').textContent = 'Put the date they were ordered.'; return; }
+    close(true);
+    onSave({ supplier: supplier.slice(0, 120), date: date });
+  };
+  setTimeout(function(){ try { (sel || oth).focus(); } catch(e){} }, 30);
+}
 function _schedInfoHistoryHtml(r){
   var esc = function(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;'); };
   var ev = [];
   if (r.quote_sent_at) ev.push({ at: r.quote_sent_at, what: 'Quote sent to the customer' });
   if (r.accepted_at) ev.push({ at: r.accepted_at, what: 'Quote accepted' });
   if (r.order_sent_at) ev.push({ at: r.order_sent_at, what: 'Order emailed to the supplier' });
+  _schedOrdersList(r).forEach(function(o){
+    if (o.via !== 'manual') return;
+    ev.push({ at: o.date ? o.date + 'T12:00:00' : (o.at || ''), what: 'Materials ordered' + (o.supplier ? ' from ' + o.supplier : '') + ' (outside RoofMap)',
+      sub: o.by ? 'Recorded by ' + o.by : '' });
+  });
   var kinds = { pencil: 'Part of month', week: 'Week of\u2026', confirm: 'Confirm start date' };
   (r.notify_log || []).forEach(function(e){
     if (!e || !e.at) return;

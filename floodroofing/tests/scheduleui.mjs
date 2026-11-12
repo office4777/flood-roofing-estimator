@@ -659,6 +659,68 @@ await pg.evaluate(() => { gotoTab('home'); });
 await pg.waitForTimeout(300);
 v = await pg.evaluate(() => document.body.classList.contains('sched-extended'));
 check('…and leaving the tab drops back to the normal layout', v === false);
+// WHO THE MATERIALS WERE ORDERED FROM, AND WHEN (2026-11-12).
+{
+  const patches = [];
+  await pg.route('**/schedule/rows/**', async (r) => {
+    if (r.request().method() === 'PATCH') patches.push(r.request().postDataJSON());
+    return r.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await pg.evaluate(() => gotoTab('schedule'));
+  await pg.waitForTimeout(400);
+  await pg.evaluate(() => {
+    try { _schedInfoClose(); } catch(e){}
+    const r = _SCHED.data.rows.find(x => x.id === 'r1'); r.ordered = false; r.orders = []; r.order_info = null; _schedRender();
+  });
+  await pg.waitForTimeout(150);
+  await pg.locator('input[data-edit="ordered"][data-row="r1"]').first().click();
+  await pg.waitForTimeout(200);
+  let v = await pg.evaluate(() => ({ ask: !!document.getElementById('schedOrderAsk'), sel: !!document.getElementById('soSupp'),
+    opts: [...document.querySelectorAll('#soSupp option')].map(o => o.textContent), date: (document.getElementById('soDate') || {}).value || '' }));
+  check('ticking 📦 on a job RoofMap did not order asks who it was ordered from and when (today by default)',
+    v.ask && v.date === new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' }), JSON.stringify(v));
+  check('…offering the saved suppliers, and someone else', !v.sel || v.opts.some(t => /Someone else/.test(t)), JSON.stringify(v.opts));
+  await pg.click('#soCancel');
+  await pg.waitForTimeout(150);
+  v = await pg.evaluate(() => ({ ticked: document.querySelector('input[data-edit="ordered"][data-row="r1"]').checked, r: _SCHED.data.rows.find(x => x.id === 'r1').ordered }));
+  check('Cancel leaves it unticked and writes nothing', !v.ticked && !v.r && !patches.length, JSON.stringify({ v, patches }));
+  await pg.locator('input[data-edit="ordered"][data-row="r1"]').first().click();
+  await pg.waitForTimeout(200);
+  if (await pg.locator('#soSupp').count()) await pg.selectOption('#soSupp', '__other');
+  await pg.fill('#soOther', 'Dimond Whangarei');
+  await pg.fill('#soDate', '2026-11-09');
+  await pg.click('#soSave');
+  await pg.waitForTimeout(250);
+  const pp = patches.slice(-1)[0] || {};
+  check('Save ticks it and records the supplier and the date',
+    pp.ordered === true && pp.order_info && pp.order_info.supplier === 'Dimond Whangarei' && pp.order_info.date === '2026-11-09', JSON.stringify(patches));
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => ({ orders: (document.getElementById('schedInfoOrders') || {}).textContent || '',
+    hist: (document.getElementById('schedInfoHistory') || {}).textContent || '',
+    box: document.querySelector('#schedInfoModal [data-iedit="ordered"]').checked }));
+  check('the info window says who it was ordered from, the day, and that it was ordered outside RoofMap',
+    v.box && /Dimond Whangarei/.test(v.orders) && /9 Nov 2026/.test(v.orders) && /outside RoofMap/.test(v.orders) && /Dimond Whangarei/.test(v.hist), JSON.stringify(v));
+  // Ordered through RoofMap: the tick needs no question.
+  patches.length = 0;
+  await pg.evaluate(() => {
+    _schedInfoClose();
+    const r = _SCHED.data.rows.find(x => x.id === 'r1'); r.ordered = false; r.order_info = null;
+    r.orders = [{ via: 'roofmap', what: 'Roof order', supplier: 'Roofing Industries', at: '2026-11-08T01:00:00Z' }]; _schedRender();
+  });
+  await pg.waitForTimeout(150);
+  await pg.locator('input[data-edit="ordered"][data-row="r1"]').first().click();
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => ({ ask: !!document.getElementById('schedOrderAsk'), title: document.querySelector('input[data-edit="ordered"][data-row="r1"]').title }));
+  check('a job RoofMap ordered is ticked with no question, the supplier on its tooltip',
+    !v.ask && (patches.slice(-1)[0] || {}).ordered === true && /Roofing Industries/.test(v.title) && /through RoofMap/.test(v.title), JSON.stringify({ v, patches }));
+  await pg.evaluate(() => _schedInfoOpen('r1'));
+  await pg.waitForTimeout(200);
+  v = await pg.evaluate(() => (document.getElementById('schedInfoOrders') || {}).textContent || '');
+  check('…and its info window names the supplier and says through RoofMap', /Roofing Industries/.test(v) && /through RoofMap/.test(v) && /8 Nov 2026/.test(v), v);
+  await pg.evaluate(() => _schedInfoClose());
+  await pg.unroute('**/schedule/rows/**');
+}
 await ctx.close();
 
 // ── the batch from the phone screenshots ──────────────────────────
@@ -1471,6 +1533,7 @@ await ctx.close();
   check('my own drag sends the day it is over, as it moves', mid.length >= 1 && mid.some(d => /^2026-09-/.test(d)), JSON.stringify(mid));
   await ctx.close();
 }
+
 
 await b.close();
 const pass = results.filter(Boolean).length;
