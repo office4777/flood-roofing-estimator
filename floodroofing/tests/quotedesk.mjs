@@ -321,6 +321,26 @@ const cs = await d.pg.evaluate(() => {
 check('the COLORSTEEL colour-sample link links NZ Steel’s order page in a new tab, never on paper',
   /Request a COLORSTEEL® colour sample/.test(cs.on) && /href="https:\/\/www\.colorsteel\.co\.nz\/order-colour-sample"/.test(cs.on) && /target="_blank"/.test(cs.on) && cs.notCs === '' && cs.paper === '', cs.on.slice(0,200));
 check('…it is the COLORSTEEL grade alone that offers it (not ColorCote, ColorZen or Zincalume)', cs.maxam && !cs.cote && !cs.zen && !cs.zinc, JSON.stringify(cs));
+// THE GRADES' WEBSITE LINKS AND THE ZINACORE NAME (2026-11-13).
+const gs = await d.pg.evaluate(() => {
+  const S0 = { grades:[{ id:'colourcote', name:'ColorCote\u00ae' }, { id:'colourcote2', name:'My own ColorCote' }] };
+  const m = _selNameUpdates(JSON.parse(JSON.stringify(S0)));
+  const typed = _selNameUpdates({ grades:[{ id:'colourcote', name:'ColorCote special' }] });
+  const links = [...document.querySelectorAll('#qd-grade .qb-opt-wrap')].map(w => ({ val: w.querySelector('[data-qb-opt]').getAttribute('data-qb-val'),
+    href: w.querySelector('a.qb-opt-site').getAttribute('href'), tgt: w.querySelector('a.qb-opt-site').target,
+    shown: getComputedStyle(w.querySelector('a.qb-opt-site')).display !== 'none' && w.querySelector('a.qb-opt-site').getBoundingClientRect().width > 40,
+    inBtn: !!w.querySelector('button a') }));
+  const zenLink = !!document.querySelector('#qd-grade [data-qb-val="colorzen"]') && !document.querySelector('#qd-grade [data-qb-val="colorzen"]').closest('.qb-opt-wrap');
+  const shipped = (_defaultSelectables().grades || []).filter(g => g.id === 'colourcote')[0].name;
+  window.__PRINTING_MODERN = true; const paper = /qb-opt-site/.test(_qbGrade()); window.__PRINTING_MODERN = false;
+  return { renamed: m.grades[0].name, own: m.grades[1].name, typed: typed.grades[0].name, links, zenLink, shipped, paper };
+});
+check('ColorCote reads "ColorCote® ZinaCore" — shipped, and a stored list still on the shipped name — while a name the office typed is kept',
+  gs.renamed === 'ColorCote\u00ae ZinaCore' && gs.shipped === 'ColorCote\u00ae ZinaCore' && gs.typed === 'ColorCote special' && gs.own === 'My own ColorCote', JSON.stringify(gs));
+const lk = Object.fromEntries(gs.links.map(l => [l.val, l.href]));
+check('…each grade row carries its maker’s website, in a new tab, outside the option button: MAXAM, ColorCote ZinaCore, Zincalume',
+  lk.maxam === 'https://www.colorsteel.co.nz/products' && lk.colourcote === 'https://www.colorcote.co.nz/product-range/zinacore/' &&
+  lk.zincalume === 'https://www.nzsteel.co.nz/products/zincalume/' && gs.links.every(l => l.tgt === '_blank' && !l.inBtn && l.shown) && gs.zenLink && !gs.paper, JSON.stringify(gs.links));
 check('…on the quote it sits in the roof colour section on MAXAM, and nowhere on ColorCote',
   cs.inColour && !cs.inGutter && !cs.coteShown, JSON.stringify({ inColour: cs.inColour, inGutter: cs.inGutter, coteShown: cs.coteShown }));
 await d.ctx.close();

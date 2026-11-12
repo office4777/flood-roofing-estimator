@@ -6440,6 +6440,26 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   https://www.colorsteel.co.nz/order-colour-sample (new tab).
   `COLORSTEEL_SAMPLE_ON` true; `window.__COLORSTEEL_SAMPLE = false` hides it.
   `typesnap.json` regenerated (deskText only). `quotedesk.mjs` (62).
+  THE SAME DAY, SMALLER, AND THE GRADES LINK THEIR MAKERS (the owner: "for
+  Colorcote, change the name to ColorCote ZinaCore and add in a nice and tidy
+  link button to view their website ... colorsteel maxam ... Zincalume ... and
+  make the whole request a sample about 40% smaller"). The sample box is an
+  inline strip now (11px, one short line, a small dark button). ColorCote is
+  "ColorCote® ZinaCore": the shipped list's name, and `_selNameUpdates` (in
+  `mergeSettings`) renames a STORED grade still reading exactly "ColorCote®" —
+  a name the office typed stays, and a quote already sent keeps its own
+  snapshot's name. Each steel grade row carries "View … website ↗"
+  (`_gradeSiteLink`, `GRADE_SITES`: maxam → colorsteel.co.nz/products,
+  colourcote → colorcote.co.nz/product-range/zinacore/, zincalume →
+  nzsteel.co.nz/products/zincalume/; a grade row's own `url` / `urlLabel`
+  wins; not on Australia, not on a row renamed to another maker, not on
+  paper). The row is a BUTTON, so the link is a SIBLING in `.qb-opt-wrap`,
+  pinned to the row's corner (`.qb-opt-site`, `.qb-opt-haslink` pads the row) —
+  it still works on an accepted quote, whose option buttons are disabled. NOT
+  `.no-print`: the customer page hides every `.no-print`. `pricegold.json` and
+  `typesnap.json` regenerated — the ColorCote label and the link words only, not
+  a cent (checked: the old and new baselines are identical with the name put
+  back). `quotedesk.mjs` (64).
 - SHUTTING ONE ACCOUNT OUT (2026-10-18, the owner on a signup alert — "membrane
   roofing" / "Trinity AI", trinityai.group@gmail.com, 14-day Team trial: "Can
   you block this, it's a business growth ai company"). Not every unwanted

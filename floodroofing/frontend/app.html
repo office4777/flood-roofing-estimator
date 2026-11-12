@@ -4903,9 +4903,16 @@ body.jf-noselect, body.jf-noselect *{ user-select:none !important; -webkit-user-
 /* colour swatches */
 .qb-chosen{ font-size:13.5px; color:#42556b; margin-bottom:12px; }
 .qb-chosen b{ font-weight:700; color:#0a1628; }
-.qb-cs-sample{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 4px;padding:12px 14px;border:1px solid #cfe3ee;background:#f2f8fb;border-radius:10px;font-size:13.5px;line-height:1.45;color:#334155}
-.qb-cs-sample-txt{flex:1 1 260px}
-.qb-cs-sample-btn{flex:0 0 auto;display:inline-block;padding:8px 14px;border-radius:8px;background:#0a1628;color:#fff!important;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap}
+.qb-cs-sample{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:100%;box-sizing:border-box;margin:10px 0 2px;padding:6px 8px 6px 10px;border:1px solid #cfe3ee;background:#f2f8fb;border-radius:8px;font-size:11px;line-height:1.35;color:#334155}
+.qb-cs-sample-txt{flex:0 1 auto}
+.qb-cs-sample-btn{flex:0 0 auto;display:inline-block;padding:4px 9px;border-radius:6px;background:#0a1628;color:#fff!important;font-weight:700;font-size:11px;text-decoration:none;white-space:nowrap}
+.qb-opt-wrap{position:relative}
+.qb-opt-wrap > .qb-opt{width:100%}
+.qb-opt.qb-opt-haslink{padding-bottom:34px}
+.qb-opt-site{position:absolute;right:14px;bottom:10px;display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#0a1628!important;font-size:11px;font-weight:600;text-decoration:none;line-height:1.4;white-space:nowrap}
+.qb-opt-site:hover{border-color:#0099cc;color:#0284b5!important;background:#f0f9ff}
+html:is(.print-modern,.pdf-modern) .qb-opt-site{display:none!important}
+html:is(.print-modern,.pdf-modern) .qb-opt.qb-opt-haslink{padding-bottom:13px}
 .qb-cs-sample-btn:hover{background:#13284a}
 .qb-swatches{ display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
 .qb-sw{ border:1.5px solid #e2e8f0; border-radius:12px; padding:7px 7px 8px; background:#fff; cursor:pointer; font-family:inherit; }
@@ -5670,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T23:47:57Z';
+  window.APP_BUILT_AT = '2026-11-12T23:55:15Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -16691,6 +16698,19 @@ function defaultSettings(){
   };
 }
 
+// COLORCOTE IS COLORCOTE ZINACORE (2026-11-13, the owner: "for Colorcote,
+// change the name to ColorCote ZinaCore"). The company's own product list is
+// stored, so the shipped name is put right where it still reads exactly as
+// shipped — a name the office typed is theirs and stays. Only the LIVE list:
+// a quote already sent keeps the names it went out with.
+function _selNameUpdates(sel){
+  try {
+    (sel.grades || []).forEach(function(g){
+      if (g && g.id === 'colourcote' && String(g.name || '').trim() === 'ColorCote\u00ae') g.name = 'ColorCote\u00ae ZinaCore';
+    });
+  } catch(e){}
+  return sel;
+}
 function mergeSettings(s){
   var d = defaultSettings();
   return {
@@ -16763,7 +16783,7 @@ function mergeSettings(s){
     // Settings seeded those defaults, and the next save from anywhere wrote
     // them over the stored list — pictures, rates, own grades and options.
     // Absent stays absent: a save without the key keeps what is stored.
-    selectables: (s.selectables && typeof s.selectables === 'object' && !Array.isArray(s.selectables)) ? s.selectables : undefined
+    selectables: (s.selectables && typeof s.selectables === 'object' && !Array.isArray(s.selectables)) ? _selNameUpdates(s.selectables) : undefined
   };
 }
 
@@ -34262,7 +34282,7 @@ function _defaultSelectables(){
     grades: [
       { id:'maxam',      name:'Colorsteel® MAXAM',      pct:  0,     base: true },
       { id:'colorzen',   name:'Armorsteel ColorZen',    pct: -0.138 },
-      { id:'colourcote', name:'ColorCote®',             pct: -0.07  },
+      { id:'colourcote', name:'ColorCote® ZinaCore',    pct: -0.07  },
       { id:'zincalume',  name:'Zincalume® (unpainted)', pct: -0.327 }
     ],
     profiles: [
@@ -36277,7 +36297,7 @@ function _acceptConfirmBodyHtml(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var rate = (S.quote.gstRate||0)/100;
   var total = (_qpBaseSub() + _qpSelectionDeltaSum()) * (1+rate);
-  var GR = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote®', zincalume:'Zincalume® (unpainted)' };
+  var GR = { maxam:'Colorsteel® MAXAM', colorzen:'Armorsteel ColorZen', colourcote:'ColorCote® ZinaCore', zincalume:'Zincalume® (unpainted)' };
   var TH = { '40':'0.40 gauge', '55':'0.55 gauge' };
   var GU = { none:'No new gutter', box125:'125mm Colorsteel Box Gutter', marley_typhoon:'Marley Typhoon (PVC)', marley_classic:'Marley Classic (PVC)' };
   var BR = { external:'External brackets', internal:'Internal brackets' };
@@ -40111,7 +40131,7 @@ function _qbOptionPage(o){
   var rows = (o.items || []).map(function(it){
     var picked = o.current === it.id;
     if (_off && isFinite(it.delta)) it = Object.assign({}, it, { delta: it.delta - _off });
-    return '<button type="button" class="qb-opt'+(picked ? ' on' : '')+'" data-qb-opt="'+esc2(o.group)+'" data-qb-val="'+esc2(it.id)+'"'+
+    var btn = '<button type="button" class="qb-opt'+(picked ? ' on' : '')+'" data-qb-opt="'+esc2(o.group)+'" data-qb-val="'+esc2(it.id)+'"'+
         (_qbLocked() ? ' disabled' : ' onclick="'+o.set+'(\''+esc2(it.id)+'\')"')+'>'+
         '<span class="qb-tick">'+(picked ? '<svg viewBox="0 0 20 20" width="13" height="13"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' : '')+'</span>'+
         '<span class="qb-opt-txt">'+
@@ -40127,6 +40147,14 @@ function _qbOptionPage(o){
         '</span>'+
         '<span class="qb-opt-price">'+_qbTag(it)+'</span>'+
       '</button>';
+    // A website link sits in the row's corner as its OWN element — a link
+    // inside the option's button is not valid markup, and a locked (accepted)
+    // quote disables the button and everything in it.
+    if (it.site && it.site.url && !window.__PRINTING_MODERN && !window.__PRINTING_QUOTE){
+      btn = btn.replace('class="qb-opt', 'class="qb-opt qb-opt-haslink');
+      btn = '<div class="qb-opt-wrap">'+btn+'<a class="qb-opt-site" href="'+esc2(it.site.url)+'" target="_blank" rel="noopener">View '+esc2(it.site.label)+' \u2197</a></div>';
+    }
+    return btn;
   }).join('');
   return ''+
     '<div class="qb-body">'+
@@ -40383,6 +40411,30 @@ function _qbTotalLines(sub, total, id){
     '<div class="qb-tl qb-tl-big"><span>Total incl. GST</span><b'+(id ? ' id="'+id+'"' : '')+'>'+_qbMoney(total)+'</b></div>';
 }
 function _qbIncl(exGst){ return (parseFloat(exGst) || 0) * (1 + _qbRate()); }
+// EACH STEEL GRADE LINKS ITS MAKER'S PAGE (2026-11-13, the owner: "add in a
+// nice and tidy link button to view their website"). New Zealand only — on an
+// Australian business the same ids are COLORBOND products. A grade row may
+// carry its own `url` (and `urlLabel`); the shipped three have these.
+var GRADE_SITES = {
+  maxam:      { url:'https://www.colorsteel.co.nz/products', label:'COLORSTEEL\u00ae website' },
+  colourcote: { url:'https://www.colorcote.co.nz/product-range/zinacore/', label:'ColorCote\u00ae website' },
+  zincalume:  { url:'https://www.nzsteel.co.nz/products/zincalume/', label:'NZ Steel website' }
+};
+function _gradeSiteLink(g){
+  try {
+    if (!g) return null;
+    if (g.url && /^https:\/\//i.test(String(g.url))) return { url:String(g.url), label:String(g.urlLabel || 'website') };
+    if (_isAU()) return null;
+    var nm = String(g.name || '');
+    var site = GRADE_SITES[g.id];
+    if (!site) return null;
+    // A row the office renamed to another maker's product does not keep the link.
+    if (g.id === 'maxam' && nm && !/colorsteel|maxam/i.test(nm)) return null;
+    if (g.id === 'colourcote' && nm && !/colou?rcote/i.test(nm)) return null;
+    if (g.id === 'zincalume' && nm && !/zincalume/i.test(nm)) return null;
+    return site;
+  } catch(e){ return null; }
+}
 function _qbGrade(){
   var p = (S.quote && S.quote.proposalOptions) || {};
   var CD = _qbDeltas();
@@ -40399,7 +40451,8 @@ function _qbGrade(){
       var c = COPY[g.id] || {};
       return { id:g.id, label:g.name || g.id, isDefault:(_qbRecPick('steelGrade', base) === g.id),
                delta:_qbIncl(CD.grade[g.id] != null ? CD.grade[g.id] : 0),
-               desc:g.desc || c.desc || '', warranty:g.warranty || c.warranty || '' };
+               desc:g.desc || c.desc || '', warranty:g.warranty || c.warranty || '',
+               site: _gradeSiteLink(g) };
     });
   } catch(e){}
   return _qpOptPageWrap('grade', {
@@ -40671,7 +40724,7 @@ function _colorsteelSampleHtml(isColorsteel){
   if (!isColorsteel || !_colorsteelSampleOn() || _isAU()) return '';
   if (window.__PRINTING_MODERN || window.__PRINTING_QUOTE) return '';   // a link on paper goes nowhere
   return '<div class="qb-cs-sample">'+
-    '<span class="qb-cs-sample-txt"><b>Screens show colours differently.</b> If you would like to see the real thing first, you can request a COLORSTEEL\u00ae colour sample.</span>'+
+    '<span class="qb-cs-sample-txt"><b>Screens show colours differently.</b> See the real thing first:</span>'+
     '<a class="qb-cs-sample-btn" href="'+esc2(COLORSTEEL_SAMPLE_URL)+'" target="_blank" rel="noopener">Request a COLORSTEEL\u00ae colour sample \u2197</a>'+
   '</div>';
 }
