@@ -7434,6 +7434,23 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   marker), keeping `accepted.totalCorrected {from, to, at, why}`, setting the
   frozen Accepted copy's total too, and re-writing the Fergus description.
   The office emails already sent still say $35,252.82. `tests/acceptstale.mjs`.
+- THE CUSTOMER'S PICKS SURVIVE AN OFFICE SAVE BEFORE THEY ACCEPT (2026-11-12,
+  quote 3355 and one before it: "they selected corrugate, but the confirmation
+  comes through as five rib"). The email was never wrong about what was stored:
+  every tap on the link is saved as it is made (`update` events), but an office
+  save — any Quote-tab autosave, a light publish — wrote the office's own
+  proposalOptions (the recommended 5-Rib) back over them, so a customer who
+  picked Corrugate, left, and came back to accept saw 5-Rib again and accepted
+  it. `/q/:token/event` now stamps `share.custPicksAt` whenever it applies
+  selections, and `_keepCustomerState` (both write routes), before an
+  acceptance, puts the customer's `CUSTOMER_PICK_KEYS` back over a save whose
+  share has not seen that stamp — unless the save is a NEW SEND after it
+  (`sentAt` later), which is the office re-quoting. The response carries
+  `keptCustomerPicks` and `_keptCustomerPicksApply` puts them on the office's
+  screen (not over a frozen Sent/Accepted view). An already-accepted quote that
+  read 5-Rib is NOT rewritten: the customer accepted the page they saw, and its
+  price; the office sorts 3355 by hand. `tests/acceptguard.mjs` (18; 4 fail on
+  the old server, reading 5rib).
 - THE CUSTOMER'S PICKS ARE THE QUOTE'S OWN PRODUCTS (2026-10-30, job 3338:
   "I added color coat MagnaFlow as a steel grade option. The customer selected
   that MagnaFlow, but then the confirmation quote acceptance email still says

@@ -4477,6 +4477,9 @@ function _jobLight(row){
 // acceptance keeps it. The customer's events are always kept (a union), and a
 // stored opened / queried / declined status is not knocked back to "sent" by
 // a copy that has not seen it. Returns true when it put an acceptance back.
+// The proposalOptions a customer's link writes (POST /q/:token/event).
+const CUSTOMER_PICK_KEYS = ['profile', 'steelGrade', 'steelThickness', 'gutterType', 'gutterBracket',
+  'downpipes', 'disposal', 'colour', 'gutterColour', 'extras', 'extraRoofsSel'];
 async function _keepCustomerState(req, jobId, inQ){
   if (!inQ || typeof inQ !== 'object') return false;
   let held = null;
@@ -4547,6 +4550,26 @@ async function _keepCustomerState(req, jobId, inQ){
   if (hs.status === 'accepted' && knows && inQ.accepted && is.status === 'accepted'){
     if (hs.priced && typeof hs.priced === 'object') is.priced = hs.priced;
     if (hs.sentTotal != null) is.sentTotal = hs.sentTotal;
+  }
+  // THE CUSTOMER'S PICKS, BEFORE THEY ACCEPT (2026-11-12, quote 3355 and one
+  // before it: the customer chose Corrugate, came back later and accepted 5-Rib).
+  // Every tap on their link is saved as it is made — but an office save carried
+  // the office's own proposalOptions over them, so the next time the customer
+  // opened the link it showed the recommended 5-Rib again and they accepted
+  // that. A save whose copy has not seen the customer's latest picks
+  // (share.custPicksAt) keeps them; a NEW SEND after those picks is the office
+  // re-quoting, and its own choices stand.
+  if (hs.status !== 'accepted' && hs.custPicksAt && is.custPicksAt !== hs.custPicksAt &&
+      !(is.sentAt && String(is.sentAt) > String(hs.custPicksAt)) &&
+      held.po && typeof held.po === 'object'){
+    const po = (inQ.proposalOptions && typeof inQ.proposalOptions === 'object') ? inQ.proposalOptions : (inQ.proposalOptions = {});
+    CUSTOMER_PICK_KEYS.forEach(function (k){
+      if (Object.prototype.hasOwnProperty.call(held.po, k)) po[k] = held.po[k];
+    });
+    is.custPicksAt = hs.custPicksAt;
+    // …and the screen that saved is told, so it shows the customer's picks.
+    const kp = {}; CUSTOMER_PICK_KEYS.forEach(function (k){ if (Object.prototype.hasOwnProperty.call(po, k)) kp[k] = po[k]; });
+    req._keptPicks = { token: hs.token, at: hs.custPicksAt, picks: kp };
   }
   if (!knows && ['opened', 'queried', 'declined'].indexOf(hs.status) >= 0 && (!is.status || is.status === 'sent')){
     is.status = hs.status;
@@ -4727,7 +4750,7 @@ app.put('/jobs/:id', requireAuth, async (req, res) => {
     if (g.count && g.count !== 'new'){ await _trialRoofRecord(req, g.count); _roofCounted = true; }
     if (gm.count && gm.count !== 'new'){ await _monthRoofRecord(req, gm.count); _roofCounted = true; }
   }
-  const _extra = Object.assign({}, _keptAcc ? { keptAcceptance: true } : {}, _roofCounted ? { trialRoofCounted: true } : {});
+  const _extra = Object.assign({}, _keptAcc ? { keptAcceptance: true } : {}, _roofCounted ? { trialRoofCounted: true } : {}, req._keptPicks ? { keptCustomerPicks: req._keptPicks } : {});
 
   patch.updated_at = new Date().toISOString();
   cols.push('updated_at');
@@ -4911,7 +4934,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
       // office was asked whether to write over "someone" — themselves,
       // seconds earlier, from the quote save.
       const _ua = r.rows && r.rows[0] && r.rows[0].updated_at;
-      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined, keptAcceptance: _keptAcc || undefined });
+      res.json({ ok: true, id: req.params.id, fast: true, updated_at: _ua ? new Date(_ua).toISOString() : undefined, keptAcceptance: _keptAcc || undefined, keptCustomerPicks: req._keptPicks || undefined });
       if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, req.params.id); }
       return;
     } catch (e) {
@@ -4930,7 +4953,7 @@ app.put('/jobs/:id/quote', requireAuth, async (req, res) => {
   if (siteAddr) patch.site_address = siteAddr;
   const { error: uerr } = await supabase.from('jobs').update(patch).eq('id', job.id);
   if (uerr) return res.status(500).json({ error: uerr.message });
-  res.json({ ok: true, id: job.id, updated_at: patch.updated_at, keptAcceptance: _keptAcc || undefined });
+  res.json({ ok: true, id: job.id, updated_at: patch.updated_at, keptAcceptance: _keptAcc || undefined, keptCustomerPicks: req._keptPicks || undefined });
   if (quote.share && quote.share.token) { recordUsage('quote_sent', req); _tokenCachePut(quote.share.token, job.id); }
 });
 
@@ -6494,6 +6517,10 @@ app.post('/q/:token/event', rateLimit(20, 60000), async (req, res) => {
           });
           quote.proposalOptions.extraRoofsSel = sel;
         }
+        // THE CUSTOMER'S PICKS ARE STAMPED (2026-11-12, quote 3355: Corrugate
+        // picked, the confirmation said 5-Rib). An office screen that has not
+        // seen this stamp keeps them on its next save (_keepCustomerState).
+        share.custPicksAt = new Date().toISOString();
       }
     }
     if (type === 'accepted') {
