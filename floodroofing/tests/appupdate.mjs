@@ -74,6 +74,10 @@ check('THE REPORT: when a newer app is live, the tab says so', await shown());
 const text = await pg.evaluate(() => document.getElementById('appUpdateBar').textContent.replace(/\s+/g, ' ').trim());
 check('…in words a roofer can act on', /updated/i.test(text) && /reload/i.test(text), text);
 check('…with a way to put it off', await pg.isVisible('#appUpdateLater'), text);
+// ONE bar (2026-11-12): an older watcher put its own "🔄 … Save & reload" banner
+// on top of this one on the same deploy.
+check('…and only ONE update bar: the old second watcher (#frUpdateBanner) is gone',
+  !/id\s*=\s*'frUpdateBanner'/.test(String(APP)) && (await pg.evaluate(() => !document.getElementById('frUpdateBanner'))));
 
 // ── it does not nag ───────────────────────────────────────────────
 await pg.click('#appUpdateLater');
