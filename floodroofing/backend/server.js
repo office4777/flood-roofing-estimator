@@ -544,7 +544,18 @@ app.use(function (req, res, next) {
 process.on('unhandledRejection', function(reason){
   recordError('unhandled-rejection', reason instanceof Error ? reason : new Error(String(reason)), {});
 });
+// A DROPPED DATABASE LINE IS NOT A CRASH (2026-11-12). pg reports a
+// connection the database closed under it as an 'error' event; one that
+// reached here unheard (no listener on that client) restarted the whole
+// server over a line the pool replaces by itself. It is logged (not emailed:
+// nothing to act on) and the process carries on, nothing in it broken.
+function _isPgLineDrop(err){
+  const m = String((err && err.message) || ''), st = String((err && err.stack) || '');
+  return /node_modules[\\/]pg[\\/]/.test(st) &&
+    /connection terminated|terminating connection|server closed the connection|econnreset/i.test(m);
+}
 process.on('uncaughtException', function(err){
+  if (_isPgLineDrop(err)) { console.warn('pg line dropped (recovered, not an alert):', err.message); return; }
   recordError('uncaught-exception', err, {});
   // Keep going only long enough to get the alert out. The process state is
   // not trustworthy after this, so let the platform restart us.
@@ -8481,6 +8492,11 @@ async function _quoteShareRowsPg(req, limit){
     "draw_state->'state'->'quote'->'versions'->'accepted'->>'at' AS q_vacc_at";
   const shared = "draw_state->'state'->'quote'->'share'->>'token' IS NOT NULL";
   const client = await pool.connect();
+  // A CHECKED-OUT CLIENT NEEDS ITS OWN LISTENER (2026-11-12, two restarts at
+  // 1:30 and 1:33 pm NZ): the pool's listener only covers idle clients, so a
+  // line dropped while this one was out was an uncaught exception.
+  const _onErr = function(e){ console.warn('pg client error (quote feed):', (e && e.message) || e); };
+  client.on('error', _onErr);
   try {
     await client.query('BEGIN');
     await client.query("SET LOCAL statement_timeout = '30s'");
@@ -8506,7 +8522,7 @@ async function _quoteShareRowsPg(req, limit){
   } catch (e) {
     try { await client.query('ROLLBACK'); } catch (_) {}
     throw e;
-  } finally { client.release(); }
+  } finally { client.removeListener('error', _onErr); client.release(); }
 }
 async function _quoteShareRows(req, limit, fresh){
   const key = (req.companyId || '') + '|' + (req.user && req.user.id);

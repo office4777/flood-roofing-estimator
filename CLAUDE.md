@@ -7434,6 +7434,18 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   marker), keeping `accepted.totalCorrected {from, to, at, why}`, setting the
   frozen Accepted copy's total too, and re-writing the Fergus description.
   The office emails already sent still say $35,252.82. `tests/acceptstale.mjs`.
+- A DROPPED DATABASE LINE IS NOT A CRASH, AND THERE IS ONE UPDATE BAR
+  (2026-11-12, the owner with four alert emails from 1:30–1:33 pm NZ and two
+  update bars stacked on top of each other). Supabase dropped a connection;
+  the quote feed's checked-out pg client (`_quoteShareRowsPg`) had no 'error'
+  listener (the pool's covers idle clients only), so the drop was an uncaught
+  exception and the server restarted itself twice — the "database did not
+  answer" 5xx for Manawatu Roofing were the same minute. The client carries
+  its own listener now, and `uncaughtException` lets `_isPgLineDrop` (a
+  connection-closed message from inside node_modules/pg) through with a log
+  line, no alert, no exit. THE UPDATE BAR: an older ETag watcher at the
+  "Update watcher" comment made its own `#frUpdateBanner` beside `_verCheck`'s
+  `#appUpdateBar`; it is gone. `tests/appupdate.mjs` (14).
 - THE CUSTOMER'S PICKS SURVIVE AN OFFICE SAVE BEFORE THEY ACCEPT (2026-11-12,
   quote 3355 and one before it: "they selected corrugate, but the confirmation
   comes through as five rib"). The email was never wrong about what was stored:
