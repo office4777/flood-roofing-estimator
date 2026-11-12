@@ -4589,7 +4589,63 @@ input.cpb-linked-in{ background:#f0f8fb!important; color:#006f99!important; bord
 .jfv-frame{ width:100%; height:100%; border:none; border-radius:6px; background:#fff; }
 .jfv-text{ width:100%; height:100%; margin:0; overflow:auto; background:#fff; color:#0a1628; border-radius:6px; padding:12px; font-size:12px; white-space:pre; }
 .jfv-none{ color:#fff; font-size:14px; }
-@media (max-width:640px){ .jf-acts .jf-btn:not(.jf-open){ display:none; } }
+@media (max-width:640px){ .jf-acts .jf-btn:not(.jf-open):not(.jf-out){ display:none; } }
+/* Files & Photos folders (2026-11-13) */
+.sij-fgfold > summary{ cursor:pointer; list-style:none; display:flex; align-items:center; gap:6px; margin:0; }
+.sij-fgfold > summary::-webkit-details-marker{ display:none; }
+.sij-fgfold > summary::before{ content:'\25B8'; font-size:11px; color:#64748b; transition:transform .15s; }
+.sij-fgfold[open] > summary::before{ transform:rotate(90deg); }
+.sij-fgfold[open] > summary{ margin-bottom:8px; }
+.jf-folds{ display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin:4px 0 6px; }
+.jf-fold{ position:relative; display:flex; align-items:center; gap:8px; padding:12px 10px; border:1.5px solid #cbd5e1; border-radius:10px; background:#f8fafc; cursor:pointer; text-align:left; font-family:inherit; min-height:52px; }
+.jf-fold:hover{ border-color:#0099cc; background:#eef9fd; }
+.jf-fold-ic{ font-size:22px; line-height:1; }
+.jf-fold-nm{ flex:1; min-width:0; font-size:13px; font-weight:700; color:#0a1628; line-height:1.25; overflow-wrap:anywhere; }
+.jf-fold-n{ font-size:11px; font-weight:800; color:#075985; background:#e0f2fe; border-radius:999px; padding:1px 7px; }
+.jf-fold-n:empty{ display:none; }
+.jf-fold-tools{ position:absolute; top:3px; right:4px; display:none; gap:2px; }
+.jf-fold:hover .jf-fold-tools{ display:flex; }
+.jf-fold-tools button{ border:none; background:#fff; border-radius:5px; width:20px; height:20px; font-size:11px; cursor:pointer; color:#64748b; padding:0; }
+.jf-fold-tools button:hover{ color:#b91c1c; }
+.jf-fold-new{ border-style:dashed; background:#fff; color:#0284b5; }
+.jf-fold-mail{ background:#fffbeb; border-color:#fde68a; }
+.jf-drop-on{ border-color:#0099cc !important; background:#dff3fb !important; box-shadow:0 0 0 3px rgba(0,153,204,.25); }
+.jf-link{ font-size:11.5px; color:#0284b5; cursor:pointer; text-decoration:underline; }
+.jf-crumbs{ display:flex; align-items:center; gap:8px; padding:8px 14px; border-bottom:1px solid #eef2f6; font-size:13px; }
+.jf-crumb{ border:1.5px solid #cbd5e1; background:#fff; border-radius:8px; padding:5px 10px; font-weight:700; font-size:12px; cursor:pointer; font-family:inherit; color:#0a1628; }
+.jf-crumb-sep{ color:#94a3b8; }
+.jf-chips{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:10px 0 4px; }
+.jf-chips-lbl{ font-size:11px; color:#64748b; }
+.jf-chip{ border:1.5px dashed #cbd5e1; border-radius:999px; padding:3px 10px; font-size:11.5px; cursor:pointer; background:#fff; }
+.jf-grip{ cursor:grab; color:#94a3b8; font-size:13px; letter-spacing:-2px; padding:0 2px; user-select:none; touch-action:none; }
+.jf-list .jf-row{ cursor:grab; }
+.jf-move{ padding:4px 4px; border:1.5px solid #cbd5e1; border-radius:7px; font-size:11px; max-width:112px; margin:0; background:#fff; width:auto; }
+.jf-dragging{ opacity:.35; }
+.jf-ghost{ position:fixed; z-index:10070; pointer-events:none; background:#fff; border:1.5px solid #0099cc; border-radius:9px; padding:6px 8px; box-shadow:0 10px 30px rgba(0,0,0,.25); opacity:.95; }
+.jf-ghost .jf-acts{ display:none; }
+.jf-ins-before{ box-shadow:inset 0 3px 0 #0099cc; } .jf-ins-after{ box-shadow:inset 0 -3px 0 #0099cc; }
+body.jf-noselect, body.jf-noselect *{ user-select:none !important; -webkit-user-select:none !important; cursor:grabbing !important; }
+.jfm-thread{ display:flex; flex-direction:column; gap:10px; margin:6px 0 10px; }
+.jfm-card{ border-radius:10px; padding:10px 12px; border:1px solid #e2e8f0; }
+.jfm-out{ background:#eaf6fb; border-color:#cce8f3; margin-left:28px; }
+.jfm-in{ background:#fffbeb; border-color:#fde68a; margin-right:28px; }
+.jfm-top{ display:flex; gap:8px; align-items:baseline; }
+.jfm-kind{ flex:1; font-size:11px; font-weight:800; letter-spacing:.03em; text-transform:uppercase; color:#334155; }
+.jfm-when{ font-size:11px; color:#64748b; white-space:nowrap; }
+.jfm-subj{ font-size:13.5px; font-weight:700; color:#0a1628; margin:4px 0 2px; }
+.jfm-hdrs{ font-size:11px; color:#64748b; line-height:1.5; margin-bottom:6px; word-break:break-word; }
+.jfm-body{ white-space:pre-wrap; font-size:12.5px; color:#0a1628; line-height:1.5; }
+.jfm-bf{ font-style:italic; color:#64748b; }
+#jfmReply{ width:100%; box-sizing:border-box; min-height:70px; padding:8px 10px; border:1px solid #cbd5e1; border-radius:8px; font:inherit; font-size:12.5px; resize:vertical; }
+.jfm-send{ display:flex; align-items:center; gap:10px; margin-top:6px; } #jfmMsg{ flex:1; font-size:11.5px; color:#b91c1c; }
+.jfs-row{ border:1px solid #e2e8f0; border-radius:10px; padding:10px 12px; margin:0 0 10px; background:#fff; }
+.jfs-hd{ display:flex; align-items:center; gap:6px; }
+.jfs-ic{ font-size:18px; }
+.jfs-name{ flex:1; max-width:340px; font-weight:700; margin:0 !important; }
+.jfs-what{ font-size:12px; color:#334155; margin-top:8px; display:flex; flex-wrap:wrap; gap:4px 14px; align-items:center; line-height:1.5; }
+.jfs-tick{ display:inline-flex; align-items:center; gap:4px; font-weight:500; cursor:pointer; margin:0; }
+.jfs-tick input{ width:auto; margin:0; }
+.jfs-hint{ font-size:11px; color:#64748b; }
 .pbk-kind{ justify-self:start; font-size:10px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; padding:2px 6px; border-radius:999px; }
 .pbk-kind-material{ background:#e0f2fe; color:#075985; }
 .pbk-kind-other{ background:#f1f5f9; color:#475569; }
@@ -5614,7 +5670,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T21:20:48Z';
+  window.APP_BUILT_AT = '2026-11-12T22:00:10Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -9552,6 +9608,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
         <button type="button" class="set-grp set-dest on" data-dest="business" onclick="_setDest('business')">My business</button>
         <div class="set-subs open" data-dest="business">
           <button class="tab-sm on" onclick="switchSettingsSub('set-brand',this)">Business details &amp; brand</button>
+          <button class="tab-sm" onclick="switchSettingsSub('set-jobfiles',this);_jfsRender()">Job files &amp; photos</button>
         </div>
         <button type="button" class="set-grp set-dest" data-dest="materials" onclick="_setDest('materials')">Materials &amp; suppliers</button>
         <div class="set-subs" data-dest="materials">
@@ -10514,6 +10571,19 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
     <!-- SCAFFOLDING (2026-11-10): its own page under Labour & job costs. The
          inputs are the ones that lived inside Labour pricing's rates card, so
          every collector and filler is unchanged. -->
+    <!-- Job files & photos (2026-11-13): the folders every job's Files & Photos window starts with. -->
+    <div class="sub-panel settings-sub" id="set-jobfiles" style="margin-top:14px">
+      <div class="set-sec">
+        <div class="set-sec-hd"><strong>Default folders</strong><span class="set-sec-note">&mdash; the folders in every job's Files &amp; Photos window</span></div>
+        <div class="set-sec-sub">Each job opens with these folders and sorts its photos and files into them by itself. An item goes into the <b>first</b> folder (top to bottom) whose rule fits it; anything no folder takes stays on the window's main screen. On a job you can still add your own folders, delete one, and drag items in, out and into order — that only changes that job.</div>
+        <div id="jfsList"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="tool-btn" onclick="_jfsAdd()">+ Add a default folder</button>
+          <button type="button" class="tool-btn" id="jfsAddMail" onclick="_jfsAdd(true)">+ Email communications folder</button>
+          <button type="button" class="tool-btn" onclick="_jfsReset()">Reset to RoofMap's folders</button>
+        </div>
+      </div>
+    </div>
     <div class="sub-panel settings-sub" id="set-scaffold" style="margin-top:14px">
       <div class="set-sec">
         <div class="set-sec-hd"><strong>Scaffolding defaults</strong><span class="set-sec-note">&mdash; what a new quote starts on; the Pricing drawer picks the method per job</span></div>
@@ -12875,8 +12945,22 @@ function _schedInfoFergusHtml(q, r, err, opt){
   secs.forEach(function(s){ (s.lineItems || s.items || []).forEach(function(it){ items.push({ sec: s.name || s.title || '', it: it }); }); });
   var qtyOf = function(it){ return +(it.itemQuantity != null ? it.itemQuantity : it.quantity) || 0; };
   var priceOf = function(it){ return +(it.itemPrice != null ? it.itemPrice : it.price) || 0; };
-  var isHrs = function(x){ var u = String(x.it.unitOfMeasureSell || x.it.unitOfMeasure || x.it.unit || '').toLowerCase();
-    return x.it.isLabour === true || /labour|labor|scaffold/i.test(x.sec) || /^h(ou)?rs?$/.test(u); };
+  // A LABOUR LINE (2026-11-13, the owner on job 3275: "LA labor apprentice
+  // and LL labor lead, 25 hours each. That is the actual allocated hours ...
+  // a little person symbol ... allocated as labor ... the rest ... a little
+  // house symbol ... material supplies"). Fergus's person icon is the line's
+  // labour flag, which its read does not always call isLabour — so any field
+  // naming labour that is true or says LABOUR counts, then a unit of hours,
+  // a labour / scaffold section, and last the line's own name.
+  var isHrs = function(x){ var it = x.it || {}, u = String(it.unitOfMeasureSell || it.unitOfMeasure || it.unit || '').toLowerCase();
+    if (it.isLabour === false || it.isLabor === false) return false;
+    var flag = false;
+    var scan = function(o, d){ if (!o || typeof o !== 'object' || d > 2) return; Object.keys(o).forEach(function(k){ var v = o[k];
+      if (/labou?r/i.test(k) && v === true) flag = true;
+      else if (typeof v === 'string' && /^(item|line|cost|price|type|kind|category|itemType|lineItemType|costType)/i.test(k) && /^labou?r$/i.test(v.trim())) flag = true;
+      else if (v && typeof v === 'object' && /item|pricebook|price_book|product/i.test(k)) scan(v, d + 1); }); };
+    scan(it, 0);
+    return flag || /labour|labor|scaffold/i.test(x.sec) || /^h(ou)?rs?$|^hour/.test(u) || /\blabou?r\b/i.test(String(it.itemName || it.name || it.description || '')); };
   var hrs = items.filter(function(x){ return isHrs(x) && qtyOf(x.it) > 0; }), tot = 0;
   var hrows = hrs.map(function(x){ var n = qtyOf(x.it); tot += n;
     return '<tr><td>' + esc(x.sec ? x.sec + ' — ' : '') + esc(x.it.itemName || x.it.name || x.it.description) + '</td><td style="text-align:right">' + (Math.round(n * 100) / 100) + '</td></tr>'; });
@@ -12897,21 +12981,24 @@ function _schedInfoFergusHtml(q, r, err, opt){
   secs.forEach(function(s){ [s.description, s.sectionDescription, s.summary, s.notes].forEach(function(v){ var t = _fgDescText(v); if (t && desc.indexOf(t) < 0) desc.push(t); }); });
   h += '<div class="sij-card sij-fgquote"><div class="sij-h">Fergus quote' + (q._accepted ? ' — accepted' : '') + (q.title ? ' · ' + esc(q.title) : '') + '</div>' +
     (totHtml || '<div style="color:var(--text2);font-size:12px">No total on the Fergus quote.</div>') + '</div>';
-  h += '<div class="sij-card"><div class="sij-h">Fergus quote description</div>' + (desc.length
-    ? '<div class="sij-fgdesc">' + esc(desc.join('\n\n')) + '</div>'
-    : '<div style="color:var(--text2);font-size:12px">No quote description.</div>') + '</div>';
+  // The hours lead, under the total; the description and the line items are
+  // folded shut — there when wanted, not a wall of words every time.
   h += '<div class="sij-card" id="sijFgHours"><div class="sij-h">Allocated hours (from Fergus)</div>' + (hrows.length ?
     '<div class="sij-fghead" style="font-size:13px;font-weight:700;margin-bottom:6px">' + esc(hrsHead) + '</div>' +
     '<table class="sij-hrs sij-fghrs"><thead><tr><th>Line</th><th style="text-align:right">Hours</th></tr></thead><tbody>' + hrows.join('') +
     '</tbody><tfoot><tr><td><b>Total combined hours</b></td><td style="text-align:right"><b>' + (Math.round(tot * 100) / 100) + '</b></td></tr></tfoot></table>' :
     '<div style="color:var(--text2);font-size:12px">No labour lines on the quote.</div>') + '</div>';
-  h += '<div class="sij-card"><div class="sij-h">Quote line items</div>' + (items.length ?
+  h += '<details class="sij-card sij-fgfold" id="sijFgDesc"><summary class="sij-h">Fergus quote description</summary>' + (desc.length
+    ? '<div class="sij-fgdesc">' + esc(desc.join('\n\n')) + '</div>'
+    : '<div style="color:var(--text2);font-size:12px">No quote description.</div>') + '</details>';
+  h += '<details class="sij-card sij-fgfold" id="sijFgLines"><summary class="sij-h">Quote line items' +
+    (secs.length ? ' — ' + esc(secs.map(function(s){ return s.name || s.title || ''; }).filter(Boolean).join(', ')) : '') + '</summary>' + (items.length ?
     '<table class="sij-hrs sij-fglines"><thead><tr><th>Item</th><th style="text-align:right">Qty</th><th style="text-align:right">Each</th><th style="text-align:right">Total</th></tr></thead><tbody>' +
     secs.map(function(s){ var li = s.lineItems || s.items || []; if (!li.length) return '';
       return '<tr><td colspan="4" style="font-weight:700;color:#0a1628;background:#f8fafc">' + esc(s.name || s.title || 'Section') + '</td></tr>' + li.map(function(it){
         var n = +(it.itemQuantity != null ? it.itemQuantity : it.quantity) || 0, p = +(it.itemPrice != null ? it.itemPrice : it.price) || 0;
         return '<tr><td>' + esc(it.itemName || it.name || it.description) + '</td><td style="text-align:right">' + n + '</td><td style="text-align:right">' + money(p) + '</td><td style="text-align:right">' + money(n * p) + '</td></tr>'; }).join(''); }).join('') +
-    '</tbody></table>' : '<div style="color:var(--text2);font-size:12px">No line items.</div>') + '</div>';
+    '</tbody></table>' : '<div style="color:var(--text2);font-size:12px">No line items.</div>') + '</details>';
   return h;
 }
 function _schedJobUnquoted(job){
@@ -15912,6 +15999,7 @@ function switchSettingsSub(id,btn){
   try { _setFoldInit(panel); } catch(e){}
   if (id === 'set-labour'){ try { _lpMethodInit(); } catch(e){} }
   if (id === 'set-scaffold'){ try { _lpScaffTiersRender(); } catch(e){} }
+  if (id === 'set-jobfiles'){ try { _jfsRender(); } catch(e){} }
   if (id === 'set-flashings') {
     try { renderFlashingLibrary(); } catch(e) { console.warn('library render:', e); }
   }
@@ -23095,7 +23183,8 @@ function _jobHistoryOpen(){
          '<button type="button" id="jhcSendBtn" class="lock-ok" onclick="_jhcSend()" style="background:#0099cc;border:none;color:#fff;border-radius:8px;padding:7px 16px;cursor:pointer;font-size:12.5px;font-weight:700">Send reply</button></div>')
       : '<div style="color:var(--text2);font-size:11.5px">Save the job first — its emails with the customer are kept on the saved job.</div>') +
     '</div>';
-  body.innerHTML = comms + sec('Job timeline') + _jobHistRows().map(function(r){ return row(r.icon, r.label, r.at, r.note); }).join('') +
+  window._jobHistRowHtml = row;
+  body.innerHTML = comms + sec('Job timeline') + '<div id="jobHistTimeline">' + _jobHistRows().map(function(r){ return row(r.icon, r.label, r.at, r.note); }).join('') + '</div>' +
     '<div id="jobHistMail" style="margin-top:12px"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:800;color:var(--text2);margin-bottom:4px">Updates emailed from the schedule</div>' +
     '<div style="color:var(--text2);font-size:11.5px">Looking…</div></div>';
   document.getElementById('jobHistOverlay').style.display = 'block';
@@ -23206,6 +23295,7 @@ async function _jhcLoad(){
     var out = await api('GET', '/jobs/' + encodeURIComponent(jid) + '/messages');
     var list = (out && out.messages) || [];
     _convoRender(list, el, (S.quote && S.quote.client) || '');
+    try { _jobHistTimelineRender(list); } catch(e){}
     if (!list.length) el.innerHTML = '<div style="color:var(--text2);padding:4px 0">Nothing yet. A question the customer asks on their quote lands here, and so does every reply — from here or from your own email.</div>';
     var c = document.getElementById('navJobHistCount');
     if (c){ c.textContent = String(list.length); c.style.display = list.length ? 'inline-block' : 'none'; }
@@ -23239,6 +23329,30 @@ async function _jhcSend(){
     if (msg){ msg.style.color = '#b91c1c'; msg.textContent = String((e && e.message) || e); }
   }
   if (btn){ btn.disabled = false; btn.textContent = 'Send reply'; }
+}
+// THE EMAILS ARE IN THE JOB TIMELINE TOO (2026-11-13, the owner: "in the
+// history and communications job timeline, also the emails as well"): the
+// milestones and every email on the job, in date order; milestones not
+// reached yet stay at the foot, "not yet". A milestone an email already says
+// (the quote emailed, the question asked) is not said twice.
+function _jobHistTimelineRender(msgs){
+  var el = document.getElementById('jobHistTimeline'), row = window._jobHistRowHtml; if (!el || !row) return;
+  msgs = msgs || [];
+  var has = function(v){ return msgs.some(function(m){ return m.via === v; }); };
+  var rows = _jobHistRows().filter(function(r){ return !((r.k === 'sent' && has('quote-email')) || (r.k === 'queried' && has('quote-link'))); })
+    .map(function(r){ return { at: r.at, html: row(r.icon, r.label, r.at, r.note) }; });
+  msgs.forEach(function(m){
+    var k = _jfMailKind(m), own = m.who === 'office';
+    var note = [m.subject || '', own ? (m.mail_to ? ('to ' + m.mail_to) : '') : (m.mail_from || m.author || '')].filter(Boolean).join(' · ');
+    if (!m.subject && m.body) note = String(m.body).slice(0, 120) + (note ? (' · ' + note) : '');
+    rows.push({ at: m.at, html: row(k[0], k[1], m.at, note), mail: true });
+  });
+  rows.sort(function(a, b){
+    var ta = Date.parse(a.at || '') || 0, tb = Date.parse(b.at || '') || 0;
+    if (!ta || !tb) return (tb ? 1 : 0) - (ta ? 1 : 0);
+    return ta - tb;
+  });
+  el.innerHTML = rows.map(function(r){ return r.html; }).join('');
 }
 function _jobHistoryClose(){
   var o = document.getElementById('jobHistOverlay'), m = document.getElementById('jobHistModal');
@@ -31279,7 +31393,7 @@ function _jobFileRemove(i){
 // every autosave is how the database stalled in September. A file goes
 // sign → PUT straight to storage → landed. `_jfKeep` is the one call every
 // export and send makes; it never throws and never asks anything.
-var _JF = { files: null, jobId: null, busy: 0, ferg: null, msg: '' };
+var _JF = { files: null, jobId: null, busy: 0, ferg: null, msg: '', layout: null, layoutErr: '', view: '', mail: null };
 var JF_SOURCE_NAMES = {
   'quote-pdf': 'Quote PDF', 'sent-quote': 'Sent quote', 'jobpack-pdf': 'Job Pack PDF', 'jobpack-print': 'Job Pack (printed)',
   'jobpack-fergus': 'Job Pack sent to Fergus', 'quote-fergus': 'Quote sent to Fergus', 'pricing-csv': 'Pricing CSV',
@@ -31352,13 +31466,17 @@ function _jfCountSet(){
 async function _jfLoad(quiet){
   var jobId = window.S && S.currentJobId;
   if (!jobId){ _JF.files = []; _JF.jobId = null; _jfRender(); return; }
-  if (_JF.jobId !== jobId){ _JF.files = null; _JF.ferg = null; }
+  if (_JF.jobId !== jobId){ _JF.files = null; _JF.ferg = null; _JF.layout = null; _JF.layoutErr = ''; _JF.view = ''; _JF.mail = null; }
   _JF.jobId = jobId;
   if (!quiet) _jfRender();
   try {
     var r = await api('GET', '/jobs/' + jobId + '/files');
     if (_JF.jobId !== jobId) return;
     _JF.files = (r && r.files) || []; _JF.err = '';
+    // The folders: keep what is on screen if the office moved something
+    // while this read was in flight; never save over a layout not read.
+    _JF.layoutErr = (r && r.layoutErr) || '';
+    if (!_JF_LSAVE_PENDING()) _JF.layout = (r && r.layout && typeof r.layout === 'object') ? r.layout : (_JF.layout || null);
   } catch(e){ if (_JF.jobId === jobId){ _JF.err = 'Could not read this job’s files: ' + ((e && e.message) || e); if (!_JF.files) _JF.files = []; } }
   _jfRender(); _jfCountSet();
 }
@@ -31380,10 +31498,12 @@ function _jobFilesOpen(){
   host.id = 'jobFilesModal'; host.className = 'no-print';
   host.addEventListener('click', function(e){ if (e.target === host) _jobFilesClose(); });
   document.body.appendChild(host);
-  _JF.msg = '';
+  _JF.msg = ''; _JF.view = '';
+  _jfDragWire(host);
   _jfRender();
   _jfLoad();
   _jfLoadFergus();
+  _jfMailLoad();
 }
 function _jobFilesClose(){ var m = document.getElementById('jobFilesModal'); if (m) m.remove(); _jfViewerClose(); }
 function _jfIsImage(mime, name){ return /^image\//.test(mime || '') || /\.(jpe?g|png|gif|webp|bmp|heic|heif)$/i.test(name || ''); }
@@ -31393,57 +31513,477 @@ function _jfRow(icon, name, meta, actions, attrs){
     '<span class="jf-main"><span class="jf-name" title="' + esc2(name) + '">' + esc2(name) + '</span><span class="jf-meta">' + meta + '</span></span>' +
     '<span class="jf-acts">' + actions + '</span></div>';
 }
+// ── FOLDERS (2026-11-13, the owner: "make subfolders in this window ... just
+// make it photos. So all the photos of the job will be going into that
+// folder. And then another folder for files, so put the customer
+// selections, accepted quote, and any other PDFs into that folder ... a
+// third folder called communications ... the whole email trail ... in order
+// ... the top would be the first email sent, and the bottom would be the most
+// recent", then "allow the user to add a custom folder into that specific
+// job, or delete a folder, or move items into a folder, or remove items from
+// the folder. Any items removed from the folder will go back to the ... main
+// files and photos pop-up window. And then allow the user to click, hold and
+// drag into a folder. Or delete an item ... reorder an item").
+// Which folder an item sits in is the RULE in Settings → Job files & photos
+// (`quote_defaults.job_folders`) until somebody moves it; the job's own
+// layout (GET/PUT /jobs/:id/files/layout, one small row per job) records
+// only what the office changed — its own folders, default folders taken off,
+// items placed ('' = the main screen), the order dragged and items taken out.
+var JF_TYPES = [['image','Photos & pictures'],['pdf','PDFs'],['doc','Documents (Word, text)'],['sheet','Spreadsheets & CSV'],['other','Other files']];
+var JF_FROMS = [['roofmap','Exported or sent from RoofMap'],['upload','Uploaded by you'],['fergus','From Fergus'],['site','Site photos on the quote']];
+var JF_DEFAULT_FOLDERS = [
+  { id: 'photos', name: 'Photos', types: ['image'], from: [] },
+  { id: 'files', name: 'Files', types: ['pdf', 'doc', 'sheet', 'other'], from: [] },
+  { id: 'mail', name: 'Email communications', mail: true }
+];
+function _jfDefaults(){
+  var s = window.S && S.settings && S.settings.quote_defaults && S.settings.quote_defaults.job_folders;
+  var list = Array.isArray(s) ? s : JF_DEFAULT_FOLDERS;
+  return list.filter(function(f){ return f && f.id && String(f.name || '').trim(); }).map(function(f){
+    return { id: String(f.id), name: String(f.name).trim(), mail: !!f.mail,
+      types: Array.isArray(f.types) ? f.types.slice() : [], from: Array.isArray(f.from) ? f.from.slice() : [] };
+  });
+}
+function _jfType(mime, name){
+  mime = String(mime || ''); name = String(name || '');
+  if (_jfIsImage(mime, name)) return 'image';
+  if (/pdf/i.test(mime) || /\.pdf$/i.test(name)) return 'pdf';
+  if (/csv|excel|spreadsheet|numbers/i.test(mime) || /\.(csv|xlsx?|ods|numbers|tsv)$/i.test(name)) return 'sheet';
+  if (/word|rtf|opendocument\.text|^text\//i.test(mime) || /\.(docx?|txt|rtf|odt|pages|md)$/i.test(name)) return 'doc';
+  return 'other';
+}
+function _jfLay(){
+  var L = _JF.layout;
+  if (!L || typeof L !== 'object') L = _JF.layout = {};
+  if (!Array.isArray(L.folders)) L.folders = [];
+  if (!Array.isArray(L.hiddenFolders)) L.hiddenFolders = [];
+  if (!L.place || typeof L.place !== 'object') L.place = {};
+  if (!L.order || typeof L.order !== 'object') L.order = {};
+  if (!Array.isArray(L.hiddenItems)) L.hiddenItems = [];
+  return L;
+}
+function _jfFolders(){
+  var L = _jfLay();
+  var out = _jfDefaults().filter(function(f){ return L.hiddenFolders.indexOf(f.id) < 0; });
+  L.folders.forEach(function(f){ if (f && f.id && !out.some(function(x){ return x.id === f.id; })) out.push({ id: f.id, name: f.name, custom: true, types: [], from: [] }); });
+  return out;
+}
+function _jfHash(s){
+  s = String(s || ''); var h = 2166136261, step = Math.max(1, Math.floor(s.length / 4000));
+  for (var i = 0; i < s.length; i += step){ h ^= s.charCodeAt(i); h = (h * 16777619) >>> 0; }
+  return s.length.toString(36) + h.toString(36);
+}
+// Every item the window can show, each with a key that outlives a reload.
+function _jfItems(){
+  var L = _jfLay(), out = [];
+  (_JF.files || []).forEach(function(f){
+    out.push({ key: 's:' + f.id, kind: 'stored', id: f.id, name: f.name || 'file', mime: f.mime, at: f.at, size: f.size,
+      type: _jfType(f.mime, f.name), origin: f.kind === 'export' ? 'roofmap' : 'upload', f: f });
+  });
+  ((window.S && S.files) || []).forEach(function(f, i){
+    if (!f) return;
+    out.push({ key: 'l:' + _jfHash((f.name || '') + '|' + (f.size || 0) + '|' + String(f.data || '').slice(0, 200)), kind: 'legacy', idx: i,
+      name: f.name || 'file', mime: f.mime, size: f.size, type: _jfType(f.mime, f.name), origin: 'upload' });
+  });
+  ((window.S && S.photos) || []).filter(function(p){ return p && p.src; }).forEach(function(p, i){
+    out.push({ key: 'p:' + _jfHash(p.src), kind: 'photo', idx: i, name: p.caption || ('Site photo ' + (i + 1)), mime: 'image/jpeg', src: p.src,
+      type: 'image', origin: 'site' });
+  });
+  ((_JF.ferg && _JF.ferg.files) || []).forEach(function(f, i){
+    var nm = f.name || ('Fergus file ' + (i + 1));
+    out.push({ key: 'f:' + String(f.id || f.url), kind: 'ferg', idx: i, name: nm, mime: f.contentType || '', at: f.createdAt || f.created_at || '',
+      type: _fergusIsImage(f) ? 'image' : _jfType(f.contentType, nm), origin: 'fergus', f: f });
+  });
+  return out.filter(function(it){ return L.hiddenItems.indexOf(it.key) < 0; });
+}
+function _jfFolderOf(it, folders){
+  var L = _jfLay();
+  if (Object.prototype.hasOwnProperty.call(L.place, it.key)){
+    var p = L.place[it.key];
+    return (p && folders.some(function(f){ return f.id === p && !f.mail; })) ? p : '';
+  }
+  for (var i = 0; i < folders.length; i++){
+    var f = folders[i];
+    if (f.mail || f.custom) continue;
+    if ((f.types || []).indexOf(it.type) >= 0 && (!(f.from || []).length || f.from.indexOf(it.origin) >= 0)) return f.id;
+  }
+  return '';
+}
+function _jfOrdered(list, fid){
+  var ord = _jfLay().order[fid || '_home'] || [];
+  var pos = {}; ord.forEach(function(k, i){ pos[k] = i; });
+  return list.map(function(it, i){ return { it: it, i: i }; }).sort(function(a, b){
+    var pa = Object.prototype.hasOwnProperty.call(pos, a.it.key), pb = Object.prototype.hasOwnProperty.call(pos, b.it.key);
+    if (pa && pb) return pos[a.it.key] - pos[b.it.key];
+    if (pa !== pb) return pa ? -1 : 1;
+    var ta = Date.parse(a.it.at || '') || 0, tb = Date.parse(b.it.at || '') || 0;
+    if (ta !== tb) return tb - ta;              // newest first, until somebody orders them
+    return a.i - b.i;
+  }).map(function(x){ return x.it; });
+}
+function _jfGroups(){
+  var folders = _jfFolders(), g = { '': [] };
+  folders.forEach(function(f){ g[f.id] = []; });
+  _jfItems().forEach(function(it){ var k = _jfFolderOf(it, folders); (g[k] || g['']).push(it); });
+  Object.keys(g).forEach(function(k){ g[k] = _jfOrdered(g[k], k); });
+  return { folders: folders, g: g };
+}
+var JF_ORIGIN_NAMES = { roofmap: 'Exported from RoofMap', upload: 'Uploaded', fergus: 'Fergus', site: 'Site photo on the quote' };
+function _jfItemRow(it, fid, folders){
+  var ic;
+  if (it.type === 'image'){
+    if (it.kind === 'stored') ic = '<img class="jf-thumb" data-jf-thumb="' + esc2(it.id) + '" alt="">';
+    else if (it.kind === 'ferg') ic = '<img class="jf-thumb" data-jf-fthumb="' + it.idx + '" alt="">';
+    else if (it.kind === 'photo') ic = '<img class="jf-thumb" src="' + esc2(it.src) + '" alt="">';
+    else ic = _jobFileIcon(it.mime || '', it.name);
+  } else ic = _jobFileIcon(it.mime || '', it.name);
+  var meta = [];
+  if (it.at) meta.push(esc2(_jfWhen(it.at)));
+  if (it.size) meta.push(esc2(_jobFileFmtSize(it.size)));
+  if (it.kind === 'stored' && it.f.kind === 'export' && it.f.source) meta.push(esc2(JF_SOURCE_NAMES[it.f.source] || it.f.source));
+  else meta.push(esc2(JF_ORIGIN_NAMES[it.origin] || ''));
+  if (it.kind === 'stored' && it.f.author) meta.push(esc2(it.f.author));
+  var open = it.kind === 'stored' ? '_jfOpenStored(\'' + esc2(it.id) + '\')' : it.kind === 'ferg' ? '_jfOpenFergus(' + it.idx + ')'
+           : it.kind === 'photo' ? '_jfOpenPhoto(' + it.idx + ')' : '_jfOpenLegacy(' + it.idx + ')';
+  var mv = '<select class="jf-move" title="Move to a folder" onchange="_jfMoveTo(this.closest(\'[data-jf-key]\').getAttribute(\'data-jf-key\'), this.value)">' +
+    '<option value="__">Move to…</option>' + (fid ? '<option value="">Main screen (no folder)</option>' : '') +
+    folders.filter(function(f){ return !f.mail && f.id !== fid; }).map(function(f){ return '<option value="' + esc2(f.id) + '">' + esc2(f.name) + '</option>'; }).join('') + '</select>';
+  var acts = '<button type="button" class="jf-btn jf-open" onclick="' + open + '">Open</button>' +
+    (it.kind === 'stored' ? '<button type="button" class="jf-btn" title="Download" onclick="_jfDownloadStored(\'' + esc2(it.id) + '\')">⬇</button>' : '') +
+    mv +
+    (fid ? '<button type="button" class="jf-btn jf-out" title="Take it out of this folder (back to the main screen)" onclick="_jfToHome(this.closest(\'[data-jf-key]\').getAttribute(\'data-jf-key\'))">↩</button>' : '') +
+    '<button type="button" class="jf-btn jf-del" title="' + (it.kind === 'stored' ? 'Delete this file' : 'Take it out of this window') + '" onclick="_jfItemDelete(this.closest(\'[data-jf-key]\').getAttribute(\'data-jf-key\'))">✕</button>';
+  var attrs = ' data-jf-key="' + esc2(it.key) + '"' + (it.kind === 'stored' ? ' data-jf-file="' + esc2(it.id) + '"' : '') +
+    (it.kind === 'ferg' ? ' data-jf-ferg="' + it.idx + '"' : '');
+  return '<div class="jf-row"' + attrs + '><span class="jf-grip" title="Click, hold and drag — onto a folder, or above or below another item">⋮⋮</span><span class="jf-ic">' + ic + '</span>' +
+    '<span class="jf-main"><span class="jf-name" title="' + esc2(it.name) + '">' + esc2(it.name) + '</span><span class="jf-meta">' + meta.filter(Boolean).join(' · ') + '</span></span>' +
+    '<span class="jf-acts">' + acts + '</span></div>';
+}
 function _jfRender(){
   var host = document.getElementById('jobFilesModal'); if (!host) return;
-  var files = _JF.files, loading = (files == null);
-  var mine = (files || []), exp = mine.filter(function(f){ return f.kind === 'export'; }), up = mine.filter(function(f){ return f.kind !== 'export'; });
-  var stored = function(f){
-    var ic = _jfIsImage(f.mime, f.name) ? '<img class="jf-thumb" data-jf-thumb="' + esc2(f.id) + '" alt="">' : _jobFileIcon(f.mime || '', f.name || '');
-    var meta = esc2(_jfWhen(f.at)) + ' · ' + esc2(_jobFileFmtSize(f.size)) +
-      (f.kind === 'export' && f.source ? ' · ' + esc2(JF_SOURCE_NAMES[f.source] || f.source) : '') +
-      (f.author ? ' · ' + esc2(f.author) : '');
-    return _jfRow(ic, f.name, meta,
-      '<button type="button" class="jf-btn jf-open" onclick="_jfOpenStored(\'' + esc2(f.id) + '\')">Open</button>' +
-      '<button type="button" class="jf-btn" title="Download" onclick="_jfDownloadStored(\'' + esc2(f.id) + '\')">⬇</button>' +
-      '<button type="button" class="jf-btn jf-del" title="Delete this file" onclick="_jfDelete(\'' + esc2(f.id) + '\')">✕</button>',
-      ' data-jf-file="' + esc2(f.id) + '"');
-  };
-  var sec = function(title, note, body){ return '<section class="jf-sec"><h4>' + title + '</h4>' + (note ? '<p class="jf-note">' + note + '</p>' : '') + body + '</section>'; };
+  var loading = (_JF.files == null);
+  var G = _jfGroups(), folders = G.folders;
+  var view = _JF.view || '';
+  if (view && !folders.some(function(f){ return f.id === view; })) view = _JF.view = '';
+  var cur = view ? folders.filter(function(f){ return f.id === view; })[0] : null;
   var empty = function(t){ return '<div class="jf-empty">' + t + '</div>'; };
-  // What the job carried already: files kept on the job and its site photos.
-  var legacy = [];
-  ((S && S.files) || []).forEach(function(f, i){ legacy.push(_jfRow(_jobFileIcon(f.mime || '', f.name || ''), f.name || 'file', esc2(_jobFileFmtSize(f.size)),
-    '<button type="button" class="jf-btn jf-open" onclick="_jfOpenLegacy(' + i + ')">Open</button>')); });
-  var photos = ((S && S.photos) || []).filter(function(p){ return p && p.src; });
-  var ferg = _JF.ferg;
-  var fergHtml = '';
-  if (window.S && S.linkedJobId){
-    if (!ferg || ferg.loading) fergHtml = empty('Loading the files on Fergus job ' + esc2(_fergusDisplayNo ? _fergusDisplayNo() : S.linkedJobId) + '…');
-    else if (!ferg.files.length) fergHtml = empty(ferg.ok === false ? 'Could not read the Fergus job’s files' + (ferg.err ? ' (' + esc2(ferg.err) + ')' : '') + '.' : 'No files on the Fergus job.');
-    else fergHtml = ferg.files.map(function(f, i){
-      var nm = f.name || ('Fergus file ' + (i + 1));
-      var ic = _fergusIsImage(f) ? '<img class="jf-thumb" data-jf-fthumb="' + i + '" alt="">' : _jobFileIcon(f.contentType || '', nm);
-      return _jfRow(ic, nm, 'Fergus' + (f.createdAt || f.created_at ? ' · ' + esc2(_jfWhen(f.createdAt || f.created_at)) : ''),
-        '<button type="button" class="jf-btn jf-open" onclick="_jfOpenFergus(' + i + ')">Open</button>', ' data-jf-ferg="' + i + '"');
-    }).join('');
+  var fergWait = (window.S && S.linkedJobId) && (!_JF.ferg || _JF.ferg.loading);
+  var fergNote = (window.S && S.linkedJobId && _JF.ferg && !_JF.ferg.loading && _JF.ferg.ok === false)
+    ? '<div class="jf-msg jf-msg-err">Could not read the Fergus job’s files' + (_JF.ferg.err ? ' (' + esc2(_JF.ferg.err) + ')' : '') + '.</div>' : '';
+  var body = '';
+  if (!cur){
+    var tiles = folders.map(function(f){
+      var n = f.mail ? (_JF.mail && _JF.mail.list ? _JF.mail.list.length : '') : (G.g[f.id] || []).length;
+      return '<div class="jf-fold' + (f.mail ? ' jf-fold-mail' : '') + '" role="button" tabindex="0" data-jf-folder="' + esc2(f.id) + '"' +
+        (f.mail ? '' : ' data-jf-drop="' + esc2(f.id) + '"') + ' onclick="_jfGo(\'' + esc2(f.id) + '\')">' +
+        '<span class="jf-fold-ic">' + (f.mail ? '✉️' : '📁') + '</span><span class="jf-fold-nm">' + esc2(f.name) + '</span>' +
+        '<span class="jf-fold-n">' + (n === '' ? '' : n) + '</span>' +
+        '<span class="jf-fold-tools">' +
+          (f.custom ? '<button type="button" title="Rename this folder" onclick="event.stopPropagation();_jfRenameFolder(\'' + esc2(f.id) + '\')">✎</button>' : '') +
+          '<button type="button" title="Delete this folder from this job" onclick="event.stopPropagation();_jfDeleteFolder(\'' + esc2(f.id) + '\')">✕</button></span></div>';
+    }).join('') + '<button type="button" class="jf-fold jf-fold-new" onclick="_jfNewFolder()"><span class="jf-fold-ic">＋</span><span class="jf-fold-nm">New folder</span></button>';
+    var home = G.g[''] || [];
+    body = '<section class="jf-sec"><h4>Folders</h4><div class="jf-folds">' + tiles + '</div>' +
+      (_jfLay().hiddenFolders.length ? '<a class="jf-link" onclick="_jfRestoreFolders()">Put back the default folders taken off this job</a>' : '') + '</section>' +
+      '<section class="jf-sec"><h4>Not in a folder</h4><p class="jf-note">Click, hold and drag an item onto a folder, or above or below another item to reorder it. Anything taken out of a folder comes back here.</p>' +
+      '<div class="jf-list" data-jf-list="">' + (loading ? empty('Loading…') : (home.length ? home.map(function(it){ return _jfItemRow(it, '', folders); }).join('')
+        : empty('Everything is in a folder.' + (fergWait ? ' Still loading the Fergus job’s files…' : '')))) + '</div></section>';
+  } else if (cur.mail){
+    body = _jfMailHtml();
+  } else {
+    var list = G.g[cur.id] || [];
+    var chips = folders.filter(function(f){ return !f.mail && f.id !== cur.id; }).map(function(f){
+      return '<span class="jf-chip" data-jf-drop="' + esc2(f.id) + '" onclick="_jfGo(\'' + esc2(f.id) + '\')">📁 ' + esc2(f.name) + '</span>'; }).join('');
+    body = '<section class="jf-sec">' +
+      (chips ? '<div class="jf-chips"><span class="jf-chips-lbl">Drag onto:</span>' + chips + '</div>' : '') +
+      '<div class="jf-list" data-jf-list="' + esc2(cur.id) + '">' + (loading ? empty('Loading…') : (list.length ? list.map(function(it){ return _jfItemRow(it, cur.id, folders); }).join('')
+        : empty('Nothing in this folder yet. Drag items onto it from the main screen, or use “Move to…”.' + (fergWait ? ' Still loading the Fergus job’s files…' : '')))) + '</div></section>';
   }
   host.innerHTML = '<div class="jf-box" role="dialog" aria-label="Files and photos">' +
     '<div class="jf-hd"><b>📁 Files &amp; Photos</b><span class="jf-job">' + esc2((S.quote && S.quote.ref) ? 'Job ' + S.quote.ref : '') + '</span>' +
       '<label class="jf-up">⬆ Upload files or photos<input type="file" id="jfUploadInput" multiple hidden onchange="_jfUpload(this)"></label>' +
       '<button type="button" class="jf-x" onclick="_jobFilesClose()" title="Close">✕</button></div>' +
+    (cur ? '<div class="jf-crumbs"><button type="button" class="jf-crumb" data-jf-drop="" onclick="_jfGo(\'\')">← All files &amp; photos</button><span class="jf-crumb-sep">/</span><b>' +
+      (cur.mail ? '✉️ ' : '📁 ') + esc2(cur.name) + '</b></div>' : '') +
     (_JF.msg ? '<div class="jf-msg">' + _JF.msg + '</div>' : '') +
     (_JF.err ? '<div class="jf-msg jf-msg-err">' + esc2(_JF.err) + '</div>' : '') +
-    '<div class="jf-body">' +
-      sec('Exported &amp; sent from RoofMap', 'This section only holds files RoofMap has exported or sent on this job — every quote and Job Pack PDF, sent quote, pricing sheet and material order is kept here automatically, newest first.',
-        loading ? empty('Loading…') : (exp.length ? exp.map(stored).join('') : empty('Nothing exported or sent from this job yet.'))) +
-      sec('Your uploads', '', loading ? empty('Loading…') : (up.length ? up.map(stored).join('') : empty('Plans, photos, documents — use “Upload files or photos” above.'))) +
-      (photos.length ? sec('Site photos on the quote', '', '<div class="jf-grid">' + photos.map(function(p, i){
-        return '<button type="button" class="jf-ph" onclick="_jfOpenPhoto(' + i + ')" title="' + esc2(p.caption || ('Photo ' + (i + 1))) + '"><img src="' + esc2(p.src) + '" alt=""></button>'; }).join('') + '</div>') : '') +
-      (legacy.length ? sec('Kept on the job', '', legacy.join('')) : '') +
-      ((window.S && S.linkedJobId) ? sec('From Fergus', '', fergHtml) : '') +
-    '</div></div>';
+    (_JF.layoutErr ? '<div class="jf-msg jf-msg-err">The folders on this job could not be read just now, so changes to them will not be kept — ' + esc2(_JF.layoutErr) + '</div>' : '') +
+    fergNote +
+    '<div class="jf-body">' + body + '</div></div>';
   _jfThumbs();
 }
+function _jfGo(id){ _JF.view = id || ''; _JF.msg = ''; _jfRender(); if (id){ var f = _jfFolders().filter(function(x){ return x.id === id; })[0]; if (f && f.mail) _jfMailLoad(); } }
+var _JF_LSAVE = null, _JF_LSAVE_AT = 0;
+function _JF_LSAVE_PENDING(){ return Date.now() - _JF_LSAVE_AT < 3000; }
+function _jfLayoutSave(){
+  if (_JF.layoutErr) return;
+  _JF_LSAVE_AT = Date.now();
+  var jobId = _JF.jobId; if (!jobId) return;
+  clearTimeout(_JF_LSAVE);
+  _JF_LSAVE = setTimeout(function(){
+    api('PUT', '/jobs/' + jobId + '/files/layout', { layout: _jfLay() })
+      .catch(function(e){ if (_JF.jobId === jobId){ _JF.msg = 'Your folder change could not be saved — ' + esc2((e && e.message) || e); _jfRender(); } });
+  }, 250);
+}
+function _jfFolderName(id){ if (!id) return 'the main screen'; var f = _jfFolders().filter(function(x){ return x.id === id; })[0]; return f ? f.name : 'that folder'; }
+function _jfMoveTo(key, fid){
+  if (fid === '__' || fid == null || !key) return;
+  var L = _jfLay();
+  L.place[key] = String(fid);
+  Object.keys(L.order).forEach(function(k){ L.order[k] = (L.order[k] || []).filter(function(x){ return x !== key; }); });
+  _JF.msg = '✓ Moved to ' + esc2(_jfFolderName(fid)) + '.';
+  _jfLayoutSave(); _jfRender();
+}
+function _jfToHome(key){ _jfMoveTo(key, ''); }
+function _jfItemDelete(key){
+  var it = _jfItems().filter(function(x){ return x.key === key; })[0]; if (!it) return;
+  if (it.kind === 'stored') return _jfDelete(it.id);
+  var where = it.kind === 'ferg' ? 'It stays on the Fergus job.' : it.kind === 'photo' ? 'It stays on the quote.' : 'It stays kept on the job.';
+  if (!confirm('Take ' + it.name + ' out of Files & Photos? ' + where)) return;
+  var L = _jfLay(); L.hiddenItems.push(key); delete L.place[key];
+  _JF.msg = '✓ Taken out of this window.'; _jfLayoutSave(); _jfRender();
+}
+function _jfNewFolder(){
+  _styledPrompt({ title: 'New folder', message: 'A folder on this job only. Your default folders are set in Settings → Job files & photos.', placeholder: 'Folder name', okLabel: 'Add folder' }, function(v){
+    var name = String(v || '').trim().slice(0, 80); if (!name) return;
+    var L = _jfLay();
+    L.folders.push({ id: 'j' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name });
+    _JF.msg = '✓ Folder “' + esc2(name) + '” added.'; _jfLayoutSave(); _jfRender();
+  });
+}
+function _jfRenameFolder(id){
+  var L = _jfLay(), f = L.folders.filter(function(x){ return x.id === id; })[0]; if (!f) return;
+  _styledPrompt({ title: 'Rename folder', value: f.name, okLabel: 'Rename' }, function(v){
+    var name = String(v || '').trim().slice(0, 80); if (!name) return;
+    f.name = name; _jfLayoutSave(); _jfRender();
+  });
+}
+function _jfDeleteFolder(id){
+  var G = _jfGroups(), f = G.folders.filter(function(x){ return x.id === id; })[0]; if (!f) return;
+  var n = f.mail ? 0 : (G.g[id] || []).length;
+  if (!confirm('Delete the folder “' + f.name + '” from this job?' + (n ? (' The ' + n + ' item' + (n === 1 ? '' : 's') + ' in it go back to the main screen — nothing is deleted.') : ''))) return;
+  var L = _jfLay();
+  // What was in it lands on the main screen, never in another folder by rule.
+  (G.g[id] || []).forEach(function(it){ L.place[it.key] = ''; });
+  Object.keys(L.place).forEach(function(k){ if (L.place[k] === id) L.place[k] = ''; });
+  delete L.order[id];
+  if (f.custom) L.folders = L.folders.filter(function(x){ return x.id !== id; });
+  else if (L.hiddenFolders.indexOf(id) < 0) L.hiddenFolders.push(id);
+  if (_JF.view === id) _JF.view = '';
+  _JF.msg = '✓ Folder deleted' + (n ? ' — its items are back on the main screen.' : '.');
+  _jfLayoutSave(); _jfRender();
+}
+function _jfRestoreFolders(){ var L = _jfLay(); L.hiddenFolders = []; _JF.msg = '✓ The default folders are back.'; _jfLayoutSave(); _jfRender(); }
+// CLICK, HOLD AND DRAG. Pointer events, so a mouse and a finger both work: a
+// mouse picks an item up once it moves, a finger after holding it a moment
+// (a quick swipe still scrolls the list). Dropped on a folder it moves there;
+// dropped on another item it goes above or below it in this list.
+var _JF_DRAG = null;
+function _jfDragWire(host){
+  host.addEventListener('pointerdown', function(e){
+    var row = e.target.closest && e.target.closest('.jf-row[data-jf-key]'); if (!row) return;
+    if (e.target.closest('button,select,a,input,label,option')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    var st = { row: row, key: row.getAttribute('data-jf-key'), x: e.clientX, y: e.clientY, on: false, touch: e.pointerType !== 'mouse' };
+    _JF_DRAG = st;
+    if (st.touch) st.timer = setTimeout(function(){ if (_JF_DRAG === st) _jfDragStart(st, st.x, st.y); }, 380);
+    if (e.pointerType === 'mouse') e.preventDefault();      // no text selection while dragging
+  });
+}
+function _jfDragStart(st, x, y){
+  st.on = true;
+  var g = st.row.cloneNode(true);
+  g.className = 'jf-row jf-ghost'; g.removeAttribute('data-jf-key');
+  g.style.width = Math.min(420, st.row.offsetWidth) + 'px';
+  document.body.appendChild(g); st.ghost = g;
+  st.row.classList.add('jf-dragging');
+  document.body.classList.add('jf-noselect');
+  _jfDragMove(st, x, y);
+}
+function _jfDragClear(){
+  document.querySelectorAll('#jobFilesModal .jf-drop-on,#jobFilesModal .jf-ins-before,#jobFilesModal .jf-ins-after').forEach(function(el){
+    el.classList.remove('jf-drop-on', 'jf-ins-before', 'jf-ins-after'); });
+}
+function _jfDragMove(st, x, y){
+  if (st.ghost){ st.ghost.style.left = (x + 12) + 'px'; st.ghost.style.top = (y + 8) + 'px'; }
+  _jfDragClear(); st.target = null;
+  var el = document.elementFromPoint(x, y); if (!el) return;
+  var drop = el.closest('#jobFilesModal [data-jf-drop]');
+  if (drop){ drop.classList.add('jf-drop-on'); st.target = { folder: drop.getAttribute('data-jf-drop') }; return; }
+  var r = el.closest('#jobFilesModal .jf-row[data-jf-key]');
+  if (r && r !== st.row){
+    var bx = r.getBoundingClientRect(), after = y > bx.top + bx.height / 2;
+    r.classList.add(after ? 'jf-ins-after' : 'jf-ins-before');
+    st.target = { row: r.getAttribute('data-jf-key'), after: after };
+  }
+}
+function _jfDragDrop(st){
+  var t = st.target; if (!t) return;
+  var host = document.getElementById('jobFilesModal'); if (!host) return;
+  if (t.folder != null){
+    var G = _jfGroups(), cur = '';
+    Object.keys(G.g).forEach(function(k){ if ((G.g[k] || []).some(function(it){ return it.key === st.key; })) cur = k; });
+    if (cur === t.folder) return;
+    return _jfMoveTo(st.key, t.folder);
+  }
+  var list = host.querySelector('.jf-list[data-jf-list]'); if (!list) return;
+  var fid = list.getAttribute('data-jf-list') || '';
+  var keys = Array.prototype.map.call(list.querySelectorAll('.jf-row[data-jf-key]'), function(r){ return r.getAttribute('data-jf-key'); })
+    .filter(function(k){ return k !== st.key; });
+  var at = keys.indexOf(t.row); if (at < 0) return;
+  keys.splice(at + (t.after ? 1 : 0), 0, st.key);
+  var L = _jfLay();
+  L.order[fid || '_home'] = keys;
+  // An item dragged within a folder it reached by rule stays there for good.
+  if (!Object.prototype.hasOwnProperty.call(L.place, st.key)) L.place[st.key] = fid;
+  _JF.msg = ''; _jfLayoutSave(); _jfRender();
+}
+document.addEventListener('pointermove', function(e){
+  var st = _JF_DRAG; if (!st) return;
+  var dx = e.clientX - st.x, dy = e.clientY - st.y, far = Math.sqrt(dx * dx + dy * dy);
+  if (!st.on){
+    if (st.touch){ if (far > 10){ clearTimeout(st.timer); _JF_DRAG = null; } return; }
+    if (far > 5) _jfDragStart(st, e.clientX, e.clientY); else return;
+  }
+  e.preventDefault();
+  _jfDragMove(st, e.clientX, e.clientY);
+}, { passive: false });
+function _jfDragEnd(e, cancel){
+  var st = _JF_DRAG; if (!st) return;
+  _JF_DRAG = null; clearTimeout(st.timer);
+  if (!st.on) return;
+  if (st.ghost) st.ghost.remove();
+  st.row.classList.remove('jf-dragging');
+  document.body.classList.remove('jf-noselect');
+  _jfDragClear();
+  // The click that ends a drag must not open the folder or the file under it.
+  window.__jfDragJustEnded = Date.now();
+  if (!cancel) _jfDragDrop(st);
+}
+document.addEventListener('pointerup', function(e){ _jfDragEnd(e, false); });
+document.addEventListener('pointercancel', function(e){ _jfDragEnd(e, true); });
+document.addEventListener('click', function(e){
+  if (window.__jfDragJustEnded && Date.now() - window.__jfDragJustEnded < 350 && e.target.closest && e.target.closest('#jobFilesModal')){
+    e.stopPropagation(); e.preventDefault(); window.__jfDragJustEnded = 0; }
+}, true);
+// EMAIL COMMUNICATIONS: every email on the job, oldest at the top — the quote
+// as emailed, follow-ups, the customer's questions, every reply (from here or
+// from the office's own mailbox), the acceptance confirmation and the emails
+// sent from the schedule board.
+function _jfMailKind(m){
+  if (m.sched) return ['📅', m.supplier ? ('Emailed to ' + m.supplier + ' from the schedule') : 'Emailed from the schedule'];
+  switch (m.via){
+    case 'quote-email': return ['📤', 'Quote emailed to the customer'];
+    case 'followup': return ['⏰', 'Follow-up email'];
+    case 'accept-confirm': return ['✅', 'Acceptance confirmation emailed'];
+    case 'quote-link': return ['❓', 'Customer asked a question on the quote'];
+    case 'not-sent': return ['⚠️', 'Reply kept — the email did not go out'];
+    case 'email': return m.who === 'office' ? ['✉️', 'Email sent from your mailbox'] : ['✉️', 'Email from the customer'];
+  }
+  return m.who === 'office' ? ['↩️', 'Reply sent from RoofMap'] : ['✉️', 'Message from the customer'];
+}
+async function _jfMailLoad(){
+  var jobId = window.S && S.currentJobId; if (!jobId) return;
+  _JF.mail = _JF.mail && _JF.mail.jobId === jobId ? _JF.mail : { jobId: jobId, list: null };
+  try {
+    var r = await api('GET', '/jobs/' + encodeURIComponent(jobId) + '/messages');
+    var list = ((r && r.messages) || []).slice();
+    var sched = [];
+    try { sched = await _jobHistEmails(); } catch(e){}
+    (sched || []).forEach(function(s){ if (s && s.at) list.push({ sched: true, who: 'office', at: s.at, subject: s.subject || 'Customer update', mail_to: s.to || '', supplier: s.supplier || '', body: s.file ? ('Attached: ' + s.file) : '' }); });
+    list.sort(function(a, b){ return (Date.parse(a.at) || 0) - (Date.parse(b.at) || 0); });
+    if ((window.S && S.currentJobId) !== jobId) return;
+    _JF.mail = { jobId: jobId, list: list, inbox: r && r.inbox, err: '' };
+  } catch(e){ _JF.mail = { jobId: jobId, list: (_JF.mail && _JF.mail.list) || [], err: String((e && e.message) || e) }; }
+  _jfRender();
+}
+function _jfMailHtml(){
+  var M = _JF.mail;
+  var cl = (S.quote && S.quote.client) || 'Customer';
+  var cards;
+  if (!M || M.list == null) cards = '<div class="jf-empty">Loading the emails…</div>';
+  else if (!M.list.length) cards = '<div class="jf-empty">No emails on this job yet. The quote email, the customer’s questions and every reply land here, oldest first.</div>';
+  else cards = M.list.map(function(m){
+    var k = _jfMailKind(m), own = (m.who === 'office');
+    var who = own ? (m.mail_from || m.author || 'You') : (m.mail_from || m.author || cl);
+    return '<div class="jfm-card ' + (own ? 'jfm-out' : 'jfm-in') + '" data-jfm-via="' + esc2(m.sched ? 'schedule' : (m.via || '')) + '">' +
+      '<div class="jfm-top"><span class="jfm-kind">' + k[0] + ' ' + esc2(k[1]) + '</span><span class="jfm-when">' + esc2(_jfWhen(m.at)) + '</span></div>' +
+      (m.subject ? '<div class="jfm-subj">' + esc2(m.subject) + '</div>' : '') +
+      '<div class="jfm-hdrs">' + (who ? ('From: ' + esc2(who) + '<br>') : '') + (m.mail_to ? ('To: ' + esc2(m.mail_to) + '<br>') : '') + (m.mail_cc ? ('Cc: ' + esc2(m.mail_cc)) : '') + '</div>' +
+      (m.body ? '<div class="jfm-body' + (m.backfill ? ' jfm-bf' : '') + '">' + esc2(m.body) + '</div>' : '') + '</div>';
+  }).join('');
+  return '<section class="jf-sec jfm"><p class="jf-note">Every email on this job, the first sent at the top and the most recent at the bottom.' +
+      ((M && M.inbox && !M.inbox.connected) ? ' Replies you send from your own email (Gmail) show here once that mailbox is connected in Settings → Inbox.' : '') + '</p>' +
+    (M && M.err ? '<div class="jf-msg jf-msg-err">The emails could not be read just now — ' + esc2(M.err) + '</div>' : '') +
+    '<div class="jfm-thread">' + cards + '</div>' +
+    '<textarea id="jfmReply" class="lock-ok" placeholder="Write a reply… it is emailed to the customer, with their question, and kept here."></textarea>' +
+    '<div class="jfm-send"><span id="jfmMsg"></span><button type="button" class="jf-btn jf-open lock-ok" id="jfmSendBtn" onclick="_jfMailSend()">Send reply</button></div></section>';
+}
+async function _jfMailSend(){
+  var r = document.getElementById('jfmReply'), msg = document.getElementById('jfmMsg'), btn = document.getElementById('jfmSendBtn');
+  var jid = window.S && S.currentJobId; if (!r || !jid) return;
+  var body = String(r.value || '').trim();
+  if (!body){ if (msg) msg.textContent = 'Write something first.'; return; }
+  if (btn){ btn.disabled = true; btn.textContent = 'Sending…'; }
+  try {
+    var out = await api('POST', '/jobs/' + encodeURIComponent(jid) + '/messages', { body: body });
+    _JF.msg = (out && out.sent) ? ('✓ Emailed to ' + esc2(out.to || 'the customer') + ' — kept here.') : ('Kept here, but the email did not go out' + ((out && out.error) ? (' — ' + esc2(out.error)) : '') + '.');
+    await _jfMailLoad();
+  } catch(e){ if (msg) msg.textContent = String((e && e.message) || e); if (btn){ btn.disabled = false; btn.textContent = 'Send reply'; } }
+}
+// SETTINGS → JOB FILES & PHOTOS: the folders every job starts with, and what
+// goes into each. The first folder whose rule fits an item takes it.
+function _jfsList(){ return _jfDefaults(); }
+var _JFS_T = null;
+function _jfsWrite(list){
+  if (!S.settings) return;
+  S.settings.quote_defaults = S.settings.quote_defaults || {};
+  S.settings.quote_defaults.job_folders = list;
+  _jfsRender();
+  clearTimeout(_JFS_T);
+  _JFS_T = setTimeout(function(){ try { saveSettings(true); } catch(e){} }, 400);
+}
+function _jfsRender(){
+  var host = document.getElementById('jfsList'); if (!host) return;
+  var list = _jfsList();
+  var am = document.getElementById('jfsAddMail'); if (am) am.style.display = list.some(function(f){ return f.mail; }) ? 'none' : '';
+  if (!list.length){ host.innerHTML = '<div class="jf-empty">No default folders — every job opens with everything on its main screen.</div>'; return; }
+  host.innerHTML = list.map(function(f, i){
+    var tick = function(group, val, label){ var on = (f[group] || []).indexOf(val) >= 0;
+      return '<label class="jfs-tick"><input type="checkbox"' + (on ? ' checked' : '') + ' onchange="_jfsTick(' + i + ',\'' + group + '\',\'' + val + '\',this.checked)"> ' + esc2(label) + '</label>'; };
+    return '<div class="jfs-row" data-jfs="' + esc2(f.id) + '">' +
+      '<div class="jfs-hd"><span class="jfs-ic">' + (f.mail ? '✉️' : '📁') + '</span>' +
+        '<input type="text" class="jfs-name" value="' + esc2(f.name) + '" maxlength="80" onchange="_jfsSet(' + i + ',\'name\',this.value)" aria-label="Folder name">' +
+        '<button type="button" class="tool-btn" title="Move up" ' + (i ? '' : 'disabled') + ' onclick="_jfsMove(' + i + ',-1)">▲</button>' +
+        '<button type="button" class="tool-btn" title="Move down" ' + (i < list.length - 1 ? '' : 'disabled') + ' onclick="_jfsMove(' + i + ',1)">▼</button>' +
+        '<button type="button" class="tool-btn" title="Delete this default folder" onclick="_jfsDel(' + i + ')">✕</button></div>' +
+      (f.mail ? '<div class="jfs-what">Every email on the job, oldest first: the quote as emailed, follow-ups, the customer’s questions and every reply, the acceptance confirmation and the emails sent from the schedule.</div>'
+        : ('<div class="jfs-what"><b>What goes in:</b> ' + JF_TYPES.map(function(t){ return tick('types', t[0], t[1]); }).join('') + '</div>' +
+           '<div class="jfs-what"><b>From:</b> ' + JF_FROMS.map(function(t){ return tick('from', t[0], t[1]); }).join('') +
+           '<span class="jfs-hint">' + ((f.from || []).length ? '' : 'Nothing ticked = from anywhere.') + '</span></div>')) +
+      '</div>';
+  }).join('');
+}
+function _jfsSet(i, k, v){ var l = _jfsList(); if (!l[i]) return; l[i][k] = String(v || '').trim().slice(0, 80) || l[i][k]; _jfsWrite(l); }
+function _jfsTick(i, group, val, on){
+  var l = _jfsList(); if (!l[i]) return;
+  var a = (l[i][group] || []).filter(function(x){ return x !== val; }); if (on) a.push(val);
+  l[i][group] = a; _jfsWrite(l);
+}
+function _jfsMove(i, d){ var l = _jfsList(), j = i + d; if (!l[i] || !l[j]) return; var t = l[i]; l[i] = l[j]; l[j] = t; _jfsWrite(l); }
+function _jfsDel(i){
+  var l = _jfsList(); if (!l[i]) return;
+  if (!confirm('Take the folder “' + l[i].name + '” off every job? Nothing is deleted — what it held shows on each job’s main screen.')) return;
+  l.splice(i, 1); _jfsWrite(l);
+}
+function _jfsAdd(mail){
+  var l = _jfsList();
+  if (mail){ if (l.some(function(f){ return f.mail; })) return; l.push({ id: 'mail', name: 'Email communications', mail: true }); }
+  else l.push({ id: 'd' + Date.now().toString(36), name: 'New folder', types: [], from: [] });
+  _jfsWrite(l);
+  if (!mail){ setTimeout(function(){ var ins = document.querySelectorAll('#jfsList .jfs-name'); var x = ins[ins.length - 1]; if (x){ x.focus(); x.select(); } }, 30); }
+}
+function _jfsReset(){ if (!confirm('Put the folders back to RoofMap’s: Photos, Files and Email communications?')) return; _jfsWrite(JF_DEFAULT_FOLDERS.map(function(f){ return JSON.parse(JSON.stringify(f)); })); }
 // Thumbnails come through short-lived links, a few at a time.
 var _JF_THUMB = {};
 function _jfThumbs(){
@@ -31504,7 +32044,9 @@ function _jfSaveBlob(blob, name){
 async function _jfDelete(id){
   var f = (_JF.files || []).filter(function(x){ return x.id === id; })[0];
   if (!confirm('Delete ' + ((f && f.name) || 'this file') + ' from the job?')) return;
-  try { await api('DELETE', '/jobs/' + S.currentJobId + '/files/' + id); _JF.msg = '✓ Deleted.'; }
+  try { await api('DELETE', '/jobs/' + S.currentJobId + '/files/' + id); _JF.msg = '✓ Deleted.';
+    var L = _jfLay(), k = 's:' + id;
+    if (Object.prototype.hasOwnProperty.call(L.place, k)){ delete L.place[k]; _jfLayoutSave(); } }
   catch(e){ _JF.msg = 'Could not delete it: ' + esc2((e && e.message) || e); }
   await _jfLoad(true);
 }
@@ -52220,6 +52762,8 @@ async function _quoteEmailSendNow(){
     // delivery check).
     await api('POST', '/email/send-order', {
       to: to, cc: cc || undefined, subject: subject, text: body, html: html, background: true, kind: 'quote',
+      // The job it belongs to, so the email is kept in its Email communications.
+      jobId: (window.S && S.currentJobId) || undefined,
       // The tick in this window, so one quote can carry the terms when the
       // default is off (or go without when it is on). Undefined when there
       // is nothing uploaded, which leaves the server's default alone.

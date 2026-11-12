@@ -342,6 +342,8 @@ check('…and a second pass sends nothing, because the first claimed it',
 // question, show the question and let me reply to them directly ... also keep
 // history of that reply inside roofmap so i can see the correspondence".
 let conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+// The quote email from before the trail was kept stands in at its head (2026-11-13); these pins are the stored thread.
+conv.messages = (conv.messages || []).filter(m => !m.backfill);
 check('the customer\u2019s question is the first line of the job\u2019s correspondence',
   (conv.messages || []).length === 1 && conv.messages[0].who === 'customer' &&
   /Can you start before Christmas\?/.test(conv.messages[0].body || ''),
@@ -379,6 +381,7 @@ check('\u2026quoting the question\u2019s Message-ID, so it lands in the same thr
     rep1.to === 'dot@example.com' && /owner@flood\.nz/.test(rep1.cc || ''), JSON.stringify({ to: rep1.to, cc: rep1.cc }));
 }
 conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+conv.messages = (conv.messages || []).filter(m => !m.backfill);
 check('\u2026and the thread keeps who it was emailed to and copied to, so the window can say so',
   !!(conv.messages || []).find(m => m.who === 'office' && m.mail_to === 'dot@example.com' && /owner@flood\.nz/.test(m.mail_cc || '')),
   JSON.stringify((conv.messages || []).map(m => [m.who, m.mail_to, m.mail_cc])));

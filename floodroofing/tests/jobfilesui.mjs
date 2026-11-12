@@ -86,19 +86,21 @@ let v = await pg.evaluate(async () => {
   btn.click();
   await new Promise(r => setTimeout(r, 900));
   const m = document.getElementById('jobFilesModal');
-  const secs = [...m.querySelectorAll('.jf-sec h4')].map(h => h.textContent);
-  return { shown, count, open: !!m, secs, note: (m.querySelector('.jf-sec .jf-note') || {}).textContent || '',
-           exp: [...m.querySelectorAll('.jf-sec')][0].querySelectorAll('.jf-row').length,
-           up: [...m.querySelectorAll('.jf-sec')][1].querySelectorAll('.jf-row').length,
-           ferg: [...m.querySelectorAll('[data-jf-ferg]')].map(x => x.querySelector('.jf-name').textContent),
-           meta: m.querySelector('[data-jf-file="f-q"] .jf-meta').textContent };
+  const G = _jfGroups(), nm = k => (G.g[k] || []).map(it => it.name);
+  const tiles = [...m.querySelectorAll('.jf-fold[data-jf-folder]')].map(t => t.querySelector('.jf-fold-nm').textContent);
+  _jfGo('files'); await new Promise(r => setTimeout(r, 100));
+  const meta = (m.querySelector('[data-jf-file="f-q"] .jf-meta') || {}).textContent || '';
+  _jfGo('');
+  return { shown, count, open: !!m, tiles, photos: nm('photos'), files: nm('files'), home: nm(''), meta,
+           ferg: _jfItems().filter(it => it.kind === 'ferg').map(it => it.name) };
 });
-check('the left menu’s Files & Photos button is shown with the job and counts its files', v.shown && v.count === '3', JSON.stringify(v));
-check('…it opens a window: Exported & sent from RoofMap, Your uploads, From Fergus', v.open &&
-  v.secs[0] === 'Exported & sent from RoofMap' && v.secs[1] === 'Your uploads' && v.secs.indexOf('From Fergus') > 1, JSON.stringify(v.secs));
-check('…the exported section says it only holds what RoofMap exported or sent, kept automatically',
-  /only holds files RoofMap has exported or sent on this job/.test(v.note) && /automatically/.test(v.note), v.note);
-check('…each file in its own section, saying what it was and who', v.exp === 2 && v.up === 1 && /Sent quote/.test(v.meta) && /office@floodroofing/.test(v.meta), JSON.stringify(v));
+check('the button is on the left menu with the job’s file count', v.shown && v.count === '3', JSON.stringify(v));
+check('…it opens on its folders: Photos, Files and Email communications', v.open &&
+  JSON.stringify(v.tiles) === '["Photos","Files","Email communications"]', JSON.stringify(v.tiles));
+check('…the photos go into Photos and every PDF and other file into Files, by themselves',
+  JSON.stringify(v.photos.slice().sort()) === '["Fergus roof.jpg","site photo.png"]' &&
+  JSON.stringify(v.files.slice().sort()) === '["Council plans.pdf","Quote 3334 - Roofing - Aidan.pdf","RoofMap pricing 3334.csv"]' && v.home.length === 0, JSON.stringify(v));
+check('…each file still says what it was and who', /Sent quote/.test(v.meta) && /office@floodroofing/.test(v.meta), v.meta);
 check('…and the Fergus job’s files are listed', JSON.stringify(v.ferg) === '["Council plans.pdf","Fergus roof.jpg"]', JSON.stringify(v.ferg));
 
 // ── a file opens inside RoofMap ──
@@ -129,13 +131,14 @@ await pg.setInputFiles('#jfUploadInput', [
   { name:'council consent.pdf', mimeType:'application/pdf', buffer: Buffer.from('%PDF-1.4 consent') },
   { name:'gutter.png', mimeType:'image/png', buffer: png1x1 } ]);
 await pg.waitForTimeout(1200);
-v = await pg.evaluate(() => ({ up: [...[...document.querySelectorAll('#jobFilesModal .jf-sec')][1].querySelectorAll('.jf-name')].map(x => x.textContent),
-  msg: (document.querySelector('#jobFilesModal .jf-msg') || {}).textContent || '' }));
+v = await pg.evaluate(() => { const G = _jfGroups(); return { up: (G.g.files || []).concat(G.g.photos || []).map(it => it.name),
+  inFiles: (G.g.files || []).map(it => it.name), inPhotos: (G.g.photos || []).map(it => it.name),
+  msg: (document.querySelector('#jobFilesModal .jf-msg') || {}).textContent || '' }; });
 check('uploading signs each file as an upload, PUTs its bytes straight to storage and lands it',
   signs.length === 2 && signs.every(s => s.kind === 'upload' && s.job === 'j1') && puts.length === 2 &&
   puts[0].body.toString() === '%PDF-1.4 consent' && puts[0].type === 'application/pdf' && landed.length === 2,
   JSON.stringify({ signs, puts: puts.map(p => p.url), landed }));
-check('…and they are listed under Your uploads, with a message saying so', v.up.indexOf('council consent.pdf') >= 0 && v.up.indexOf('gutter.png') >= 0 && /2 files uploaded/.test(v.msg), JSON.stringify(v));
+check('…and they land in their folders — the PDF in Files, the picture in Photos — with a message saying so', v.inFiles.indexOf('council consent.pdf') >= 0 && v.inPhotos.indexOf('gutter.png') >= 0 && /2 files uploaded/.test(v.msg), JSON.stringify(v));
 
 // ── an export keeps a copy by itself ──
 const n0 = signs.length;

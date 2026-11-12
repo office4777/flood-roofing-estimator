@@ -5003,6 +5003,60 @@ async function _jfJob(req, id){
 }
 const JF_COLS = 'id, name, mime, size, kind, source, author, status, storage_path, created_at';
 function _jfFirst(r){ if (r.error) throw new Error(r.error.message); return (r.data && r.data[0]) || null; }
+// FOLDERS IN FILES & PHOTOS (2026-11-13, the owner: "make subfolders in this
+// window ... photos ... files ... email communications ... add a custom folder
+// into that specific job, or delete a folder, or move items into a folder, or
+// remove items from the folder ... click, hold and drag into a folder ...
+// reorder an item"). Which folder an item sits in is a RULE (Settings → Job
+// files & photos) until somebody moves it, so a job's layout only records
+// what the office changed: its own folders, the default folders it took off,
+// the items it placed ('' = back on the main screen), the order it dragged
+// them into and the Fergus / quote items it took out of the window. One small
+// jsonb row per job ROOT (every version shares its files), never the job row.
+function _jfLayoutClean(v){
+  const o = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  const id = (x) => String(x == null ? '' : x).replace(/[^\w:.\-]/g, '').slice(0, 200);
+  const key = (x) => String(x == null ? '' : x).slice(0, 300);
+  const out = { folders: [], hiddenFolders: [], place: {}, order: {}, hiddenItems: [] };
+  (Array.isArray(o.folders) ? o.folders : []).slice(0, 60).forEach(f => {
+    if (!f || typeof f !== 'object') return;
+    const fid = id(f.id); const name = String(f.name || '').replace(/[\u0000-\u001f]+/g, ' ').trim().slice(0, 80);
+    if (fid && name && !out.folders.some(x => x.id === fid)) out.folders.push({ id: fid, name });
+  });
+  (Array.isArray(o.hiddenFolders) ? o.hiddenFolders : []).slice(0, 60).forEach(x => { const f = id(x); if (f && !out.hiddenFolders.includes(f)) out.hiddenFolders.push(f); });
+  const pl = (o.place && typeof o.place === 'object') ? o.place : {};
+  Object.keys(pl).slice(0, 3000).forEach(k => { const kk = key(k); if (kk) out.place[kk] = id(pl[k]); });
+  const od = (o.order && typeof o.order === 'object') ? o.order : {};
+  Object.keys(od).slice(0, 80).forEach(k => {
+    const list = Array.isArray(od[k]) ? od[k].slice(0, 3000).map(key).filter(Boolean) : [];
+    out.order[id(k) || '_home'] = list;
+  });
+  (Array.isArray(o.hiddenItems) ? o.hiddenItems : []).slice(0, 3000).forEach(x => { const k = key(x); if (k && !out.hiddenItems.includes(k)) out.hiddenItems.push(k); });
+  return out;
+}
+async function _jfLayoutRead(req, job){
+  const r = await _scopeCompany(supabase.from('job_file_layouts').select('id, layout, updated_at'), req)
+    .eq('job_id', job.root).order('updated_at', { ascending: false }).limit(1);
+  if (r.error) throw new Error(r.error.message);
+  const row = (r.data && r.data[0]) || null;
+  return { row, layout: row ? _jfLayoutClean(row.layout) : null };
+}
+app.put('/jobs/:id/files/layout', requireAuth, rateLimit(240, 60000), async (req, res) => {
+  try {
+    const job = await _jfJob(req, req.params.id);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (JSON.stringify((req.body || {}).layout || {}).length > 400000) return res.status(413).json({ error: 'Too much to keep.' });
+    const layout = _jfLayoutClean((req.body || {}).layout);
+    const { row } = await _jfLayoutRead(req, job);
+    const now = new Date().toISOString();
+    let error;
+    if (row) ({ error } = await supabase.from('job_file_layouts').update({ layout, updated_at: now }).eq('id', row.id).eq('job_id', job.root));
+    else ({ error } = await supabase.from('job_file_layouts').insert({ id: crypto.randomUUID(), company_id: req.companyId || null,
+      user_id: req.user.id, job_id: job.root, layout, updated_at: now }));
+    if (error) throw new Error(error.message);
+    res.json({ ok: true, layout, updated_at: now });
+  } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+});
 app.get('/jobs/:id/files', requireAuth, async (req, res) => {
   try {
     const job = await _jfJob(req, req.params.id);
@@ -5013,7 +5067,13 @@ app.get('/jobs/:id/files', requireAuth, async (req, res) => {
     const files = (data || []).filter(f => f.status === 'ready').map(f => ({
       id: f.id, name: f.name, mime: f.mime, size: f.size, kind: f.kind, source: f.source, author: f.author, at: f.created_at }));
     let maxBytes = 0; try { maxBytes = _jfStorage().maxBytes; } catch (e) {}
-    res.json({ ok: true, files, maxBytes });
+    // The job's folders, where its items sit and their order. A failed read
+    // says so (layoutErr) — the window then shows the default folders and
+    // never writes over a layout it could not read.
+    let layout = null, layoutErr = '';
+    try { layout = (await _jfLayoutRead(req, job)).layout; }
+    catch (e) { layoutErr = String((e && e.message) || e).slice(0, 200); }
+    res.json({ ok: true, files, maxBytes, layout, layoutErr: layoutErr || undefined });
   } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
 });
 app.post('/jobs/:id/files/sign', requireAuth, rateLimit(120, 60000), async (req, res) => {
@@ -5098,6 +5158,39 @@ async function _jobForCaller(req, id){
   if (error) throw new Error(error.message);
   return (data && data[0]) || null;
 }
+// THE WHOLE EMAIL TRAIL (2026-11-13, the owner: "I want to be able to see all
+// the emails, so the quote sent, any questions that were asked from the
+// customer, and then any replies ... a full email thread"). Quote emails,
+// follow-ups and acceptance confirmations are kept as job_messages from now
+// on (via 'quote-email' / 'followup' / 'accept-confirm'). A send from before
+// that left only its date on the quote, so the trail stands one in for it —
+// marked `backfill`, never stored — where nothing was recorded near it.
+function _jobMailBackfill(quote, rows){
+  const out = [];
+  try {
+    const have = (via) => (rows || []).filter(r => r.via === via).map(r => Date.parse(r.at)).filter(isFinite);
+    const near = (list, t) => list.some(x => Math.abs(x - t) < 20 * 60000);
+    const sh = (quote && quote.share) || {};
+    const v = (quote && quote.versions) || {};
+    const sends = [];
+    (Array.isArray(v.sentEarlier) ? v.sentEarlier : []).forEach(d => { if (d && d.at) sends.push({ at: d.at, to: d.sentTo || '' }); });
+    if (v.sent && v.sent.at) sends.push({ at: v.sent.at, to: v.sent.sentTo || sh.sentTo || '' });
+    if (!sends.length && sh.sentAt) sends.push({ at: sh.sentAt, to: sh.sentTo || '' });
+    const qHave = have('quote-email');
+    const seen = [];
+    sends.forEach(x => {
+      const t = Date.parse(x.at); if (!isFinite(t) || near(qHave, t) || near(seen, t)) return; seen.push(t);
+      out.push({ id: 'bf-q-' + t, who: 'office', author: '', via: 'quote-email', backfill: true, at: new Date(t).toISOString(),
+        subject: 'Your quote' + (quote.ref ? (' ' + quote.ref) : ''), mail_to: String(x.to || ''),
+        body: 'The quote was emailed to the customer with its link. (The words of this email were not kept — RoofMap keeps a copy of every email it sends from 13 November 2026.)' });
+    });
+    const rt = Date.parse(sh.remindedAt || '');
+    if (isFinite(rt) && !near(have('followup'), rt)) out.push({ id: 'bf-f-' + rt, who: 'office', author: '', via: 'followup', backfill: true,
+      at: new Date(rt).toISOString(), subject: 'Quote follow-up', mail_to: String(sh.sentTo || ''),
+      body: 'The automatic follow-up email was sent to the customer. (Its words were not kept — RoofMap keeps a copy of every email it sends from 13 November 2026.)' });
+  } catch (e) {}
+  return out;
+}
 app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
   try {
     // Scoped IN THE QUERY by _jobForCaller (_scopeCompany on company_id), not
@@ -5106,11 +5199,14 @@ app.get('/jobs/:id/messages', requireAuth, async (req, res) => {
     if (!job) return res.status(404).json({ error: 'Job not found' });
     const read = (cols) => supabase.from('job_messages').select(cols)
       .eq('job_id', job.id).order('at', { ascending: true }).limit(200);
-    let { data, error } = await read('id, who, author, body, at, via, mail_from, mail_to, mail_cc');
-    // A database the boot migration has not reached yet has no mail_* columns:
-    // read the thread without them rather than lose it.
+    let { data, error } = await read('id, who, author, body, at, via, mail_from, mail_to, mail_cc, subject');
+    // A database the boot migration has not reached yet has no subject or
+    // mail_* columns: read the thread without them rather than lose it.
+    if (error && /subject/.test(String(error.message || ''))) ({ data, error } = await read('id, who, author, body, at, via, mail_from, mail_to, mail_cc'));
     if (error && /mail_(from|to|cc)/.test(String(error.message || ''))) ({ data, error } = await read('id, who, author, body, at, via'));
     if (error) throw new Error(error.message);
+    data = (data || []).concat(_jobMailBackfill(_quoteOf(job) || {}, data || []))
+      .sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
     // Whether a mailbox is connected, so the window can say where Gmail
     // replies come from - or that they will not appear until one is.
     let inbox = null;
@@ -5201,7 +5297,7 @@ app.post('/jobs/:id/messages', requireAuth, rateLimit(30, 60000), async (req, re
     // because a mail provider was down is the worse of the two failures.
     const row = await _jobMessageAdd(job, { who: 'office', author, body,
       msgId: mine, inReplyTo: (last && last.msg_id) || '', via: mailOk ? 'roofmap' : 'not-sent',
-      mailFrom: mailOk ? sentFrom : '', mailTo: toCust, mailCc: cc || '' });
+      mailFrom: mailOk ? sentFrom : '', mailTo: toCust, mailCc: cc || '', subject });
     try { _quoteFeedInvalidate(req.companyId); } catch (e) {}
     res.json({ ok: true, sent: mailOk, error: mailErr || undefined, message: row || undefined,
       to: toCust, cc: cc || '', from: mailOk ? sentFrom : '' });
@@ -6650,7 +6746,14 @@ async function _jobMessageAdd(job, m){
       mail_cc: String(m.mailCc || '').slice(0, 1000),
       at: m.at || new Date().toISOString(), created_at: new Date().toISOString(),
     };
-    await supabase.from('job_messages').insert(row);
+    if (m.subject) row.subject = String(m.subject).slice(0, 300);
+    let { error } = await supabase.from('job_messages').insert(row);
+    // A database the boot migration has not reached yet has no subject column:
+    // keep the message without it rather than lose it.
+    if (error && row.subject !== undefined && /subject/.test(String(error.message || ''))) {
+      delete row.subject; ({ error } = await supabase.from('job_messages').insert(row));
+    }
+    if (error) throw new Error(error.message);
     return row;
   } catch (e) {
     try { recordError('server', new Error('job message insert failed: ' + (e && e.message || e)),
@@ -6773,7 +6876,7 @@ async function _questionNotify(job, quote, message){
     // the email. The question is the customer's words, so it is kept even
     // when there is nobody to notify.
     await _jobMessageAdd(job, { who: 'customer', author: who, body: String(message || ''),
-      msgId: _qMsgId, via: 'quote-link' });
+      msgId: _qMsgId, via: 'quote-link', subject: 'Question on the quote' });
     // And on somebody's list, so it survives an unread inbox.
     if (job.company_id) {
       await supabase.from('comms_tasks').insert({
@@ -8952,11 +9055,16 @@ async function _acceptCustomerEmail(job, quote){
     const subject = _fillTpl(em.accept_cust_subject || ACCEPT_CUST_EMAIL_DEFAULT.subject, vars).replace(/\s{2,}/g, ' ').trim();
     const body = _fillTpl(em.accept_cust_body || ACCEPT_CUST_EMAIL_DEFAULT.body, vars).replace(/\n{3,}/g, '\n\n');
     const who = _tenantMailIdentity(st, 'accept_cust');
-    await _dispatchMail({ to: toList.join(', '), cc: _emailCopies(st, em.accept_cust_cc, toList), subject, text: body,
+    const _cc = _emailCopies(st, em.accept_cust_cc, toList), _mid = _newMessageId('a' + String(job.id).slice(0, 8));
+    const _fa = _tenantSendAddress(job.company_id, who.fromName, who.replyTo);
+    await _dispatchMail({ to: toList.join(', '), cc: _cc, subject, text: body,
                           html: _tplEmailHtml(body, 'View your accepted quote'),
                           attachments: await _termsFilesFor(st, 'accept_cust', job.company_id),
-                          fromName: who.fromName, replyTo: who.replyTo,
-                          fromAddress: _tenantSendAddress(job.company_id, who.fromName, who.replyTo) });
+                          fromName: who.fromName, replyTo: who.replyTo, messageId: _mid,
+                          fromAddress: _fa });
+    await _jobMessageAdd(job, { who: 'office', via: 'accept-confirm', subject, body, msgId: _mid,
+      mailTo: toList.join(', '), mailCc: String(_cc || ''),
+      mailFrom: (who.fromName ? (who.fromName + ' <') : '') + (_resendFromAddress(_fa) || _mailFromAddress() || '') + (who.fromName ? '>' : '') });
   } catch (e) { console.warn('[accept] customer confirmation failed:', e && e.message); }
 }
 // The same {placeholder} fill the office's quote email uses client-side.
@@ -9100,11 +9208,16 @@ async function _reminderSweep(){
         .replace(/\n{3,}/g, '\n\n');
       const who = _tenantMailIdentity(settingsRow, 'reminder');
       const cc = _emailCopies(settingsRow, String(em.reminder_cc || '').trim() || em.quote_cc, _emailList(to));
+      const _mid = _newMessageId('f' + String(r.id).slice(0, 8));
+      const _fa = _tenantSendAddress(r.company_id, who.fromName, who.replyTo);
       await _dispatchMail({ to: to, cc: cc, subject: subject, text: body,
                             html: _reminderEmailHtml(body),
                             attachments: await _termsFilesFor(settingsRow, 'reminder', r.company_id),
-                            fromName: who.fromName, replyTo: who.replyTo,
-                            fromAddress: _tenantSendAddress(r.company_id, who.fromName, who.replyTo) });
+                            fromName: who.fromName, replyTo: who.replyTo, messageId: _mid,
+                            fromAddress: _fa });
+      await _jobMessageAdd({ id: r.id, company_id: r.company_id, user_id: r.user_id }, { who: 'office', via: 'followup',
+        subject, body, msgId: _mid, mailTo: to, mailCc: String(cc || ''),
+        mailFrom: (who.fromName ? (who.fromName + ' <') : '') + (_resendFromAddress(_fa) || _mailFromAddress() || '') + (who.fromName ? '>' : '') });
       out.sent++;
     } catch (e) {
       out.errors++;
@@ -9920,7 +10033,7 @@ async function _jobLinkMail(acct, msgs, folder){
       await _jobMessageAdd(job, { who: office ? 'office' : 'customer',
         author: String(m.from_name || m.from_addr || '').slice(0, 200),
         body: _mailQuotedCut(m.body_text || String(m.body_html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, ' ')),
-        msgId: m.msg_id, inReplyTo: m.in_reply_to || '', via: 'email',
+        msgId: m.msg_id, inReplyTo: m.in_reply_to || '', via: 'email', subject: String(m.subject || ''),
         mailFrom: (m.from_name ? (m.from_name + ' <' + m.from_addr + '>') : (m.from_addr || '')),
         mailTo: (m.to_addrs || []).join(', '), mailCc: (m.cc_addrs || []).join(', '),
         at: m.date || undefined });
@@ -14241,6 +14354,22 @@ app.post('/email/send-order', requireAuth, rateLimit(10, 60000), async (req, res
                    attachment, fromName: _who.fromName, replyTo: _who.replyTo,
                    fromAddress: _tenantSendAddress(req.companyId, _who.fromName, _who.replyTo,
                                                    _tenantSenderLocal(_id.em, _who.fromName)) };
+    // THE QUOTE EMAIL IS KEPT ON ITS JOB (2026-11-13): every word, who it went
+    // to and the Message-ID, so it heads the job's Email communications and a
+    // customer's reply threads onto it. Scoped to the caller's company; a job
+    // it cannot find, or a failed write, never stops the send.
+    if (_kind === 'quote' && !(req.body && req.body.test === true) && req.body && req.body.jobId) {
+      try {
+        const _job = await _jobForCaller(req, String(req.body.jobId));
+        if (_job) {
+          mail.messageId = _newMessageId('q' + String(_job.id).slice(0, 8));
+          const _from = (_who.fromName ? (_who.fromName + ' <') : '') + (_resendFromAddress(mail.fromAddress) || _mailFromAddress() || '') + (_who.fromName ? '>' : '');
+          await _jobMessageAdd(_job, { who: 'office', via: 'quote-email', subject: String(subject).slice(0, 300),
+            author: String((req.user && (req.user.name || req.user.email)) || '').slice(0, 200), body: String(text || '').slice(0, 8000),
+            msgId: mail.messageId, mailTo: String(to), mailCc: String(_cc || ''), mailFrom: _from });
+        }
+      } catch (e) { try { recordError('server', e, { route: '/email/send-order (keep on job)' }); } catch (_) {} }
+    }
     // The Google Apps Script relay can take 10-20s to wake + send, which made
     // the office wait on the "Send" button. When the caller opts into
     // background mode, dispatch the send without blocking the response: this
@@ -15324,12 +15453,16 @@ const _MIGRATION_SQL = [
   "alter table public.job_messages add column if not exists mail_from text not null default ''",
   "alter table public.job_messages add column if not exists mail_to text not null default ''",
   "alter table public.job_messages add column if not exists mail_cc text not null default ''",
+  "alter table public.job_messages add column if not exists subject text not null default ''",
   "alter table public.job_messages enable row level security",
   // Files & Photos on a job (2026-10-27): the bytes in the private job-files
   // bucket, one row each here, keyed by the job's ROOT so every version shares them.
   "create table if not exists public.job_files (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, name text not null default '', mime text not null default '', size bigint not null default 0, kind text not null default 'upload', source text not null default '', author text not null default '', storage_path text not null default '', status text not null default 'pending', created_at timestamptz not null default now())",
   "create index if not exists idx_job_files_job on public.job_files (company_id, job_id, created_at)",
   "alter table public.job_files enable row level security",
+  "create table if not exists public.job_file_layouts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, layout jsonb, updated_at timestamptz not null default now())",
+  "create index if not exists idx_job_file_layouts_job on public.job_file_layouts (company_id, job_id)",
+  "alter table public.job_file_layouts enable row level security",
   "create table if not exists public.comms_tasks (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, title text not null default '', notes text not null default '', due_date date, assignee_user_id uuid, done boolean not null default false, urgency int, thread_id uuid, job_id uuid, done_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists idx_comms_tasks_co on public.comms_tasks (company_id, done, created_at)",
   "alter table public.comms_tasks enable row level security",

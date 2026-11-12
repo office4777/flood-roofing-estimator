@@ -1955,6 +1955,16 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   kept) — and "Allocated hours (from Fergus)": every `isLabour` line or line
   in a labour / scaffold section, one line a person, headed "2 guys × 25
   hours each = 50 hours" when they match (`.sij-fghead`). `scheduleui` (184).
+  THE HOURS LEAD AND THE REST FOLDS (2026-11-13, the owner on job 3275: "collapse
+  the Fergus quote description and collapse the scope of work ... No labor lines
+  in the quote. However ... LA labor apprentice and LL labor lead, 25 hours each
+  ... a little person symbol ... allocated as labor"). Fergus's read does not
+  always call its person-icon lines `isLabour`, so a labour line is any field
+  naming labour that is true or reads LABOUR (the item and a nested price-book
+  item scanned), a unit of hours, a labour / scaffold section, or "labour" in its
+  own name; `isLabour:false` still says no. Allocated hours sit under the total;
+  the description (`#sijFgDesc`) and the line items (`#sijFgLines`, headed with
+  the section names) are closed `<details class="sij-fgfold">`. `scheduleui` (193).
 - A CORNER MOVES ITS OWN WALL, NEVER ANOTHER WALL INTO LINE (feedback report
   21, 2026-11-13, ethan@ on job 3351: dragging the corner where the 13.08 m and
   7.18 m gutters meet "also moves the top left corner where the two gutters
@@ -7372,6 +7382,53 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   Communications" (shown with the job's other buttons by `_jobLockRender`,
   a count of the thread's messages once it has been read).
   `tests/jobhistory.mjs` pins the order and the window.
+- FILES & PHOTOS HAS FOLDERS, AND EMAIL COMMUNICATIONS IS ONE (2026-11-13, the
+  owner with job 3351's window: "make subfolders ... photos ... files, so put the
+  customer selections, accepted quote, and any other PDFs into that folder ...
+  a third folder called communications ... the whole email trail ... the top
+  would be the first email sent ... also in the history and communications job
+  timeline ... settings tab ... job files and photos ... the default folders and
+  what goes into those default folders"; then "add a custom folder into that
+  specific job, or delete a folder, or move items into a folder, or remove items
+  from the folder ... back to the ... main files and photos pop-up ... click,
+  hold and drag into a folder. Or delete an item ... reorder an item").
+  THE RULES are `quote_defaults.job_folders` (Settings → My business → Job files
+  & photos, `#set-jobfiles`, `_jfsRender`; absent = `JF_DEFAULT_FOLDERS`:
+  Photos {types image}, Files {pdf, doc, sheet, other}, Email communications
+  {mail}); a folder is {id, name, types[], from[] (roofmap / upload / fergus /
+  site; none = anywhere)} and an item goes into the FIRST one top to bottom that
+  fits (`_jfFolderOf`), else the main screen. THE JOB'S OWN CHANGES are a layout
+  per job ROOT (`job_file_layouts`, boot DDL; GET /jobs/:id/files answers
+  `layout` / `layoutErr`, PUT /jobs/:id/files/layout, `_jfLayoutClean`):
+  `folders` (its own), `hiddenFolders` (defaults taken off), `place` {itemKey:
+  folderId | '' = main screen}, `order` {folderId | '_home': [keys]},
+  `hiddenItems` (Fergus / quote items taken out — they stay where they are).
+  Item keys: `s:<file id>`, `f:<fergus id|url>`, `p:<hash of the photo>`,
+  `l:<hash>`. A layout the read failed on is never saved over. THE WINDOW
+  (`_jfRender`): folder tiles (✎ / ✕ on hover, + New folder via `_styledPrompt`)
+  over "Not in a folder"; a folder view with ← All files & photos and the other
+  folders as chips; each row Open, ⬇, Move to…, ↩ (out of the folder), ✕
+  (a stored file is deleted, anything else taken out of the window). Deleting a
+  folder puts its items on the main screen (place ''), never deletes a file.
+  DRAG (`_jfDragWire`, pointer events): a mouse picks a row up once it moves 5px,
+  a finger after holding 380 ms; onto a `[data-jf-drop]` (tile, chip, the crumb =
+  main screen) moves it, onto another row puts it above / below (the list's
+  whole order saved); the click that ends a drag is swallowed. EMAIL
+  COMMUNICATIONS (`_jfMailHtml`, `_jfMailLoad`): GET /jobs/:id/messages (oldest
+  first) plus the schedule board's emails, each card what it was, subject, From /
+  To / Cc and the words, and a reply box. THE TRAIL IS KEPT FROM NOW ON: the
+  app's quote send passes `jobId` to /email/send-order, which stores the email
+  (`via 'quote-email'`, subject, body, to, cc, from, a Message-ID it also puts on
+  the email); the follow-up (`followup`) and the customer's acceptance
+  confirmation (`accept-confirm`) are stored where they are sent; replies and
+  questions carry `subject` (new column). A send from before is stood in by
+  `_jobMailBackfill` from `versions.sentEarlier` / `sent` / `share.sentAt` and
+  `share.remindedAt` (`backfill: true`, never stored, not where a stored one is
+  within 20 minutes). THE JOB TIMELINE (`_jobHistTimelineRender`, from
+  `_jhcLoad`) merges the milestones and every email by date, not saying "Quote
+  sent" or the question twice. `tests/jobfolders.mjs` (33, UI, a real mouse),
+  `jobmailtrail.mjs` (12, API), `jobfilesui` re-pinned to folders,
+  `custevents` / `jobmail` filter the stand-ins.
 - FILES & PHOTOS ON A JOB (2026-10-27, the owner: "add a 'Files & Photos'
   button below the history and communications button, allow the user to add
   in photo's or files from their computer ... actually open the files from

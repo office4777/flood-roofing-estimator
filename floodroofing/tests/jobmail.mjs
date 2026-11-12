@@ -195,6 +195,7 @@ check('a repeat sync adds nothing twice', thread().length === n, n + ' -> ' + th
 
 // ── 4. The window is told where Gmail replies come from ───────────────
 const conv = await (await auth('GET', '/jobs/j-q/messages')).json();
+conv.messages = (conv.messages || []).filter(m => !m.backfill);
 check('the job’s thread says a mailbox is connected, and which',
   conv.inbox && conv.inbox.connected === true && (conv.inbox.emails || []).includes('office@floodroofing.co.nz'), JSON.stringify(conv.inbox));
 check('…and carries every message in it', (conv.messages || []).length === n, (conv.messages || []).length + ' of ' + n);

@@ -1027,8 +1027,12 @@ await ctx.close();
     if (/\/jobs\/15590001\/quotes$/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fgQuotes) });
     if (/\/jobs\/15590002\/quotes$/.test(u)) return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [
       { id: 903, title: 'Quote v1', status: 'Accepted', isAccepted: true, acceptedAt: '2026-11-09T20:00:00Z', sections: [
-        { name: 'Labour', lineItems: [{ itemName: 'Lead Roofer', itemQuantity: 25, itemPrice: 100, isLabour: true }, { itemName: 'Apprentice', itemQuantity: 25, itemPrice: 50, isLabour: true }] },
-        { name: 'Materials', description: 'This quote is for the Re-Roof to the main house roof', lineItems: [{ itemName: 'Corrugate', itemQuantity: 10, itemPrice: 100 }] } ] } ] }) });
+        // Job 3275 as Fergus reads it back: ONE section, the two labour lines
+        // with no isLabour (Fergus shows them with its person icon).
+        { name: 'Scope of Work: Re-Roof in Colorsteel', description: 'This quote is for the Re-Roof to the main house roof', lineItems: [
+          { itemName: 'LA Labour Apprentice', itemQuantity: 25, itemPrice: 50 }, { itemName: 'LL Labour Lead', itemQuantity: 25, itemPrice: 100 },
+          { itemName: '40m 0.40g MAXAM /m2 (Sheets only)', itemQuantity: 10, itemPrice: 100, unitOfMeasureSell: 'm2' },
+          { itemName: 'FLA Colorsteel Flashings Colorsteel (Barges, Ridges ect)', itemQuantity: 0, itemPrice: 26 } ] } ] } ] }) });
     r.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
   await pg.evaluate(() => { S.fergConnected = true; _schedAddOpen(); });
@@ -1083,10 +1087,17 @@ await ctx.close();
     site_address: '1622F Matauri Bay Road', email: '', length_days: 1, archived: false, auto: {}, created_at: '2026-11-01' }); _schedRender(); _schedInfoOpen('rblank'); });
   await pg.waitForFunction(() => document.querySelector('#schedInfoJob .sij-fghead'), null, { timeout: 8000 });
   v = await pg.evaluate(() => { const b = document.getElementById('schedInfoJob'); return { banner: (b.querySelector('.sij-fgbanner') || {}).textContent, head: b.querySelector('.sij-fghead').textContent,
-    desc: (b.querySelector('.sij-fgdesc') || {}).textContent, tot: b.textContent.includes('$5,462.50'), chose: /What the customer chose/.test(b.textContent), summary: /Quote summary/.test(b.textContent) }; });
+    desc: (b.querySelector('.sij-fgdesc') || {}).textContent, tot: b.textContent.includes('$5,462.50'), chose: /What the customer chose/.test(b.textContent), summary: /Quote summary/.test(b.textContent),
+    rows: Array.from(b.querySelectorAll('.sij-fghrs tbody tr')).map(tr => tr.textContent.replace(/\s+/g, ' ').trim()),
+    descOpen: document.getElementById('sijFgDesc').open, linesOpen: document.getElementById('sijFgLines').open,
+    linesHead: document.querySelector('#sijFgLines summary').textContent,
+    order: Array.from(b.children).map(c => c.id || c.className).join(',') }; });
   check('a RoofMap job never quoted here, linked to Fergus, shows the Fergus quote', /Quoted in Fergus/.test(v.banner) && /#3275/.test(v.banner), v.banner);
   check('…its description, its total, and no RoofMap default picks or price', /Re-Roof to the main house roof/.test(v.desc) && v.tot && !v.chose && !v.summary, JSON.stringify(v));
   check('…and the allocated hours: 2 guys × 25 hours each = 50 hours', v.head === '2 guys \u00d7 25 hours each = 50 hours', v.head);
+  check('…read off the LA / LL labour lines though Fergus does not flag them isLabour, the materials left out', v.rows.length === 2 && /LA Labour Apprentice ?25/.test(v.rows[0]) && /LL Labour Lead ?25/.test(v.rows[1]), JSON.stringify(v.rows));
+  check('…the description and the scope of work start folded, under the hours', !v.descOpen && !v.linesOpen && /Scope of Work: Re-Roof in Colorsteel/.test(v.linesHead) &&
+    v.order.indexOf('sijFgHours') < v.order.indexOf('sijFgDesc') && v.order.indexOf('sijFgDesc') < v.order.indexOf('sijFgLines'), JSON.stringify(v));
   await pg.evaluate(() => _schedInfoClose());
   // A quoted RoofMap job linked to Fergus keeps its own quote (r1).
   await pg.evaluate(() => _schedInfoOpen('r1'));
