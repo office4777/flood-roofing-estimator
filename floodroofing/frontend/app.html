@@ -5670,7 +5670,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T22:00:10Z';
+  window.APP_BUILT_AT = '2026-11-12T23:47:57Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -40623,7 +40623,7 @@ function _qbColour(){
       _qbColourNote('colour', cur)+
       _colourEditBtnHtml('grade', p.steelGrade || _quoteGradeId())+
       '<div class="qb-swatches">'+(swatches || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
-      _colorsteelSampleHtml(_paletteBrandForGradeId(p.steelGrade || _quoteGradeId()).title === 'Colorsteel\u00ae')+
+      _colorsteelSampleHtml(_isColorsteelGrade(p.steelGrade || _quoteGradeId()))+
       // DELETE THIS PAGE on the colour too (2026-10-27, the owner: "in the
       // roofing quote, allow me to delete the roof colour section"), the
       // grade / profile / thickness button exactly — the pick goes with it
@@ -40643,9 +40643,25 @@ function _qbColour(){
 // live"). Under a COLORSTEEL® colour chart only (never ColorZen, never
 // COLORBOND®, never Marley). OFF until NZ Steel approves the screenshots:
 // COLORSTEEL_SAMPLE_ON, or window.__COLORSTEEL_SAMPLE = true to picture it.
-// The URL is theirs to confirm (COLORSTEEL_SAMPLE_URL).
-var COLORSTEEL_SAMPLE_ON = false;
-var COLORSTEEL_SAMPLE_URL = 'https://colorsteel.co.nz/';
+// ON 2026-11-13 at the owner's ask, in the ROOF COLOUR section only and only
+// for a COLORSTEEL® grade ("put it in the roof colour section (if colour steel
+// is selected as the steel grade) ... other steel grades don't offer a request
+// a colour link"), linking NZ Steel's own order-a-sample page.
+var COLORSTEEL_SAMPLE_ON = true;
+var COLORSTEEL_SAMPLE_URL = 'https://www.colorsteel.co.nz/order-colour-sample';
+// A COLORSTEEL® grade: named Colorsteel, or the shipped MAXAM / Endura rows
+// under no other maker's name. ColorCote®, ColorZen, Zincalume®, COLORBOND®
+// and anything the office added under another name are not.
+function _isColorsteelGrade(id){
+  try {
+    id = String(id || '');
+    var g = (_selGradesAll() || []).filter(function(x){ return x && String(x.id) === id; })[0];
+    var nm = String((g && g.name) || '');
+    if (/colorsteel/i.test(nm)) return true;
+    if (/colou?rcote|colorzen|armorsteel|zincalume|colorbond|magnaflow/i.test(nm + ' ' + id)) return false;
+    return /^(maxam|endura)$/i.test(id) && !nm;
+  } catch(e){ return false; }
+}
 function _colorsteelSampleOn(){
   if (window.__COLORSTEEL_SAMPLE === true) return true;
   if (window.__COLORSTEEL_SAMPLE === false) return false;
@@ -40655,8 +40671,8 @@ function _colorsteelSampleHtml(isColorsteel){
   if (!isColorsteel || !_colorsteelSampleOn() || _isAU()) return '';
   if (window.__PRINTING_MODERN || window.__PRINTING_QUOTE) return '';   // a link on paper goes nowhere
   return '<div class="qb-cs-sample">'+
-    '<span class="qb-cs-sample-txt"><b>Screens show colours differently.</b> We recommend ordering free genuine COLORSTEEL\u00ae samples before you choose \u2014 they are posted to your door.</span>'+
-    '<a class="qb-cs-sample-btn" href="'+esc2(COLORSTEEL_SAMPLE_URL)+'" target="_blank" rel="noopener">Order a COLORSTEEL\u00ae sample \u2197</a>'+
+    '<span class="qb-cs-sample-txt"><b>Screens show colours differently.</b> If you would like to see the real thing first, you can request a COLORSTEEL\u00ae colour sample.</span>'+
+    '<a class="qb-cs-sample-btn" href="'+esc2(COLORSTEEL_SAMPLE_URL)+'" target="_blank" rel="noopener">Request a COLORSTEEL\u00ae colour sample \u2197</a>'+
   '</div>';
 }
 function _qbNoColourYet(undecidedAbove){
@@ -40770,7 +40786,6 @@ function _qbGutterColour(){
     _qbColourNote('gcolour', cur)+
     _colourEditBtnHtml('gutter', gt)+
     '<div class="qb-swatches">'+(sw || '<p class="qb-para">Your roofer will confirm the colour range with you.</p>')+'</div>'+
-    _colorsteelSampleHtml(P.kind === 'colorsteel' && !_isAU())+
     del + '</div>';
 }
 // THE PICKED GUTTER, SHOWN (2026-10-18, the owner: "make sure the profile is
