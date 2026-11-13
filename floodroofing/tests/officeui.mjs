@@ -59,6 +59,12 @@ const { pg, errs, puts } = await boot(true);
 const bar = await pg.evaluate(() => [...document.querySelectorAll('#topMenu button')].map(x => x.textContent));
 check('the top bar is there for the owner’s login: Jobs, Supplier Invoices, Job Costing, Financials, GPS Map',
   JSON.stringify(bar) === '["Jobs","Supplier Invoices","Job Costing","Financials","GPS Map"]' && await vis(pg, '#topMenu'), JSON.stringify(bar));
+const tb = await pg.evaluate(() => { const bar = document.getElementById('globalTopBar'), r = bar.getBoundingClientRect();
+  return { inBar: !!bar.querySelector('#topMenu'), h: Math.round(r.height), bg: getComputedStyle(bar).backgroundColor,
+    labels: ['gtbAi', 'gtbChatBtn', 'gtbTasksBtn', 'gtbTodoBtn'].map(id => { const b = document.getElementById(id); return b ? [...b.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join('').trim() : null; }),
+    badges: !!document.getElementById('gtbTasksBadge') && !!document.getElementById('gtbTodoBadge') && !!document.getElementById('gtbBellBadge') }; });
+check('the menu and the AI / chat / bell / tasks / to-do buttons share ONE slim navy bar', tb.inBar && tb.h <= 48 && /rgb\(10, 22, 40\)/.test(tb.bg), JSON.stringify(tb));
+check('…the buttons are short, their badges kept', JSON.stringify(tb.labels) === '["✨ AI","💬 Chat","📋 Tasks","📝 To do"]' && tb.badges, JSON.stringify(tb));
 check('…on Jobs the left menu is the app as it was', await vis(pg, '#navRoofBtn') && await vis(pg, '#navQuoteBtn'), '');
 await pg.click('#topMenu button[data-top="supinv"]');
 await pg.waitForTimeout(500);
@@ -109,6 +115,7 @@ check('Jobs brings the job tabs back', await vis(pg, '#navRoofBtn') && await vis
 check('no page errors', errs.length === 0, errs.join(' | '));
 
 const other = await boot(false);
+check('…and keeps the long button names', await other.pg.evaluate(() => /AI Assistant/.test(document.getElementById('globalTopBar').textContent)), '');
 check('another login gets no top bar and no new tabs', !(await vis(other.pg, '#topMenu')) && await vis(other.pg, '#navRoofBtn') &&
   await other.pg.evaluate(() => !document.getElementById('tab-supinv')), '');
 check('…and no page errors', other.errs.length === 0, other.errs.join(' | '));

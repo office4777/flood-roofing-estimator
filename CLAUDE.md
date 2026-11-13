@@ -2576,8 +2576,26 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   3- and 6-month averages, back costing, Xero settings. GPS Map: a card until
   the crew app exists. NEEDS THE OWNER: the Resend receiving domain + webhook
   (MX on invoices.roofmap.co.nz, `RESEND_INBOUND_SECRET`), and a Xero app
-  (developer.xero.com → keys on Railway). `tests/supinv.mjs` (33, API),
-  `tests/officeui.mjs` (19, UI).
+  (developer.xero.com → keys on Railway).
+  ONE BAR (the same afternoon: "put those buttons inside the top header menu,
+  but make them smaller and combine them ... I don't want to waste screen
+  space"): `#topMenu` sits INSIDE the fixed `#globalTopBar`, which turns navy
+  under `body.office-on`; the AI / chat / bell / Tasks / To-do buttons stay
+  where they were at its right, short (`compactTools`: ✨ AI, 💬 Chat, 📋 Tasks,
+  📝 To do — the text node only, so every id, onclick and badge is unchanged)
+  and put back for anyone without the office menus.
+  CHEAPEST READ FIRST (the owner: "does it have to be AI ... how much ... what
+  if there's photos in that PDF ... lower the resolution"): `prepRead` — a PDF
+  with a text layer is read off with pdf.js (no A.I.) and only its TEXT goes to
+  Haiku (~US$0.0005 an invoice); a scan has its first 3 pages drawn at
+  ≤1568 px JPEG; a photo is shrunk to ≤1568 px JPEG; the document block is the
+  last resort. `read_via` (text / scan / photo / pdf) on the row. A job number
+  printed anywhere in the read text puts it on the job by rule even when the
+  A.I. left it out of the references.
+  THE CREW APP'S LOCATION RULE (decided by the owner, not built yet): location
+  only 7 am – 7 pm NZ on a day the person is BOOKED on the schedule board (a
+  pencilled or crew block), never on a day they are not.
+  `tests/supinv.mjs` (36, API), `tests/officeui.mjs` (22, UI).
 - A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
   create a new draft quote, it should have today's date"). Duplicate this quote
   (`_qvNewDraft`) and a draft from a template (`_qChangeTemplate`) copied the

@@ -32,11 +32,20 @@
     if ($('officeCss')) return;
     var st = document.createElement('style'); st.id = 'officeCss';
     st.textContent = [
-      '#topMenu{display:none;position:sticky;top:0;z-index:40;background:#0a1628;margin:-.75rem -.75rem 14px;padding:0 10px;gap:2px;overflow-x:auto;white-space:nowrap}',
+      // ONE BAR (2026-11-13, the owner: "put those buttons inside the top header menu, but make them smaller and
+      // combine them ... I don't want to waste screen space"): the menu lives inside the fixed #globalTopBar, which
+      // turns navy; the AI / chat / bell / tasks / to-do buttons sit small at its right.
+      '#topMenu{display:none;gap:2px;flex:0 0 auto;white-space:nowrap}',
       'body.office-on #topMenu{display:flex}',
-      '#topMenu button{background:none;border:0;color:#cbd5e1;font:inherit;font-size:13.5px;font-weight:700;padding:12px 14px;cursor:pointer;border-bottom:3px solid transparent}',
+      '#topMenu button{background:none;border:0;color:#cbd5e1;font:inherit;font-size:13px;font-weight:700;padding:11px 12px 8px;cursor:pointer;border-bottom:3px solid transparent}',
       '#topMenu button:hover{color:#fff}',
       '#topMenu button.on{color:#fff;border-bottom-color:#0099e0}',
+      'body.office-on .global-top-bar{background:#0a1628;border-bottom:0;padding:0 10px;gap:6px;box-shadow:0 2px 10px rgba(10,22,40,.25)}',
+      'body.office-on .global-top-bar .gtb-btn{padding:4px 9px;font-size:11.5px;border-radius:7px;background:rgba(255,255,255,.08);color:#e2e8f0;border:1px solid rgba(255,255,255,.18);gap:4px}',
+      'body.office-on .global-top-bar .gtb-btn:hover{background:rgba(255,255,255,.18);color:#fff}',
+      'body.office-on .global-top-bar .gtb-btn.gtb-ai{background:linear-gradient(135deg,#7c3aed,#0369a1);border:0;color:#fff}',
+      'body.office-on .global-top-bar .gtb-tools-gap{flex:1 1 auto}',
+      'body.office-on .global-top-bar #gtbTasksBtn{margin-left:0!important}',
       'body.office-tabs .sidebar .nav-btn:not(#navScheduleBtn):not(#navSettingsBtn):not(#navFeedbackBtn):not(#navSignOutBtn){display:none!important}',
       'body.office-tabs #navJobBox{display:none!important}',
       '.of-wrap{max-width:1280px;margin:0 auto;padding:2px 0 40px}',
@@ -95,13 +104,33 @@
     if (!$('topMenu')) {
       var bar = document.createElement('nav'); bar.id = 'topMenu'; bar.setAttribute('aria-label', 'Office');
       bar.innerHTML = TABS.map(function(t){ return '<button type="button" data-top="' + t.id + '" onclick="_officeTop(\'' + t.id + '\')">' + esc(t.label) + '</button>'; }).join('');
-      main.insertBefore(bar, main.firstChild);
+      var host = $('globalTopBar');
+      if (host) {
+        host.insertBefore(bar, host.firstChild);
+        var gap = document.createElement('span'); gap.className = 'gtb-tools-gap';
+        host.insertBefore(gap, bar.nextSibling);
+      } else main.insertBefore(bar, main.firstChild);
     }
+    compactTools(true);
     ['supinv', 'costing', 'finance', 'gps'].forEach(function(t){
       if ($('tab-' + t)) return;
       var p = document.createElement('div'); p.className = 'panel'; p.id = 'tab-' + t;
       p.innerHTML = '<div class="of-wrap" id="' + t + 'Root"></div>';
       main.appendChild(p);
+    });
+  }
+  // The bar's own buttons, short: the label shortened in place so every id,
+  // onclick and badge span stays the one the rest of the app talks to.
+  var SHORT = { gtbAi: '✨ AI', gtbChatBtn: '💬 Chat', gtbTasksBtn: '📋 Tasks', gtbTodoBtn: '📝 To do' };
+  function compactTools(on){
+    var bar = $('globalTopBar'); if (!bar) return;
+    var ai = bar.querySelector('.gtb-ai'); if (ai && !ai.id) ai.id = 'gtbAi';
+    Object.keys(SHORT).forEach(function(id){
+      var b = $(id); if (!b) return;
+      var tn = null; for (var i = 0; i < b.childNodes.length; i++) if (b.childNodes[i].nodeType === 3 && b.childNodes[i].nodeValue.trim()) { tn = b.childNodes[i]; break; }
+      if (!tn) return;
+      if (b._ofLong == null) b._ofLong = tn.nodeValue;
+      tn.nodeValue = on ? SHORT[id] : b._ofLong;
     });
   }
   window._officeTop = function(id){
@@ -125,7 +154,7 @@
     O.on = !!on;
     if (on) build();
     document.body.classList.toggle('office-on', O.on);
-    if (!O.on) document.body.classList.remove('office-tabs');
+    if (!O.on) { document.body.classList.remove('office-tabs'); compactTools(false); }
     else barSync(document.body.getAttribute('data-tab') || 'select');
   }
   var tries = 0;

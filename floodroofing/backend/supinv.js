@@ -25,7 +25,7 @@
 const crypto = require('crypto');
 
 const now = () => new Date().toISOString();
-const COLS = 'id,company_id,user_id,source,email_id,from_addr,subject,received_at,file_name,mime,size,storage_path,status,error,' +
+const COLS = 'id,company_id,user_id,source,email_id,from_addr,subject,received_at,file_name,mime,size,storage_path,status,error,read_via,' +
   'kind,supplier,inv_number,inv_date,due_date,subtotal,gst,total,currency,refs,site_address,description,lines,' +
   'job_id,job_label,alloc,alloc_why,suggest,xero,created_at,updated_at';
 const LIST_COLS = COLS.replace(',lines', '');
@@ -166,7 +166,7 @@ function mount(app, deps){
 
   async function addRow(ctx, f){
     const row = Object.assign({ id: crypto.randomUUID(), company_id: ctx.companyId || null, user_id: ctx.userId,
-      received_at: now(), storage_path: '', kind: '', supplier: '', inv_number: '', inv_date: null, due_date: null,
+      received_at: now(), storage_path: '', read_via: '', kind: '', supplier: '', inv_number: '', inv_date: null, due_date: null,
       subtotal: null, gst: null, total: null, currency: '', refs: [], site_address: '', description: '', lines: [],
       job_id: null, job_label: '', alloc: '', alloc_why: '', suggest: [], xero: {}, error: '', created_at: now(), updated_at: now() }, f);
     const w = await supabase.from('supplier_invoices').insert(row);
@@ -207,23 +207,73 @@ function mount(app, deps){
     'Read the figures exactly as printed. "references" must include every customer reference, order number, purchase order, ' +
     'job number or job/site name the roofer put on the order (e.g. "3305", "Job 3305 Smith", "PO 3305"). Use empty strings and 0 when a value is not on the page. ' +
     'At most 40 lines; summarise if there are more.';
+  // WHAT IS SENT, CHEAPEST FIRST (2026-11-13, the owner: "does it have to be
+  // AI ... how much ... what if there's photos in that PDF ... could it lower
+  // the resolution"). A supplier's PDF almost always carries its words as
+  // text: those are read off it here (pdf.js, no A.I.) and only the TEXT is
+  // sent — no pictures at all, a few thousand tokens. A scan (no text) has
+  // its first pages drawn at no more than 1568 px and sent as JPEGs, and a
+  // photo is shrunk the same way, so a supplier's high-resolution photo never
+  // costs more than a small picture. The document block is the last resort.
+  const READ_MAX_PX = 1568, READ_PAGES = 3;
+  async function prepRead(buf, mime){
+    if (/pdf/.test(mime)) {
+      let doc = null;
+      try {
+        const pdf = require('./tender/pdf');
+        doc = await pdf.open(buf);
+        const n = Math.min(doc.numPages || 1, 4);
+        let text = '';
+        for (let p = 1; p <= n; p++) text += (await pdf.extract(doc, p)).fullText + (p < n ? '\n\n--- next page ---\n\n' : '');
+        if (text.replace(/\s+/g, '').length >= 80) return { via: 'text', text: text.slice(0, 24000) };
+        const images = [];
+        for (let p = 1; p <= Math.min(doc.numPages || 1, READ_PAGES); p++) {
+          const r = await pdf.render(doc, p, { dpi: 150, maxPx: READ_MAX_PX, quality: 75 });
+          images.push({ mime: 'image/jpeg', buf: r.buf });
+        }
+        if (images.length) return { via: 'scan', images };
+      } catch (e) {}
+      return { via: 'pdf' };
+    }
+    try {
+      const { loadImage, createCanvas } = require('@napi-rs/canvas');
+      const img = await loadImage(buf);
+      const k = Math.min(1, READ_MAX_PX / Math.max(img.width, img.height));
+      if (k < 1 || buf.length > 1500000) {
+        const cv = createCanvas(Math.max(1, Math.round(img.width * k)), Math.max(1, Math.round(img.height * k)));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        return { via: 'photo', images: [{ mime: 'image/jpeg', buf: cv.toBuffer('image/jpeg', 80) }] };
+      }
+    } catch (e) {}
+    return { via: 'photo', images: [{ mime: mime === 'image/jpg' ? 'image/jpeg' : mime, buf }] };
+  }
   async function aiRead(buf, mime, name){
-    if (globalThis.__TEST_SUPINV_AI) return await globalThis.__TEST_SUPINV_AI({ mime, bytes: buf.length, name, text: buf.toString('latin1').slice(0, 4000) });
+    const prep = await prepRead(buf, mime);
+    if (globalThis.__TEST_SUPINV_AI) {
+      const a = await globalThis.__TEST_SUPINV_AI({ mime, bytes: buf.length, name, via: prep.via,
+        text: prep.text != null ? prep.text : buf.toString('latin1').slice(0, 4000),
+        images: (prep.images || []).map(i => ({ mime: i.mime, bytes: i.buf.length })) });
+      return Object.assign({ _via: prep.via, _text: prep.text || '' }, a);
+    }
     const key = process.env.ANTHROPIC_API_KEY;
     if (!key) throw new Error('The A.I. key is not set on the server.');
-    const block = /pdf/.test(mime)
-      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') } }
-      : { type: 'image', source: { type: 'base64', media_type: mime === 'image/jpg' ? 'image/jpeg' : mime, data: buf.toString('base64') } };
+    const content = [];
+    if (prep.via === 'text') content.push({ type: 'text', text: 'The supplier document\'s text, read off the PDF:\n\n' + prep.text });
+    else if (prep.images) prep.images.forEach(i => content.push({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.buf.toString('base64') } }));
+    else content.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') } });
+    content.push({ type: 'text', text: 'File: ' + name });
     const body = { model: process.env.SUPINV_MODEL || 'claude-haiku-5-5', max_tokens: 3000, system: SYS,
       tools: [TOOL], tool_choice: { type: 'tool', name: TOOL.name },
-      messages: [{ role: 'user', content: [block, { type: 'text', text: 'File: ' + name }] }] };
+      messages: [{ role: 'user', content }] };
     const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error((d.error && d.error.message) || ('AI ' + r.status));
     const tu = (d.content || []).find(b => b.type === 'tool_use');
     if (!tu) throw new Error('The A.I. did not answer.');
-    return tu.input;
+    const u = d.usage || {};
+    return Object.assign({ _via: prep.via, _text: prep.text || '', _tokens: (u.input_tokens || 0) + (u.output_tokens || 0),
+      _usd: Math.round(((u.input_tokens || 0) * 0.10 + (u.output_tokens || 0) * 0.50) / 1e6 * 100000) / 100000 }, tu.input);
   }
   const num = v => { const n = parseFloat(v); return isFinite(n) ? Math.round(n * 100) / 100 : null; };
   const day = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null;
@@ -286,7 +336,7 @@ function mount(app, deps){
     try {
       const buf = await storage().download(row.storage_path);
       const a = await aiRead(buf, row.mime, row.file_name);
-      patch = { status: 'read', error: '', kind: String(a.kind || 'invoice').slice(0, 20), supplier: String(a.supplier || '').slice(0, 160),
+      patch = { status: 'read', error: '', read_via: String(a._via || '').slice(0, 12), kind: String(a.kind || 'invoice').slice(0, 20), supplier: String(a.supplier || '').slice(0, 160),
         inv_number: String(a.invoice_number || '').slice(0, 80), inv_date: day(a.invoice_date), due_date: day(a.due_date),
         subtotal: num(a.subtotal), gst: num(a.gst), total: num(a.total), currency: String(a.currency || '').slice(0, 8),
         refs: (Array.isArray(a.references) ? a.references : []).map(x => String(x).slice(0, 120)).slice(0, 20),
@@ -295,6 +345,9 @@ function mount(app, deps){
       if (patch.subtotal == null && patch.total != null && patch.gst != null) patch.subtotal = num(patch.total - patch.gst);
       if (!row.job_id) {
         const m = match(await companyJobs(ctx.companyId || row.company_id, ctx.userId || row.user_id), Object.assign({}, row, patch));
+        // A job number the A.I. left out of the references but printed on the
+        // page still counts: the job's own number in the read text, by rule.
+        if (!m.job && a._text) { const m2 = match(await companyJobs(ctx.companyId || row.company_id, ctx.userId || row.user_id), Object.assign({}, row, patch, { refs: [a._text.slice(0, 6000)] })); if (m2.job && /^Job number|^Fergus job/.test(m2.why)) Object.assign(m, m2); }
         patch.suggest = m.suggest;
         if (m.job) Object.assign(patch, { job_id: m.job.id, job_label: jobLabel(m.job), alloc: 'auto', alloc_why: m.why });
       }
