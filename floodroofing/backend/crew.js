@@ -110,7 +110,9 @@ function mount(app, deps){
     if (_coCache.ids && Date.now() - _coCache.at < 5 * 60000) return _coCache.ids;
     const ids = new Set();
     for (const em of USERS()) {
-      const ps = rows(await supabase.from('profiles').select('id, email').eq('email', em).limit(5))
+      // ilike, not eq: a profile keeps the address as typed ("Aron@…"), and
+      // an exact match missed the owner's own business (2026-11-13).
+      const ps = rows(await supabase.from('profiles').select('id, email').ilike('email', em).limit(5))
         .filter(p => String(p.email || '').toLowerCase() === em);
       for (const p of ps) {
         rows(await supabase.from('company_users').select('company_id, user_id').eq('user_id', p.id).limit(10))
@@ -123,6 +125,9 @@ function mount(app, deps){
   async function companyOn(req){
     if (process.env.CREW_ALL === 'true') return true;
     if (!req.companyId) return false;
+    // One of the named logins is always in their own business.
+    const own = String((req.user && req.user.email) || '').trim().toLowerCase();
+    if (own && USERS().indexOf(own) >= 0) return true;
     try { return (await enabledCompanies()).has(String(req.companyId)); } catch (e) { return false; }
   }
   async function officeOn(req){

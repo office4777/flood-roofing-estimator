@@ -14,7 +14,7 @@
  * Bump SW_VERSION when the precache list changes; old caches are dropped
  * on activate.
  */
-var SW_VERSION = 'roofmap-v5';
+var SW_VERSION = 'roofmap-v6';
 var SHELL = SW_VERSION + '-shell';
 var ASSETS = SW_VERSION + '-assets';
 var NET_TIMEOUT = 5000;   // ms before we fall back to the cached copy
@@ -64,16 +64,22 @@ self.addEventListener('message', function(e){
   if (e.data === 'skip-waiting') self.skipWaiting();
 });
 
-function fromNetworkFirst(req, cacheName, fallbackReq){
+// `ev` keeps the worker alive until the fresh copy is IN the cache. Without
+// it, a phone on a slow connection got the cached shell at 5 s, the event
+// ended, the worker was stopped mid-download and the cache was never
+// refreshed — so it opened the same old build every time (2026-11-13: the
+// owner's phone two days behind).
+function fromNetworkFirst(req, cacheName, fallbackReq, ev){
   return caches.open(cacheName).then(function(cache){
     return cache.match(fallbackReq || req).then(function(cached){
-      var timedOut = false;
+      var timedOut = false, putP = null;
       var net = fetch(req).then(function(res){
         if (res && res.ok && res.type === 'basic'){
-          try { cache.put(fallbackReq || req, res.clone()); } catch(e){}
+          try { putP = cache.put(fallbackReq || req, res.clone()).catch(function(){}); } catch(e){}
         }
         return res;
       });
+      try { if (ev) ev.waitUntil(net.then(function(){ return putP; }).catch(function(){})); } catch(e){}
       if (!cached) return net;
       // Race the network against the clock: whichever answers first wins,
       // but the network response still refreshes the cache either way.
@@ -118,9 +124,14 @@ self.addEventListener('fetch', function(e){
   // quote links (?q=) carry a token — never cache those under '/'.
   if (req.mode === 'navigate'){
     if (url.searchParams.has('q')) return;
+    // Only the APP is kept as the offline shell. The landing, pricing and
+    // the other public pages used to be stored under '/app' too, so a phone
+    // that last visited the home page could open the office app as it.
+    var isApp = /^\/(app|app\.html|index\.html)$/.test(url.pathname) ||
+      (url.pathname === '/' && (url.searchParams.has('reset') || url.searchParams.has('invite')));
     e.respondWith(
-      fromNetworkFirst(req, SHELL, new Request('/app'))
-        .catch(function(){ return caches.match('/app'); })
+      (isApp ? fromNetworkFirst(req, SHELL, new Request('/app'), e) : fromNetworkFirst(req, SHELL, null, e))
+        .catch(function(){ return caches.match(isApp ? '/app' : req); })
     );
     return;
   }
@@ -134,7 +145,7 @@ self.addEventListener('fetch', function(e){
   // The app's own JS must track app.html, so it gets the same
   // fresh-first treatment rather than a stale-while-revalidate mismatch.
   if (/\.(js|css|webmanifest|json)$/i.test(url.pathname)){
-    e.respondWith(fromNetworkFirst(req, SHELL));
+    e.respondWith(fromNetworkFirst(req, SHELL, null, e));
     return;
   }
 });

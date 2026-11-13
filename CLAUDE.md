@@ -22,6 +22,15 @@ accordingly.
 - `floodroofing/frontend/sw.js` — service worker, network-first with a 5 s
   timeout, so a reload picks up a new build. "Still seeing the old numbers"
   means the app was not reloaded, not that the ship failed.
+  A PHONE ON A SLOW LINE NEVER UPDATED (2026-11-13: the owner's phone read
+  "Updated 7:27 pm 11/11" two days and many ships later). The 5 MB app beat
+  the 5 s timeout, the cached copy was served, the fetch event ended and the
+  worker was stopped before the fresh copy reached the cache — so every open
+  was the same old build. `fromNetworkFirst(req, cache, key, ev)` now holds
+  the event open (`ev.waitUntil`) until the cache is written; `SW_VERSION`
+  roofmap-v6 dropped the stale shell; and only /app (and /?reset / ?invite)
+  is kept under the '/app' key — every page used to be, so a phone that last
+  saw the landing page could open the office app as it.
 - `floodroofing/backend/server.js` — the entire Express backend, including the
   idempotent boot migration DDL list (search `create table if not exists`).
   New columns are added there as `alter table ... add column if not exists`.
@@ -2648,6 +2657,12 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   who is on which crew, and the crew app's checklists (before we start / every
   day / when we finish). `tests/crewapi.mjs` (37, API), `crewui.mjs` (24, UI, the
   real page on a fixed clock with offline and a photo), `officeui` (26).
+  A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
+  login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
+  his profile reads "Aron@…", and the business lookup matched profiles with
+  `eq('email', lowercased)`, so it never found his own company. It is
+  `ilike` now, and a named login is always on in its own business.
+  `crewapi` keeps the capital A in its fixture; on the old code 5 pins fail.
 - A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
   create a new draft quote, it should have today's date"). Duplicate this quote
   (`_qvNewDraft`) and a draft from a template (`_qChangeTemplate`) copied the
