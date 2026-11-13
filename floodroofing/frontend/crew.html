@@ -8,9 +8,13 @@
 // wide, tiny and pinch-zoomed). Chrome's "Desktop site" setting ignores the viewport tag and lays a page
 // out at 980 px; on a touch phone whose page is far wider than its screen, the whole app is scaled up to
 // fill the screen instead.
+// vh and vw are NOT scaled by that zoom (a 33vh strip came out 2.4 times too tall and the page scrolled on
+// into nothing), so heights are worked in --vh1 / --vw1: one hundredth of what is really on the screen.
 (function(){ function fit(){ var de = document.documentElement; de.style.zoom = '';
-  var sw = screen.width, cw = de.clientWidth || window.innerWidth, coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
-  if (coarse && sw && cw > sw * 1.15) de.style.zoom = (cw / sw).toFixed(3); }
+  var sw = screen.width, cw = de.clientWidth || window.innerWidth, coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches, z = 1;
+  if (coarse && sw && cw > sw * 1.15) { z = cw / sw; de.style.zoom = z.toFixed(3); }
+  de.style.setProperty('--vh1', (window.innerHeight / z / 100).toFixed(3) + 'px');
+  de.style.setProperty('--vw1', (cw / z / 100).toFixed(3) + 'px'); }
   window.__crewFit = fit; fit(); addEventListener('resize', fit); addEventListener('orientationchange', function(){ setTimeout(fit, 250); }); })();
 </script>
 <title>RoofMap Crew</title>
@@ -34,7 +38,7 @@
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--font);-webkit-tap-highlight-color:transparent;overflow-x:hidden}
-body{min-height:100vh;touch-action:manipulation}
+body{touch-action:manipulation}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--blue-d)}
 svg.i{width:1.15em;height:1.15em;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
@@ -132,9 +136,9 @@ table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nu
 .hero .big{color:#fff}.hero .mut{color:#bcd0e6}
 .near{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 82px);z-index:30;background:var(--navy);color:#fff;border-radius:14px;padding:14px;box-shadow:0 10px 28px rgba(10,22,40,.35);border-top:3px solid var(--cyan);display:none}
 .near.on{display:block}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 88px);z-index:40;background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;font-size:15.5px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 88px);z-index:40;background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;font-size:15.5px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(var(--vw1,1vw) * 90);text-align:center}
 #toast.on{opacity:1}
-.signin{max-width:440px;margin:6vh auto 0}
+.signin{max-width:440px;margin:calc(var(--vh1,1vh) * 6) auto 0}
 .signin .logo{text-align:center;margin:0 0 20px}
 .signin .logo img{width:84px;height:84px;border-radius:20px;background:#fff;padding:8px;box-shadow:0 4px 14px rgba(10,22,40,.12)}
 .err{color:var(--red);font-size:15px;margin:8px 0 0;min-height:1em;font-weight:600}
@@ -158,7 +162,7 @@ details.tool[open] > summary{background:#f6f9fc}
 details.tool[open] > summary .ti,details.tool[open] > summary .tl{color:var(--blue-d);font-weight:700}
 details.tool .tb{padding:4px 18px 18px;animation:tdrop .22s ease-out}
 @keyframes tdrop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;height:33vh;min-height:200px;margin:6px -18px 0;padding:0 18px;scrollbar-width:none}
+.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;height:calc(var(--vh1,1vh) * 26);min-height:150px;max-height:300px;margin:6px -18px 0;padding:0 18px;scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
 .strip .slide{flex:0 0 88%;height:100%;scroll-snap-align:center;border-radius:12px;overflow:hidden;background:#dbe3ee;position:relative;cursor:zoom-in}
 .strip .slide:only-child{flex-basis:100%}
@@ -176,7 +180,7 @@ details.sow[open] > summary .cv{transform:rotate(90deg)}
 .card details.sow > summary{background:none;color:var(--blue-d);padding:0;min-height:0;font-size:14px;letter-spacing:0;text-transform:none}
 .sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);margin:14px 0 4px}.bd > .sub:first-child{margin-top:0}
 .rmap{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px;cursor:zoom-in}
-.rmap img{display:block;width:100%;height:auto;max-height:42vh;object-fit:contain;background:#fff}
+.rmap img{display:block;width:100%;height:auto;max-height:calc(var(--vh1,1vh) * 42);object-fit:contain;background:#fff}
 .rmap-tag{position:absolute;right:10px;bottom:10px;background:rgba(10,22,40,.82);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
 #viewer{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center}
 #viewer img,#viewer video{max-width:100%;max-height:100%;object-fit:contain}
@@ -192,6 +196,39 @@ details.sow[open] > summary .cv{transform:rotate(90deg)}
 .ph-v{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--navy)}.ph-v svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:2}
 .day h3 .dh{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.day h3 .chip{margin:0}
 .chip.hrs{background:var(--navy);color:#fff}.chip svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2}
+a.tool-go,button.tool-go{display:flex;align-items:center;gap:16px;padding:0 18px;min-height:66px;cursor:pointer;border:0;border-bottom:1px solid var(--line);background:#fff;width:100%;text-align:left;font:inherit;color:inherit;text-decoration:none}
+.tools > :last-child{border-bottom:0}
+.tool-go .ti{width:30px;display:flex;justify-content:center;color:#7b8794}.tool-go .ti svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2}
+.tool-go .tl{flex:1;font-size:18px;color:var(--ink)}
+.tool-go .tc{min-width:34px;height:32px;padding:0 9px;border-radius:7px;background:#eef1f5;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center}
+.tool-go .tv{width:20px;height:20px;color:#9aa5b1;stroke:currentColor;fill:none;stroke-width:2.4}
+.tool-go:active{background:#f1f5f9}
+/* ORDER FLASHING */
+.fl-pad{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 12px;position:relative}
+.fl-pad svg.fl{display:block;width:100%;height:calc(var(--vh1,1vh) * 34);min-height:210px;max-height:380px;touch-action:none;background:#fff}
+.fl-pad.draw svg.fl{background-image:linear-gradient(#eef3f9 1px,transparent 1px),linear-gradient(90deg,#eef3f9 1px,transparent 1px);background-size:20px 20px}
+.fl-pad .fl-hint{position:absolute;left:10px;top:10px;background:rgba(10,22,40,.82);color:#fff;font-size:13px;font-weight:600;padding:6px 10px;border-radius:999px;pointer-events:none}
+.fl-tools{display:flex;gap:8px;padding:8px;border-top:1px solid var(--line);background:#f8fafc}
+.fl-tools .btn{flex:1;min-height:48px;font-size:15px;padding:8px}
+.seg-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}.seg-row:last-child{border-bottom:0}
+.seg-row .sn{width:34px;height:34px;border-radius:50%;background:var(--chip);color:var(--blue-d);font-weight:800;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.seg-row input{flex:1;min-height:52px}
+.seg-row .u{color:var(--mut);font-weight:600;width:30px}
+.seg-row.hot .sn{background:var(--blue);color:#fff}
+.stepper{display:flex;align-items:stretch;border:2px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.stepper button{width:58px;border:0;background:#f1f5f9;font-size:24px;font-weight:700;cursor:pointer;color:var(--navy)}
+.stepper input{flex:1;border:0;text-align:center;font-size:20px;font-weight:800;min-height:54px;width:60px}
+.fl-item{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}.fl-item:last-child{border-bottom:0}
+.fl-item .th{width:92px;height:70px;flex:0 0 auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+.fl-item .th svg{width:100%;height:100%;display:block}
+.fl-item .tx{flex:1;min-width:0}.fl-item .nm{font-weight:800;font-size:17px}
+.fl-item .acts{display:flex;flex-direction:column;gap:6px}
+.fl-item .acts button{border:2px solid var(--line);background:#fff;border-radius:10px;min-height:42px;min-width:72px;font-weight:700;cursor:pointer;color:var(--navy)}
+.fl-lib{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:10px;border:1px solid var(--line);border-radius:14px;background:#fff;margin:0 0 10px;cursor:pointer;font:inherit;color:inherit;min-height:88px}
+.fl-lib .th{width:96px;height:72px;flex:0 0 auto}.fl-lib .th svg{width:100%;height:100%;display:block}
+.fl-lib .nm{font-weight:800;font-size:17px}
+.fl-lib svg.go{width:26px;height:26px;color:#94a3b8;stroke:currentColor;fill:none;stroke-width:2.4;flex:0 0 auto}
+.fl-tag{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef1f5;color:var(--mut);margin-left:6px}
 button.chip.ed{border:2px solid var(--blue);background:#fff;color:var(--blue-d);cursor:pointer;font:inherit;font-size:13px;font-weight:700}
 </style>
 </head>
@@ -214,7 +251,7 @@ button.chip.ed{border:2px solid var(--blue);background:#fff;color:var(--blue-d);
 // every press is kept on the phone at once and sent when it can be. Location
 // is only asked for, and only kept, 7 am – 7 pm on a day the crew is booked
 // on the schedule board (the server refuses it outside that whatever is sent).
-var CREW_BUILD = '2026-11-13b';
+var CREW_BUILD = '2026-11-13c';
 var API = window.CREW_API || 'https://flood-roofing-estimator-production.up.railway.app';
 var NZ = 'Pacific/Auckland';
 var GPS_FROM = 7, GPS_TO = 19, SITE_R = 200, KEEP_EVERY_MS = 60000, KEEP_MOVE_M = 40;
@@ -260,7 +297,14 @@ var ICON = {
   send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
-  note: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
+  note: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  flash: '<path d="M2 18h5l3-10h6l6 10"/><path d="M2 18v-3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  lib: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
+  pen: '<path d="M3 21l3.8-1 11-11-2.8-2.8-11 11z"/><path d="M14.5 5.5l2.8 2.8"/>',
+  flip: '<path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/>'
 };
 function I(n, cls){ return '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>'; }
 function uid(){ try { return crypto.randomUUID(); } catch (e) { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2); } }
@@ -479,6 +523,9 @@ function route(){
   document.getElementById('nav').hidden = false;
   var h = location.hash || '#/today', m;
   if ((m = /^#\/job\/([^/?]+)\/checks/.exec(h))) return renderChecks(decodeURIComponent(m[1]));
+  if ((m = /^#\/job\/([^/?]+)\/flash\/pick/.exec(h))) return renderFlashPick(decodeURIComponent(m[1]));
+  if ((m = /^#\/job\/([^/?]+)\/flash\/edit/.exec(h))) return renderFlashEdit(decodeURIComponent(m[1]));
+  if ((m = /^#\/job\/([^/?]+)\/flash/.exec(h))) return renderFlash(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)/.exec(h))) return renderJob(decodeURIComponent(m[1]));
   if ((m = /^#\/day\/(\d{4}-\d{2}-\d{2})/.exec(h))) return renderDay(m[1]);
   if (h.indexOf('#/week') === 0) return renderWeek();
@@ -700,6 +747,8 @@ async function renderJob(id){
       tool('pack', 'doc', 'Job pack', packs.length || '', packs.length ? packs.map(fileRow).join('') : '<div class="mut">The office hasn’t made the job pack for this job yet — it appears here once they open it on an accepted job.</div>') +
       (docs.length ? tool('files', 'doc', 'Files', docs.length, docs.map(fileRow).join('')) : '') +
       tool('checks', 'check', 'Checklists', cc.all ? cc.done + '/' + cc.all : '', checksHtml(r, id)) +
+      '<a class="tool-go" id="flashRow" href="#/job/' + encodeURIComponent(id) + '/flash"><span class="ti">' + I('flash') + '</span><span class="tl">Order flashing</span>' +
+        (flCart(id).length ? '<span class="tc">' + flCart(id).length + '</span>' : '') + I('chev', 'tv') + '</a>' +
       tool('notes', 'note', 'Notes', (r.notesFromCrew || []).length || '', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn n w" style="margin-top:10px" onclick="addNote(\'' + esc(id) + '\')">' + I('send') + ' Add note</button>' +
         ((r.notesFromCrew || []).length ? '<div style="margin-top:12px">' + r.notesFromCrew.map(function(n){ return '<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="mut">' + esc(dayName(nzParts(new Date(n.at)).date)) + ' ' + esc(hm(n.at)) + '</div><div class="pre">' + esc(n.text) + '</div></div>'; }).join('') + '</div>' : '')) +
       (r.days && r.days.length ? tool('days', 'clock', 'Booked days', r.days.length, r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '') +
@@ -854,6 +903,266 @@ async function saveDay(date){
   await record('day', { row_id: rowId, data: { date: date, start: a, end: b, breakMin: br } });
   toast('Hours saved'); history.length > 1 ? history.back() : go('#/today');
 }
+// ── ORDER FLASHING (2026-11-13, the owner: "add a order flashing menu button in the job, where the user draws
+// in a flashing, two options at the start, edit a saved flashing (opens the list of saved flashings from the
+// office app or draw in custom flashing) ... asks for the quantity and length and allow to edit the saved
+// measures ... finish flashing then goes to a summary to either order the flashing or add another flashing").
+// The flashing is the office's own shape — polylines of points with a length in mm on each side, the colour
+// side an arrow — so the office's library opens here as drawn there. The order list is kept on the phone until
+// it is sent; the server draws the PDF and emails the supplier, or the office when this person may not order
+// straight from the supplier (the office's own setting, a tick per person).
+function flCart(id){ return LS.get('crew_fcart_' + id, []); }
+function flCartSet(id, a){ LS.set('crew_fcart_' + id, a); }
+function flDraft(){ return LS.get('crew_fdraft', null); }
+function flDraftSet(d){ LS.set('crew_fdraft', d); }
+function flPolys(f){ return ((f && f.polylines) || []).filter(function(p){ return p.kind !== 'squiggle'; }); }
+function flStats(f){
+  var girth = 0, folds = 0, hems = 0, missing = 0;
+  ((f && f.polylines) || []).forEach(function(p){
+    if (p.kind === 'squiggle') return;
+    for (var i = 0; i < p.vertices.length - 1; i++) { var m = +((p.measurements || {})[i]); if (m > 0) girth += m; else missing++; }
+    if (p.vertices.length >= 3) folds += p.vertices.length - 2;
+    if (p.crushFolds) hems += Object.keys(p.crushFolds).filter(function(k){ return p.crushFolds[k]; }).length;
+  });
+  return { girth: Math.round(girth * 10) / 10, folds: folds, hems: hems, missing: missing, txt: folds + (folds === 1 ? ' bend' : ' bends') + (hems ? ' · ' + hems + (hems === 1 ? ' hem' : ' hems') : '') };
+}
+// The drawing as SVG: fitted to its box, every side's length at its middle, a fold a dot, the colour side red.
+function flSvg(f, o){
+  o = o || {};
+  var all = [];
+  ((f && f.polylines) || []).forEach(function(p){ p.vertices.forEach(function(v){ all.push(v); }); });
+  if (f && f.paintedSide && all.length) {
+    var q0 = f.paintedSide, s0 = Math.max.apply(null, [0, 1].map(function(k){ var a = all.map(function(v){ return v[k]; }); return Math.max.apply(null, a) - Math.min.apply(null, a); }).concat([40]));
+    var f0 = s0 / (o.thumb ? 9 : 17), d0 = Math.hypot(q0.dirX, q0.dirY) || 1, tx0 = q0.x + q0.dirX / d0 * f0 * 1.8, ty0 = q0.y + q0.dirY / d0 * f0 * 1.8;
+    all.push([q0.x, q0.y]); all.push([tx0, ty0]);
+    if (!o.thumb) { var lw0 = f0 * 7, ux0 = q0.dirX / d0; all.push([tx0 + (ux0 < -0.3 ? -lw0 : (ux0 > 0.3 ? lw0 : lw0 / 2)), ty0 + f0]); all.push([tx0 + (ux0 > 0.3 ? 0 : (ux0 < -0.3 ? 0 : -lw0 / 2)), ty0 - f0]); }
+  }
+  if (o.box) { all.push([o.box[0], o.box[1]]); all.push([o.box[2], o.box[3]]); }
+  if (!all.length) all = [[0, 0], [400, 300]];
+  var minX = Math.min.apply(null, all.map(function(v){ return v[0]; })), maxX = Math.max.apply(null, all.map(function(v){ return v[0]; }));
+  var minY = Math.min.apply(null, all.map(function(v){ return v[1]; })), maxY = Math.max.apply(null, all.map(function(v){ return v[1]; }));
+  var span = Math.max(maxX - minX, maxY - minY, 40), pad = o.box ? 0 : span * (o.thumb ? 0.08 : 0.16);
+  var vb = [minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2];
+  if (o.box) vb = [o.box[0], o.box[1], o.box[2] - o.box[0], o.box[3] - o.box[1]];
+  var fs = Math.max(vb[2], vb[3]) / (o.thumb ? 9 : 17), sw = Math.max(vb[2], vb[3]) / (o.thumb ? 60 : 120);
+  var h = '<svg class="fl" viewBox="' + vb.map(function(x){ return x.toFixed(1); }).join(' ') + '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">';
+  ((f && f.polylines) || []).forEach(function(p, pi){
+    var pts = p.vertices;
+    h += '<polyline points="' + pts.map(function(v){ return v[0] + ',' + v[1]; }).join(' ') + '" fill="none" stroke="' + (p.kind === 'squiggle' ? '#94a3b8' : '#0a1628') + '" stroke-width="' + sw.toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (p.kind === 'squiggle') return;
+    pts.forEach(function(v, i){ if ((i && i < pts.length - 1) || (o.draw && pts.length === 1)) h += '<circle cx="' + v[0] + '" cy="' + v[1] + '" r="' + (sw * 1.6).toFixed(2) + '" fill="#0a1628"/>'; });
+    // a hem (the office's crush fold): a ring at the point it folds back on itself
+    Object.keys(p.crushFolds || {}).forEach(function(k){ var v = pts[+k]; if (v && p.crushFolds[k]) h += '<circle cx="' + v[0] + '" cy="' + v[1] + '" r="' + (sw * 3).toFixed(2) + '" fill="#fff" stroke="#0077b3" stroke-width="' + (sw * 0.8).toFixed(2) + '"/>'; });
+    if (o.draw && pts.length) { var lv = pts[pts.length - 1]; h += '<circle cx="' + lv[0] + '" cy="' + lv[1] + '" r="' + (sw * 2.4).toFixed(2) + '" fill="#0099e0"/>'; }
+    if (o.thumb) return;
+    for (var i = 0; i < pts.length - 1; i++) {
+      var m = (p.measurements || {})[i]; if (!(m > 0) && !o.ask) continue;
+      var a = pts[i], b = pts[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny) || 1;
+      var off = fs * 0.9, lx = mx + nx / L * off, ly = my + ny / L * off;
+      var t = m > 0 ? String(Math.round(m * 10) / 10) : '?', hot = o.hot === pi + ':' + i;
+      var w = t.length * fs * 0.62 + fs * 0.7;
+      h += '<g class="fl-lab" data-seg="' + pi + ':' + i + '" style="cursor:pointer"><rect x="' + (lx - w / 2).toFixed(1) + '" y="' + (ly - fs * 0.72).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (fs * 1.4).toFixed(1) +
+        '" rx="' + (fs * 0.3).toFixed(1) + '" fill="' + (hot ? '#0099e0' : (m > 0 ? '#fff' : '#fff7e6')) + '" stroke="' + (m > 0 ? '#0099e0' : '#d97706') + '" stroke-width="' + (sw * 0.6).toFixed(2) + '"/>' +
+        '<text x="' + lx.toFixed(1) + '" y="' + (ly + fs * 0.36).toFixed(1) + '" font-size="' + fs.toFixed(1) + '" font-family="Inter,Arial,sans-serif" font-weight="700" text-anchor="middle" fill="' + (hot ? '#fff' : (m > 0 ? '#0077b3' : '#b45309')) + '">' + esc(t) + '</text></g>';
+    }
+  });
+  if (f && f.paintedSide) {
+    var q = f.paintedSide, dl = Math.hypot(q.dirX, q.dirY) || 1, ux = q.dirX / dl, uy = q.dirY / dl, al = fs * 1.8, tx = q.x + ux * al, ty = q.y + uy * al;
+    h += '<line x1="' + q.x + '" y1="' + q.y + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="#dc2626" stroke-width="' + (sw * 0.9).toFixed(2) + '"/>' +
+      '<path d="M' + tx.toFixed(1) + ' ' + ty.toFixed(1) + 'L' + (tx - ux * fs * 0.6 - uy * fs * 0.35).toFixed(1) + ' ' + (ty - uy * fs * 0.6 + ux * fs * 0.35).toFixed(1) + 'L' + (tx - ux * fs * 0.6 + uy * fs * 0.35).toFixed(1) + ' ' + (ty - uy * fs * 0.6 - ux * fs * 0.35).toFixed(1) + 'Z" fill="#dc2626"/>' +
+      (o.thumb ? '' : '<text x="' + (tx + ux * fs * 0.4).toFixed(1) + '" y="' + (ty + uy * fs * 0.4 + fs * 0.35).toFixed(1) + '" font-size="' + (fs * 0.8).toFixed(1) + '" font-family="Inter,Arial,sans-serif" font-weight="700" fill="#dc2626" text-anchor="' + (ux < -0.3 ? 'end' : (ux > 0.3 ? 'start' : 'middle')) + '">Colour side</text>');
+  }
+  return h + '</svg>';
+}
+async function flLib(force){
+  var c = LS.get('crew_flib', null);
+  if (c && !force) { flLib._fresh || api('GET', '/crew/flashings').then(function(r){ flLib._fresh = 1; LS.set('crew_flib', r); }).catch(function(){}); return c; }
+  var r = await api('GET', '/crew/flashings'); flLib._fresh = 1; LS.set('crew_flib', r); return r;
+}
+// The job's roof colour, to start the colour box from (the customer's own pick).
+function flJobColour(id){
+  var r = LS.get('crew_row_' + id, null) || {};
+  var line = (r.choices || []).find(function(x){ return /^(roof )?colour\s*:/i.test(x); }) || (r.choices || []).find(function(x){ return /colour\s*:/i.test(x) && !/gutter/i.test(x); });
+  return line ? line.replace(/^[^:]*:\s*/, '').replace(/\s*[—-]\s*.*$/, '').trim() : '';
+}
+async function renderFlash(id){
+  setTop('Order flashing', true);
+  var cart = flCart(id), r = LS.get('crew_row_' + id, null) || {};
+  var head = '<div class="date">' + esc([r.client, r.site].filter(Boolean).join(' · ')) + '</div>';
+  if (!cart.length) {
+    return main(head + '<div class="card"><h2>' + I('flash') + 'Add a flashing</h2><div class="bd"><div class="grid2">' +
+      '<button class="tile p" onclick="go(\'#/job/' + encodeURIComponent(id) + '/flash/pick\')">' + I('lib') + 'Saved flashing<small>from the office’s library</small></button>' +
+      '<button class="tile" onclick="flNew(\'' + esc(id) + '\')">' + I('pen') + 'Draw a custom flashing<small>tap in the bends</small></button></div></div></div>');
+  }
+  var lib = LS.get('crew_flib', null) || {};
+  var direct = !!lib.direct, sups = lib.suppliers || [];
+  var lm = cart.reduce(function(a, x){ return a + (+x.qty || 0) * (+x.lengthM || 0); }, 0);
+  main(head + '<div class="card"><h2>' + I('flash') + 'Flashings to order<span class="r">' + cart.length + '</span></h2><div class="bd">' +
+    cart.map(function(x, i){ var st = flStats(x);
+      return '<div class="fl-item"><div class="th">' + flSvg(x, { thumb: true }) + '</div><div class="tx"><div class="nm">' + esc(x.name) + (x.profile ? ' <span class="fl-tag">' + esc(x.profile) + '</span>' : '') + '</div>' +
+        '<div class="mut">' + esc(x.qty) + ' × ' + esc((+x.lengthM).toFixed(2)) + ' m · girth ' + st.girth + ' mm · ' + st.txt + '</div>' + (x.colour ? '<div class="mut">' + esc(x.colour) + '</div>' : '') + '</div>' +
+        '<div class="acts"><button onclick="flEditItem(\'' + esc(id) + '\',' + i + ')">Edit</button><button onclick="flRemove(\'' + esc(id) + '\',' + i + ')">Remove</button></div></div>'; }).join('') +
+    '<div class="mut" style="margin-top:8px">' + cart.reduce(function(a, x){ return a + (+x.qty || 0); }, 0) + ' lengths · ' + lm.toFixed(2) + ' lineal metres</div>' +
+    '<button class="btn o w" style="margin-top:12px" onclick="go(\'#/job/' + encodeURIComponent(id) + '/flash/pick\')">' + I('plus') + ' Add another flashing</button>' +
+    '<button class="btn o w" style="margin-top:8px" onclick="flNew(\'' + esc(id) + '\')">' + I('pen') + ' Draw a custom flashing</button></div></div>' +
+    '<div class="card"><h2>' + I('send') + 'Send the order</h2><div class="bd">' +
+    '<label class="f" for="flNote">Note for the order</label><textarea class="t" id="flNote" placeholder="Delivery, a deadline, anything the supplier should know">' + esc(LS.get('crew_fnote_' + id, '')) + '</textarea>' +
+    (direct && sups.length > 1 ? '<label class="f" for="flSup">Supplier</label><select class="t" id="flSup">' + sups.map(function(s){ return '<option value="' + s.i + '">' + esc(s.name) + '</option>'; }).join('') + '</select>' : '') +
+    (direct && sups.length ? '<button class="btn g w xl" style="margin-top:14px" id="flSend" onclick="flSend(\'' + esc(id) + '\',true)">' + I('send') + ' Order from ' + esc(sups.length === 1 ? sups[0].name : 'the supplier') + '</button>' :
+      '<div class="banner info" style="margin-top:12px">' + I('info') + '<div>Your office sends flashing orders to the supplier. This goes to them with every drawing.</div></div>' +
+      '<button class="btn g w xl" id="flSend" onclick="flSend(\'' + esc(id) + '\',false)">' + I('send') + ' Send to the office to order</button>') +
+    '</div></div>');
+  var n = document.getElementById('flNote'); if (n) n.addEventListener('input', function(){ LS.set('crew_fnote_' + id, n.value); });
+  flLib(true).then(function(nl){ if ((nl.direct !== lib.direct || (nl.suppliers || []).length !== sups.length) && location.hash.indexOf('/flash') > 0 && !/\/flash\//.test(location.hash)) renderFlash(id); }).catch(function(){});
+}
+async function renderFlashPick(id){
+  setTop('Saved flashings', true);
+  main('<div class="empty">Loading the library…</div>');
+  var lib;
+  try { lib = await flLib(); } catch (e) { return main('<div class="banner warn">' + I('info') + '<div>' + esc(e.offline ? 'No signal, and the library hasn’t been opened on this phone before.' : e.message) + '</div></div>'); }
+  var items = lib.items || [];
+  var draw = function(q){
+    q = String(q || '').toLowerCase();
+    var list = items.filter(function(x){ return !q || (x.name + ' ' + (x.profile || '')).toLowerCase().indexOf(q) >= 0; });
+    document.getElementById('flList').innerHTML = list.length ? list.map(function(x){ var st = flStats(x);
+      return '<button class="fl-lib" onclick="flPick(\'' + esc(id) + '\',\'' + esc(x.id) + '\')"><span class="th">' + flSvg(x, { thumb: true }) + '</span><span style="flex:1;min-width:0"><span class="nm">' + esc(x.name) + '</span>' +
+        '<span class="mut" style="display:block">' + (x.profile ? esc(x.profile) + ' · ' : '') + 'girth ' + st.girth + ' mm · ' + st.txt + (x.src === 'saved' ? '' : ' <span class="fl-tag">built in</span>') + '</span></span>' + I('chev', 'go') + '</button>'; }).join('')
+      : '<div class="empty">No flashing called that. Draw a custom one instead.</div>';
+  };
+  main('<div class="row" style="margin:0 0 12px"><input class="t" id="flQ" type="search" placeholder="Search — barge, apron, 5-Rib…" style="flex:1"></div>' +
+    '<button class="btn o w" style="margin:0 0 12px" onclick="flNew(\'' + esc(id) + '\')">' + I('pen') + ' Draw a custom flashing instead</button><div id="flList"></div>');
+  document.getElementById('flQ').addEventListener('input', function(){ draw(this.value); });
+  draw('');
+}
+function flNew(id){
+  flDraftSet({ rowId: id, idx: -1, mode: 'draw', custom: true, name: 'Custom flashing', profile: '', polylines: [{ vertices: [], measurements: {} }], paintedSide: null,
+    qty: 1, lengthM: '', colour: flJobColour(id) });
+  go('#/job/' + encodeURIComponent(id) + '/flash/edit');
+}
+function flPick(id, fid){
+  var lib = LS.get('crew_flib', null) || {}; var x = (lib.items || []).find(function(i){ return i.id === fid; }); if (!x) return;
+  flDraftSet({ rowId: id, idx: -1, mode: 'edit', name: x.name, profile: x.profile || '', flashingType: x.flashingType || '', from: x.name,
+    polylines: JSON.parse(JSON.stringify(x.polylines || [])), paintedSide: x.paintedSide ? Object.assign({}, x.paintedSide) : null,
+    qty: 1, lengthM: '', colour: flJobColour(id) });
+  location.replace('#/job/' + encodeURIComponent(id) + '/flash/edit');
+}
+function flEditItem(id, i){ var x = flCart(id)[i]; if (!x) return; flDraftSet(Object.assign(JSON.parse(JSON.stringify(x)), { rowId: id, idx: i, mode: 'edit' })); go('#/job/' + encodeURIComponent(id) + '/flash/edit'); }
+function flRemove(id, i){ var a = flCart(id); if (!confirm('Take ' + ((a[i] && a[i].name) || 'this flashing') + ' off the order?')) return; a.splice(i, 1); flCartSet(id, a); renderFlash(id); }
+// THE DRAWING BOX: tap to put in each bend (the angle snaps to 15°), then type each side's length.
+var _FL = { hot: '' };
+function renderFlashEdit(id){
+  var d = flDraft();
+  if (!d || d.rowId !== id) return go('#/job/' + encodeURIComponent(id) + '/flash');
+  setTop(d.idx >= 0 ? 'Edit flashing' : (d.mode === 'draw' ? 'Draw a flashing' : 'Flashing'), true);
+  var st = flStats(d);
+  var drawing = d.mode === 'draw';
+  var segs = [];
+  (d.polylines || []).forEach(function(p, pi){ if (p.kind === 'squiggle') return; for (var i = 0; i < p.vertices.length - 1; i++) segs.push([pi, i]); });
+  main('<div class="fl-pad' + (drawing ? ' draw' : '') + '" id="flPad">' + flSvg(d, drawing ? { draw: true, box: [0, 0, 400, 300] } : { hot: _FL.hot, ask: d.custom }) +
+      (drawing ? '<div class="fl-hint">' + ((d.polylines[0].vertices.length) ? 'Tap the next bend' : 'Tap where the flashing starts') + '</div>' : '') +
+      '<div class="fl-tools">' + (drawing
+        ? '<button class="btn o" onclick="flUndo()">' + I('undo') + ' Undo</button><button class="btn o" onclick="flClear()">Clear</button><button class="btn n" onclick="flDoneDraw()"' + (segs.length ? '' : ' disabled') + '>' + I('check') + ' Done</button>'
+        : '<button class="btn o" onclick="flFlip()">' + I('flip') + ' Colour side</button><button class="btn o" onclick="flRedraw()">' + I('pen') + ' Redraw</button>') + '</div></div>' +
+    (drawing ? '<div class="mut" style="margin:0 2px 14px">Tap each bend in order along the flashing. Lines snap to 15°; the drawing doesn’t need to be to scale — you type each length next.</div>' :
+    '<div class="card"><h2>' + I('flash') + 'Sides<span class="r">girth ' + st.girth + ' mm · ' + st.txt + '</span></h2><div class="bd">' +
+      (segs.length ? segs.map(function(sg, k){ var m = (d.polylines[sg[0]].measurements || {})[sg[1]];
+        return '<div class="seg-row" data-row="' + sg[0] + ':' + sg[1] + '"><span class="sn">' + (k + 1) + '</span><input class="t" type="number" inputmode="decimal" step="any" min="0" data-seg="' + sg[0] + ':' + sg[1] + '" value="' + (m > 0 ? m : '') + '" placeholder="' + (d.custom ? 'Side ' + (k + 1) : 'not measured') + '"><span class="u">mm</span></div>'; }).join('') +
+        (d.custom ? '' : '<div class="mut" style="margin-top:8px">A side left blank (a hem or a return) is made as the office drew it.</div>') : '<div class="mut">Draw the flashing first.</div>') +
+    '</div></div>' +
+    '<div class="card"><h2>' + I('note') + 'The order</h2><div class="bd">' +
+      '<label class="f" for="flName">Name</label><input class="t" id="flName" value="' + esc(d.name || '') + '">' +
+      '<label class="f" for="flColour">Colour</label><input class="t" id="flColour" value="' + esc(d.colour || '') + '" placeholder="e.g. Ironsand">' +
+      '<div class="grid2"><div><label class="f">Quantity</label><div class="stepper"><button type="button" onclick="flQty(-1)">−</button><input id="flQty" type="number" inputmode="numeric" min="1" value="' + esc(d.qty || 1) + '"><button type="button" onclick="flQty(1)">+</button></div></div>' +
+      '<div><label class="f" for="flLen">Length (m)</label><input class="t" id="flLen" type="number" inputmode="decimal" step="0.01" min="0.1" max="12" value="' + esc(d.lengthM || '') + '" placeholder="e.g. 6.0"></div></div>' +
+      '<div class="err" id="flErr"></div>' +
+      '<button class="btn g w xl" style="margin-top:8px" onclick="flFinish()">' + I('check') + ' Finish flashing</button></div></div>'));
+  var svg = document.querySelector('#flPad svg.fl');
+  if (drawing) svg.addEventListener('pointerdown', flTap);
+  else {
+    svg.querySelectorAll('.fl-lab').forEach(function(g){ g.addEventListener('click', function(){ var inp = document.querySelector('input[data-seg="' + g.getAttribute('data-seg') + '"]'); if (inp) { inp.focus(); inp.select(); } }); });
+    document.querySelectorAll('input[data-seg]').forEach(function(inp){
+      inp.addEventListener('focus', function(){ _FL.hot = inp.getAttribute('data-seg'); flRepaint(); });
+      inp.addEventListener('input', function(){ var dd = flDraft(), k = inp.getAttribute('data-seg').split(':'), p = dd.polylines[+k[0]];
+        p.measurements = p.measurements || {}; var v = parseFloat(inp.value); if (v > 0) p.measurements[k[1]] = Math.round(v * 10) / 10; else delete p.measurements[k[1]];
+        flDraftSet(dd); flRepaint(); }); });
+    ['flName', 'flColour', 'flQty', 'flLen'].forEach(function(x){ document.getElementById(x).addEventListener('input', flKeepFields); });
+  }
+}
+function flKeepFields(){ var d = flDraft(); if (!d) return;
+  d.name = document.getElementById('flName').value; d.colour = document.getElementById('flColour').value;
+  d.qty = parseInt(document.getElementById('flQty').value, 10) || 1; d.lengthM = document.getElementById('flLen').value; flDraftSet(d); }
+function flRepaint(){
+  var d = flDraft(), pad = document.getElementById('flPad'); if (!d || !pad) return;
+  var old = pad.querySelector('svg.fl'); var tmp = document.createElement('div'); tmp.innerHTML = flSvg(d, { hot: _FL.hot, ask: d.custom }); var nu = tmp.firstChild;
+  old.replaceWith(nu);
+  nu.querySelectorAll('.fl-lab').forEach(function(g){ g.addEventListener('click', function(){ var inp = document.querySelector('input[data-seg="' + g.getAttribute('data-seg') + '"]'); if (inp) { inp.focus(); inp.select(); } }); });
+  var st = flStats(d), r = document.querySelector('.card h2 .r'); if (r) r.textContent = 'girth ' + st.girth + ' mm · ' + st.txt;
+}
+function flTap(e){
+  var svg = e.currentTarget, rc = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  // the box is drawn "meet": work out where the 400 × 300 area sits inside it
+  var sc = Math.min(rc.width / vb.width, rc.height / vb.height), ox = (rc.width - vb.width * sc) / 2, oy = (rc.height - vb.height * sc) / 2;
+  var x = (e.clientX - rc.left - ox) / sc + vb.x, y = (e.clientY - rc.top - oy) / sc + vb.y;
+  x = Math.max(4, Math.min(396, x)); y = Math.max(4, Math.min(296, y));
+  var d = flDraft(), vs = d.polylines[0].vertices;
+  if (vs.length) {
+    var p = vs[vs.length - 1], dx = x - p[0], dy = y - p[1], L = Math.hypot(dx, dy);
+    if (L < 8) return;
+    var a = Math.round(Math.atan2(dy, dx) / (Math.PI / 12)) * (Math.PI / 12);
+    L = Math.max(10, Math.round(L / 5) * 5);
+    x = p[0] + Math.cos(a) * L; y = p[1] + Math.sin(a) * L;
+  }
+  vs.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
+  flDraftSet(d); renderFlashEdit(d.rowId);
+}
+function flUndo(){ var d = flDraft(); d.polylines[0].vertices.pop(); delete d.polylines[0].measurements[d.polylines[0].vertices.length - 1]; flDraftSet(d); renderFlashEdit(d.rowId); }
+function flClear(){ var d = flDraft(); d.polylines = [{ vertices: [], measurements: {} }]; d.paintedSide = null; flDraftSet(d); renderFlashEdit(d.rowId); }
+function flDoneDraw(){ var d = flDraft(); if (flPolys(d).every(function(p){ return p.vertices.length < 2; })) return; d.mode = 'edit'; _FL.hot = ''; flDraftSet(d); renderFlashEdit(d.rowId);
+  setTimeout(function(){ var i = document.querySelector('input[data-seg]'); if (i) i.focus(); }, 60); }
+function flRedraw(){ if (!confirm('Draw this flashing again from scratch? Its measurements go with it.')) return; flClear(); var d = flDraft(); d.mode = 'draw'; flDraftSet(d); renderFlashEdit(d.rowId); }
+// Colour side: put it on the first side if there is none, otherwise turn it round.
+function flFlip(){
+  var d = flDraft(); flKeepFields();
+  d = flDraft();
+  var p = flPolys(d)[0]; if (!p || p.vertices.length < 2) return;
+  if (!d.paintedSide) { var bi = 0, bl = -1;
+    for (var i = 0; i < p.vertices.length - 1; i++) { var ll = Math.hypot(p.vertices[i + 1][0] - p.vertices[i][0], p.vertices[i + 1][1] - p.vertices[i][1]); if (ll > bl) { bl = ll; bi = i; } }
+    var a = p.vertices[bi], b = p.vertices[bi + 1], nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny) || 1;
+    // a quarter of the way along the longest side, on the side away from its measurement
+    d.paintedSide = { x: a[0] + (b[0] - a[0]) * 0.25, y: a[1] + (b[1] - a[1]) * 0.25, dirX: -nx / L, dirY: -ny / L }; }
+  else { d.paintedSide.dirX = -d.paintedSide.dirX; d.paintedSide.dirY = -d.paintedSide.dirY; }
+  flDraftSet(d); flRepaint(); toast('Colour side marked');
+}
+function flQty(n){ var i = document.getElementById('flQty'); i.value = Math.max(1, (parseInt(i.value, 10) || 1) + n); flKeepFields(); }
+function flFinish(){
+  flKeepFields();
+  var d = flDraft(), st = flStats(d), err = document.getElementById('flErr');
+  var len = parseFloat(d.lengthM);
+  if (d.custom && st.missing) { err.textContent = 'Put in a length for every side (' + st.missing + ' to go).'; var i = Array.prototype.find.call(document.querySelectorAll('input[data-seg]'), function(x){ return !(parseFloat(x.value) > 0); }); if (i) i.focus(); return; }
+  if (!(len > 0 && len <= 12)) { err.textContent = 'Put in the length of each piece, in metres (up to 12).'; document.getElementById('flLen').focus(); return; }
+  if (!(st.girth > 0)) { err.textContent = 'Put in the length of at least one side.'; return; }
+  var item = { custom: !!d.custom, name: (d.name || 'Flashing').trim(), profile: d.profile || '', flashingType: d.flashingType || '', colour: (d.colour || '').trim(),
+    qty: Math.max(1, parseInt(d.qty, 10) || 1), lengthM: Math.round(len * 100) / 100, polylines: d.polylines, paintedSide: d.paintedSide || null };
+  var a = flCart(d.rowId); if (d.idx >= 0 && a[d.idx]) a[d.idx] = item; else a.push(item);
+  flCartSet(d.rowId, a); LS.del('crew_fdraft');
+  toast(item.name + ' added');
+  location.replace('#/job/' + encodeURIComponent(d.rowId) + '/flash');
+}
+async function flSend(id, direct){
+  var cart = flCart(id); if (!cart.length) return;
+  var b = document.getElementById('flSend'); if (b) { b.disabled = true; b.innerHTML = I('wait') + ' Sending…'; }
+  var sup = document.getElementById('flSup');
+  try {
+    var r = await api('POST', '/crew/flash-order', { row_id: id, items: cart, note: (document.getElementById('flNote') || {}).value || '', direct: direct, supplier: sup ? +sup.value : 0 });
+    flCartSet(id, []); LS.del('crew_fnote_' + id);
+    main('<div class="banner ok">' + I('check') + '<div><b>' + (r.status === 'sent' ? 'Ordered from ' + esc(r.supplier) : 'Sent to the office') + '</b><div style="margin-top:4px">' +
+      (r.status === 'sent' ? 'The supplier has the drawings and every measurement. The office has a copy.' : (r.mailed ? 'The office will send it on to the supplier.' : 'It’s saved for the office in RoofMap (GPS Map → Flashing orders).')) + '</div></div></div>' +
+      '<button class="btn n w xl" onclick="go(\'#/job/' + encodeURIComponent(id) + '\')">' + I('left') + ' Back to the job</button>');
+  } catch (e) {
+    if (b) { b.disabled = false; b.innerHTML = I('send') + ' Try again'; }
+    toast(e.offline ? 'No signal — your flashings are kept on this phone. Send again when you have signal.' : e.message);
+  }
+}
 function pickPhoto(cam){ var el = document.getElementById(cam ? 'camIn' : 'pickIn'); el.value = ''; el.click(); }
 ['camIn', 'pickIn'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
   var fs = Array.prototype.slice.call(this.files || []); if (fs.length) addFiles(fs, _JOB.row_id, _JOB.job_id); }); });
@@ -936,7 +1245,7 @@ document.addEventListener('visibilitychange', function(){
   try { await loadMe(); route(); } catch (e) {}
   syncNow();
 })();
-window.__crew = { S: S, syncNow: syncNow, record: record, clock: clock, mayLocate: mayLocate, onFix: onFix, nzParts: nzParts, fqAll: fqAll };
+window.__crew = { flCart: flCart, flStats: flStats, S: S, syncNow: syncNow, record: record, clock: clock, mayLocate: mayLocate, onFix: onFix, nzParts: nzParts, fqAll: fqAll };
 </script>
 </body>
 </html>
