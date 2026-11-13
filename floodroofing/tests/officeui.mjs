@@ -44,6 +44,16 @@ async function boot(enabled){
     if (p === '/costing/jobs') return J({ ok: true, jobs: JOBS });
     if (p === '/xero/status') return J({ ok: true, configured: true, connected: true, org: 'Flood Roofing Ltd', account: '300', status: 'DRAFT' });
     if (p === '/xero/pnl') return J({ ok: true, connected: true, org: 'Flood Roofing Ltd', months });
+    if (p === '/crew/office/now') return J({ ok: true, today: '2026-11-13', sites: [{ lat: -35.2, lng: 173.9, row_id: 'r1', client: 'Arran Simpson', site: '12 Kauri Lane' }],
+      people: [{ id: 'u3', name: 'Nick Example', crew: 'Crew 1', crew_id: 'crew1', colour: '#f87d20', booked: true, status: 'on', status_at: new Date().toISOString(),
+        status_row: { client: 'Arran Simpson', site: '12 Kauri Lane' }, last: { lat: -35.2, lng: 173.9, at: new Date().toISOString() }, track: [] }] });
+    if (p === '/crew/office/hours') return J({ ok: true, from: u.searchParams.get('from'), to: u.searchParams.get('to'), rows: { r1: { client: 'Arran Simpson', site: '12 Kauri Lane' } },
+      people: [{ id: 'u3', name: 'Nick Example', crew_id: 'crew1', days: [{ date: u.searchParams.get('from'), onsite: { r1: 7.5 }, onsiteTotal: 7.5, travel: 1.25, total: 8.75, open: false, first: '2026-11-09T19:00:00Z', last: '2026-11-10T04:00:00Z' }] }] });
+    if (p === '/crew/office/members' && m === 'GET') return J({ ok: true, crews: [{ id: 'crew1', name: 'Crew 1' }, { id: 'crew2', name: 'Crew 2' }],
+      members: [{ id: 'u1', email: 'aron@floodroofing.co.nz', crew_id: '' }, { id: 'u3', email: 'nick@floodroofing.co.nz', name: 'Nick Example', crew_id: 'crew1' }] });
+    if (/^\/crew\/office\/members\//.test(p)) { puts.push({ crew: JSON.parse(r.request().postData() || '{}'), uid: p.split('/').pop() }); return J({ ok: true }); }
+    if (p === '/crew/office/settings' && m === 'GET') return J({ ok: true, checklists: [] });
+    if (p === '/crew/office/settings' && m === 'PUT') { const bd = JSON.parse(r.request().postData() || '{}'); puts.push({ lists: bd.checklists }); return J(Object.assign({ ok: true }, bd)); }
     return J([]);
   });
   await pg.addInitScript(() => { localStorage.setItem('fr_token', 't'); localStorage.setItem('fr_setup_done', '1'); localStorage.setItem('fr_settings', 'null');
@@ -105,7 +115,15 @@ await pg.waitForTimeout(500);
 const ft = await pg.evaluate(() => document.getElementById('financeRoot').innerText);
 check('Financials shows Xero’s P&L: rolling 3- and 6-month averages, the financial years, the months', /Rolling 3-month average/i.test(ft) && /Rolling 6-month average/i.test(ft) && /FY\d\d/.test(ft) && /P&L by month/i.test(ft) && /\$100,000/.test(ft), ft.slice(0, 400));
 await pg.click('#topMenu button[data-top="gps"]');
-check('GPS Map says it fills in once the crew have the phone app', /crew app/.test(await pg.evaluate(() => document.getElementById('gpsRoot').innerText)), '');
+await pg.waitForTimeout(600);
+const gt = await pg.evaluate(() => document.getElementById('gpsRoot').innerText);
+check('GPS Map gives the crew app’s link and the 7–7 booked-day rule', /\/crew/.test(gt) && /only recorded 7 am – 7 pm on days/.test(gt), gt.slice(0, 300));
+check('…lists who is where: Nick, Crew 1, on site at Arran Simpson', /Nick Example/.test(gt) && /On site — Arran Simpson/.test(gt) && /Booked/.test(gt), gt.slice(0, 600));
+check('…the week’s hours, on site + travel', /7:30 \+ 1:15/.test(gt) && /8:45/.test(gt), '');
+await pg.selectOption('select[data-crew-uid="u1"]', 'crew2'); await pg.waitForTimeout(200);
+check('…a person is put on a crew from here', puts.some(x => x.uid === 'u1' && x.crew && x.crew.crew_id === 'crew2'), JSON.stringify(puts));
+await pg.click('text=+ Add a checklist'); await pg.click('#ofListSave'); await pg.waitForTimeout(200);
+check('…and the first checklist starts from a sensible set and saves', puts.some(x => x.lists && x.lists[0] && x.lists[0].name === 'Before we start' && x.lists[0].items.length === 3), JSON.stringify(puts.slice(-1)));
 await pg.click('#navScheduleBtn');
 await pg.waitForTimeout(300);
 check('Schedule from the left menu keeps the slim left menu', !(await vis(pg, '#navRoofBtn')) && await vis(pg, '#navSettingsBtn'), '');

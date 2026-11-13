@@ -109,6 +109,9 @@ self.addEventListener('fetch', function(e){
   var url;
   try { url = new URL(req.url); } catch(err){ return; }
   if (url.origin !== self.location.origin) return;        // API / Supabase / Maps / fonts
+  // The crew app (/crew) has its own worker; this one never answers for it,
+  // or a navigation there would be cached as the office app's '/app'.
+  if (/^\/crew(\.|-|\/|$)/.test(url.pathname)) return;
 
   // Page loads: always try the live site first so a pushed fix shows up,
   // and fall back to the cached shell when the signal is gone. Customer

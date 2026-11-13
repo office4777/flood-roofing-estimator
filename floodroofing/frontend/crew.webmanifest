@@ -1,0 +1,17 @@
+{
+  "name": "RoofMap Crew",
+  "short_name": "Crew",
+  "description": "Your jobs from the schedule, the job on site, checklists, photos and hours.",
+  "id": "/crew",
+  "start_url": "/crew",
+  "scope": "/crew",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a1628",
+  "theme_color": "#0a1628",
+  "icons": [
+    { "src": "/brand/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/pwa-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
