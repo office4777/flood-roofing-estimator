@@ -41,7 +41,7 @@ const quote = { ref: '3351', phone: '021 555 0101', client: { email: 'arran@exam
   custDesc: ['Strip the old roof and take it away', 'Supply & install new MAXAM corrugate'], custExcl: ['Spouting'], custNotes: ['Dog on site'] };
 const { db, port } = await startFakePostgrest({
   companies: [ { id: 'c1', name: 'Flood Roofing Ltd', plan: 'business' }, { id: 'c2', name: 'Rival Roofing', plan: 'business' } ],
-  profiles: [ { id: 'u1', company_id: 'c1', email: 'aron@floodroofing.co.nz', name: 'Aron' }, { id: 'u3', company_id: 'c1', email: 'nick@floodroofing.co.nz', name: 'Nick Example' },
+  profiles: [ { id: 'u1', company_id: 'c1', email: 'Aron@floodroofing.co.nz', name: 'Aron' }, { id: 'u3', company_id: 'c1', email: 'nick@floodroofing.co.nz', name: 'Nick Example' },
     { id: 'u2', company_id: 'c2', email: 'office@rival.nz', name: 'Rival' } ],
   company_users: [ { company_id: 'c1', user_id: 'u1', role: 'owner' }, { company_id: 'c1', user_id: 'u3', role: 'member' }, { company_id: 'c2', user_id: 'u2', role: 'owner' } ],
   user_settings: [ { user_id: 'u1', company_id: 'c1', updated_at: '2026-11-01T00:00:00Z', schedule_cfg: { feed_secret: 'x',
@@ -80,13 +80,13 @@ const call = (tok) => async (m, p, b) => {
   const r = await fetch(BASE + p, { method: m, headers: { 'content-type': 'application/json', authorization: 'Bearer ' + tok }, body: b === undefined ? undefined : JSON.stringify(b) });
   let j = {}; try { j = await r.json(); } catch (e) {} return { status: r.status, body: j };
 };
-const aron = call(jwt.sign({ id: 'u1', email: 'aron@floodroofing.co.nz', cid: 'c1' }, 'test-secret'));
+const aron = call(jwt.sign({ id: 'u1', email: 'Aron@floodroofing.co.nz', cid: 'c1' }, 'test-secret'));
 const nick = call(jwt.sign({ id: 'u3', email: 'nick@floodroofing.co.nz', cid: 'c1' }, 'test-secret'));
 const rival = call(jwt.sign({ id: 'u2', email: 'office@rival.nz', cid: 'c2' }, 'test-secret'));
 
 // ── who has it ──
 let r = await nick('GET', '/crew/enabled');
-check('a roofer in the owner’s business has the crew app (not the office side)', r.body.enabled === true && r.body.office === false, JSON.stringify(r.body));
+check('a roofer in the owner’s business has the crew app (not the office side), though the owner’s address is stored “Aron@…”', r.body.enabled === true && r.body.office === false, JSON.stringify(r.body));
 r = await aron('GET', '/crew/enabled');
 check('the owner has both', r.body.enabled === true && r.body.office === true, JSON.stringify(r.body));
 r = await rival('GET', '/crew/me');
