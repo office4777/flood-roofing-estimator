@@ -273,8 +273,10 @@ async function capture(pg, src){
   // Where the high-detail photos stop: shaded cells and a line under the map.
   const cover = async (mode) => { state.mode = mode; return pg.evaluate(async () => {
     let fc = null;
-    window._aerialMap = { getCenter: () => ({ lat: -27.47, lng: 153.03 }), getZoom: () => 18,
-      getBounds: () => ({ getWest: () => 153.02, getEast: () => 153.04, getSouth: () => -27.48, getNorth: () => -27.46 }),
+    // Sydney, inside NSW: a stray region check under this stand-in then picks NSW
+    // itself (it sat over Brisbane, and a late one switched the cells to QLD's).
+    window._aerialMap = { getCenter: () => ({ lat: -33.87, lng: 151.21 }), getZoom: () => 18,
+      getBounds: () => ({ getWest: () => 151.20, getEast: () => 151.22, getSouth: () => -33.88, getNorth: () => -33.86 }),
       getSource: (id) => id === 'rm-cover' && fc ? { setData(d){ fc = d; } } : null, addSource(id, o){ if (id === 'rm-cover') fc = o.data; },
       addLayer(){}, getLayer: () => true, moveLayer(){} };
     // A switch to the state source still settling from an earlier step can
