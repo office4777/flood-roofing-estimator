@@ -5677,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-13T01:39:34Z';
+  window.APP_BUILT_AT = '2026-11-13T02:16:04Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -11012,6 +11012,8 @@ function gotoTab(t) {
   else { try{ if (typeof _schedPresStop === 'function') _schedPresStop(); }catch(e){} }
   if(t==='tender'){ try{ if (typeof _tenderTabOpen === 'function') _tenderTabOpen(); }catch(e){ console.warn('tender:', e); } }
   else { try{ _schedExtToggle(false); }catch(e){} }
+  // The office menus (office.js): Supplier Invoices, Job Costing, Financials, GPS Map.
+  try { if (typeof window._officeTabOpen === 'function') window._officeTabOpen(t); } catch(e){ console.warn('office:', e); }
   if(t==='inbox'){ try{ _ibxEnter(); }catch(e){ console.warn('inbox:', e); } }
   // The Notifications panel floats over whatever tab is open — switching
   // tabs means the reader is done with it, so it goes.
@@ -92513,6 +92515,7 @@ document.addEventListener('mousedown',function(e){
 <script src="sheet-plan.js"></script>
 <script src="help-bot.js"></script>
 <script src="tender.js"></script>
+<script src="office.js"></script>
 <script>
 /* ── INSTALLABLE APP ─────────────────────────────────────────────
    Registers the service worker that lets RoofMap open (and keep working)

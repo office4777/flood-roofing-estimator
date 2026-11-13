@@ -2519,6 +2519,65 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   History → Roof map history: `job_revisions` keeps the EIGHT newest snapshots
   per job, one per 10 minutes, and a restore is itself snapshotted — so tell
   the owner to stop saving a damaged job before anything else.
+- THE OFFICE MENUS: SUPPLIER INVOICES, JOB COSTING, FINANCIALS, GPS MAP
+  (2026-11-13, the owner: "give the user two options ... set up filters in
+  their email ... forwarded onto RoofMap, or ... give all their material
+  suppliers their new invoicing email ... read the invoice and auto allocate to
+  whichever specific job ... a Xero connection ... an assign to column with a
+  search bar ... click to view summary ... click to open the full PDF"; "these
+  new menus should be along the top of the screen ... jobs ... supplier invoices
+  ... GPS map ... the schedule, the settings, and the request a fix ... remain
+  always in the left menu on every single tab ... a financials tab ... only for
+  my account first"). ONLY THE NAMED LOGINS: `SUPINV_USERS` (default
+  aron@ and aaron@floodroofing.co.nz — he typed "aaron"), `SUPINV_ALL=true`
+  for everyone; every route refuses anyone else (403 `SUPINV_OFF`), GET
+  `/supinv/enabled` tells the app. SERVER: `backend/supinv.js` (mounted from
+  server.js like the tender). Each business gets `<name>-<4 hex>@SUPINV_DOMAIN`
+  (default invoices.roofmap.co.nz, `supinv_inboxes`); RESEND INBOUND calls
+  `POST /supinv/inbound` (registered on the RAW body next to the Stripe
+  webhook, Svix-signed with `RESEND_INBOUND_SECRET`; no secret = refused in
+  production), the attachments are fetched from Resend's receiving API (PDFs and
+  photos, an inline logo skipped, the same email twice kept once; an email with
+  none is a `no-file` row — Gmail's forwarding code arrives that way), kept in
+  the private 'supplier-invoices' bucket and read by Claude (`SUPINV_MODEL`,
+  default claude-haiku-5-5, the PDF as a document block, tool `record_invoice`:
+  supplier, number, dates, ex / GST / total, every reference, site address, a
+  line, the lines). `match()`: a job number (3+ digits, its RoofMap or Fergus
+  number) on the invoice puts it on that job's ROOT, else the site address's
+  number and street, else the customer's name only as a suggestion; two
+  equally good = unassigned with `suggest`. Routes: GET /supinv, /supinv/:id,
+  /supinv/:id/url, POST /supinv/upload (base64, BIG_BODY), PUT
+  /supinv/:id/assign (own company's job only), POST /supinv/:id/reread, DELETE,
+  GET /costing/jobs (one row a job root: quoted / accepted ex GST from
+  `share.sentTotal` / `accepted.total` ÷ the quote's GST, the invoices' ex-GST
+  sum, a credit note negative, statements and quotes not counted). XERO: OAuth
+  2 with RoofMap's own app (`XERO_CLIENT_ID` / `XERO_CLIENT_SECRET`, redirect
+  `PUBLIC_API_URL/xero/callback`, `XERO_SCOPES`), a signed `state`, tokens
+  `_mailEnc`-encrypted in `xero_connections`, refreshed on use; POST
+  /supinv/:id/xero makes an ACCPAY bill (ACCPAYCREDIT for a credit note) for the
+  supplier's Xero contact, the supplier's invoice number, the job in Reference,
+  account `settings.account` (300) as DRAFT unless set to AUTHORISED, the PDF
+  attached, never twice; GET /xero/pnl reads Xero's ProfitAndLoss a year at a
+  time into income / cost of sales / gross / expenses / net a month.
+  Seams: `__TEST_SUPINV_FETCH`, `__TEST_SUPINV_AI`, `__TEST_SUPINV_STORAGE`.
+  THE APP: `frontend/office.js` (loaded after tender.js; gotoTab calls
+  `_officeTabOpen`). `#topMenu` (Jobs → Home, Supplier Invoices, Job Costing,
+  Financials, GPS Map) at the top of `main.content` under `body.office-on`; on
+  an office tab `body.office-tabs` hides every left-menu button but Schedule,
+  Settings, Request a Fix and Sign out (and the job tile), kept while on those
+  three. Supplier Invoices: the address with both options written out (Gmail /
+  Outlook rules; a note to send suppliers), drop or upload, To assign / On a job
+  / Not in Xero yet / All, search, an Assign box per row searching the jobs
+  (number, name, address; suggestions first), a summary window (Open PDF, Send to
+  Xero, Read again, Change job, Delete) and the PDF in a window. Job Costing: by
+  month accepted and job by job, price vs supplier costs ("labour joins once the
+  crew log hours"). Financials: Connect Xero, last month / rolling 3 / rolling
+  6, a bar a month, each April–March year with its run-rate, the months with
+  3- and 6-month averages, back costing, Xero settings. GPS Map: a card until
+  the crew app exists. NEEDS THE OWNER: the Resend receiving domain + webhook
+  (MX on invoices.roofmap.co.nz, `RESEND_INBOUND_SECRET`), and a Xero app
+  (developer.xero.com → keys on Railway). `tests/supinv.mjs` (33, API),
+  `tests/officeui.mjs` (19, UI).
 - A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
   create a new draft quote, it should have today's date"). Duplicate this quote
   (`_qvNewDraft`) and a draft from a template (`_qChangeTemplate`) copied the

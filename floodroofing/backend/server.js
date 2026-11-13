@@ -221,6 +221,10 @@ app.options('*', cors(corsDelegate));
 // the billing section below (functions hoist; the route only runs later).
 app.post('/billing/webhook', express.raw({ type: 'application/json', limit: '1mb' }),
   function (req, res) { return _stripeWebhook(req, res); });
+// Supplier invoices arriving by email (Resend inbound, Svix-signed over the
+// raw bytes) — the handler is in supinv.js, mounted further down.
+app.post('/supinv/inbound', express.raw({ type: '*/*', limit: '2mb' }),
+  function (req, res) { return SUPINV ? SUPINV.inbound(req, res) : res.status(503).json({ error: 'not ready' }); });
 
 // Body size. A single 25mb cap across the whole API meant ANY path would
 // buffer 25mb into memory before a single line of the handler ran — including
@@ -245,6 +249,7 @@ const BIG_BODY = [
   ['POST', /^\/email\/send-order\/?$/],            // order PDF attachment
   ['POST', /^\/feedback\/?$/],                    // bug report + screenshot PDF
   ['POST', /^\/claude\//],                        // aerial image to the model
+  ['POST', /^\/supinv\/upload\/?$/],               // a supplier invoice PDF
 ];
 function _wantsBigBody(req){
   return BIG_BODY.some(function (e) { return req.method === e[0] && e[1].test(req.path); });
@@ -15460,6 +15465,19 @@ const _MIGRATION_SQL = [
   "create table if not exists public.job_files (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, name text not null default '', mime text not null default '', size bigint not null default 0, kind text not null default 'upload', source text not null default '', author text not null default '', storage_path text not null default '', status text not null default 'pending', created_at timestamptz not null default now())",
   "create index if not exists idx_job_files_job on public.job_files (company_id, job_id, created_at)",
   "alter table public.job_files enable row level security",
+  // SUPPLIER INVOICES + XERO (2026-11-13): the business's invoice address,
+  // every supplier document received or uploaded (the file itself in the
+  // private 'supplier-invoices' bucket) and the Xero connection.
+  "create table if not exists public.supinv_inboxes (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, local text not null, created_at timestamptz not null default now())",
+  "create unique index if not exists supinv_inboxes_local_idx on public.supinv_inboxes (local)",
+  "alter table public.supinv_inboxes enable row level security",
+  "create table if not exists public.supplier_invoices (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, source text not null default '', email_id text not null default '', from_addr text not null default '', subject text not null default '', received_at timestamptz not null default now(), file_name text not null default '', mime text not null default '', size bigint not null default 0, storage_path text not null default '', status text not null default 'reading', error text not null default '', kind text not null default '', supplier text not null default '', inv_number text not null default '', inv_date date, due_date date, subtotal numeric(12,2), gst numeric(12,2), total numeric(12,2), currency text not null default '', refs jsonb not null default '[]'::jsonb, site_address text not null default '', description text not null default '', lines jsonb not null default '[]'::jsonb, job_id uuid, job_label text not null default '', alloc text not null default '', alloc_why text not null default '', suggest jsonb not null default '[]'::jsonb, xero jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now())",
+  "create index if not exists supplier_invoices_co_idx on public.supplier_invoices (company_id, received_at)",
+  "create index if not exists supplier_invoices_job_idx on public.supplier_invoices (company_id, job_id)",
+  "alter table public.supplier_invoices enable row level security",
+  "create table if not exists public.xero_connections (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, tenant_id text not null default '', tenant_name text not null default '', access_token text not null default '', refresh_token text not null default '', expires_at timestamptz, settings jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now())",
+  "create index if not exists xero_connections_co_idx on public.xero_connections (company_id)",
+  "alter table public.xero_connections enable row level security",
   "create table if not exists public.job_file_layouts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, layout jsonb, updated_at timestamptz not null default now())",
   "create index if not exists idx_job_file_layouts_job on public.job_file_layouts (company_id, job_id)",
   "alter table public.job_file_layouts enable row level security",
@@ -16148,6 +16166,19 @@ const TENDER = (function(){
   } catch (e) {
     recordError('tender-boot', e, { route: 'boot' });
     console.warn('[tender] not mounted: ' + e.message);
+    return null;
+  }
+})();
+
+// ══ SUPPLIER INVOICES + XERO (supinv.js) — only the named logins for now.
+const SUPINV = (function(){
+  try {
+    return require('./supinv').mount(app, { supabase, requireAuth, requireSubscription, scopeCompany: _scopeCompany,
+      recordError, rateLimit, mailEnc: _mailEnc, mailDec: _mailDec, publicApiUrl: PUBLIC_API_URL, publicAppUrl: PUBLIC_APP_URL,
+      companyName: _inboxCompanyName, localPart: _tenantLocalPart });
+  } catch (e) {
+    recordError('supinv-boot', e, { route: 'boot' });
+    console.warn('[supinv] not mounted: ' + e.message);
     return null;
   }
 })();
