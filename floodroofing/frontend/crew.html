@@ -58,7 +58,6 @@ svg.i{width:1.15em;height:1.15em;flex:0 0 auto;stroke:currentColor;fill:none;str
 .card > h2,.band{margin:0;background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:9px 14px;display:flex;align-items:center;gap:8px}
 .card > h2 .r{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;color:#bae6fd}
 .sec-h{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--navy);margin:20px 2px 10px;display:flex;align-items:center;gap:8px}
-.sec-h::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--cyan)}
 .big{font-size:23px;font-weight:800;margin:0 0 2px;letter-spacing:-.01em;line-height:1.2}
 .mut{color:var(--mut);font-size:15px}
 .date{font-size:15px;color:var(--mut);font-weight:600;margin:2px 2px 12px}
@@ -88,12 +87,13 @@ svg.i{width:1.15em;height:1.15em;flex:0 0 auto;stroke:currentColor;fill:none;str
 .now.tr .dot{background:var(--blue);box-shadow:0 0 0 5px rgba(0,153,224,.2)}
 .now.br .dot{background:#d97706;box-shadow:0 0 0 5px rgba(217,119,6,.2)}
 .status{font-weight:800;font-size:21px;line-height:1.2}
-.job{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-left:8px solid var(--blue);border-radius:14px;padding:16px 14px;margin:0 0 12px;cursor:pointer;color:inherit;min-height:96px;box-shadow:0 1px 2px rgba(10,22,40,.05);font:inherit}
+.job{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 16px;margin:0 0 12px;cursor:pointer;color:inherit;min-height:96px;box-shadow:0 1px 2px rgba(10,22,40,.05);font:inherit}
 .job .tx{flex:1;min-width:0}
 .job .c{font-weight:800;font-size:20px;line-height:1.2}.job .c .ref{color:var(--mut);font-weight:600;font-size:15px}
 .job .a{color:var(--mut);font-size:16px;margin-top:3px}
 .job .go{width:30px;height:30px;color:#94a3b8;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
-.job.live{border-color:var(--green);border-left-color:var(--green);background:#f0fdf4}
+.job.live{border-color:#86efac;background:#f0fdf4}
+.chip .cd{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--chip);color:var(--blue-d);margin:6px 6px 0 0}
 .chip.g{background:#dcfce7;color:#14532d}
 .banner{border-radius:12px;padding:13px 14px;margin:0 0 12px;font-size:15.5px;display:flex;gap:11px;align-items:flex-start;border:1px solid transparent;line-height:1.35}
@@ -547,10 +547,10 @@ async function loadRow(id){
 }
 function jobCardHtml(j){
   var live = S.status && S.status.kind === 'on' && S.status.row_id === j.row_id && S.status.date === nzToday();
-  return '<button class="job' + (live ? ' live' : '') + '" style="border-left-color:' + esc(live ? '#15a34a' : (j.colour || '#0099e0')) + '" onclick="go(\'#/job/' + encodeURIComponent(j.row_id) + '\')"><div class="tx">' +
+  return '<button class="job' + (live ? ' live' : '') + '" onclick="go(\'#/job/' + encodeURIComponent(j.row_id) + '\')"><div class="tx">' +
     '<div class="c">' + esc(j.client || 'Job') + (j.job_ref ? ' <span class="ref">#' + esc(j.job_ref) + '</span>' : '') + '</div>' +
     '<div class="a">' + esc(j.site || '') + '</div>' +
-    ((j.crew || live) ? '<div>' + (j.crew ? '<span class="chip">' + I('users') + esc(j.crew) + '</span>' : '') +
+    ((j.crew || live) ? '<div>' + (j.crew ? '<span class="chip"><span class="cd" style="background:' + esc(j.colour || '#0099e0') + '"></span>' + esc(j.crew) + '</span>' : '') +
     (live ? '<span class="chip g">' + I('check') + 'On site now</span>' : '') + '</div>' : '') + '</div>' + I('chev', 'go') + '</button>';
 }
 function locBanner(){
