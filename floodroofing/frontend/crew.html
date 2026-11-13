@@ -2,10 +2,23 @@
 <html lang="en-NZ">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<script>
+// FITS THE PHONE, WHATEVER CHROME SAYS (2026-11-13, the owner's screenshots: the app laid out 980 px
+// wide, tiny and pinch-zoomed). Chrome's "Desktop site" setting ignores the viewport tag and lays a page
+// out at 980 px; on a touch phone whose page is far wider than its screen, the whole app is scaled up to
+// fill the screen instead.
+(function(){ function fit(){ var de = document.documentElement; de.style.zoom = '';
+  var sw = screen.width, cw = de.clientWidth || window.innerWidth, coarse = window.matchMedia && matchMedia('(pointer:coarse)').matches;
+  if (coarse && sw && cw > sw * 1.15) de.style.zoom = (cw / sw).toFixed(3); }
+  window.__crewFit = fit; fit(); addEventListener('resize', fit); addEventListener('orientationchange', function(){ setTimeout(fit, 250); }); })();
+</script>
 <title>RoofMap Crew</title>
 <meta name="description" content="The crew's day: jobs from the schedule, the job on site, checklists, photos and hours.">
 <meta name="theme-color" content="#0a1628">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <meta name="robots" content="noindex">
 <link rel="manifest" href="crew.webmanifest">
 <link rel="icon" href="brand/pwa-192.png">
@@ -14,86 +27,130 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="RoofMap Crew">
 <style>
-:root{--navy:#0a1628;--blue:#0099e0;--blue-d:#0077b3;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff;
-  --green:#16a34a;--red:#dc2626;--amber:#d97706;--chip:#e0f2fe}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#e2e8f0;--mut:#94a3b8;--line:#1e293b;--bg:#020817;--card:#0f172a;--chip:#0c2a3f}}
-:root[data-theme="dark"]{--ink:#e2e8f0;--mut:#94a3b8;--line:#1e293b;--bg:#020817;--card:#0f172a;--chip:#0c2a3f}
+/* RoofMap's own look (2026-11-13, the owner: "make it look like roofmap ... big buttons like fergus"):
+   light ground, navy bar with the cyan rule, white cards under navy bands, line icons, no emoji. */
+:root{--navy:#0a1628;--navy2:#10233c;--blue:#0099e0;--cyan:#0099cc;--blue-d:#0077b3;--ink:#0f172a;--mut:#5b6b80;--line:#dde4ee;--bg:#eef3f9;--card:#fff;
+  --green:#15a34a;--green-d:#0f7a37;--red:#dc2626;--amber:#b45309;--chip:#e0f2fe;--font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif}
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:17px/1.4 var(--font);-webkit-tap-highlight-color:transparent;overflow-x:hidden}
+body{min-height:100vh;touch-action:manipulation}
 button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--blue)}
-#top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
-#top h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#top .back{background:none;border:0;color:#fff;font-size:22px;padding:0 6px 0 0;cursor:pointer;display:none}
-#sync{font-size:12px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.12);white-space:nowrap;cursor:pointer;border:0;color:#fff}
-#sync.off{background:#7c2d12}#sync.wait{background:#92400e}
-#main{padding:14px 14px calc(env(safe-area-inset-bottom) + 86px);max-width:720px;margin:0 auto}
-#nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
-#nav button{flex:1;background:none;border:0;padding:9px 0 8px;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
-#nav button b{font-size:20px;font-weight:400;line-height:1}
-#nav button.on{color:var(--blue);font-weight:600}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
-.card h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px;font-weight:700}
-.big{font-size:20px;font-weight:700;margin:0 0 2px}
-.mut{color:var(--mut);font-size:14px}
-.row{display:flex;gap:8px;align-items:center}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:13px 14px;font-weight:700;cursor:pointer;text-decoration:none;min-height:48px}
+a{color:var(--blue-d)}
+svg.i{width:1.15em;height:1.15em;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
+#top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;border-bottom:3px solid var(--cyan);padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;display:flex;align-items:center;gap:10px;min-height:62px}
+#top .mark{width:36px;height:36px;border-radius:9px;background:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+#top .mark img{width:30px;height:30px}
+#top .tt{flex:1;min-width:0;line-height:1.15}
+#top .tt small{display:block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#7dd3fc}
+#top h1{font-size:19px;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top .back{background:rgba(255,255,255,.12);border:0;color:#fff;width:40px;height:40px;border-radius:10px;cursor:pointer;display:none;align-items:center;justify-content:center;flex:0 0 auto}
+#top .back svg{width:22px;height:22px}
+#sync{font-size:12.5px;font-weight:700;padding:7px 11px;border-radius:999px;background:rgba(255,255,255,.12);white-space:nowrap;cursor:pointer;border:0;color:#fff}
+#sync.off{background:#9a3412}#sync.wait{background:#b45309}
+#main{padding:14px 14px calc(env(safe-area-inset-bottom) + 96px);max-width:640px;margin:0 auto}
+#nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:#fff;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -4px 16px rgba(10,22,40,.06)}
+#nav button{flex:1;background:none;border:0;border-top:3px solid transparent;padding:9px 0 10px;font-size:13px;font-weight:600;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;min-height:68px}
+#nav button svg{width:27px;height:27px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#nav button.on{color:var(--blue-d);border-top-color:var(--blue);font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:0 0 14px;overflow:hidden;box-shadow:0 1px 2px rgba(10,22,40,.05)}
+.card > .bd{padding:14px}
+.card > h2,.band{margin:0;background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:9px 14px;display:flex;align-items:center;gap:8px}
+.card > h2 .r{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600;color:#bae6fd}
+.sec-h{font-size:13px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--navy);margin:20px 2px 10px;display:flex;align-items:center;gap:8px}
+.sec-h::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--cyan)}
+.big{font-size:23px;font-weight:800;margin:0 0 2px;letter-spacing:-.01em;line-height:1.2}
+.mut{color:var(--mut);font-size:15px}
+.date{font-size:15px;color:var(--mut);font-weight:600;margin:2px 2px 12px}
+.row{display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:12px;padding:14px 16px;font-weight:700;font-size:17px;cursor:pointer;text-decoration:none;min-height:58px;line-height:1.15;text-align:center}
+.btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 .btn.p{background:var(--blue);color:#fff}.btn.g{background:var(--green);color:#fff}.btn.r{background:var(--red);color:#fff}
-.btn.o{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.o{background:#fff;color:var(--navy);border:2px solid var(--line)}
+.btn.n{background:var(--navy);color:#fff}
 .btn.w{width:100%}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.job{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--blue);border-radius:14px;padding:13px 14px;margin:0 0 10px;cursor:pointer;color:inherit}
-.job .c{font-weight:700;font-size:17px}.job .a{color:var(--mut);font-size:14px}
-.chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink);margin-right:4px}
-.banner{border-radius:12px;padding:11px 13px;margin:0 0 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
-.banner.ok{background:#dcfce7;color:#14532d}.banner.no{background:#e2e8f0;color:#334155}.banner.warn{background:#fef3c7;color:#78350f}.banner.info{background:#e0f2fe;color:#0c4a6e}
-.status{font-weight:700}
-.day{margin:0 0 14px}.day h3{font-size:14px;margin:0 0 8px;color:var(--mut);display:flex;justify-content:space-between}
-.day.today h3{color:var(--blue)}
-.empty{color:var(--mut);font-size:14px;padding:4px 2px 8px}
-ul.lines{margin:0;padding-left:18px}ul.lines li{margin:3px 0}
-.chk{display:flex;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.btn.xl{min-height:70px;font-size:19px;border-radius:14px}
+.btn:active{transform:scale(.98)}
+.btn[disabled]{opacity:.55}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+/* the big square tiles, Fergus Go's own idea */
+.tile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:104px;border-radius:14px;border:2px solid var(--line);background:#fff;color:var(--navy);font-weight:700;font-size:16px;cursor:pointer;text-decoration:none;padding:12px 6px;text-align:center;line-height:1.15}
+.tile svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tile small{display:block;font-size:12.5px;font-weight:600;opacity:.85;margin-top:-4px}
+.tile.on{background:var(--chip);border-color:var(--blue);color:var(--blue-d)}
+.tile.p{background:var(--blue);border-color:var(--blue);color:#fff}
+.tile.n{background:var(--navy);border-color:var(--navy);color:#fff}
+.tile:active{transform:scale(.97)}
+.now{display:flex;align-items:center;gap:14px}
+.now .dot{width:16px;height:16px;border-radius:50%;background:#94a3b8;flex:0 0 auto;box-shadow:0 0 0 5px rgba(148,163,184,.2)}
+.now.on .dot{background:var(--green);box-shadow:0 0 0 5px rgba(21,163,74,.2)}
+.now.tr .dot{background:var(--blue);box-shadow:0 0 0 5px rgba(0,153,224,.2)}
+.now.br .dot{background:#d97706;box-shadow:0 0 0 5px rgba(217,119,6,.2)}
+.status{font-weight:800;font-size:21px;line-height:1.2}
+.job{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#fff;border:1px solid var(--line);border-left:8px solid var(--blue);border-radius:14px;padding:16px 14px;margin:0 0 12px;cursor:pointer;color:inherit;min-height:96px;box-shadow:0 1px 2px rgba(10,22,40,.05);font:inherit}
+.job .tx{flex:1;min-width:0}
+.job .c{font-weight:800;font-size:20px;line-height:1.2}.job .c .ref{color:var(--mut);font-weight:600;font-size:15px}
+.job .a{color:var(--mut);font-size:16px;margin-top:3px}
+.job .go{width:30px;height:30px;color:#94a3b8;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.job.live{border-color:var(--green);border-left-color:var(--green);background:#f0fdf4}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--chip);color:var(--blue-d);margin:6px 6px 0 0}
+.chip.g{background:#dcfce7;color:#14532d}
+.banner{border-radius:12px;padding:13px 14px;margin:0 0 12px;font-size:15.5px;display:flex;gap:11px;align-items:flex-start;border:1px solid transparent;line-height:1.35}
+.banner > svg{width:22px;height:22px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-top:1px}
+.banner .btn{margin-top:10px;min-height:52px}
+.banner.ok{background:#dcfce7;color:#14532d;border-color:#bbf7d0}.banner.no{background:#fff;color:#334155;border-color:var(--line)}
+.banner.warn{background:#fff7e6;color:#7c2d12;border-color:#fcd9a8}.banner.info{background:#e0f2fe;color:#0c4a6e;border-color:#bae6fd}
+.day{margin:0 0 16px}.day h3{font-size:15px;margin:0 0 9px;color:var(--navy);display:flex;justify-content:space-between;align-items:center;font-weight:800}
+.day.today h3{color:var(--blue-d)}
+.empty{color:var(--mut);font-size:16px;padding:16px;background:#fff;border:1px dashed var(--line);border-radius:12px;text-align:center}
+ul.lines{margin:0;padding-left:20px;font-size:16.5px}ul.lines li{margin:5px 0}
+.chk{display:flex;gap:14px;align-items:center;padding:13px 2px;border-bottom:1px solid var(--line);cursor:pointer;font-size:17px;min-height:56px}
 .chk:last-child{border-bottom:0}
-.chk input{width:24px;height:24px;flex:0 0 auto}
+.chk input{width:30px;height:30px;flex:0 0 auto;accent-color:var(--green)}
 .chk.done span{color:var(--mut);text-decoration:line-through}
-.file{display:flex;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:inherit}
+.file{display:flex;gap:12px;align-items:center;padding:12px 2px;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:inherit;min-height:58px;font:inherit}
 .file:last-child{border-bottom:0}
-.file .ic{font-size:22px;width:28px;text-align:center}
-.file .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wait-chip{font-size:11px;background:#fef3c7;color:#78350f;padding:2px 7px;border-radius:999px}
-label.f{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
-input.t,select.t,textarea.t{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:16px}
-textarea.t{min-height:80px;resize:vertical}
-table.h{width:100%;border-collapse:collapse;font-size:14px}
-table.h td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:top}
-table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
-.tot{font-weight:700}
-.wk{display:flex;align-items:center;gap:8px;margin:0 0 12px}.wk .lbl{flex:1;text-align:center;font-weight:700}
-.wk button{min-width:48px}
-.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 12px}
-.seg button{flex:1;border:0;background:none;padding:10px;cursor:pointer;font-weight:600;color:var(--mut)}
-.seg button.on{background:var(--blue);color:#fff}
-.near{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 74px);z-index:30;background:var(--navy);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}
+.file .ic{width:40px;height:40px;border-radius:10px;background:var(--chip);color:var(--blue-d);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.file .ic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.file .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.wait-chip{font-size:12px;font-weight:700;background:#fff7e6;color:#7c2d12;padding:3px 8px;border-radius:999px}
+label.f{display:block;font-size:14px;font-weight:700;color:var(--navy);margin:12px 0 6px}
+input.t,select.t,textarea.t{width:100%;padding:14px;border-radius:12px;border:2px solid var(--line);background:#fff;font-size:17px;min-height:56px}
+input.t:focus,select.t:focus,textarea.t:focus{outline:none;border-color:var(--blue)}
+textarea.t{min-height:96px;resize:vertical}
+table.h{width:100%;border-collapse:collapse;font-size:16px}
+table.h td{padding:10px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700}
+.tot td{font-weight:800;border-bottom:0}
+.wk{display:flex;align-items:center;gap:10px;margin:0 0 12px}.wk .lbl{flex:1;text-align:center;font-weight:800;font-size:17px;color:var(--navy)}
+.wk .btn{min-width:58px;padding:0}
+.seg{display:flex;background:#fff;border:2px solid var(--line);border-radius:12px;overflow:hidden;margin:0 0 14px}
+.seg button{flex:1;border:0;background:none;padding:13px;cursor:pointer;font-weight:700;color:var(--mut);min-height:52px}
+.seg button.on{background:var(--navy);color:#fff}
+.hero{background:var(--navy);color:#fff;border-radius:14px;padding:16px;margin:0 0 14px}
+.hero .big{color:#fff}.hero .mut{color:#bcd0e6}
+.near{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 82px);z-index:30;background:var(--navy);color:#fff;border-radius:14px;padding:14px;box-shadow:0 10px 28px rgba(10,22,40,.35);border-top:3px solid var(--cyan);display:none}
 .near.on{display:block}
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 80px);z-index:40;background:#0f172a;color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 88px);z-index:40;background:var(--navy);color:#fff;padding:12px 16px;border-radius:12px;font-size:15.5px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
 #toast.on{opacity:1}
-.signin{max-width:420px;margin:8vh auto 0}
-.signin .logo{text-align:center;margin:0 0 18px}
-.signin .logo img{width:72px;height:72px;border-radius:16px}
-.err{color:var(--red);font-size:14px;margin:8px 0 0;min-height:1em}
-.pre{white-space:pre-wrap}
+.signin{max-width:440px;margin:6vh auto 0}
+.signin .logo{text-align:center;margin:0 0 20px}
+.signin .logo img{width:84px;height:84px;border-radius:20px;background:#fff;padding:8px;box-shadow:0 4px 14px rgba(10,22,40,.12)}
+.err{color:var(--red);font-size:15px;margin:8px 0 0;min-height:1em;font-weight:600}
+.pre{white-space:pre-wrap;font-size:16.5px}
 .photo-in{display:none}
+.foot{text-align:center;color:var(--mut);font-size:13px;margin:14px 0}
 </style>
 </head>
 <body>
-<header id="top"><button class="back" id="backBtn" aria-label="Back" onclick="history.back()">‹</button><h1 id="title">RoofMap Crew</h1><button id="sync" onclick="syncNow(true)">…</button></header>
+<header id="top"><button class="back" id="backBtn" aria-label="Back" onclick="history.back()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button><span class="mark" id="topMark"><img src="brand/roofmap_icon.png" alt=""></span><div class="tt"><small>RoofMap Crew</small><h1 id="title">Today</h1></div><button id="sync" onclick="syncNow(true)">…</button></header>
 <main id="main"></main>
 <nav id="nav" hidden>
-  <button data-v="today" onclick="go('#/today')"><b>☀</b>Today</button>
-  <button data-v="week" onclick="go('#/week')"><b>▦</b>Week</button>
-  <button data-v="hours" onclick="go('#/hours')"><b>⏱</b>Hours</button>
-  <button data-v="me" onclick="go('#/me')"><b>☺</b>Me</button>
+  <button data-v="today" onclick="go('#/today')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>Today</button>
+  <button data-v="week" onclick="go('#/week')"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h2M14 14h2M8 18h2"/></svg>Week</button>
+  <button data-v="hours" onclick="go('#/hours')"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>Hours</button>
+  <button data-v="me" onclick="go('#/me')"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Me</button>
 </nav>
 <div class="near" id="near"></div>
 <div id="toast"></div>
@@ -105,7 +162,7 @@ table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nu
 // every press is kept on the phone at once and sent when it can be. Location
 // is only asked for, and only kept, 7 am – 7 pm on a day the crew is booked
 // on the schedule board (the server refuses it outside that whatever is sent).
-var CREW_BUILD = '2026-11-13a';
+var CREW_BUILD = '2026-11-13b';
 var API = window.CREW_API || 'https://flood-roofing-estimator-production.up.railway.app';
 var NZ = 'Pacific/Auckland';
 var GPS_FROM = 7, GPS_TO = 19, SITE_R = 200, KEEP_EVERY_MS = 60000, KEEP_MOVE_M = 40;
@@ -127,6 +184,33 @@ var S = {
 };
 function saveQ(){ LS.set('crew_q', S.q); paintSync(); }
 function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+// Line icons, RoofMap's own (the app has no emoji anywhere the crew presses).
+var ICON = {
+  truck: '<path d="M1 7h13v10H1zM14 10h4l3 3v4h-7z"/><circle cx="5.5" cy="18" r="2"/><circle cx="17.5" cy="18" r="2"/>',
+  cup: '<path d="M3 8h14v5a5 5 0 0 1-5 5H8a5 5 0 0 1-5-5zM17 9h1.5a2.5 2.5 0 0 1 0 5H17M7 2v3M11 2v3"/>',
+  flag: '<path d="M4 22V3M4 4h12l-2 4 2 4H4"/>',
+  pin: '<path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/>',
+  nav: '<path d="M3 11l18-8-8 18-2-8z"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+  msg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  cam: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  img: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+  video: '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M22 8l-6 4 6 4z"/>',
+  doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8"/>',
+  play: '<circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z"/>',
+  stop: '<circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/>',
+  chev: '<path d="M9 18l6-6-6-6"/>',
+  left: '<path d="M15 18l-6-6 6-6"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  wait: '<path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.2 16.2l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.2 7.8l2.8-2.8"/>',
+  send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  users: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+  note: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>'
+};
+function I(n, cls){ return '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>'; }
 function uid(){ try { return crypto.randomUUID(); } catch (e) { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2); } }
 function toast(t){ var el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('on'); }, 2600); }
 
@@ -292,7 +376,7 @@ function checkNear(){
   (d ? d.jobs : []).forEach(function(j){ var c = LS.get('crew_row_' + j.row_id, null); if (c && c.site_point && distM(c.site_point, S.fix) < SITE_R) hit = j; });
   if (!hit || (S.status && S.status.kind === 'on' && S.status.row_id === hit.row_id) || LS.get('crew_near_no_' + t + hit.row_id, false)) { el.classList.remove('on'); return; }
   el.innerHTML = '<div style="font-weight:700;margin:0 0 6px">You’re at ' + esc(hit.site || hit.client) + '</div>' +
-    '<div class="grid2"><button class="btn g" onclick="clock(\'on\',\'' + esc(hit.row_id) + '\',\'' + esc(hit.job_id) + '\')">Clock on here</button>' +
+    '<div class="grid2"><button class="btn g" onclick="clock(\'on\',\'' + esc(hit.row_id) + '\',\'' + esc(hit.job_id) + '\')">' + I('play') + ' Clock on here</button>' +
     '<button class="btn o" onclick="LS.set(\'crew_near_no_' + t + esc(hit.row_id) + '\',true);checkNear()">Not now</button></div>';
   el.classList.add('on');
 }
@@ -326,7 +410,8 @@ function statusText(){
 
 // ── screens ──
 function go(h){ if (location.hash === h) route(); else location.hash = h; }
-function setTop(title, back){ document.getElementById('title').textContent = title; document.getElementById('backBtn').style.display = back ? 'block' : 'none';
+function setTop(title, back){ document.getElementById('title').textContent = title; document.getElementById('backBtn').style.display = back ? 'flex' : 'none';
+  document.getElementById('topMark').style.display = back ? 'none' : 'flex';
   var v = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'today';
   document.querySelectorAll('#nav button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === v); }); }
 function main(h){ document.getElementById('main').innerHTML = h; }
@@ -344,13 +429,13 @@ window.addEventListener('hashchange', route);
 function refresh(){ route(); }
 
 function renderSignIn(msg){
-  document.getElementById('nav').hidden = true; setTop('RoofMap Crew');
-  main('<div class="signin"><div class="logo"><img src="brand/pwa-192.png" alt=""><div class="big" style="margin-top:10px">RoofMap Crew</div>' +
+  document.getElementById('nav').hidden = true; setTop('Sign in');
+  main('<div class="signin"><div class="logo"><img src="brand/roofmap_icon.png" alt=""><div class="big" style="margin-top:12px">RoofMap Crew</div>' +
     '<div class="mut">Sign in with your RoofMap login</div></div>' +
-    '<div class="card"><label class="f" for="em">Email</label><input class="t" id="em" type="email" autocomplete="username" inputmode="email">' +
+    '<div class="card"><div class="bd"><label class="f" for="em">Email</label><input class="t" id="em" type="email" autocomplete="username" inputmode="email">' +
     '<label class="f" for="pw">Password</label><input class="t" id="pw" type="password" autocomplete="current-password">' +
     '<div class="err" id="sierr">' + esc(msg || '') + '</div>' +
-    '<button class="btn p w" id="siBtn" style="margin-top:10px" onclick="signIn()">Sign in</button></div>' +
+    '<button class="btn p w xl" id="siBtn" style="margin-top:8px" onclick="signIn()">Sign in</button></div></div>' +
     '<p class="mut" style="text-align:center">No login yet? Ask the office to invite you to RoofMap.</p></div>');
 }
 async function signIn(){
@@ -376,7 +461,7 @@ async function loadMe(){
   try {
     var me = await api('GET', '/crew/me'); S.me = me; LS.set('crew_me', me);
   } catch (e) {
-    if (e.code === 'CREW_OFF') { S.me = null; LS.del('crew_me'); main('<div class="card"><div class="big">Not switched on yet</div><p>' + esc(e.message) + '</p><button class="btn o w" onclick="signOut()">Sign out</button></div>'); throw e; }
+    if (e.code === 'CREW_OFF') { S.me = null; LS.del('crew_me'); main('<div class="card"><div class="bd"><div class="big">Not switched on yet</div><p>' + esc(e.message) + '</p><button class="btn o w" onclick="signOut()">' + I('out') + ' Sign out</button></div></div>'); throw e; }
     if (!S.me) throw e;
   }
   return S.me;
@@ -400,18 +485,19 @@ async function loadRow(id){
   catch (e) { var c = LS.get('crew_row_' + id, null); if (c) { c._stale = true; return c; } throw e; }
 }
 function jobCardHtml(j){
-  return '<button class="job" style="border-left-color:' + esc(j.colour || '#0099e0') + '" onclick="go(\'#/job/' + encodeURIComponent(j.row_id) + '\')">' +
-    '<div class="c">' + esc(j.client || 'Job') + (j.job_ref ? ' <span class="mut">#' + esc(j.job_ref) + '</span>' : '') + '</div>' +
+  var live = S.status && S.status.kind === 'on' && S.status.row_id === j.row_id && S.status.date === nzToday();
+  return '<button class="job' + (live ? ' live' : '') + '" style="border-left-color:' + esc(live ? '#15a34a' : (j.colour || '#0099e0')) + '" onclick="go(\'#/job/' + encodeURIComponent(j.row_id) + '\')"><div class="tx">' +
+    '<div class="c">' + esc(j.client || 'Job') + (j.job_ref ? ' <span class="ref">#' + esc(j.job_ref) + '</span>' : '') + '</div>' +
     '<div class="a">' + esc(j.site || '') + '</div>' +
-    '<div style="margin-top:6px">' + (j.crew ? '<span class="chip">' + esc(j.crew) + '</span>' : '') +
-    (S.status && S.status.kind === 'on' && S.status.row_id === j.row_id && S.status.date === nzToday() ? '<span class="chip" style="background:#dcfce7">On site now</span>' : '') + '</div></button>';
+    ((j.crew || live) ? '<div>' + (j.crew ? '<span class="chip">' + I('users') + esc(j.crew) + '</span>' : '') +
+    (live ? '<span class="chip g">' + I('check') + 'On site now</span>' : '') + '</div>' : '') + '</div>' + I('chev', 'go') + '</button>';
 }
 function locBanner(){
-  if (!bookedToday()) return '<div class="banner no">📍 Location is off — your crew isn’t booked today.</div>';
-  if (!inWindow()) return '<div class="banner no">📍 Location is off outside 7 am – 7 pm.</div>';
-  if (!LS.get('crew_loc_ok', false)) return '<div class="banner warn"><div style="flex:1">📍 Turn on location for today. It’s only used 7 am – 7 pm on days your crew is booked, to log your site and travel time.<div style="margin-top:8px"><button class="btn p" onclick="askLocation()">Turn on location</button></div></div></div>';
-  if (S.locErr && !S.fix) return '<div class="banner warn">📍 Location isn’t coming through: ' + esc(S.locErr) + '</div>';
-  return '<div class="banner ok">📍 Location on until 7 pm' + (S.fix ? ' · ±' + S.fix.acc + ' m' : '') + '</div>';
+  if (!bookedToday()) return '<div class="banner no">' + I('pin') + '<div>Location is off — your crew isn’t booked today.</div></div>';
+  if (!inWindow()) return '<div class="banner no">' + I('pin') + '<div>Location is off outside 7 am – 7 pm.</div></div>';
+  if (!LS.get('crew_loc_ok', false)) return '<div class="banner warn">' + I('pin') + '<div style="flex:1">Turn on location for today. It’s only used 7 am – 7 pm on days your crew is booked, to log your site and travel time.<button class="btn p w" onclick="askLocation()">' + I('pin') + ' Turn on location</button></div></div>';
+  if (S.locErr && !S.fix) return '<div class="banner warn">' + I('pin') + '<div>Location isn’t coming through: ' + esc(S.locErr) + '</div></div>';
+  return '<div class="banner ok">' + I('pin') + '<div>Location on until 7 pm' + (S.fix ? ' · ±' + S.fix.acc + ' m' : '') + '</div></div>';
 }
 function paintToday(){ if ((location.hash || '#/today').indexOf('#/today') === 0) renderToday(true); }
 async function renderToday(quick){
@@ -421,16 +507,17 @@ async function renderToday(quick){
     var d = w && (w.days || []).find(function(x){ return x.date === t; });
     var jobs = d ? d.jobs : [];
     var s = S.status && S.status.date === t ? S.status : null;
-    main('<div class="mut" style="margin:0 0 8px">' + esc(dayName(t, true)) + (S.me && S.me.company ? ' · ' + esc(S.me.company) : '') + (stale ? ' · <b>offline copy</b>' : '') + '</div>' +
-      (S.me && !S.me.crew_id ? '<div class="banner warn"><div style="flex:1">Pick your crew so your jobs show here.<div style="margin-top:8px"><button class="btn p" onclick="go(\'#/me\')">Pick my crew</button></div></div></div>' : '') +
+    var k = s ? s.kind : '';
+    var tile = function(kind, icon, label){ return '<button class="tile' + (k === kind ? ' on' : '') + '" onclick="clock(\'' + kind + '\')">' + I(icon) + label + '</button>'; };
+    main('<div class="date">' + esc(dayName(t, true)) + (S.me && S.me.company ? ' · ' + esc(S.me.company) : '') + (stale ? ' · <b>offline copy</b>' : '') + '</div>' +
+      (S.me && !S.me.crew_id ? '<div class="banner warn">' + I('users') + '<div style="flex:1">Pick your crew so your jobs show here.<button class="btn p w" onclick="go(\'#/me\')">' + I('users') + ' Pick my crew</button></div></div>' : '') +
       locBanner() +
-      '<div class="card"><h2>Right now</h2><div class="status" id="nowStatus">' + esc(statusText()) + '</div>' +
-      '<div class="grid3" style="margin-top:10px">' +
-      '<button class="btn o" onclick="clock(\'travel\')">🚚 Travelling</button>' +
-      '<button class="btn o" onclick="clock(\'break\')">☕ Break</button>' +
-      '<button class="btn o" onclick="clock(\'end\')">🏁 Finish day</button></div>' +
-      (s && s.kind === 'on' ? '<button class="btn r w" style="margin-top:8px" onclick="clock(\'off\',\'' + esc(s.row_id) + '\')">Clock off this job</button>' : '') + '</div>' +
-      '<h2 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:16px 2px 8px">Your jobs today</h2>' +
+      '<div class="card"><h2>' + I('clock') + 'Right now</h2><div class="bd">' +
+      '<div class="now ' + ({ on: 'on', travel: 'tr', break: 'br' }[k] || '') + '"><span class="dot"></span><div class="status" id="nowStatus">' + esc(statusText()) + '</div></div>' +
+      (s && s.kind === 'on' ? '<button class="btn r w xl" style="margin-top:14px" onclick="clock(\'off\',\'' + esc(s.row_id) + '\')">' + I('stop') + ' Clock off this job</button>' : '') +
+      '<div class="grid3" style="margin-top:14px">' + tile('travel', 'truck', 'Travelling') + tile('break', 'cup', 'Break') + tile('end', 'flag', 'Finish day') + '</div>' +
+      '</div></div>' +
+      '<div class="sec-h">Your jobs today</div>' +
       (jobs.length ? jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked for your crew today.</div>'));
     checkNear();
   };
@@ -444,16 +531,16 @@ async function renderWeek(){
   var draw = function(w){
     var t = nzToday();
     var days = (w && w.days || []).filter(function(d){ return !d.weekend || d.jobs.length; });
-    main('<div class="wk"><button class="btn o" onclick="weekStep(-7)">‹</button><div class="lbl">' + esc(dayName(S.weekFrom)) + ' – ' + esc(dayName(addDays(S.weekFrom, 6))) + '</div><button class="btn o" onclick="weekStep(7)">›</button></div>' +
+    main('<div class="wk"><button class="btn o" aria-label="Last week" onclick="weekStep(-7)">' + I('left') + '</button><div class="lbl">' + esc(dayName(S.weekFrom)) + ' – ' + esc(dayName(addDays(S.weekFrom, 6))) + '</div><button class="btn o" aria-label="Next week" onclick="weekStep(7)">' + I('chev') + '</button></div>' +
       '<div class="seg"><button class="' + (S.weekAll ? '' : 'on') + '" onclick="S.weekAll=false;renderWeek()">My crew</button><button class="' + (S.weekAll ? 'on' : '') + '" onclick="S.weekAll=true;renderWeek()">Every crew</button></div>' +
-      (w && w._stale ? '<div class="banner info">Offline copy — it updates when there is signal.</div>' : '') +
+      (w && w._stale ? '<div class="banner info">' + I('info') + '<div>Offline copy — it updates when there is signal.</div></div>' : '') +
       (!w ? '<div class="empty">Loading…</div>' : days.map(function(d){
         return '<div class="day' + (d.date === t ? ' today' : '') + '"><h3><span>' + esc(dayName(d.date, true)) + (d.date === t ? ' · today' : '') + '</span>' +
-          '<span>' + (d.nonwork && !d.weekend ? 'Holiday' : (d.booked ? '<span class="chip">Booked</span>' : '')) + '</span></h3>' +
+          '<span>' + (d.nonwork && !d.weekend ? '<span class="chip">Holiday</span>' : (d.booked ? '<span class="chip g" style="margin:0">Booked</span>' : '')) + '</span></h3>' +
           (d.jobs.length ? d.jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked.</div>') + '</div>';
       }).join(''))); };
   draw(LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null));
-  try { draw(await loadWeek(S.weekFrom, S.weekAll)); } catch (e) { if (!LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null)) main('<div class="banner warn">' + esc(e.message) + '</div>'); }
+  try { draw(await loadWeek(S.weekFrom, S.weekAll)); } catch (e) { if (!LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null)) main('<div class="banner warn">' + I('info') + '<div>' + esc(e.message) + '</div></div>'); }
 }
 function weekStep(n){ S.weekFrom = addDays(S.weekFrom || mondayOf(nzToday()), n); renderWeek(); }
 
@@ -476,22 +563,25 @@ async function renderJob(id){
     var lists = (S.me && S.me.checklists) || [];
     var localChecks = LS.get('crew_chk_' + id, {});
     var checks = Object.assign({}, r.checks || {}, localChecks);
-    var fileRow = function(f){ var ic = /^image/.test(f.mime) ? '🖼' : (/^video/.test(f.mime) ? '🎬' : (/pdf/.test(f.mime) ? '📄' : '📎'));
-      return '<button class="file" onclick="openFile(\'' + esc(r.job_id) + '\',\'' + esc(f.id) + '\')"><span class="ic">' + ic + '</span><span class="n">' + esc(f.name) + '</span><span class="mut">' + esc(new Date(f.at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })) + '</span></button>'; };
-    var sec = function(title, body){ return '<div class="card"><h2>' + title + '</h2>' + body + '</div>'; };
+    var fileRow = function(f){ var ic = /^image/.test(f.mime) ? 'img' : (/^video/.test(f.mime) ? 'video' : 'doc');
+      return '<button class="file" onclick="openFile(\'' + esc(r.job_id) + '\',\'' + esc(f.id) + '\')"><span class="ic">' + I(ic) + '</span><span class="n">' + esc(f.name) + '</span><span class="mut">' + esc(new Date(f.at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })) + '</span></button>'; };
+    var sec = function(title, body, right){ return '<div class="card"><h2>' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</h2><div class="bd">' + body + '</div></div>'; };
     var lineList = function(a){ return '<ul class="lines">' + a.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; };
-    var html = (r._stale ? '<div class="banner info">Offline copy — it updates when there is signal.</div>' : '') +
-      '<div class="card"><div class="big">' + esc(r.client || 'Job') + '</div>' + (r.job_ref ? '<div class="mut">Job ' + esc(r.job_ref) + '</div>' : '') +
-      '<div style="margin:8px 0 10px">' + esc(r.site || '') + '</div>' +
-      (ios ? '<div class="grid2"><a class="btn p" href="' + esc(gmaps) + '" target="_blank" rel="noopener">🧭 Google Maps</a><a class="btn o" href="' + esc(amaps) + '" target="_blank" rel="noopener">🗺 Apple Maps</a></div>'
-        : '<a class="btn p w" href="' + esc(gmaps) + '" target="_blank" rel="noopener">🧭 Directions in Google Maps</a>') +
-      (phone ? '<div class="grid2" style="margin-top:8px"><a class="btn o" href="tel:' + esc(phone) + '">📞 Call ' + esc(r.phone) + '</a><a class="btn o" href="sms:' + esc(phone) + '">💬 Text</a></div>'
-        : '<div class="mut" style="margin-top:8px">No phone number on the job.</div>') +
-      '<div style="margin-top:10px">' + (on ? '<button class="btn r w" onclick="clock(\'off\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">Clock off this job</button>'
-        : '<button class="btn g w" onclick="clock(\'on\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">Clock on at this job</button>') + '</div></div>' +
-      (r.notes ? sec('From the office', '<div class="pre">' + esc(r.notes) + '</div>') : '') +
-      (r.choices && r.choices.length ? sec('What the customer chose', lineList(r.choices)) : '') +
-      (r.scope && r.scope.length ? sec('Scope of work', lineList(r.scope)) : (r.description ? sec('Scope of work', '<div class="pre">' + esc(r.description) + '</div>') : '')) +
+    var tiles = [];
+    tiles.push('<a class="tile p" href="' + esc(gmaps) + '" target="_blank" rel="noopener">' + I('nav') + 'Directions<small>Google Maps</small></a>');
+    if (ios) tiles.push('<a class="tile" href="' + esc(amaps) + '" target="_blank" rel="noopener">' + I('pin') + 'Apple Maps</a>');
+    if (phone) { tiles.push('<a class="tile" href="tel:' + esc(phone) + '">' + I('phone') + 'Call</a>'); tiles.push('<a class="tile" href="sms:' + esc(phone) + '">' + I('msg') + 'Text</a>'); }
+    var html = (r._stale ? '<div class="banner info">' + I('info') + '<div>Offline copy — it updates when there is signal.</div></div>' : '') +
+      '<div class="hero"><div class="big">' + esc(r.client || 'Job') + '</div>' + (r.job_ref ? '<div class="mut">Job ' + esc(r.job_ref) + '</div>' : '') +
+      '<div style="margin-top:8px;font-size:17px;display:flex;gap:8px">' + I('pin') + '<span>' + esc(r.site || '') + '</span></div>' +
+      (phone ? '<div style="margin-top:6px;font-size:16px;display:flex;gap:8px;color:#bcd0e6">' + I('phone') + '<span>' + esc(r.phone) + '</span></div>' : '') + '</div>' +
+      '<div class="' + (tiles.length === 1 ? '' : (tiles.length === 2 ? 'grid2' : (tiles.length === 4 ? 'grid2' : 'grid3'))) + '" style="margin:0 0 12px">' + tiles.join('') + '</div>' +
+      (phone ? '' : '<div class="mut" style="margin:-4px 2px 12px">No phone number on the job.</div>') +
+      (on ? '<button class="btn r w xl" style="margin:0 0 16px" onclick="clock(\'off\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('stop') + ' Clock off this job</button>'
+        : '<button class="btn g w xl" style="margin:0 0 16px" onclick="clock(\'on\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('play') + ' Clock on at this job</button>') +
+      (r.notes ? sec(I('info') + 'From the office', '<div class="pre">' + esc(r.notes) + '</div>') : '') +
+      (r.choices && r.choices.length ? sec(I('check') + 'What the customer chose', lineList(r.choices)) : '') +
+      (r.scope && r.scope.length ? sec(I('doc') + 'Scope of work', lineList(r.scope)) : (r.description ? sec(I('doc') + 'Scope of work', '<div class="pre">' + esc(r.description) + '</div>') : '')) +
       (r.exclusions && r.exclusions.length ? sec('Not included', lineList(r.exclusions)) : '') +
       (r.quoteNotes && r.quoteNotes.length ? sec('Please note', lineList(r.quoteNotes)) : '') +
       lists.map(function(l){
@@ -499,22 +589,22 @@ async function renderJob(id){
         var done = 0;
         var items = l.items.map(function(it, i){ var k = l.id + ':' + i + (day ? ':' + day : ''); var c = checks[k] && checks[k].done; if (c) done++;
           return '<label class="chk' + (c ? ' done' : '') + '"><input type="checkbox"' + (c ? ' checked' : '') + ' onchange="tick(\'' + esc(id) + '\',\'' + esc(l.id) + '\',' + i + ',\'' + day + '\',this.checked)"><span>' + esc(it) + '</span></label>'; }).join('');
-        return sec(esc(l.name) + ' <span style="float:right;text-transform:none;letter-spacing:0">' + done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : '') + '</span>', items);
+        return sec(I('check') + esc(l.name), items, done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : ''));
       }).join('') +
-      sec('Job pack &amp; roof map', packs.length ? packs.map(fileRow).join('') : '<div class="empty">The office hasn’t kept a job pack on this job yet.</div>') +
-      sec('Photos &amp; videos', '<div class="grid2" style="margin-bottom:6px"><button class="btn p" onclick="pickPhoto(true)">📷 Take photo / video</button><button class="btn o" onclick="pickPhoto(false)">🖼 From phone</button></div>' +
-        waiting.map(function(f){ return '<div class="file"><span class="ic">⏳</span><span class="n">' + esc(f.name) + '</span><span class="wait-chip">waiting to upload</span></div>'; }).join('') +
-        (media.length ? media.map(fileRow).join('') : (waiting.length ? '' : '<div class="empty">No photos yet.</div>'))) +
-      (docs.length ? sec('Files', docs.map(fileRow).join('')) : '') +
-      sec('Notes from site', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn o w" style="margin-top:8px" onclick="addNote(\'' + esc(id) + '\')">Add note</button>' +
-        ((r.notesFromCrew || []).length ? '<div style="margin-top:10px">' + r.notesFromCrew.map(function(n){ return '<div style="padding:8px 0;border-top:1px solid var(--line)"><div class="mut">' + esc(dayName(nzParts(new Date(n.at)).date)) + ' ' + esc(hm(n.at)) + '</div><div class="pre">' + esc(n.text) + '</div></div>'; }).join('') + '</div>' : '')) +
-      (r.days && r.days.length ? sec('Booked days', r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '');
+      sec(I('doc') + 'Job pack &amp; roof map', packs.length ? packs.map(fileRow).join('') : '<div class="mut">The office hasn’t kept a job pack on this job yet.</div>') +
+      sec(I('cam') + 'Photos &amp; videos', '<div class="grid2" style="margin-bottom:8px"><button class="tile p" onclick="pickPhoto(true)">' + I('cam') + 'Take photo / video</button><button class="tile" onclick="pickPhoto(false)">' + I('img') + 'From phone</button></div>' +
+        waiting.map(function(f){ return '<div class="file"><span class="ic">' + I('wait') + '</span><span class="n">' + esc(f.name) + '</span><span class="wait-chip">waiting to upload</span></div>'; }).join('') +
+        (media.length ? media.map(fileRow).join('') : (waiting.length ? '' : '<div class="mut">No photos yet.</div>'))) +
+      (docs.length ? sec(I('doc') + 'Files', docs.map(fileRow).join('')) : '') +
+      sec(I('note') + 'Notes from site', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn n w" style="margin-top:10px" onclick="addNote(\'' + esc(id) + '\')">' + I('send') + ' Add note</button>' +
+        ((r.notesFromCrew || []).length ? '<div style="margin-top:12px">' + r.notesFromCrew.map(function(n){ return '<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="mut">' + esc(dayName(nzParts(new Date(n.at)).date)) + ' ' + esc(hm(n.at)) + '</div><div class="pre">' + esc(n.text) + '</div></div>'; }).join('') + '</div>' : '')) +
+      (r.days && r.days.length ? sec(I('clock') + 'Booked days', r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '');
     main(html);
   };
   var cached = LS.get('crew_row_' + id, null);
   await draw(cached);
   try { var r = await loadRow(id); if (location.hash.indexOf('#/job/' + encodeURIComponent(id)) === 0 || location.hash.indexOf('#/job/' + id) === 0) await draw(r); }
-  catch (e) { if (!cached) main('<div class="banner warn">' + esc(e.offline ? 'No signal, and this job hasn’t been opened on this phone before.' : e.message) + '</div>'); }
+  catch (e) { if (!cached) main('<div class="banner warn">' + I('info') + '<div>' + esc(e.offline ? 'No signal, and this job hasn’t been opened on this phone before.' : e.message) + '</div></div>'); }
 }
 function pickPhoto(cam){ var el = document.getElementById(cam ? 'camIn' : 'pickIn'); el.value = ''; el.click(); }
 ['camIn', 'pickIn'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
@@ -547,14 +637,14 @@ async function renderHours(){
   var draw = function(h){
     var days = (h && h.days) || [], rows = (h && h.rows) || {};
     var tot = days.reduce(function(a, d){ a.on += d.onsiteTotal; a.tr += d.travel; return a; }, { on: 0, tr: 0 });
-    main('<div class="wk"><button class="btn o" onclick="hoursStep(-7)">‹</button><div class="lbl">' + esc(dayName(S.hoursFrom)) + ' – ' + esc(dayName(addDays(S.hoursFrom, 6))) + '</div><button class="btn o" onclick="hoursStep(7)">›</button></div>' +
-      (S.q.events.length ? '<div class="banner warn">' + S.q.events.length + ' clock presses are still on this phone — the hours update once they’re sent.</div>' : '') +
-      '<div class="card"><h2>This week</h2><table class="h"><tr><td>On site</td><td class="n">' + hrs(tot.on) + '</td></tr><tr><td>Travel</td><td class="n">' + hrs(tot.tr) + '</td></tr>' +
-      '<tr class="tot"><td>Total</td><td class="n">' + hrs(tot.on + tot.tr) + '</td></tr></table></div>' +
+    main('<div class="wk"><button class="btn o" aria-label="Last week" onclick="hoursStep(-7)">' + I('left') + '</button><div class="lbl">' + esc(dayName(S.hoursFrom)) + ' – ' + esc(dayName(addDays(S.hoursFrom, 6))) + '</div><button class="btn o" aria-label="Next week" onclick="hoursStep(7)">' + I('chev') + '</button></div>' +
+      (S.q.events.length ? '<div class="banner warn">' + I('wait') + '<div>' + S.q.events.length + ' clock presses are still on this phone — the hours update once they’re sent.</div></div>' : '') +
+      '<div class="hero"><div class="mut" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:12.5px">This week</div><div class="big" style="font-size:34px;margin:4px 0 8px">' + hrs(tot.on + tot.tr) + '</div>' +
+      '<div class="grid2"><div><div class="mut">On site</div><div style="font-weight:800;font-size:19px">' + hrs(tot.on) + '</div></div><div><div class="mut">Travel</div><div style="font-weight:800;font-size:19px">' + hrs(tot.tr) + '</div></div></div></div>' +
       (days.length ? days.map(function(d){
-        return '<div class="card"><h2>' + esc(dayName(d.date, true)) + (d.open ? ' · <span style="color:var(--amber)">left clocked on</span>' : '') + '</h2><table class="h">' +
-          Object.keys(d.onsite).map(function(k){ var r = rows[k] || {}; return '<tr><td>' + esc(r.client || r.site || 'Job') + '<div class="mut">' + esc(r.site || '') + '</div></td><td class="n">' + hrs(d.onsite[k]) + '</td></tr>'; }).join('') +
-          '<tr><td>Travel</td><td class="n">' + hrs(d.travel) + '</td></tr><tr class="tot"><td>Day total · ' + esc(hm(d.first)) + ' – ' + esc(hm(d.last)) + '</td><td class="n">' + hrs(d.total) + '</td></tr></table></div>';
+        return '<div class="card"><h2>' + esc(dayName(d.date, true)) + (d.open ? '<span class="r" style="color:#fcd34d">left clocked on</span>' : '') + '</h2><div class="bd"><table class="h">' +
+          Object.keys(d.onsite).map(function(k){ var r = rows[k] || {}; return '<tr><td><b>' + esc(r.client || r.site || 'Job') + '</b><div class="mut">' + esc(r.site || '') + '</div></td><td class="n">' + hrs(d.onsite[k]) + '</td></tr>'; }).join('') +
+          '<tr><td>Travel</td><td class="n">' + hrs(d.travel) + '</td></tr><tr class="tot"><td>Day total · ' + esc(hm(d.first)) + ' – ' + esc(hm(d.last)) + '</td><td class="n">' + hrs(d.total) + '</td></tr></table></div></div>';
       }).join('') : '<div class="empty">No hours this week yet.</div>'));
   };
   draw(LS.get(key, null));
@@ -567,18 +657,18 @@ async function renderMe(){
   var me = S.me || {};
   var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
   var ios = /iP(hone|ad|od)/.test(navigator.userAgent);
-  main('<div class="card"><div class="big">' + esc((me.user && (me.user.name || me.user.email)) || '') + '</div><div class="mut">' + esc((me.user && me.user.email) || '') + (me.company ? ' · ' + esc(me.company) : '') + '</div>' +
-    '<label class="f" for="crewSel">My crew</label><select class="t" id="crewSel" onchange="setCrew(this.value)"><option value="">— pick your crew —</option>' +
+  main('<div class="hero"><div class="big">' + esc((me.user && (me.user.name || me.user.email)) || '') + '</div><div class="mut">' + esc((me.user && me.user.email) || '') + (me.company ? ' · ' + esc(me.company) : '') + '</div></div>' +
+    '<div class="card"><h2>' + I('users') + 'My crew</h2><div class="bd"><label class="f" for="crewSel">Which crew am I on?</label><select class="t" id="crewSel" onchange="setCrew(this.value)"><option value="">— pick your crew —</option>' +
     (me.crews || []).map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === me.crew_id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select>' +
-    '<label class="f" for="myName">Name the office sees</label><input class="t" id="myName" value="' + esc((me.user && me.user.name) || '') + '" onchange="setName(this.value)"></div>' +
-    '<div class="card"><h2>Location</h2><p style="margin:0 0 8px">' + esc((me.gps && me.gps.rule) || 'Location is only recorded 7 am – 7 pm on days your crew is booked on the schedule.') + '</p>' +
-    '<p class="mut" style="margin:0 0 8px">It works while this app is open. Keep it open on site — “Keep screen on” helps.</p>' + locBanner() +
-    '<label class="chk"><input type="checkbox" id="wakeT"' + (LS.get('crew_wake', false) ? ' checked' : '') + ' onchange="setWake(this.checked)"><span>Keep screen on while the app is open</span></label></div>' +
-    (standalone ? '' : '<div class="card"><h2>Put it on your home screen</h2>' + (ios ? '<p>In Safari: tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>.</p>'
-      : '<p>In Chrome: tap the <b>⋮</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>).</p>') + '</div>') +
-    '<div class="card"><h2>Sending</h2><p class="mut" style="margin:0 0 8px">' + S.q.events.length + ' presses, ' + S.q.points.length + ' positions and ' + S.fileWait + ' photos waiting.</p>' +
-    '<button class="btn o w" onclick="syncNow(true)">Send now</button></div>' +
-    '<button class="btn o w" onclick="signOut()">Sign out</button><p class="mut" style="text-align:center">RoofMap Crew · ' + CREW_BUILD + '</p>');
+    '<label class="f" for="myName">Name the office sees</label><input class="t" id="myName" value="' + esc((me.user && me.user.name) || '') + '" onchange="setName(this.value)"></div></div>' +
+    '<div class="card"><h2>' + I('pin') + 'Location</h2><div class="bd"><p style="margin:0 0 8px">' + esc((me.gps && me.gps.rule) || 'Location is only recorded 7 am – 7 pm on days your crew is booked on the schedule.') + '</p>' +
+    '<p class="mut" style="margin:0 0 10px">It works while this app is open. Keep it open on site — “Keep screen on” helps.</p>' + locBanner() +
+    '<label class="chk"><input type="checkbox" id="wakeT"' + (LS.get('crew_wake', false) ? ' checked' : '') + ' onchange="setWake(this.checked)"><span>Keep screen on while the app is open</span></label></div></div>' +
+    (standalone ? '' : '<div class="card"><h2>' + I('img') + 'Put it on your home screen</h2><div class="bd">' + (ios ? '<p style="margin:0">In Safari: tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>.</p>'
+      : '<p style="margin:0">In Chrome: tap the <b>⋮</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>). If the app looks tiny, untick <b>Desktop site</b> in that menu.</p>') + '</div></div>') +
+    '<div class="card"><h2>' + I('send') + 'Sending</h2><div class="bd"><p class="mut" style="margin:0 0 10px">' + S.q.events.length + ' presses, ' + S.q.points.length + ' positions and ' + S.fileWait + ' photos waiting.</p>' +
+    '<button class="btn n w" onclick="syncNow(true)">' + I('send') + ' Send now</button></div></div>' +
+    '<button class="btn o w" onclick="signOut()">' + I('out') + ' Sign out</button><p class="foot">RoofMap Crew · ' + CREW_BUILD + '</p>');
 }
 async function setCrew(id){ try { await api('PUT', '/crew/me', { crew_id: id }); S.me.crew_id = id; LS.set('crew_me', S.me); toast('Crew saved'); S.week = null; loadThisWeek().catch(function(){}); } catch (e) { toast(e.message); } }
 async function setName(n){ try { await api('PUT', '/crew/me', { name: n }); if (S.me && S.me.user) S.me.user.name = n; LS.set('crew_me', S.me); toast('Saved'); } catch (e) { toast(e.message); } }
