@@ -15479,6 +15479,26 @@ const _MIGRATION_SQL = [
   "create table if not exists public.xero_connections (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, tenant_id text not null default '', tenant_name text not null default '', access_token text not null default '', refresh_token text not null default '', expires_at timestamptz, settings jsonb not null default '{}'::jsonb, created_at timestamptz not null default now(), updated_at timestamptz not null default now())",
   "create index if not exists xero_connections_co_idx on public.xero_connections (company_id)",
   "alter table public.xero_connections enable row level security",
+  // THE CREW APP (2026-11-13): who is on which crew, the phone's clock
+  // events / checklist ticks / notes, the positions kept 7 am – 7 pm on booked
+  // days, the sites learned from a clock-on, and the office's checklists.
+  "create table if not exists public.crew_members (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, crew_id text not null default '', name text not null default '', phone text not null default '', updated_at timestamptz not null default now())",
+  "create index if not exists crew_members_co_idx on public.crew_members (company_id, user_id)",
+  "alter table public.crew_members enable row level security",
+  "create table if not exists public.crew_events (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, client_id text not null default '', kind text not null default '', row_id text not null default '', job_id text not null default '', at timestamptz not null default now(), lat double precision, lng double precision, acc double precision, data jsonb, created_at timestamptz not null default now())",
+  "create index if not exists crew_events_user_idx on public.crew_events (company_id, user_id, at)",
+  "create index if not exists crew_events_row_idx on public.crew_events (company_id, row_id)",
+  "create index if not exists crew_events_client_idx on public.crew_events (company_id, client_id)",
+  "alter table public.crew_events enable row level security",
+  "create table if not exists public.crew_points (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, at timestamptz not null default now(), lat double precision not null, lng double precision not null, acc double precision, speed double precision, row_id text not null default '', created_at timestamptz not null default now())",
+  "create index if not exists crew_points_user_idx on public.crew_points (company_id, user_id, at)",
+  "alter table public.crew_points enable row level security",
+  "create table if not exists public.crew_sites (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, row_id text not null default '', lat double precision, lng double precision, at timestamptz not null default now())",
+  "create index if not exists crew_sites_row_idx on public.crew_sites (company_id, row_id)",
+  "alter table public.crew_sites enable row level security",
+  "create table if not exists public.crew_settings (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, data jsonb, updated_at timestamptz not null default now())",
+  "create index if not exists crew_settings_co_idx on public.crew_settings (company_id)",
+  "alter table public.crew_settings enable row level security",
   "create table if not exists public.job_file_layouts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, layout jsonb, updated_at timestamptz not null default now())",
   "create index if not exists idx_job_file_layouts_job on public.job_file_layouts (company_id, job_id)",
   "alter table public.job_file_layouts enable row level security",
@@ -16180,6 +16200,20 @@ const SUPINV = (function(){
   } catch (e) {
     recordError('supinv-boot', e, { route: 'boot' });
     console.warn('[supinv] not mounted: ' + e.message);
+    return null;
+  }
+})();
+
+// THE CREW APP (backend/crew.js): the crew's days off the schedule board,
+// the job on site, clock on / off, checklists, positions on booked days only.
+const CREW = (function(){
+  try {
+    return require('./crew').mount(app, { supabase, requireAuth, scopeCompany: _scopeCompany, recordError, rateLimit,
+      schedCfg: _schedCfg, schedNonWork: _schedNonWork, schedBlockDates: _schedBlockDates, schedISO: _schedISO,
+      schedShift: _schedShift, quoteChoiceLines: _quoteChoiceLines });
+  } catch (e) {
+    recordError('crew-boot', e, { route: 'boot' });
+    console.warn('[crew] not mounted: ' + e.message);
     return null;
   }
 })();

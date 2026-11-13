@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en-NZ">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RoofMap Crew</title>
+<meta name="description" content="The crew's day: jobs from the schedule, the job on site, checklists, photos and hours.">
+<meta name="theme-color" content="#0a1628">
+<meta name="robots" content="noindex">
+<link rel="manifest" href="crew.webmanifest">
+<link rel="icon" href="brand/pwa-192.png">
+<link rel="apple-touch-icon" href="brand/pwa-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RoofMap Crew">
+<style>
+:root{--navy:#0a1628;--blue:#0099e0;--blue-d:#0077b3;--ink:#0f172a;--mut:#64748b;--line:#e2e8f0;--bg:#f1f5f9;--card:#fff;
+  --green:#16a34a;--red:#dc2626;--amber:#d97706;--chip:#e0f2fe}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--ink:#e2e8f0;--mut:#94a3b8;--line:#1e293b;--bg:#020817;--card:#0f172a;--chip:#0c2a3f}}
+:root[data-theme="dark"]{--ink:#e2e8f0;--mut:#94a3b8;--line:#1e293b;--bg:#020817;--card:#0f172a;--chip:#0c2a3f}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue)}
+#top{position:sticky;top:0;z-index:20;background:var(--navy);color:#fff;padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px}
+#top h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top .back{background:none;border:0;color:#fff;font-size:22px;padding:0 6px 0 0;cursor:pointer;display:none}
+#sync{font-size:12px;padding:4px 9px;border-radius:999px;background:rgba(255,255,255,.12);white-space:nowrap;cursor:pointer;border:0;color:#fff}
+#sync.off{background:#7c2d12}#sync.wait{background:#92400e}
+#main{padding:14px 14px calc(env(safe-area-inset-bottom) + 86px);max-width:720px;margin:0 auto}
+#nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+#nav button{flex:1;background:none;border:0;padding:9px 0 8px;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+#nav button b{font-size:20px;font-weight:400;line-height:1}
+#nav button.on{color:var(--blue);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
+.card h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 10px;font-weight:700}
+.big{font-size:20px;font-weight:700;margin:0 0 2px}
+.mut{color:var(--mut);font-size:14px}
+.row{display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:12px;padding:13px 14px;font-weight:700;cursor:pointer;text-decoration:none;min-height:48px}
+.btn.p{background:var(--blue);color:#fff}.btn.g{background:var(--green);color:#fff}.btn.r{background:var(--red);color:#fff}
+.btn.o{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.w{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.job{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--blue);border-radius:14px;padding:13px 14px;margin:0 0 10px;cursor:pointer;color:inherit}
+.job .c{font-weight:700;font-size:17px}.job .a{color:var(--mut);font-size:14px}
+.chip{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--ink);margin-right:4px}
+.banner{border-radius:12px;padding:11px 13px;margin:0 0 12px;font-size:14px;display:flex;gap:10px;align-items:flex-start}
+.banner.ok{background:#dcfce7;color:#14532d}.banner.no{background:#e2e8f0;color:#334155}.banner.warn{background:#fef3c7;color:#78350f}.banner.info{background:#e0f2fe;color:#0c4a6e}
+.status{font-weight:700}
+.day{margin:0 0 14px}.day h3{font-size:14px;margin:0 0 8px;color:var(--mut);display:flex;justify-content:space-between}
+.day.today h3{color:var(--blue)}
+.empty{color:var(--mut);font-size:14px;padding:4px 2px 8px}
+ul.lines{margin:0;padding-left:18px}ul.lines li{margin:3px 0}
+.chk{display:flex;gap:12px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer}
+.chk:last-child{border-bottom:0}
+.chk input{width:24px;height:24px;flex:0 0 auto}
+.chk.done span{color:var(--mut);text-decoration:line-through}
+.file{display:flex;gap:10px;align-items:center;padding:10px 2px;border-bottom:1px solid var(--line);cursor:pointer;background:none;border-left:0;border-right:0;border-top:0;width:100%;text-align:left;color:inherit}
+.file:last-child{border-bottom:0}
+.file .ic{font-size:22px;width:28px;text-align:center}
+.file .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wait-chip{font-size:11px;background:#fef3c7;color:#78350f;padding:2px 7px;border-radius:999px}
+label.f{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}
+input.t,select.t,textarea.t{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-size:16px}
+textarea.t{min-height:80px;resize:vertical}
+table.h{width:100%;border-collapse:collapse;font-size:14px}
+table.h td{padding:7px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tot{font-weight:700}
+.wk{display:flex;align-items:center;gap:8px;margin:0 0 12px}.wk .lbl{flex:1;text-align:center;font-weight:700}
+.wk button{min-width:48px}
+.seg{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 12px}
+.seg button{flex:1;border:0;background:none;padding:10px;cursor:pointer;font-weight:600;color:var(--mut)}
+.seg button.on{background:var(--blue);color:#fff}
+.near{position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 74px);z-index:30;background:var(--navy);color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.3);display:none}
+.near.on{display:block}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 80px);z-index:40;background:#0f172a;color:#fff;padding:9px 14px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:90vw;text-align:center}
+#toast.on{opacity:1}
+.signin{max-width:420px;margin:8vh auto 0}
+.signin .logo{text-align:center;margin:0 0 18px}
+.signin .logo img{width:72px;height:72px;border-radius:16px}
+.err{color:var(--red);font-size:14px;margin:8px 0 0;min-height:1em}
+.pre{white-space:pre-wrap}
+.photo-in{display:none}
+</style>
+</head>
+<body>
+<header id="top"><button class="back" id="backBtn" aria-label="Back" onclick="history.back()">‹</button><h1 id="title">RoofMap Crew</h1><button id="sync" onclick="syncNow(true)">…</button></header>
+<main id="main"></main>
+<nav id="nav" hidden>
+  <button data-v="today" onclick="go('#/today')"><b>☀</b>Today</button>
+  <button data-v="week" onclick="go('#/week')"><b>▦</b>Week</button>
+  <button data-v="hours" onclick="go('#/hours')"><b>⏱</b>Hours</button>
+  <button data-v="me" onclick="go('#/me')"><b>☺</b>Me</button>
+</nav>
+<div class="near" id="near"></div>
+<div id="toast"></div>
+<input type="file" id="camIn" class="photo-in" accept="image/*,video/*" capture="environment">
+<input type="file" id="pickIn" class="photo-in" accept="image/*,video/*" multiple>
+<script>
+'use strict';
+// THE CREW APP (2026-11-13). The phone is the truth while there is no signal:
+// every press is kept on the phone at once and sent when it can be. Location
+// is only asked for, and only kept, 7 am – 7 pm on a day the crew is booked
+// on the schedule board (the server refuses it outside that whatever is sent).
+var CREW_BUILD = '2026-11-13a';
+var API = window.CREW_API || 'https://flood-roofing-estimator-production.up.railway.app';
+var NZ = 'Pacific/Auckland';
+var GPS_FROM = 7, GPS_TO = 19, SITE_R = 200, KEEP_EVERY_MS = 60000, KEEP_MOVE_M = 40;
+
+var LS = {
+  get: function(k, d){ try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set: function(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del: function(k){ try { localStorage.removeItem(k); } catch (e) {} }
+};
+var S = {
+  token: (function(){ try { return localStorage.getItem('crew_token') || ''; } catch (e) { return ''; } })(),
+  me: LS.get('crew_me', null),
+  online: navigator.onLine !== false,
+  q: LS.get('crew_q', { events: [], points: [] }),
+  status: LS.get('crew_status', null),       // {kind, row_id, at, date}
+  week: LS.get('crew_week', null),
+  weekFrom: null, weekAll: false,
+  fix: null, watch: null, lastKept: null, fileWait: 0, syncing: false
+};
+function saveQ(){ LS.set('crew_q', S.q); paintSync(); }
+function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){ return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function uid(){ try { return crypto.randomUUID(); } catch (e) { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2); } }
+function toast(t){ var el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(function(){ el.classList.remove('on'); }, 2600); }
+
+// ── NZ time ──
+function nzParts(d){
+  var p = {}; new Intl.DateTimeFormat('en-NZ', { timeZone: NZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(d || new Date()).forEach(function(x){ p[x.type] = x.value; });
+  return { date: p.year + '-' + p.month + '-' + p.day, hour: +p.hour, minute: +p.minute };
+}
+function nzToday(){ return nzParts(new Date()).date; }
+function addDays(iso, n){ var d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+function mondayOf(iso){ var d = new Date(iso + 'T00:00:00Z'); return addDays(iso, -((d.getUTCDay() + 6) % 7)); }
+function dayName(iso, long){ return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: long ? 'long' : 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }); }
+function hm(isoT){ return new Date(isoT).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: NZ }); }
+function hrs(h){ h = +h || 0; var m = Math.round(h * 60); return Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; }
+
+// ── the server ──
+async function api(method, path, body){
+  var opts = { method: method, headers: { Authorization: 'Bearer ' + S.token } };
+  if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  var r;
+  try { r = await fetch(API + path, opts); }
+  catch (e) { setOnline(false); var ne = new Error('No signal — kept on your phone.'); ne.offline = true; throw ne; }
+  setOnline(true);
+  var j = {}; try { j = await r.json(); } catch (e) {}
+  if (r.status === 401) { signOut(true); var ae = new Error('Please sign in again.'); ae.status = 401; throw ae; }
+  if (!r.ok) { var er = new Error(j.error || ('The server answered ' + r.status)); er.status = r.status; er.code = j.code; throw er; }
+  return j;
+}
+function setOnline(v){ if (S.online !== v) { S.online = v; paintSync(); if (v) setTimeout(function(){ syncNow(); }, 50); } }
+
+// ── what is waiting to send ──
+function pending(){ return S.q.events.length + (S.q.points.length ? 1 : 0) + S.fileWait; }
+function paintSync(){
+  var el = document.getElementById('sync'); if (!el) return;
+  var n = S.q.events.length + S.fileWait;
+  el.className = !S.online ? 'off' : (n ? 'wait' : '');
+  el.textContent = !S.online ? (n ? 'No signal · ' + n + ' waiting' : 'No signal') : (n ? n + ' to send…' : (S.syncing ? 'Sending…' : '✓ Up to date'));
+}
+async function syncNow(byHand){
+  if (!S.token) return;
+  if (S.syncing) { S.syncAgain = true; return; }
+  S.syncing = true; paintSync();
+  try {
+    if (S.q.events.length || S.q.points.length) {
+      var ev = S.q.events.slice(0, 200), pt = S.q.points.slice(0, 400);
+      var r = await api('POST', '/crew/sync', { events: ev, points: pt });
+      var gone = {}; (r.kept || []).concat(r.dup || [], r.bad || []).forEach(function(c){ gone[c] = 1; });
+      S.q.events = S.q.events.filter(function(e){ return !gone[e.client_id]; });
+      S.q.points = S.q.points.slice(pt.length);
+      if (pt.length) S.ptSentAt = Date.now();
+      saveQ();
+    }
+    await uploadQueued();
+    if (byHand) { toast(pending() ? 'Some things are still waiting' : 'Everything is sent'); refresh(); }
+  } catch (e) { if (byHand) toast(e.message); }
+  finally { S.syncing = false; paintSync(); if (S.syncAgain) { S.syncAgain = false; setTimeout(syncNow, 50); } }
+}
+setInterval(function(){ if (S.token && (S.q.events.length || S.q.points.length || S.fileWait)) syncNow(); }, 30000);
+window.addEventListener('online', function(){ setOnline(true); });
+window.addEventListener('offline', function(){ setOnline(false); });
+
+// ── photos and videos waiting to upload (IndexedDB: a blob does not fit localStorage) ──
+function idb(){ return new Promise(function(res, rej){ var r = indexedDB.open('crewq', 1);
+  r.onupgradeneeded = function(){ r.result.createObjectStore('files', { keyPath: 'id' }); };
+  r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }); }
+async function fqDo(mode, fn){ var db = await idb(); return new Promise(function(res, rej){ var tx = db.transaction('files', mode), st = tx.objectStore('files'), q = fn(st);
+  tx.oncomplete = function(){ res(q && 'result' in q ? q.result : undefined); }; tx.onerror = function(){ rej(tx.error); }; }); }
+var fqAdd = function(o){ return fqDo('readwrite', function(st){ return st.put(o); }); };
+var fqAll = function(){ return fqDo('readonly', function(st){ return st.getAll(); }); };
+var fqDel = function(id){ return fqDo('readwrite', function(st){ return st.delete(id); }); };
+async function fileCount(){ try { S.fileWait = (await fqAll()).length; } catch (e) { S.fileWait = 0; } paintSync(); }
+async function uploadQueued(){
+  var all = []; try { all = await fqAll(); } catch (e) { return; }
+  for (var i = 0; i < all.length; i++) {
+    var f = all[i];
+    var sg = await api('POST', '/jobs/' + encodeURIComponent(f.jobId) + '/files/sign', { name: f.name, size: f.blob.size, mime: f.mime, kind: 'upload', source: 'site' });
+    var put = await fetch(sg.signedUrl, { method: 'PUT', headers: { 'content-type': f.mime, 'x-upsert': 'false' }, body: f.blob });
+    if (!put.ok) throw new Error('The photo did not reach storage (' + put.status + ').');
+    await api('POST', '/jobs/' + encodeURIComponent(f.jobId) + '/files/' + sg.fileId + '/landed', {});
+    await fqDel(f.id);
+  }
+  await fileCount();
+}
+// A phone photo is 3–6 MB; on site that is minutes of signal. 2000 px is plenty.
+function shrink(file){
+  return new Promise(function(res){
+    if (!/^image\/(jpeg|png|webp)$/i.test(file.type) || file.size < 900000) return res(file);
+    var url = URL.createObjectURL(file), img = new Image();
+    img.onload = function(){
+      var k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      var c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      c.toBlob(function(b){ res(b && b.size < file.size ? b : file); }, 'image/jpeg', 0.85);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); res(file); };
+    img.src = url;
+  });
+}
+async function addFiles(files, rowId, jobId){
+  if (!jobId) { toast('This job is not in RoofMap yet, so photos cannot be kept on it.'); return; }
+  var n = 0;
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i], b = await shrink(f);
+    var stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 16);
+    var name = (/^video\//.test(f.type) ? 'Site video ' : 'Site photo ') + stamp + (b === f ? (f.name.match(/\.[a-z0-9]+$/i) || [''])[0] : '.jpg');
+    await fqAdd({ id: uid(), rowId: rowId, jobId: jobId, name: name, mime: (b === f ? f.type : 'image/jpeg') || 'application/octet-stream', blob: b, at: new Date().toISOString() });
+    n++;
+  }
+  await fileCount(); toast(n + (n === 1 ? ' file' : ' files') + (S.online ? ' uploading…' : ' kept — they upload when there is signal'));
+  syncNow().then(function(){ if (location.hash.indexOf('#/job/' + rowId) === 0) renderJob(rowId); });
+}
+
+// ── location: only 7 am – 7 pm on a booked day ──
+function bookedToday(){ var t = nzToday(), w = S.week; if (!w || !w.days) return !!(S.me && S.me._bookedToday && S.me._bookedDate === t);
+  var d = w.days.find(function(x){ return x.date === t; }); return d ? !!d.booked : !!(S.me && S.me._bookedToday && S.me._bookedDate === t); }
+function inWindow(){ var h = nzParts(new Date()).hour; return h >= GPS_FROM && h < GPS_TO; }
+function mayLocate(){ return !!S.token && bookedToday() && inWindow(); }
+function distM(a, b){ var R = 6371000, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLn = (b.lng - a.lng) * r;
+  var s = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLn / 2) * Math.sin(dLn / 2); return 2 * R * Math.asin(Math.sqrt(s)); }
+function onFix(pos){
+  if (!mayLocate()) return stopWatch();
+  var p = { at: new Date().toISOString(), lat: pos.coords.latitude, lng: pos.coords.longitude,
+    acc: Math.round(pos.coords.accuracy || 0), speed: pos.coords.speed == null ? null : pos.coords.speed };
+  S.fix = p;
+  var lk = S.lastKept;
+  if (!lk || Date.parse(p.at) - Date.parse(lk.at) >= KEEP_EVERY_MS || distM(lk, p) >= KEEP_MOVE_M) {
+    if (S.status && S.status.kind === 'on') p.row_id = S.status.row_id;
+    S.q.points.push(p); if (S.q.points.length > 3000) S.q.points.splice(0, S.q.points.length - 3000);
+    S.lastKept = p; saveQ();
+    // The first position of a sitting goes at once (the office sees him); after that in fives.
+    if (S.online && (S.q.points.length >= 5 || !S.ptSentAt)) syncNow();
+  }
+  checkNear();
+}
+function startWatch(){
+  if (S.watch != null || !navigator.geolocation) return;
+  S.watch = navigator.geolocation.watchPosition(onFix, function(e){ S.locErr = e.message || 'Location is off'; paintToday(); },
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 30000 });
+}
+function stopWatch(){ if (S.watch != null && navigator.geolocation) navigator.geolocation.clearWatch(S.watch); S.watch = null; }
+function trackTick(){ if (mayLocate() && LS.get('crew_loc_ok', false)) startWatch(); else stopWatch(); }
+setInterval(trackTick, 60000);
+function askLocation(){
+  if (!navigator.geolocation) return toast('This phone cannot share its location.');
+  if (!mayLocate()) return toast('Location is only used 7 am – 7 pm on days your crew is booked.');
+  navigator.geolocation.getCurrentPosition(function(pos){ LS.set('crew_loc_ok', true); onFix(pos); startWatch(); refresh(); },
+    function(e){ toast('Location was not allowed — turn it on for this site in your phone’s settings.'); S.locErr = e.message; refresh(); },
+    { enableHighAccuracy: true, timeout: 20000 });
+}
+function posNow(){
+  return new Promise(function(res){
+    if (!mayLocate() || !navigator.geolocation || !LS.get('crew_loc_ok', false)) return res(null);
+    if (S.fix && Date.now() - Date.parse(S.fix.at) < 120000) return res(S.fix);
+    navigator.geolocation.getCurrentPosition(function(pos){ onFix(pos); res(S.fix); }, function(){ res(null); }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+  });
+}
+// "You're at 12 Kauri Lane — clock on?"
+function checkNear(){
+  var el = document.getElementById('near'); if (!el || !S.fix || !S.week) { if (el) el.classList.remove('on'); return; }
+  var t = nzToday(), d = (S.week.days || []).find(function(x){ return x.date === t; });
+  var hit = null;
+  (d ? d.jobs : []).forEach(function(j){ var c = LS.get('crew_row_' + j.row_id, null); if (c && c.site_point && distM(c.site_point, S.fix) < SITE_R) hit = j; });
+  if (!hit || (S.status && S.status.kind === 'on' && S.status.row_id === hit.row_id) || LS.get('crew_near_no_' + t + hit.row_id, false)) { el.classList.remove('on'); return; }
+  el.innerHTML = '<div style="font-weight:700;margin:0 0 6px">You’re at ' + esc(hit.site || hit.client) + '</div>' +
+    '<div class="grid2"><button class="btn g" onclick="clock(\'on\',\'' + esc(hit.row_id) + '\',\'' + esc(hit.job_id) + '\')">Clock on here</button>' +
+    '<button class="btn o" onclick="LS.set(\'crew_near_no_' + t + esc(hit.row_id) + '\',true);checkNear()">Not now</button></div>';
+  el.classList.add('on');
+}
+
+// ── clock on / off, travel, break, finish ──
+async function record(kind, o){
+  o = o || {};
+  var e = { client_id: uid(), kind: kind, at: new Date().toISOString(), row_id: o.row_id || '', job_id: o.job_id || '' };
+  if (o.data) e.data = o.data;
+  if (kind !== 'check' && kind !== 'note') { var p = await posNow(); if (p) { e.lat = p.lat; e.lng = p.lng; e.acc = p.acc; } }
+  S.q.events.push(e); saveQ();
+  if (kind !== 'check' && kind !== 'note') { S.status = { kind: kind, row_id: e.row_id, at: e.at, date: nzToday() }; LS.set('crew_status', S.status); }
+  syncNow();
+  return e;
+}
+async function clock(kind, rowId, jobId){
+  // Moving to another job closes the one before it first, so the gap is travel.
+  if (kind === 'on' && S.status && S.status.kind === 'on' && S.status.date === nzToday() && S.status.row_id !== rowId) await record('off', { row_id: S.status.row_id });
+  await record(kind, { row_id: rowId || '', job_id: jobId || '' });
+  toast({ on: 'Clocked on', off: 'Clocked off', travel: 'Travelling', break: 'On a break', end: 'Day finished — good work' }[kind] || 'Kept');
+  document.getElementById('near').classList.remove('on');
+  refresh();
+}
+function statusText(){
+  var s = S.status; if (!s || s.date !== nzToday()) return 'Not started yet';
+  var row = s.row_id && LS.get('crew_row_' + s.row_id, null);
+  var where = row ? (row.client || row.site) : '';
+  return ({ on: 'On site' + (where ? ' at ' + where : ''), off: 'Clocked off' + (where ? ' ' + where : ''), travel: 'Travelling',
+    break: 'On a break', end: 'Day finished' }[s.kind] || s.kind) + ' · since ' + hm(s.at);
+}
+
+// ── screens ──
+function go(h){ if (location.hash === h) route(); else location.hash = h; }
+function setTop(title, back){ document.getElementById('title').textContent = title; document.getElementById('backBtn').style.display = back ? 'block' : 'none';
+  var v = (location.hash.match(/^#\/(\w+)/) || [])[1] || 'today';
+  document.querySelectorAll('#nav button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === v); }); }
+function main(h){ document.getElementById('main').innerHTML = h; }
+function route(){
+  if (!S.token) return renderSignIn();
+  document.getElementById('nav').hidden = false;
+  var h = location.hash || '#/today', m;
+  if ((m = /^#\/job\/([^/?]+)/.exec(h))) return renderJob(decodeURIComponent(m[1]));
+  if (h.indexOf('#/week') === 0) return renderWeek();
+  if (h.indexOf('#/hours') === 0) return renderHours();
+  if (h.indexOf('#/me') === 0) return renderMe();
+  return renderToday();
+}
+window.addEventListener('hashchange', route);
+function refresh(){ route(); }
+
+function renderSignIn(msg){
+  document.getElementById('nav').hidden = true; setTop('RoofMap Crew');
+  main('<div class="signin"><div class="logo"><img src="brand/pwa-192.png" alt=""><div class="big" style="margin-top:10px">RoofMap Crew</div>' +
+    '<div class="mut">Sign in with your RoofMap login</div></div>' +
+    '<div class="card"><label class="f" for="em">Email</label><input class="t" id="em" type="email" autocomplete="username" inputmode="email">' +
+    '<label class="f" for="pw">Password</label><input class="t" id="pw" type="password" autocomplete="current-password">' +
+    '<div class="err" id="sierr">' + esc(msg || '') + '</div>' +
+    '<button class="btn p w" id="siBtn" style="margin-top:10px" onclick="signIn()">Sign in</button></div>' +
+    '<p class="mut" style="text-align:center">No login yet? Ask the office to invite you to RoofMap.</p></div>');
+}
+async function signIn(){
+  var em = document.getElementById('em').value.trim(), pw = document.getElementById('pw').value, er = document.getElementById('sierr');
+  if (!em || !pw) { er.textContent = 'Enter your email and password.'; return; }
+  er.textContent = ''; document.getElementById('siBtn').disabled = true;
+  try {
+    var r = await fetch(API + '/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: em, password: pw }) });
+    var j = {}; try { j = await r.json(); } catch (e) {}
+    if (!r.ok || !j.token) throw new Error(j.error || 'That did not work — check your email and password.');
+    S.token = j.token; try { localStorage.setItem('crew_token', j.token); } catch (e) {}
+    await loadMe(); location.hash = '#/today'; route();
+  } catch (e) { er.textContent = e.offline ? 'No signal — you need signal to sign in the first time.' : e.message; S.token = ''; }
+  finally { var b = document.getElementById('siBtn'); if (b) b.disabled = false; }
+}
+function signOut(expired){
+  if (!expired && pending() && !confirm('There are ' + pending() + ' things not sent yet. Sign out anyway? They stay on this phone.')) return;
+  S.token = ''; try { localStorage.removeItem('crew_token'); } catch (e) {}
+  LS.del('crew_me'); LS.del('crew_week'); stopWatch();
+  renderSignIn(expired ? 'Your session ended — please sign in again.' : '');
+}
+async function loadMe(){
+  try {
+    var me = await api('GET', '/crew/me'); S.me = me; LS.set('crew_me', me);
+  } catch (e) {
+    if (e.code === 'CREW_OFF') { S.me = null; LS.del('crew_me'); main('<div class="card"><div class="big">Not switched on yet</div><p>' + esc(e.message) + '</p><button class="btn o w" onclick="signOut()">Sign out</button></div>'); throw e; }
+    if (!S.me) throw e;
+  }
+  return S.me;
+}
+async function loadWeek(from, all){
+  var key = 'crew_wk_' + from + (all ? '_all' : '');
+  try { var w = await api('GET', '/crew/week?from=' + from + '&days=7' + (all ? '&all=1' : '')); LS.set(key, w); return w; }
+  catch (e) { var c = LS.get(key, null); if (c) { c._stale = true; return c; } throw e; }
+}
+async function loadThisWeek(){
+  var w = await loadWeek(mondayOf(nzToday()), false); S.week = w; LS.set('crew_week', w);
+  var t = (w.days || []).find(function(x){ return x.date === nzToday(); });
+  if (S.me) { S.me._bookedToday = !!(t && t.booked); S.me._bookedDate = nzToday(); LS.set('crew_me', S.me); }
+  // Keep this week's jobs on the phone so they open with no signal.
+  if (S.online) (w.days || []).forEach(function(d){ d.jobs.forEach(function(j){ if (!LS.get('crew_row_' + j.row_id, null) || d.date === nzToday()) loadRow(j.row_id).catch(function(){}); }); });
+  trackTick(); checkNear();
+  return w;
+}
+async function loadRow(id){
+  try { var r = await api('GET', '/crew/row/' + encodeURIComponent(id)); LS.set('crew_row_' + id, r); return r; }
+  catch (e) { var c = LS.get('crew_row_' + id, null); if (c) { c._stale = true; return c; } throw e; }
+}
+function jobCardHtml(j){
+  return '<button class="job" style="border-left-color:' + esc(j.colour || '#0099e0') + '" onclick="go(\'#/job/' + encodeURIComponent(j.row_id) + '\')">' +
+    '<div class="c">' + esc(j.client || 'Job') + (j.job_ref ? ' <span class="mut">#' + esc(j.job_ref) + '</span>' : '') + '</div>' +
+    '<div class="a">' + esc(j.site || '') + '</div>' +
+    '<div style="margin-top:6px">' + (j.crew ? '<span class="chip">' + esc(j.crew) + '</span>' : '') +
+    (S.status && S.status.kind === 'on' && S.status.row_id === j.row_id && S.status.date === nzToday() ? '<span class="chip" style="background:#dcfce7">On site now</span>' : '') + '</div></button>';
+}
+function locBanner(){
+  if (!bookedToday()) return '<div class="banner no">📍 Location is off — your crew isn’t booked today.</div>';
+  if (!inWindow()) return '<div class="banner no">📍 Location is off outside 7 am – 7 pm.</div>';
+  if (!LS.get('crew_loc_ok', false)) return '<div class="banner warn"><div style="flex:1">📍 Turn on location for today. It’s only used 7 am – 7 pm on days your crew is booked, to log your site and travel time.<div style="margin-top:8px"><button class="btn p" onclick="askLocation()">Turn on location</button></div></div></div>';
+  if (S.locErr && !S.fix) return '<div class="banner warn">📍 Location isn’t coming through: ' + esc(S.locErr) + '</div>';
+  return '<div class="banner ok">📍 Location on until 7 pm' + (S.fix ? ' · ±' + S.fix.acc + ' m' : '') + '</div>';
+}
+function paintToday(){ if ((location.hash || '#/today').indexOf('#/today') === 0) renderToday(true); }
+async function renderToday(quick){
+  setTop('Today');
+  var t = nzToday();
+  var draw = function(w, stale){
+    var d = w && (w.days || []).find(function(x){ return x.date === t; });
+    var jobs = d ? d.jobs : [];
+    var s = S.status && S.status.date === t ? S.status : null;
+    main('<div class="mut" style="margin:0 0 8px">' + esc(dayName(t, true)) + (S.me && S.me.company ? ' · ' + esc(S.me.company) : '') + (stale ? ' · <b>offline copy</b>' : '') + '</div>' +
+      (S.me && !S.me.crew_id ? '<div class="banner warn"><div style="flex:1">Pick your crew so your jobs show here.<div style="margin-top:8px"><button class="btn p" onclick="go(\'#/me\')">Pick my crew</button></div></div></div>' : '') +
+      locBanner() +
+      '<div class="card"><h2>Right now</h2><div class="status" id="nowStatus">' + esc(statusText()) + '</div>' +
+      '<div class="grid3" style="margin-top:10px">' +
+      '<button class="btn o" onclick="clock(\'travel\')">🚚 Travelling</button>' +
+      '<button class="btn o" onclick="clock(\'break\')">☕ Break</button>' +
+      '<button class="btn o" onclick="clock(\'end\')">🏁 Finish day</button></div>' +
+      (s && s.kind === 'on' ? '<button class="btn r w" style="margin-top:8px" onclick="clock(\'off\',\'' + esc(s.row_id) + '\')">Clock off this job</button>' : '') + '</div>' +
+      '<h2 style="font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:16px 2px 8px">Your jobs today</h2>' +
+      (jobs.length ? jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked for your crew today.</div>'));
+    checkNear();
+  };
+  draw(S.week, S.week && S.week._stale);
+  if (quick) return;
+  try { var w = await loadThisWeek(); if ((location.hash || '#/today').indexOf('#/today') === 0) draw(w, w._stale); } catch (e) {}
+}
+async function renderWeek(){
+  setTop('Week');
+  if (!S.weekFrom) S.weekFrom = mondayOf(nzToday());
+  var draw = function(w){
+    var t = nzToday();
+    var days = (w && w.days || []).filter(function(d){ return !d.weekend || d.jobs.length; });
+    main('<div class="wk"><button class="btn o" onclick="weekStep(-7)">‹</button><div class="lbl">' + esc(dayName(S.weekFrom)) + ' – ' + esc(dayName(addDays(S.weekFrom, 6))) + '</div><button class="btn o" onclick="weekStep(7)">›</button></div>' +
+      '<div class="seg"><button class="' + (S.weekAll ? '' : 'on') + '" onclick="S.weekAll=false;renderWeek()">My crew</button><button class="' + (S.weekAll ? 'on' : '') + '" onclick="S.weekAll=true;renderWeek()">Every crew</button></div>' +
+      (w && w._stale ? '<div class="banner info">Offline copy — it updates when there is signal.</div>' : '') +
+      (!w ? '<div class="empty">Loading…</div>' : days.map(function(d){
+        return '<div class="day' + (d.date === t ? ' today' : '') + '"><h3><span>' + esc(dayName(d.date, true)) + (d.date === t ? ' · today' : '') + '</span>' +
+          '<span>' + (d.nonwork && !d.weekend ? 'Holiday' : (d.booked ? '<span class="chip">Booked</span>' : '')) + '</span></h3>' +
+          (d.jobs.length ? d.jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked.</div>') + '</div>';
+      }).join(''))); };
+  draw(LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null));
+  try { draw(await loadWeek(S.weekFrom, S.weekAll)); } catch (e) { if (!LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null)) main('<div class="banner warn">' + esc(e.message) + '</div>'); }
+}
+function weekStep(n){ S.weekFrom = addDays(S.weekFrom || mondayOf(nzToday()), n); renderWeek(); }
+
+var _JOB = {};
+async function renderJob(id){
+  setTop('Job', true);
+  var draw = async function(r){
+    if (!r) return main('<div class="empty">Loading…</div>');
+    _JOB = r;
+    setTop(r.client || 'Job', true);
+    var waiting = []; try { waiting = (await fqAll()).filter(function(f){ return f.rowId === id; }); } catch (e) {}
+    var on = S.status && S.status.kind === 'on' && S.status.row_id === id && S.status.date === nzToday();
+    var phone = String(r.phone || '').replace(/[^\d+]/g, '');
+    var gmaps = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(r.site || '');
+    var amaps = 'https://maps.apple.com/?daddr=' + encodeURIComponent(r.site || '');
+    var ios = /iP(hone|ad|od)/.test(navigator.userAgent);
+    var packs = (r.files || []).filter(function(f){ return /job ?pack|roof ?map|sheet layout|cut list/i.test(f.name); });
+    var media = (r.files || []).filter(function(f){ return packs.indexOf(f) < 0 && /^(image|video)\//.test(f.mime || ''); });
+    var docs = (r.files || []).filter(function(f){ return packs.indexOf(f) < 0 && media.indexOf(f) < 0; });
+    var lists = (S.me && S.me.checklists) || [];
+    var localChecks = LS.get('crew_chk_' + id, {});
+    var checks = Object.assign({}, r.checks || {}, localChecks);
+    var fileRow = function(f){ var ic = /^image/.test(f.mime) ? '🖼' : (/^video/.test(f.mime) ? '🎬' : (/pdf/.test(f.mime) ? '📄' : '📎'));
+      return '<button class="file" onclick="openFile(\'' + esc(r.job_id) + '\',\'' + esc(f.id) + '\')"><span class="ic">' + ic + '</span><span class="n">' + esc(f.name) + '</span><span class="mut">' + esc(new Date(f.at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })) + '</span></button>'; };
+    var sec = function(title, body){ return '<div class="card"><h2>' + title + '</h2>' + body + '</div>'; };
+    var lineList = function(a){ return '<ul class="lines">' + a.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; };
+    var html = (r._stale ? '<div class="banner info">Offline copy — it updates when there is signal.</div>' : '') +
+      '<div class="card"><div class="big">' + esc(r.client || 'Job') + '</div>' + (r.job_ref ? '<div class="mut">Job ' + esc(r.job_ref) + '</div>' : '') +
+      '<div style="margin:8px 0 10px">' + esc(r.site || '') + '</div>' +
+      (ios ? '<div class="grid2"><a class="btn p" href="' + esc(gmaps) + '" target="_blank" rel="noopener">🧭 Google Maps</a><a class="btn o" href="' + esc(amaps) + '" target="_blank" rel="noopener">🗺 Apple Maps</a></div>'
+        : '<a class="btn p w" href="' + esc(gmaps) + '" target="_blank" rel="noopener">🧭 Directions in Google Maps</a>') +
+      (phone ? '<div class="grid2" style="margin-top:8px"><a class="btn o" href="tel:' + esc(phone) + '">📞 Call ' + esc(r.phone) + '</a><a class="btn o" href="sms:' + esc(phone) + '">💬 Text</a></div>'
+        : '<div class="mut" style="margin-top:8px">No phone number on the job.</div>') +
+      '<div style="margin-top:10px">' + (on ? '<button class="btn r w" onclick="clock(\'off\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">Clock off this job</button>'
+        : '<button class="btn g w" onclick="clock(\'on\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">Clock on at this job</button>') + '</div></div>' +
+      (r.notes ? sec('From the office', '<div class="pre">' + esc(r.notes) + '</div>') : '') +
+      (r.choices && r.choices.length ? sec('What the customer chose', lineList(r.choices)) : '') +
+      (r.scope && r.scope.length ? sec('Scope of work', lineList(r.scope)) : (r.description ? sec('Scope of work', '<div class="pre">' + esc(r.description) + '</div>') : '')) +
+      (r.exclusions && r.exclusions.length ? sec('Not included', lineList(r.exclusions)) : '') +
+      (r.quoteNotes && r.quoteNotes.length ? sec('Please note', lineList(r.quoteNotes)) : '') +
+      lists.map(function(l){
+        var day = l.when === 'daily' ? nzToday() : '';
+        var done = 0;
+        var items = l.items.map(function(it, i){ var k = l.id + ':' + i + (day ? ':' + day : ''); var c = checks[k] && checks[k].done; if (c) done++;
+          return '<label class="chk' + (c ? ' done' : '') + '"><input type="checkbox"' + (c ? ' checked' : '') + ' onchange="tick(\'' + esc(id) + '\',\'' + esc(l.id) + '\',' + i + ',\'' + day + '\',this.checked)"><span>' + esc(it) + '</span></label>'; }).join('');
+        return sec(esc(l.name) + ' <span style="float:right;text-transform:none;letter-spacing:0">' + done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : '') + '</span>', items);
+      }).join('') +
+      sec('Job pack &amp; roof map', packs.length ? packs.map(fileRow).join('') : '<div class="empty">The office hasn’t kept a job pack on this job yet.</div>') +
+      sec('Photos &amp; videos', '<div class="grid2" style="margin-bottom:6px"><button class="btn p" onclick="pickPhoto(true)">📷 Take photo / video</button><button class="btn o" onclick="pickPhoto(false)">🖼 From phone</button></div>' +
+        waiting.map(function(f){ return '<div class="file"><span class="ic">⏳</span><span class="n">' + esc(f.name) + '</span><span class="wait-chip">waiting to upload</span></div>'; }).join('') +
+        (media.length ? media.map(fileRow).join('') : (waiting.length ? '' : '<div class="empty">No photos yet.</div>'))) +
+      (docs.length ? sec('Files', docs.map(fileRow).join('')) : '') +
+      sec('Notes from site', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn o w" style="margin-top:8px" onclick="addNote(\'' + esc(id) + '\')">Add note</button>' +
+        ((r.notesFromCrew || []).length ? '<div style="margin-top:10px">' + r.notesFromCrew.map(function(n){ return '<div style="padding:8px 0;border-top:1px solid var(--line)"><div class="mut">' + esc(dayName(nzParts(new Date(n.at)).date)) + ' ' + esc(hm(n.at)) + '</div><div class="pre">' + esc(n.text) + '</div></div>'; }).join('') + '</div>' : '')) +
+      (r.days && r.days.length ? sec('Booked days', r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '');
+    main(html);
+  };
+  var cached = LS.get('crew_row_' + id, null);
+  await draw(cached);
+  try { var r = await loadRow(id); if (location.hash.indexOf('#/job/' + encodeURIComponent(id)) === 0 || location.hash.indexOf('#/job/' + id) === 0) await draw(r); }
+  catch (e) { if (!cached) main('<div class="banner warn">' + esc(e.offline ? 'No signal, and this job hasn’t been opened on this phone before.' : e.message) + '</div>'); }
+}
+function pickPhoto(cam){ var el = document.getElementById(cam ? 'camIn' : 'pickIn'); el.value = ''; el.click(); }
+['camIn', 'pickIn'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
+  var fs = Array.prototype.slice.call(this.files || []); if (fs.length) addFiles(fs, _JOB.row_id, _JOB.job_id); }); });
+async function openFile(jobId, fid){
+  if (!S.online) return toast('Opening a file needs signal.');
+  var w = window.open('', '_blank');
+  try { var r = await api('GET', '/jobs/' + encodeURIComponent(jobId) + '/files/' + encodeURIComponent(fid) + '/url');
+    if (w) w.location = r.url; else location.href = r.url; }
+  catch (e) { if (w) w.close(); toast(e.message); }
+}
+async function tick(rowId, list, item, day, done){
+  var k = list + ':' + item + (day ? ':' + day : '');
+  var lc = LS.get('crew_chk_' + rowId, {}); lc[k] = { done: done, at: new Date().toISOString() }; LS.set('crew_chk_' + rowId, lc);
+  await record('check', { row_id: rowId, job_id: _JOB.job_id || '', data: { list: list, item: item, done: done, day: day } });
+  renderJob(rowId);
+}
+async function addNote(rowId){
+  var t = (document.getElementById('noteTx') || {}).value || ''; t = t.trim(); if (!t) return;
+  await record('note', { row_id: rowId, job_id: _JOB.job_id || '', data: { text: t } });
+  var c = LS.get('crew_row_' + rowId, null);
+  if (c) { c.notesFromCrew = [{ at: new Date().toISOString(), text: t }].concat(c.notesFromCrew || []); LS.set('crew_row_' + rowId, c); }
+  toast('Note kept'); renderJob(rowId);
+}
+
+async function renderHours(){
+  setTop('Hours');
+  if (!S.hoursFrom) S.hoursFrom = mondayOf(nzToday());
+  var key = 'crew_hrs_' + S.hoursFrom;
+  var draw = function(h){
+    var days = (h && h.days) || [], rows = (h && h.rows) || {};
+    var tot = days.reduce(function(a, d){ a.on += d.onsiteTotal; a.tr += d.travel; return a; }, { on: 0, tr: 0 });
+    main('<div class="wk"><button class="btn o" onclick="hoursStep(-7)">‹</button><div class="lbl">' + esc(dayName(S.hoursFrom)) + ' – ' + esc(dayName(addDays(S.hoursFrom, 6))) + '</div><button class="btn o" onclick="hoursStep(7)">›</button></div>' +
+      (S.q.events.length ? '<div class="banner warn">' + S.q.events.length + ' clock presses are still on this phone — the hours update once they’re sent.</div>' : '') +
+      '<div class="card"><h2>This week</h2><table class="h"><tr><td>On site</td><td class="n">' + hrs(tot.on) + '</td></tr><tr><td>Travel</td><td class="n">' + hrs(tot.tr) + '</td></tr>' +
+      '<tr class="tot"><td>Total</td><td class="n">' + hrs(tot.on + tot.tr) + '</td></tr></table></div>' +
+      (days.length ? days.map(function(d){
+        return '<div class="card"><h2>' + esc(dayName(d.date, true)) + (d.open ? ' · <span style="color:var(--amber)">left clocked on</span>' : '') + '</h2><table class="h">' +
+          Object.keys(d.onsite).map(function(k){ var r = rows[k] || {}; return '<tr><td>' + esc(r.client || r.site || 'Job') + '<div class="mut">' + esc(r.site || '') + '</div></td><td class="n">' + hrs(d.onsite[k]) + '</td></tr>'; }).join('') +
+          '<tr><td>Travel</td><td class="n">' + hrs(d.travel) + '</td></tr><tr class="tot"><td>Day total · ' + esc(hm(d.first)) + ' – ' + esc(hm(d.last)) + '</td><td class="n">' + hrs(d.total) + '</td></tr></table></div>';
+      }).join('') : '<div class="empty">No hours this week yet.</div>'));
+  };
+  draw(LS.get(key, null));
+  try { var h = await api('GET', '/crew/hours?from=' + S.hoursFrom + '&to=' + addDays(S.hoursFrom, 6)); LS.set(key, h); if (location.hash.indexOf('#/hours') === 0) draw(h); } catch (e) {}
+}
+function hoursStep(n){ S.hoursFrom = addDays(S.hoursFrom || mondayOf(nzToday()), n); renderHours(); }
+
+async function renderMe(){
+  setTop('Me');
+  var me = S.me || {};
+  var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  var ios = /iP(hone|ad|od)/.test(navigator.userAgent);
+  main('<div class="card"><div class="big">' + esc((me.user && (me.user.name || me.user.email)) || '') + '</div><div class="mut">' + esc((me.user && me.user.email) || '') + (me.company ? ' · ' + esc(me.company) : '') + '</div>' +
+    '<label class="f" for="crewSel">My crew</label><select class="t" id="crewSel" onchange="setCrew(this.value)"><option value="">— pick your crew —</option>' +
+    (me.crews || []).map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === me.crew_id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select>' +
+    '<label class="f" for="myName">Name the office sees</label><input class="t" id="myName" value="' + esc((me.user && me.user.name) || '') + '" onchange="setName(this.value)"></div>' +
+    '<div class="card"><h2>Location</h2><p style="margin:0 0 8px">' + esc((me.gps && me.gps.rule) || 'Location is only recorded 7 am – 7 pm on days your crew is booked on the schedule.') + '</p>' +
+    '<p class="mut" style="margin:0 0 8px">It works while this app is open. Keep it open on site — “Keep screen on” helps.</p>' + locBanner() +
+    '<label class="chk"><input type="checkbox" id="wakeT"' + (LS.get('crew_wake', false) ? ' checked' : '') + ' onchange="setWake(this.checked)"><span>Keep screen on while the app is open</span></label></div>' +
+    (standalone ? '' : '<div class="card"><h2>Put it on your home screen</h2>' + (ios ? '<p>In Safari: tap <b>Share</b> (the square with the arrow), then <b>Add to Home Screen</b>.</p>'
+      : '<p>In Chrome: tap the <b>⋮</b> menu, then <b>Install app</b> (or <b>Add to Home screen</b>).</p>') + '</div>') +
+    '<div class="card"><h2>Sending</h2><p class="mut" style="margin:0 0 8px">' + S.q.events.length + ' presses, ' + S.q.points.length + ' positions and ' + S.fileWait + ' photos waiting.</p>' +
+    '<button class="btn o w" onclick="syncNow(true)">Send now</button></div>' +
+    '<button class="btn o w" onclick="signOut()">Sign out</button><p class="mut" style="text-align:center">RoofMap Crew · ' + CREW_BUILD + '</p>');
+}
+async function setCrew(id){ try { await api('PUT', '/crew/me', { crew_id: id }); S.me.crew_id = id; LS.set('crew_me', S.me); toast('Crew saved'); S.week = null; loadThisWeek().catch(function(){}); } catch (e) { toast(e.message); } }
+async function setName(n){ try { await api('PUT', '/crew/me', { name: n }); if (S.me && S.me.user) S.me.user.name = n; LS.set('crew_me', S.me); toast('Saved'); } catch (e) { toast(e.message); } }
+var _wake = null;
+async function setWake(on){ LS.set('crew_wake', !!on); if (on) { try { _wake = await navigator.wakeLock.request('screen'); } catch (e) { toast('This phone won’t keep the screen on from here.'); } } else if (_wake) { try { _wake.release(); } catch (e) {} _wake = null; } }
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') { if (LS.get('crew_wake', false)) setWake(true); trackTick(); if (S.token) { syncNow(); if ((location.hash || '#/today').indexOf('#/today') === 0) renderToday(); } }
+});
+
+// ── start ──
+(async function boot(){
+  if (S.status && S.status.date !== nzToday()) { S.status = null; LS.del('crew_status'); }
+  paintSync(); fileCount();
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { try { navigator.serviceWorker.register('/crew-sw.js', { scope: '/crew' }); } catch (e) {} }
+  if (!S.token) return renderSignIn();
+  route();
+  try { await loadMe(); route(); } catch (e) {}
+  syncNow();
+})();
+window.__crew = { S: S, syncNow: syncNow, record: record, clock: clock, mayLocate: mayLocate, onFix: onFix, nzParts: nzParts, fqAll: fqAll };
+</script>
+</body>
+</html>

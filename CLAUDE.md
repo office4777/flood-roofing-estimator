@@ -2596,6 +2596,58 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   only 7 am – 7 pm NZ on a day the person is BOOKED on the schedule board (a
   pencilled or crew block), never on a day they are not.
   `tests/supinv.mjs` (36, API), `tests/officeui.mjs` (22, UI).
+- THE CREW APP (2026-11-13, the owner: "a phone app ... offline ... Android and
+  iPhone ... GPS ... calendar ... weekly and daily ... links up to the schedule
+  ... the job address ... a Google Maps button ... customer name ... phone number
+  ... customer selections and the scope of work ... photos ... files ...
+  checklists ... set in the main office app ... the job pack ... a timesheet ...
+  on-site hours versus the travel hours"; "from 7 a.m. until 7 p.m. just on those
+  days that they're working ... Definitely not any days that aren't scheduled").
+  A WEB APP (PWA) at roofmap.co.nz/crew — `frontend/crew.html`, `crew-sw.js`
+  (its OWN worker, scope /crew; the office `sw.js` skips /crew or it would cache
+  the crew page as '/app'), `crew.webmanifest`, the `/crew` rewrite. Installed
+  from Chrome (Android) / Safari Add to Home Screen (iPhone); no store. A PWA
+  has NO background location: it records while the app is open (a "Keep screen
+  on" switch helps). Native apps (Play US$25, Apple US$99/yr + D-U-N-S, TestFlight
+  for a private iPhone app) are the owner's paperwork, not built.
+  THE CREW are the business's own logins; `crew_members.crew_id` is one of the
+  schedule board's crews (picked on the phone's Me screen or by the office). A
+  person's WORKING DAYS are the working dates of the board's `kind:'crew'` blocks
+  for that crew (pencils never). SERVER `backend/crew.js` (mounted in server.js
+  with the schedule helpers; tables crew_members, crew_events, crew_points,
+  crew_sites, crew_settings in the boot DDL): GET /crew/enabled, /crew/me (crews,
+  checklists, the GPS rule), PUT /crew/me, GET /crew/week?from&days[&all=1],
+  /crew/row/:id (customer, phone off `draw_state.form.jobPhone` / quote, choices
+  from `_quoteChoiceLines` on the frozen Accepted copy where there is one, custDesc /
+  custExcl / custNotes, ready job_files, the checklist ticks, crew notes, the
+  site), POST /crew/sync (events on / off / travel / break / end / check / note,
+  each with the phone's `client_id` — a resend is kept once; positions), GET
+  /crew/status, /crew/hours. THE RULE IS THE SERVER'S: a position is refused, and
+  a clock event keeps NO position, unless it is 07:00–19:00 NZ on a day the
+  person's crew is booked. The first clock-on with a position learns the job's
+  site (`crew_sites`); the phone then offers "You're at … — clock on?" within
+  200 m. HOURS (`computeDays`): 'on' is on site at that job until the next press;
+  'travel' is travel; the gap from an 'off' to the next 'on' the same day is
+  travel; break / end count nothing; today counts to now, a past day left open to
+  its last press or position (`open`). WHO: a business one of CREW_USERS (default
+  SUPINV_USERS, the owner's logins) belongs to, CREW_ALL=true for all (403
+  CREW_OFF); the office routes (/crew/office/now, /hours, /members, /settings) to
+  those logins only (403 CREW_OFFICE_ONLY). THE PHONE: Today (location banner,
+  Travelling / Break / Finish day, today's jobs), Week (my crew / every crew),
+  Job (Google Maps directions, Apple Maps on iPhone, Call / Text, Clock on / off,
+  from the office, what they chose, scope, not included, please note, the
+  checklists, Job pack & roof map, Photos & videos — taken or picked, photos
+  shrunk to 2000 px, kept in IndexedDB until uploaded through the job's own
+  /jobs/:id/files/sign → PUT → landed with source 'site' — files, notes from
+  site), Hours, Me (crew, name, location, keep screen on, install help, sign
+  out). EVERYTHING IS KEPT ON THE PHONE FIRST (`crew_q` in localStorage, a sync
+  pill "No signal · 3 waiting"), sent every 30 s / on 'online'; this week's jobs
+  are cached so they open with no signal. THE OFFICE: the GPS Map tab
+  (office.js) — the link, a Mapbox map with each person's last position and the
+  learned sites, who is where, the week's hours (on site + travel a day, CSV),
+  who is on which crew, and the crew app's checklists (before we start / every
+  day / when we finish). `tests/crewapi.mjs` (37, API), `crewui.mjs` (24, UI, the
+  real page on a fixed clock with offline and a photo), `officeui` (26).
 - A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
   create a new draft quote, it should have today's date"). Duplicate this quote
   (`_qvNewDraft`) and a draft from a template (`_qChangeTemplate`) copied the

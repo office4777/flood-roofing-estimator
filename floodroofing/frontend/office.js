@@ -554,11 +554,148 @@
         '<button class="of-btn sm" onclick="_ofXeroDisconnect()">Disconnect Xero</button></div>';
   }
 
-  // ══ GPS MAP ═════════════════════════════════════════════════════
-  function openGps(){
+  // ══ GPS MAP & THE CREW ═══════════════════════════════════════════
+  // (2026-11-13, the owner: "a GPS map tab ... GPS can be seen at all times ...
+  // checklists set in the office ... timesheets ... on-site hours versus the
+  // travel hours"; "from 7 a.m. until 7 p.m. just on those days that they're
+  // working"). The crew app is /crew; this tab reads what it sends.
+  var G = { map: null, marks: [], hrsFrom: null, timer: null, now: null, members: null, lists: null };
+  function nzToday(){ var p = {}; new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).forEach(function(x){ p[x.type] = x.value; }); return p.year + '-' + p.month + '-' + p.day; }
+  function addD(iso, n){ var d = new Date(iso + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+  function monOf(iso){ var d = new Date(iso + 'T00:00:00Z'); return addD(iso, -((d.getUTCDay() + 6) % 7)); }
+  function hh(h){ h = +h || 0; if (!h) return '—'; var m = Math.round(h * 60); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); }
+  function ago(t){ if (!t) return ''; var m = Math.round((Date.now() - Date.parse(t)) / 60000); return m < 1 ? 'just now' : (m < 60 ? m + ' min ago' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min ago'); }
+  function tm(t){ return t ? new Date(t).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' }) : ''; }
+  var STATUS = { on: 'On site', off: 'Clocked off', travel: 'Travelling', 'break': 'On a break', end: 'Finished for the day' };
+  async function openGps(){
     var root = $('gpsRoot'); if (!root) return;
-    root.innerHTML = '<div class="of-hd"><h2>GPS map</h2></div><div class="of-card"><h3>Where the crew are</h3>' +
-      '<p class="of-note">This map fills in once your crew install the RoofMap crew app on their phones and allow location. Each person shows as a dot with their name, the job they are booked on today and when they last moved; arriving on and leaving a site is stamped on their timesheet so you can see on-site hours against travel.</p>' +
-      '<p class="of-note">The crew app (iPhone and Android) is being built next: their week and day from the schedule, each job\'s address with a Maps button, the customer\'s choices and scope, photos and videos, files, checklists, the Job Pack and their hours — working offline and sending it all when they are back in signal.</p></div>';
+    if (!G.hrsFrom) G.hrsFrom = monOf(nzToday());
+    var link = location.origin.replace(/^file:.*$/, 'https://roofmap.co.nz') + '/crew';
+    root.innerHTML = '<div class="of-hd"><h2>GPS map &amp; crew</h2><span class="of-note">Crew app: <b>' + esc(link) + '</b></span>' +
+      '<button class="of-btn sm" onclick="_ofCopy(\'' + esc(link) + '\')">Copy link</button><button class="of-btn sm" onclick="_ofGpsLoad()">↻ Refresh</button></div>' +
+      '<div class="of-card"><h3>Where the crew are today</h3><div class="of-note" style="margin-bottom:8px">Location is only recorded 7 am – 7 pm on days a person\'s crew is booked on the schedule, and only while the crew app is open on their phone.</div>' +
+      '<div id="ofGpsMap" style="height:420px;border-radius:10px;overflow:hidden;background:#e2e8f0;margin-bottom:10px"></div><div id="ofGpsPeople"></div></div>' +
+      '<div class="of-card"><h3>Hours</h3><div id="ofGpsHours"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card"><h3>Who is on which crew</h3><div id="ofGpsMembers"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card"><h3>Checklists for the crew app</h3><div class="of-note" style="margin-bottom:8px">Every job in the crew app shows these. “Before we start” and “When we finish” are ticked once a job; “Every day” is ticked each day on site.</div><div id="ofGpsLists"><div class="of-note">Loading…</div></div></div>';
+    G.map = null; G.marks = [];
+    clearInterval(G.timer); G.timer = setInterval(function(){ if ($('ofGpsMap') && document.body.getAttribute('data-tab') === 'gps') loadNow(); else clearInterval(G.timer); }, 60000);
+    await Promise.all([loadNow(), loadHours(), loadMembers(), loadLists()]);
   }
+  window._ofGpsLoad = function(){ loadNow(); loadHours(); };
+  window._ofCopy = function(t){ try { navigator.clipboard.writeText(t); toast('Link copied'); } catch (e) { prompt('Copy this link', t); } };
+  async function loadNow(){
+    var box = $('ofGpsPeople'); if (!box) return;
+    try { G.now = await api('GET', '/crew/office/now'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    var people = (G.now.people || []).filter(function(p){ return p.crew_id || p.status || p.last; });
+    box.innerHTML = people.length ? '<div class="of-scroll"><table class="of-tbl"><thead><tr><th>Person</th><th>Crew</th><th>Today</th><th>Right now</th><th>Last position</th></tr></thead><tbody>' +
+      people.map(function(p){
+        return '<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + esc(p.colour) + ';margin-right:6px"></span><b>' + esc(p.name) + '</b></td>' +
+          '<td>' + esc(p.crew || '—') + '</td><td>' + (p.booked ? '<span class="of-pill b">Booked</span>' : '<span class="of-pill s">Not booked</span>') + '</td>' +
+          '<td>' + (p.status ? esc(STATUS[p.status] || p.status) + (p.status_row ? ' — ' + esc(p.status_row.client || p.status_row.site) : '') + ' <span class="of-note">since ' + esc(tm(p.status_at)) + '</span>' : '<span class="of-note">Not started</span>') + '</td>' +
+          '<td>' + (p.last ? esc(ago(p.last.at)) + ' <a href="https://www.google.com/maps?q=' + p.last.lat + ',' + p.last.lng + '" target="_blank" rel="noopener">map</a>' : '<span class="of-note">—</span>') + '</td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="of-note">Nobody has used the crew app yet. Send your crew the link above, and set who is on which crew below.</div>';
+    drawMap();
+  }
+  function drawMap(){
+    var el = $('ofGpsMap'); if (!el || !G.now) return;
+    var pts = (G.now.people || []).filter(function(p){ return p.last; });
+    if (typeof mapboxgl === 'undefined') { el.innerHTML = '<div class="of-note" style="padding:20px;text-align:center">The map needs an internet connection.</div>'; return; }
+    try {
+      if (!G.map) {
+        mapboxgl.accessToken = window.MAPBOX_TOKEN || mapboxgl.accessToken;
+        G.map = new mapboxgl.Map({ container: el, style: 'mapbox://styles/mapbox/streets-v12', center: [174.32, -35.73], zoom: 9 });
+        G.map.addControl(new mapboxgl.NavigationControl(), 'top-left');
+      }
+      G.marks.forEach(function(m){ m.remove(); }); G.marks = [];
+      var b = new mapboxgl.LngLatBounds();
+      (G.now.sites || []).forEach(function(s){
+        var d = document.createElement('div'); d.title = (s.client || '') + ' — ' + (s.site || '');
+        d.style.cssText = 'width:14px;height:14px;border-radius:3px;background:#fff;border:3px solid #0a1628';
+        G.marks.push(new mapboxgl.Marker(d).setLngLat([s.lng, s.lat]).setPopup(new mapboxgl.Popup({ offset: 10 }).setText((s.client || 'Job') + ' · ' + (s.site || ''))).addTo(G.map));
+      });
+      pts.forEach(function(p){
+        var d = document.createElement('div');
+        d.style.cssText = 'background:' + p.colour + ';color:#fff;font:700 12px system-ui;padding:3px 8px;border-radius:999px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);white-space:nowrap';
+        d.textContent = p.name.split(' ')[0];
+        G.marks.push(new mapboxgl.Marker(d).setLngLat([p.last.lng, p.last.lat]).setPopup(new mapboxgl.Popup({ offset: 14 }).setText(p.name + ' — ' + (STATUS[p.status] || 'seen') + ', ' + ago(p.last.at))).addTo(G.map));
+        b.extend([p.last.lng, p.last.lat]);
+      });
+      if (pts.length) G.map.fitBounds(b, { padding: 60, maxZoom: 15, duration: 0 });
+    } catch (e) { el.innerHTML = '<div class="of-note" style="padding:20px">Map unavailable: ' + esc(e.message) + '</div>'; }
+  }
+  async function loadHours(){
+    var box = $('ofGpsHours'); if (!box) return;
+    var from = G.hrsFrom, to = addD(from, 6), h;
+    try { h = await api('GET', '/crew/office/hours?from=' + from + '&to=' + to); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    G.hours = h;
+    var days = []; for (var i = 0; i < 7; i++) days.push(addD(from, i));
+    var lbl = function(d){ return new Date(d + 'T12:00:00Z').toLocaleDateString('en-NZ', { weekday: 'short', day: 'numeric', timeZone: 'UTC' }); };
+    var people = h.people || [];
+    box.innerHTML = '<div class="of-chips"><button class="of-btn sm" onclick="_ofGpsWeek(-7)">‹</button><b>' + esc(lbl(from)) + ' – ' + esc(lbl(to)) + '</b><button class="of-btn sm" onclick="_ofGpsWeek(7)">›</button>' +
+      '<span class="of-note" style="flex:1">Each day: on site + travel. Hours come from the crew pressing clock on / off; the time between leaving one job and arriving at the next is travel.</span>' +
+      (people.length ? '<button class="of-btn sm" onclick="_ofGpsCsv()">Download CSV</button>' : '') + '</div>' +
+      (people.length ? '<div class="of-scroll"><table class="of-tbl"><thead><tr><th>Person</th>' + days.map(function(d){ return '<th class="r">' + esc(lbl(d)) + '</th>'; }).join('') +
+        '<th class="r">On site</th><th class="r">Travel</th><th class="r">Total</th></tr></thead><tbody>' +
+        people.map(function(p){
+          var on = 0, tr = 0;
+          var cells = days.map(function(d){ var x = (p.days || []).find(function(y){ return y.date === d; }); if (!x) return '<td class="r of-note">—</td>';
+            on += x.onsiteTotal; tr += x.travel;
+            var jobs = Object.keys(x.onsite).map(function(k){ var r = (h.rows || {})[k] || {}; return (r.client || r.site || 'Job') + ' ' + hh(x.onsite[k]); }).join('\n');
+            return '<td class="r" title="' + esc(jobs + '\nTravel ' + hh(x.travel) + '\n' + tm(x.first) + ' – ' + tm(x.last)) + '">' + hh(x.onsiteTotal) + ' + ' + hh(x.travel) + (x.open ? ' <span class="of-pill a">open</span>' : '') + '</td>'; }).join('');
+          return '<tr><td><b>' + esc(p.name) + '</b></td>' + cells + '<td class="r">' + hh(on) + '</td><td class="r">' + hh(tr) + '</td><td class="r"><b>' + hh(on + tr) + '</b></td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="of-note">No hours this week yet.</div>');
+  }
+  window._ofGpsWeek = function(n){ G.hrsFrom = addD(G.hrsFrom, n); loadHours(); };
+  window._ofGpsCsv = function(){
+    var h = G.hours; if (!h) return;
+    var q = function(v){ v = String(v == null ? '' : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var out = [['Person', 'Date', 'Job', 'Site', 'On site (h)', 'Travel (h)', 'Day total (h)', 'Started', 'Finished', 'Left clocked on']];
+    (h.people || []).forEach(function(p){ (p.days || []).forEach(function(x){
+      var ks = Object.keys(x.onsite);
+      if (!ks.length) out.push([p.name, x.date, '', '', 0, x.travel, x.total, tm(x.first), tm(x.last), x.open ? 'yes' : '']);
+      ks.forEach(function(k, i){ var r = (h.rows || {})[k] || {}; out.push([p.name, x.date, r.client || '', r.site || '', x.onsite[k], i ? '' : x.travel, i ? '' : x.total, i ? '' : tm(x.first), i ? '' : tm(x.last), (!i && x.open) ? 'yes' : '']); });
+    }); });
+    var blob = new Blob([out.map(function(r){ return r.map(q).join(','); }).join('\n')], { type: 'text/csv' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Crew hours ' + h.from + ' to ' + h.to + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  };
+  async function loadMembers(){
+    var box = $('ofGpsMembers'); if (!box) return;
+    try { G.members = await api('GET', '/crew/office/members'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    var crews = G.members.crews || [];
+    box.innerHTML = '<div class="of-note" style="margin-bottom:8px">The crews are the schedule board\'s crews. A person\'s jobs in the crew app — and the days their location may be recorded — are the days their crew is booked. Invite someone in Settings → Team first.</div>' +
+      '<div class="of-scroll"><table class="of-tbl"><thead><tr><th>Person</th><th>Email</th><th>Crew</th></tr></thead><tbody>' +
+      (G.members.members || []).map(function(m){
+        return '<tr><td>' + esc(m.crew_name || m.name || '—') + '</td><td>' + esc(m.email) + '</td><td><select data-crew-uid="' + esc(m.id) + '" onchange="_ofCrewSet(\'' + esc(m.id) + '\',this.value)"><option value="">— no crew (office) —</option>' +
+          crews.map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === m.crew_id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  window._ofCrewSet = async function(uid, crew){ try { await api('PUT', '/crew/office/members/' + encodeURIComponent(uid), { crew_id: crew }); toast('Crew saved'); loadNow(); } catch (e) { alert(e.message); } };
+  async function loadLists(){
+    var box = $('ofGpsLists'); if (!box) return;
+    try { G.lists = (await api('GET', '/crew/office/settings')).checklists || []; } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    renderLists();
+  }
+  function renderLists(){
+    var box = $('ofGpsLists'); if (!box) return;
+    var whenSel = function(w, i){ return '<select onchange="_ofListEdit(' + i + ',\'when\',this.value)">' + [['start', 'Before we start'], ['daily', 'Every day'], ['end', 'When we finish']].map(function(o){ return '<option value="' + o[0] + '"' + (o[0] === w ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>'; };
+    box.innerHTML = (G.lists.length ? G.lists.map(function(l, i){
+      return '<div class="of-opt" style="margin-bottom:10px"><div class="of-chips"><input class="of-search" style="max-width:none" data-list-name="' + i + '" value="' + esc(l.name) + '" onchange="_ofListEdit(' + i + ',\'name\',this.value)" placeholder="Checklist name">' +
+        whenSel(l.when, i) + '<button class="of-btn sm" onclick="_ofListDel(' + i + ')">Delete</button></div>' +
+        '<textarea data-list-items="' + i + '" style="width:100%;box-sizing:border-box;min-height:110px;border:1px solid #cbd5e1;border-radius:8px;padding:8px;font:inherit;font-size:13px" placeholder="One item a line" onchange="_ofListEdit(' + i + ',\'items\',this.value)">' + esc((l.items || []).join('\n')) + '</textarea></div>';
+    }).join('') : '<div class="of-note" style="margin-bottom:8px">No checklists yet.</div>') +
+      '<div class="of-chips"><button class="of-btn sm" onclick="_ofListAdd()">+ Add a checklist</button><button class="of-btn pri sm" id="ofListSave" onclick="_ofListSave()">Save checklists</button></div>';
+  }
+  window._ofListEdit = function(i, k, v){ var l = G.lists[i]; if (!l) return; l[k] = (k === 'items') ? String(v).split('\n').map(function(x){ return x.trim(); }).filter(Boolean) : v; };
+  window._ofListAdd = function(){
+    if (!G.lists.length) G.lists.push({ id: 'start', name: 'Before we start', when: 'start', items: ['Scaffold / edge protection checked and tagged', 'Site hazards talked through with the crew', 'Customer told we are starting'] });
+    else G.lists.push({ id: 'l' + Date.now().toString(36), name: 'New checklist', when: 'start', items: [] });
+    renderLists();
+  };
+  window._ofListDel = function(i){ G.lists.splice(i, 1); renderLists(); };
+  window._ofListSave = async function(){
+    try { var r = await api('PUT', '/crew/office/settings', { checklists: G.lists }); G.lists = r.checklists || []; renderLists(); toast('Checklists saved — the crew app picks them up next time it opens'); }
+    catch (e) { alert(e.message); }
+  };
 })();
