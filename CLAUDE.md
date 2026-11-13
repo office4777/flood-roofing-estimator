@@ -2698,6 +2698,32 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   (`fr_crewpack_<job>` per device; `window.__TEST_NO_CREWPACK` stops it, `__CREWPACK_ALL` widens it past
   accepted jobs). The GPS Map tab has jump buttons (Map, Hours, Crew & what they see, Checklists, Crew app
   settings). `crewui` (37), `crewapi` (49).
+  vh IS NOT SCALED BY THAT ZOOM (the owner's next screenshots: "Photo height should be 1/3 the size, and stop letting
+  me scroll down to emptyness"): in Desktop-site mode a 33vh strip came out ~2.4× too tall and `body{min-height:100vh}`
+  ran the page on past its end. `__crewFit` sets `--vh1` / `--vw1` (a hundredth of the real screen after the zoom) and
+  every height uses `calc(var(--vh1,1vh) * n)`; the photo strip is 26 of them (150–300px); body has no min-height.
+  ORDER FLASHING (the same evening, the owner: "add a order flashing menu button in the job ... two options at the
+  start, edit a saved flashing (opens the list of saved flashings from the office app or draw in custom flashing) ...
+  asks for the quantity and length and allow to edit the saved measures ... finish flashing then goes to a summary to
+  either order the flashing or add another flashing, then in office app let office set permissions for who can order
+  flashings directly or not"). The job menu's `#flashRow` → `#/job/<id>/flash` (`renderFlash`: the two tiles, or the
+  summary), `/flash/pick` (`renderFlashPick`, search), `/flash/edit` (`renderFlashEdit`). THE FLASHING IS THE OFFICE'S
+  OWN SHAPE: `polylines[{vertices, measurements, crushFolds}]`, `paintedSide {x,y,dirX,dirY}` — and a measurement's key
+  `i` is the side from vertex i to i + 1, 0-based (`_flashDraw` in app.html); a side with no measurement is a hem or a
+  return and stays unmeasured on a saved flashing (only a hand-drawn one, `custom`, must have every side). Bends = inner
+  points, hems = `crushFolds`, girth = the sum, the office's own counts (`flStats` on the phone, `flashStats` in
+  crew.js). `flSvg` draws it (labels tap to the box, hem rings, the colour-side arrow); the custom drawing taps bends
+  into a 400 × 300 box, snapping to 15°. The order list is `crew_fcart_<row>` on the phone until sent; the draft
+  `crew_fdraft`. SERVER (crew.js): GET /crew/flashings — the business's `savedFlashings`, then the app's shipped
+  presets (`backend/flash-presets.json`, made from `_FLASH_BUILTIN_PRESETS` by `tools/build-flash-presets.mjs`;
+  `crewapi` FAILS when they differ — rerun the tool after changing a preset), then the platform's back-trays; `direct`
+  and the roofing suppliers by NAME only when the person may order. POST /crew/flash-order: `crew_flash_orders` (boot
+  DDL, `by_name` — `by` is an SQL word), the PDF drawn here (`flashOrderPdf`: page 1 the order, then two drawings a
+  page, vectors and Helvetica, nothing uploaded from the phone), emailed as the business (`crewMail` in server.js, the
+  Job Pack order's identity) to the supplier with the office CC'd when `perms.orderFlash`, else to the office
+  (Settings → Branding email) to send on. `orderFlash` is in PERM_DEFAULTS (off) and the GPS Map tab's ticks; the tab
+  has a Flashing orders card (`loadFlash`: PDF, Send to supplier, Done → /crew/office/flash-orders…). `crewapi` (67),
+  `crewui` (50, a saved flashing edited and one drawn by tapping).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with

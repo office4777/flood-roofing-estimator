@@ -573,17 +573,18 @@
     var link = location.origin.replace(/^file:.*$/, 'https://roofmap.co.nz') + '/crew';
     root.innerHTML = '<div class="of-hd"><h2>GPS map &amp; crew</h2><span class="of-note">Crew app: <b>' + esc(link) + '</b></span>' +
       '<button class="of-btn sm" onclick="_ofCopy(\'' + esc(link) + '\')">Copy link</button><button class="of-btn sm" onclick="_ofGpsLoad()">↻ Refresh</button></div>' +
-      '<div class="of-chips" id="ofGpsJump" style="margin:0 0 12px">' + [['ofGpsCardMap', 'Map'], ['ofGpsCardHours', 'Hours'], ['ofGpsCardMembers', 'Crew &amp; what they see'], ['ofGpsCardLists', 'Checklists'], ['ofGpsCardSet', 'Crew app settings']]
+      '<div class="of-chips" id="ofGpsJump" style="margin:0 0 12px">' + [['ofGpsCardMap', 'Map'], ['ofGpsCardHours', 'Hours'], ['ofGpsCardFlash', 'Flashing orders'], ['ofGpsCardMembers', 'Crew &amp; what they see'], ['ofGpsCardLists', 'Checklists'], ['ofGpsCardSet', 'Crew app settings']]
         .map(function(x){ return '<button class="of-btn sm' + (x[0] === 'ofGpsCardLists' ? ' pri' : '') + '" data-jump="' + x[0] + '" onclick="_ofGpsJump(\'' + x[0] + '\')">' + x[1] + '</button>'; }).join('') + '</div>' +
       '<div class="of-card" id="ofGpsCardMap"><h3>Where the crew are today</h3><div class="of-note" style="margin-bottom:8px">Location is only recorded 7 am – 7 pm on days a person\'s crew is booked on the schedule, and only while the crew app is open on their phone.</div>' +
       '<div id="ofGpsMap" style="height:420px;border-radius:10px;overflow:hidden;background:#e2e8f0;margin-bottom:10px"></div><div id="ofGpsPeople"></div></div>' +
       '<div class="of-card" id="ofGpsCardHours"><h3>Hours</h3><div id="ofGpsHours"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card" id="ofGpsCardFlash"><h3>Flashing orders from the crew app</h3><div class="of-note" style="margin-bottom:8px">Flashings drawn up on site. Someone not ticked for “Order flashings straight from the supplier” below sends them here — send each on to the supplier with its drawings.</div><div id="ofGpsFlash"><div class="of-note">Loading…</div></div></div>' +
       '<div class="of-card" id="ofGpsCardMembers"><h3>Who is on which crew, and what they see</h3><div id="ofGpsMembers"><div class="of-note">Loading…</div></div></div>' +
       '<div class="of-card" id="ofGpsCardSet"><h3>Crew app settings</h3><div id="ofGpsSet"><div class="of-note">Loading…</div></div></div>' +
       '<div class="of-card" id="ofGpsCardLists"><h3>Checklists for the crew app</h3><div class="of-note" style="margin-bottom:8px">Every job in the crew app shows these. “Before we start” and “When we finish” are ticked once a job; “Every day” is ticked each day on site.</div><div id="ofGpsLists"><div class="of-note">Loading…</div></div></div>';
     G.map = null; G.marks = [];
     clearInterval(G.timer); G.timer = setInterval(function(){ if ($('ofGpsMap') && document.body.getAttribute('data-tab') === 'gps') loadNow(); else clearInterval(G.timer); }, 60000);
-    await Promise.all([loadNow(), loadHours(), loadMembers(), loadSet(), loadLists()]);
+    await Promise.all([loadNow(), loadHours(), loadFlash(), loadMembers(), loadSet(), loadLists()]);
   }
   window._ofGpsLoad = function(){ loadNow(); loadHours(); };
   window._ofGpsJump = function(id){ var el = $(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
@@ -668,7 +669,40 @@
   // individual user permissions to show what they can see (and remove the
   // quote from the files, i don't need the guys seeing the quoted totals)").
   var PERM_LABELS = [['phone', 'Customer phone'], ['scope', 'Scope of work & choices'], ['files', 'Files'], ['photos', 'View photos'],
-    ['upload', 'Upload photos'], ['hours', 'Allocated vs used hours'], ['allCrews', 'Every crew\'s week'], ['priced', 'Quotes, orders & invoices (prices)']];
+    ['upload', 'Upload photos'], ['hours', 'Allocated vs used hours'], ['allCrews', 'Every crew\'s week'], ['priced', 'Quotes, orders & invoices (prices)'],
+    ['orderFlash', 'Order flashings straight from the supplier']];
+  // ORDER FLASHING: what the crew drew up on site (2026-11-13).
+  async function loadFlash(){
+    var box = $('ofGpsFlash'); if (!box) return;
+    try { G.flash = await api('GET', '/crew/office/flash-orders'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    var os = (G.flash.orders || []).filter(function(o){ return o.status !== 'done'; }), sups = G.flash.suppliers || [];
+    var ST = { office: '<span class="of-pill s">Waiting for the office</span>', sent: '<span class="of-pill b">Sent</span>' };
+    box.innerHTML = os.length ? '<div class="of-scroll"><table class="of-tbl"><thead><tr><th>When</th><th>Job</th><th>By</th><th>Flashings</th><th>Status</th><th></th></tr></thead><tbody>' +
+      os.map(function(o){
+        var lm = (o.items || []).reduce(function(a, x){ return a + (+x.qty || 0) * (+x.lengthM || 0); }, 0);
+        return '<tr data-flo="' + esc(o.id) + '"><td>' + esc(new Date(o.created_at).toLocaleString('en-NZ', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'Pacific/Auckland' })) + '</td>' +
+          '<td>' + esc(o.job ? (o.job.client || o.job.site) : '—') + (o.job && o.job.site ? '<div class="of-note">' + esc(o.job.site) + '</div>' : '') + '</td><td>' + esc(o.by || '—') + '</td>' +
+          '<td>' + (o.items || []).map(function(x){ return esc(x.qty + ' × ' + (+x.lengthM).toFixed(2) + ' m ' + x.name + (x.colour ? ' (' + x.colour + ')' : '')); }).join('<br>') + '<div class="of-note">' + lm.toFixed(2) + ' lineal m' + (o.note ? ' · ' + esc(o.note) : '') + '</div></td>' +
+          '<td>' + (ST[o.status] || esc(o.status)) + (o.status === 'sent' && o.supplier_name ? '<div class="of-note">' + esc(o.supplier_name) + (o.sent_at ? ' · ' + esc(tm(o.sent_at)) : '') + '</div>' : '') + '</td>' +
+          '<td style="white-space:nowrap"><button class="of-btn sm" onclick="_ofFlashPdf(\'' + esc(o.id) + '\')">PDF</button> ' +
+          (o.status === 'office' ? (sups.length ? '<select data-flsup="' + esc(o.id) + '">' + sups.map(function(s, i){ return '<option value="' + i + '">' + esc(s.name) + '</option>'; }).join('') + '</select> <button class="of-btn sm pri" onclick="_ofFlashSend(\'' + esc(o.id) + '\')">Send to supplier</button> ' : '<span class="of-note">Add a roofing supplier with an email in Settings → Suppliers &amp; trades.</span> ') : '') +
+          '<button class="of-btn sm" onclick="_ofFlashDone(\'' + esc(o.id) + '\')">Done</button></td></tr>';
+      }).join('') + '</tbody></table></div>'
+      : '<div class="of-note">No flashing orders yet. In the crew app, a job’s menu has Order flashing.</div>';
+  }
+  window._ofFlashSend = async function(id){
+    var sel = document.querySelector('[data-flsup="' + id + '"]'), s = (G.flash.suppliers || [])[sel ? +sel.value : 0]; if (!s) return;
+    if (!confirm('Email this flashing order to ' + s.name + ' (' + s.email + ')?')) return;
+    try { await api('POST', '/crew/office/flash-orders/' + encodeURIComponent(id) + '/send', { email: s.email, name: s.name }); toast('Sent to ' + s.name); loadFlash(); }
+    catch (e) { alert(e.message); }
+  };
+  window._ofFlashDone = async function(id){ try { await api('POST', '/crew/office/flash-orders/' + encodeURIComponent(id) + '/done', {}); loadFlash(); } catch (e) { alert(e.message); } };
+  window._ofFlashPdf = async function(id){
+    try { var r = await api('GET', '/crew/office/flash-orders/' + encodeURIComponent(id) + '/pdf');
+      var bin = atob(r.base64), u = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      var url = URL.createObjectURL(new Blob([u], { type: 'application/pdf' })); window.open(url, '_blank'); setTimeout(function(){ URL.revokeObjectURL(url); }, 60000); }
+    catch (e) { alert(e.message); }
+  };
   async function loadMembers(){
     var box = $('ofGpsMembers'); if (!box) return;
     try { G.members = await api('GET', '/crew/office/members'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }

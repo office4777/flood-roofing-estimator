@@ -15500,6 +15500,7 @@ const _MIGRATION_SQL = [
   "create index if not exists crew_sites_row_idx on public.crew_sites (company_id, row_id)",
   "alter table public.crew_sites enable row level security",
   "create table if not exists public.crew_settings (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, data jsonb, updated_at timestamptz not null default now())",
+  "create table if not exists public.crew_flash_orders (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, row_id text, job_id text, items jsonb, note text, by_name text, status text, supplier_name text, supplier_email text, sent_at timestamptz, created_at timestamptz not null default now())",
   "create index if not exists crew_settings_co_idx on public.crew_settings (company_id)",
   "alter table public.crew_settings enable row level security",
   "create table if not exists public.job_file_layouts (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, job_id uuid, layout jsonb, updated_at timestamptz not null default now())",
@@ -16214,7 +16215,29 @@ const CREW = (function(){
     return require('./crew').mount(app, { supabase, requireAuth, scopeCompany: _scopeCompany, recordError, rateLimit,
       schedCfg: _schedCfg, schedNonWork: _schedNonWork, schedBlockDates: _schedBlockDates, schedISO: _schedISO,
       schedShift: _schedShift, quoteChoiceLines: _quoteChoiceLines, noPrice: _selLinesNoPrice,
-      fileUrl: (path, secs) => _jfStorage().signedUrl(path, secs || 3600) });
+      fileUrl: (path, secs) => _jfStorage().signedUrl(path, secs || 3600),
+      // Order flashing: the business's saved flashings and roofing suppliers,
+      // and the office's own address (Settings → Branding) for an order a crew
+      // member may not send straight to the supplier.
+      flashLib: async (cid) => {
+        const row = await _companySettingsRowById(cid);
+        const cat = (row && row.price_book && row.price_book.__materials_catalog) || {};
+        const br = (row && row.branding) || {};
+        return { saved: Array.isArray(cat.savedFlashings) ? cat.savedFlashings : [],
+          suppliers: (Array.isArray(cat.suppliers) ? cat.suppliers : []).map(s => s && Object.assign({}, s, { category: s.category || 'roofing' })),
+          officeEmail: br.email || '', company: br.company_name || (await _companyNameOf(cid)) || '' };
+      },
+      // Sent as the business, the way a supplier order from the Job Pack is:
+      // the company's name, replies to the office, the master copy CC'd.
+      crewMail: async (req, m) => {
+        const id = await _mailIdentityOf(req.companyId, req.user && req.user.id);
+        const stRow = _mailIdentityRow(id);
+        const who = _tenantMailIdentity(stRow, 'order');
+        const cc = m.toOffice ? undefined : _emailCopies(stRow, m.officeEmail || '', _emailList(m.to));
+        return _dispatchMail({ to: m.to, cc, subject: m.subject, text: m.text, html: m.html, attachments: m.attachments,
+          fromName: who.fromName, replyTo: who.replyTo,
+          fromAddress: _tenantSendAddress(req.companyId, who.fromName, who.replyTo, _tenantSenderLocal(id.em, who.fromName)) });
+      } });
   } catch (e) {
     recordError('crew-boot', e, { route: 'boot' });
     console.warn('[crew] not mounted: ' + e.message);

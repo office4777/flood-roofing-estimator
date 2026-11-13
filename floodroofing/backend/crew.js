@@ -32,7 +32,10 @@ const EV_KINDS = ['on', 'off', 'travel', 'break', 'end', 'check', 'note', 'day']
 // permissions to show what they can see (and remove the quote from the files,
 // i don't need the guys seeing the quoted totals)"). Set per person in the
 // office's GPS Map tab; anything not set takes these.
-const PERM_DEFAULTS = { phone: true, scope: true, files: true, photos: true, upload: true, allCrews: true, hours: true, priced: false };
+// orderFlash (2026-11-13, the owner: "let office set permissions for who can
+// order flashings directly or not"): off, a crew member's flashing order goes
+// to the office to send on; on, it goes straight to the roofing supplier.
+const PERM_DEFAULTS = { phone: true, scope: true, files: true, photos: true, upload: true, allCrews: true, hours: true, priced: false, orderFlash: false };
 function permsOf(m){
   const p = (m && m.perms && typeof m.perms === 'object') ? m.perms : {};
   const o = {}; Object.keys(PERM_DEFAULTS).forEach(k => { o[k] = (k in p) ? !!p[k] : PERM_DEFAULTS[k]; }); return o;
@@ -618,7 +621,308 @@ function mount(app, deps){
     } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
   });
 
+  // ── ORDER FLASHING (2026-11-13, the owner: "add a order flashing menu button
+  // in the job ... edit a saved flashing (opens the list of saved flashings
+  // from the office app or draw in custom flashing) ... asks for the quantity
+  // and length and allow to edit the saved measures ... finish flashing then
+  // goes to a summary to either order the flashing or add another flashing").
+  // The library is the business's own saved flashings, then the app's shipped
+  // presets, then the platform's back-trays. The order is drawn as a PDF here
+  // (lines and Helvetica, nothing to upload from a phone on a roof).
+  const flashLib = deps.flashLib || (async () => ({ saved: [], suppliers: [], officeEmail: '', company: '' }));
+  const crewMail = deps.crewMail || null;
+  async function libraryOf(req){
+    const lib = await flashLib(req.companyId);
+    const out = [], seen = {};
+    const low = (n) => String(n || '').trim().toLowerCase();
+    const add = (e, src) => {
+      const f = cleanFlash(e); if (!f || !f.polylines.length) return;
+      const k = low(f.name) + '|' + low(f.profile);
+      if (seen[k] || (src !== 'saved' && seen[low(f.name) + '|*'])) return;
+      seen[k] = 1; if (src === 'saved') seen[low(f.name) + '|*'] = 1;
+      out.push(Object.assign(f, { id: src + ':' + out.length, src }));
+    };
+    (lib.saved || []).forEach(e => add(e, 'saved'));
+    FLASH_PRESETS.forEach(e => add(e, 'builtin'));
+    try {
+      const r = await supabase.from('platform_state').select('value').eq('key', 'builtin_flashings').maybeSingle();
+      const v = r && r.data && r.data.value; ((v && v.items) || []).forEach(e => add(e, 'builtin'));
+    } catch (e) {}
+    const suppliers = (lib.suppliers || []).filter(s => s && s.email && /@/.test(String(s.email)) && ['roofing', '', undefined, null].includes(s.category))
+      .map((s, i) => ({ i, name: clean(s.name, 80) || clean(s.email, 120), email: clean(s.email, 160) }));
+    return { items: out, suppliers, officeEmail: clean(lib.officeEmail, 160), company: clean(lib.company, 120) };
+  }
+  app.get('/crew/flashings', ...G, async (req, res) => {
+    try {
+      const perms = permsOf(await memberOf(req));
+      const lib = await libraryOf(req);
+      res.json({ ok: true, items: lib.items, direct: perms.orderFlash,
+        suppliers: perms.orderFlash ? lib.suppliers.map(s => ({ i: s.i, name: s.name })) : [], office: !!lib.officeEmail });
+    } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+  async function rowInfo(req, rowId){
+    const r = rows(await scopeCompany(supabase.from('schedule_rows').select('id, job_id, client_name, site_address, job_ref'), req).eq('id', rowId).limit(1))[0];
+    return r || null;
+  }
+  async function personName(req){
+    const m = await memberOf(req);
+    let p = null; try { p = (await supabase.from('profiles').select('name, email').eq('id', req.user.id).maybeSingle()).data; } catch (e) {}
+    return clean((m && m.name) || (p && p.name) || (p && p.email) || req.user.email || 'The crew', 80);
+  }
+  async function sendOrder(req, order, job, to, toName, lib){
+    if (!crewMail) throw new Error('Email is not set up on this server.');
+    const pdf = flashOrderPdf(order, job, lib.company);
+    const where = [job.client_name, job.site_address].filter(Boolean).join(', ');
+    const items = order.items || [];
+    const lm = items.reduce((a, x) => a + x.qty * x.lengthM, 0);
+    const lines = items.map((x, i) => (i + 1) + '. ' + x.name + (x.profile ? ' (' + x.profile + ')' : '') + ' — ' + x.qty + ' × ' + fmtM(x.lengthM) +
+      ', girth ' + Math.round(x.girthMm) + ' mm, ' + x.folds + ' bends' + (x.hems ? ', ' + x.hems + ' hems' : '') + (x.colour ? ', ' + x.colour : ''));
+    const toOffice = order.status !== 'sent';
+    const subject = (toOffice ? 'Flashing order to send on — ' : 'Flashing order — ') + (where || 'job') + (job.job_ref ? ' (Job ' + job.job_ref + ')' : '');
+    const head = toOffice
+      ? order.by + ' has drawn up a flashing order on the crew app. It has NOT gone to a supplier — send it on from RoofMap (GPS Map → Flashing orders), or forward this email.'
+      : 'Hi ' + (toName || 'there') + ',\n\nPlease supply the flashings below. The drawings, with every measurement and the colour side, are in the attached PDF.';
+    const text = head + '\n\nJob: ' + (where || '—') + (job.job_ref ? '\nJob number: ' + job.job_ref : '') + '\nDeliver to: ' + (job.site_address || '—') +
+      '\nOrdered by: ' + order.by + '\n\n' + lines.join('\n') + '\n\nTotal: ' + items.reduce((a, x) => a + x.qty, 0) + ' lengths, ' + fmtM(lm) + ' lineal' +
+      (order.note ? '\n\nNote: ' + order.note : '') + '\n\n' + (lib.company || '');
+    const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const html = '<div style="font-family:Arial,sans-serif;font-size:14px;color:#0f172a"><p>' + esc(head).replace(/\n/g, '<br>') + '</p>' +
+      '<p><b>Job:</b> ' + esc(where || '—') + (job.job_ref ? '<br><b>Job number:</b> ' + esc(job.job_ref) : '') + '<br><b>Deliver to:</b> ' + esc(job.site_address || '—') +
+      '<br><b>Ordered by:</b> ' + esc(order.by) + '</p><table cellpadding="6" style="border-collapse:collapse;font-size:13px"><tr style="background:#0a1628;color:#fff">' +
+      '<th align="left">#</th><th align="left">Flashing</th><th align="left">Colour</th><th align="right">Girth</th><th align="right">Bends</th><th align="right">Qty</th><th align="right">Length</th></tr>' +
+      items.map((x, i) => '<tr style="border-bottom:1px solid #dde4ee"><td>' + (i + 1) + '</td><td>' + esc(x.name) + (x.profile ? ' <span style="color:#5b6b80">(' + esc(x.profile) + ')</span>' : '') +
+        '</td><td>' + esc(x.colour || '—') + '</td><td align="right">' + Math.round(x.girthMm) + ' mm</td><td align="right">' + x.folds + (x.hems ? ' + ' + x.hems + ' hem' + (x.hems > 1 ? 's' : '') : '') + '</td><td align="right">' + x.qty + '</td><td align="right">' + fmtM(x.lengthM) + '</td></tr>').join('') +
+      '</table>' + (order.note ? '<p><b>Note:</b> ' + esc(order.note).replace(/\n/g, '<br>') + '</p>' : '') + '<p>' + esc(lib.company || '') + '</p></div>';
+    const fname = 'Flashing order - ' + (job.job_ref || job.client_name || 'job') + '.pdf';
+    return crewMail(req, { to, subject, text, html, toOffice, officeEmail: lib.officeEmail,
+      attachments: [{ filename: fname, base64: pdf.toString('base64') }] });
+  }
+  app.post('/crew/flash-order', ...G, rateLimit(20, 60000), async (req, res) => {
+    try {
+      const b = req.body || {};
+      const job = await rowInfo(req, clean(b.row_id, 60));
+      if (!job) return res.status(404).json({ error: 'That job is not on the schedule.' });
+      const items = (Array.isArray(b.items) ? b.items : []).slice(0, 30).map(orderItem).filter(Boolean);
+      if (!items.length) return res.status(400).json({ error: 'Add a flashing first.' });
+      const perms = permsOf(await memberOf(req));
+      const lib = await libraryOf(req);
+      const by = await personName(req);
+      let supplier = null;
+      if (perms.orderFlash && b.direct !== false) supplier = lib.suppliers.find(s => s.i === parseInt(b.supplier, 10)) || (lib.suppliers.length === 1 ? lib.suppliers[0] : null);
+      const order = { id: crypto.randomUUID(), company_id: req.companyId, user_id: req.user.id, row_id: job.id, job_id: job.job_id || '',
+        items, note: clean(b.note, 1000), by, status: supplier ? 'sent' : 'office', supplier_name: supplier ? supplier.name : '',
+        supplier_email: supplier ? supplier.email : '', sent_at: null, created_at: new Date().toISOString() };
+      const dbRow = Object.assign({}, order, { by_name: order.by }); delete dbRow.by;
+      const { error } = await supabase.from('crew_flash_orders').insert(dbRow);
+      if (error) throw new Error(error.message);
+      let mailed = false, mailErr = '';
+      try {
+        const to = supplier ? supplier.email : lib.officeEmail;
+        if (to) { await sendOrder(req, order, job, to, supplier && supplier.name, lib); mailed = true; }
+        else mailErr = 'The office has no email address in Settings → Branding.';
+      } catch (e) { mailErr = e.message; recordError('crew', e, { route: 'POST /crew/flash-order' }); }
+      const now = new Date().toISOString();
+      if (supplier && mailed) await supabase.from('crew_flash_orders').update({ sent_at: now }).eq('id', order.id).eq('company_id', req.companyId);
+      if (supplier && !mailed) await supabase.from('crew_flash_orders').update({ status: 'office' }).eq('id', order.id).eq('company_id', req.companyId);
+      res.json({ ok: true, id: order.id, status: supplier && mailed ? 'sent' : 'office', supplier: supplier && mailed ? supplier.name : '', mailed, mailErr });
+    } catch (e) { recordError('crew', e, { route: 'POST /crew/flash-order' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+  app.get('/crew/office/flash-orders', ...O, async (req, res) => {
+    try {
+      const os = rows(await scopeCompany(supabase.from('crew_flash_orders').select('*'), req).order('created_at', { ascending: false }).limit(60));
+      const names = await rowNames(req);
+      const lib = await libraryOf(req);
+      res.json({ ok: true, suppliers: lib.suppliers, orders: os.map(o => Object.assign({ id: o.id, row_id: o.row_id, by: o.by_name || '', status: o.status, note: o.note,
+        supplier_name: o.supplier_name, sent_at: o.sent_at, created_at: o.created_at, items: o.items || [] }, { job: names[o.row_id] || null })) });
+    } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+  app.get('/crew/office/flash-orders/:id/pdf', ...O, async (req, res) => {
+    try {
+      const o = rows(await scopeCompany(supabase.from('crew_flash_orders').select('*'), req).eq('id', req.params.id).limit(1))[0];
+      if (!o) return res.status(404).json({ error: 'Not found.' });
+      const job = (await rowInfo(req, o.row_id)) || {};
+      const lib = await libraryOf(req);
+      res.json({ ok: true, filename: 'Flashing order - ' + (job.job_ref || job.client_name || 'job') + '.pdf', base64: flashOrderPdf(Object.assign({ by: o.by_name || '' }, o), job, lib.company).toString('base64') });
+    } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+  app.post('/crew/office/flash-orders/:id/send', ...O, async (req, res) => {
+    try {
+      const o = rows(await scopeCompany(supabase.from('crew_flash_orders').select('*'), req).eq('id', req.params.id).limit(1))[0];
+      if (!o) return res.status(404).json({ error: 'Not found.' });
+      const b = req.body || {}; const email = clean(b.email, 160), name = clean(b.name, 80);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'Pick a supplier with an email address.' });
+      const job = (await rowInfo(req, o.row_id)) || {};
+      const lib = await libraryOf(req);
+      const order = Object.assign({}, o, { status: 'sent', by: o.by_name || '' });
+      await sendOrder(req, order, job, email, name, lib);
+      const now = new Date().toISOString();
+      await supabase.from('crew_flash_orders').update({ status: 'sent', supplier_name: name || email, supplier_email: email, sent_at: now }).eq('id', o.id).eq('company_id', req.companyId);
+      res.json({ ok: true, sent_at: now });
+    } catch (e) { recordError('crew', e, { route: 'POST /crew/office/flash-orders/:id/send' }); res.status(502).json({ error: e.message }); }
+  });
+  app.post('/crew/office/flash-orders/:id/done', ...O, async (req, res) => {
+    try {
+      const { error } = await supabase.from('crew_flash_orders').update({ status: 'done' }).eq('id', req.params.id).eq('company_id', req.companyId);
+      if (error) throw new Error(error.message);
+      res.json({ ok: true });
+    } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+
   return { computeDays, enabledFor: companyOn, inWindow, nzParts, distM };
 }
 
-module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M, permsOf, isPriced, nzMs };
+// ── the flashing data: the office's own shape, cleaned ─────────────
+let FLASH_PRESETS = [];
+try { FLASH_PRESETS = require('./flash-presets.json'); } catch (e) { FLASH_PRESETS = []; }
+function fnum(v){ const n = Number(v); return Number.isFinite(n) ? n : null; }
+function cleanPoly(p){
+  if (!p || !Array.isArray(p.vertices)) return null;
+  const vs = p.vertices.slice(0, 80).map(v => Array.isArray(v) ? [fnum(v[0]), fnum(v[1])] : null).filter(v => v && v[0] != null && v[1] != null);
+  if (vs.length < 2) return null;
+  const meas = {};
+  const m = (p.measurements && typeof p.measurements === 'object') ? p.measurements : {};
+  // key i is the side from vertex i to i + 1 (the office's own numbering)
+  Object.keys(m).forEach(k => { const i = parseInt(k, 10), n = fnum(m[k]); if (i >= 0 && i < vs.length - 1 && n != null && n > 0 && n < 100000) meas[i] = Math.round(n * 10) / 10; });
+  const cf = {};
+  if (p.crushFolds && typeof p.crushFolds === 'object') Object.keys(p.crushFolds).forEach(k => { const v = p.crushFolds[k]; if (!v) return;
+    cf[parseInt(k, 10) || 0] = (typeof v === 'object' && fnum(v.dirX) != null) ? { dirX: fnum(v.dirX), dirY: fnum(v.dirY) || 0 } : true; });
+  const o = { vertices: vs, measurements: meas };
+  if (Object.keys(cf).length) o.crushFolds = cf;
+  if (p.kind === 'squiggle') o.kind = 'squiggle';
+  return o;
+}
+function cleanFlash(e){
+  if (!e || typeof e !== 'object') return null;
+  const polylines = (Array.isArray(e.polylines) ? e.polylines : []).slice(0, 8).map(cleanPoly).filter(Boolean);
+  const ps = e.paintedSide && typeof e.paintedSide === 'object' && fnum(e.paintedSide.x) != null
+    ? { x: fnum(e.paintedSide.x), y: fnum(e.paintedSide.y) || 0, dirX: fnum(e.paintedSide.dirX) || 0, dirY: fnum(e.paintedSide.dirY) || 0 } : null;
+  return { name: clean(e.name, 80) || 'Flashing', profile: clean(e.profile, 40), flashingType: clean(e.flashingType, 40), polylines, paintedSide: ps };
+}
+function flashStats(f){
+  // bends (a corner at every inner point) and hems (a crush fold) — the office's own two counts
+  let girth = 0, folds = 0, hems = 0;
+  f.polylines.forEach(p => { if (p.kind === 'squiggle') return; Object.keys(p.measurements).forEach(k => { girth += +p.measurements[k] || 0; });
+    if (p.vertices.length >= 3) folds += p.vertices.length - 2;
+    if (p.crushFolds) hems += Object.keys(p.crushFolds).length; });
+  return { girth: Math.round(girth * 10) / 10, folds, hems };
+}
+function orderItem(x){
+  const f = cleanFlash(x); if (!f || !f.polylines.length) return null;
+  const st = flashStats(f);
+  if (!(st.girth > 0)) return null;
+  const qty = Math.max(1, Math.min(500, parseInt(x.qty, 10) || 1));
+  const len = Math.max(0.1, Math.min(12, Math.round((parseFloat(x.lengthM) || 0) * 100) / 100));
+  return Object.assign(f, { colour: clean(x.colour, 60), qty, lengthM: len, girthMm: st.girth, folds: st.folds, hems: st.hems });
+}
+function fmtM(m){ return (Math.round((+m || 0) * 100) / 100).toFixed(2) + ' m'; }
+
+// ── the PDF: page 1 the order, then two flashings a page, drawn ─────
+function pdfText(t){ return String(t == null ? '' : t).replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-')
+  .replace(/×/g, 'x').replace(/[^\x20-\x7e -ÿ]/g, '').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)'); }
+function flashOrderPdf(order, job, company){
+  const W = 595, H = 842, M = 40;
+  const pages = [];
+  const items = order.items || [];
+  let ops = [];
+  const T = (x, y, s, t, bold, rgb) => ops.push((rgb || '0.06 0.09 0.16') + ' rg BT /' + (bold ? 'F2' : 'F1') + ' ' + s + ' Tf ' + x.toFixed(1) + ' ' + y.toFixed(1) + ' Td (' + pdfText(t) + ') Tj ET');
+  const tw = (t, s) => String(t).length * s * 0.5;
+  // page 1
+  ops.push('0.039 0.086 0.157 rg 0 ' + (H - 70) + ' ' + W + ' 70 re f');
+  T(M, H - 42, 20, 'Flashing order', true, '1 1 1');
+  if (company) T(W - M - tw(company, 11), H - 40, 11, company, false, '0.73 0.84 0.92');
+  let y = H - 100;
+  const kv = (k, v) => { T(M, y, 11, k, true); T(M + 110, y, 11, v || '-'); y -= 17; };
+  kv('Customer', job.client_name); kv('Site / deliver to', job.site_address); if (job.job_ref) kv('Job number', job.job_ref);
+  kv('Ordered by', order.by); kv('Date', new Date(order.created_at || Date.now()).toLocaleDateString('en-NZ', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Pacific/Auckland' }));
+  if (order.supplier_name && order.status === 'sent') kv('Supplier', order.supplier_name);
+  y -= 10;
+  const cols = [M, M + 22, M + 212, M + 312, M + 372, M + 436, M + 474];
+  ops.push('0.039 0.086 0.157 rg ' + M + ' ' + (y - 6) + ' ' + (W - 2 * M) + ' 20 re f');
+  ['#', 'Flashing', 'Colour', 'Girth', 'Bends', 'Qty', 'Length'].forEach((h, i) => T(cols[i] + 4, y, 10, h, true, '1 1 1'));
+  y -= 24;
+  items.forEach((x, i) => {
+    if (y < 80) { pages.push(ops); ops = []; y = H - 60; }
+    T(cols[0] + 4, y, 10, String(i + 1)); T(cols[1] + 4, y, 10, (x.name + (x.profile ? ' (' + x.profile + ')' : '')).slice(0, 40));
+    T(cols[2] + 4, y, 10, (x.colour || '-').slice(0, 18)); T(cols[3] + 4, y, 10, Math.round(x.girthMm) + ' mm'); T(cols[4] + 4, y, 10, String(x.folds) + (x.hems ? ' + ' + x.hems + 'h' : ''));
+    T(cols[5] + 4, y, 10, String(x.qty)); T(cols[6] + 4, y, 10, fmtM(x.lengthM));
+    ops.push('0.87 0.89 0.93 RG 0.6 w ' + M + ' ' + (y - 6) + ' m ' + (W - M) + ' ' + (y - 6) + ' l S');
+    y -= 20;
+  });
+  const lm = items.reduce((a, x) => a + x.qty * x.lengthM, 0);
+  y -= 6; T(M, y, 11, 'Total: ' + items.reduce((a, x) => a + x.qty, 0) + ' lengths, ' + fmtM(lm) + ' lineal', true); y -= 22;
+  if (order.note) { T(M, y, 11, 'Note', true); y -= 16;
+    String(order.note).split(/\n/).forEach(ln => { for (let i = 0; i < ln.length || i === 0; i += 95) { if (y < 50) break; T(M, y, 10, ln.slice(i, i + 95)); y -= 14; } }); }
+  pages.push(ops);
+  // the drawings, two a page
+  for (let i = 0; i < items.length; i += 2) {
+    ops = [];
+    [items[i], items[i + 1]].forEach((x, k) => { if (x) drawFlash(ops, T, x, i + k + 1, M, k === 0 ? H / 2 + 6 : 30, W - 2 * M, H / 2 - 46); });
+    pages.push(ops);
+  }
+  // serialise
+  const objs = [];
+  const pageIds = pages.map((_, i) => 5 + i * 2);
+  objs[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objs[2] = '<< /Type /Pages /Kids [' + pageIds.map(id => id + ' 0 R').join(' ') + '] /Count ' + pages.length + ' >>';
+  objs[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+  objs[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
+  pages.forEach((pl, i) => {
+    const id = pageIds[i];
+    objs[id] = '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ' + (id + 1) + ' 0 R >>';
+    const body = pl.join('\n');
+    objs[id + 1] = '<< /Length ' + Buffer.byteLength(body, 'latin1') + ' >>\nstream\n' + body + '\nendstream';
+  });
+  const chunks = []; let len = 0; const offs = [];
+  const push = (s) => { const b = Buffer.from(s, 'latin1'); chunks.push(b); len += b.length; };
+  push('%PDF-1.4\n');
+  for (let i = 1; i < objs.length; i++) { if (!objs[i]) continue; offs[i] = len; push(i + ' 0 obj\n' + objs[i] + '\nendobj\n'); }
+  const xref = len;
+  let table = 'xref\n0 ' + objs.length + '\n0000000000 65535 f \n';
+  for (let i = 1; i < objs.length; i++) table += String(offs[i] || 0).padStart(10, '0') + ' 00000 n \n';
+  push(table); push('trailer\n<< /Size ' + objs.length + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+  return Buffer.concat(chunks);
+}
+// One flashing in a box: its lines scaled to fit, each length at its middle,
+// a fold a dot, the colour side an arrow; the facts under it.
+function drawFlash(ops, T, x, n, bx, by, bw, bh){
+  ops.push('0.87 0.89 0.93 RG 1 w ' + bx + ' ' + by + ' ' + bw + ' ' + bh + ' re S');
+  ops.push('0.039 0.086 0.157 rg ' + bx + ' ' + (by + bh - 26) + ' ' + bw + ' 26 re f');
+  T(bx + 10, by + bh - 18, 12, n + '. ' + x.name + (x.profile ? ' (' + x.profile + ')' : ''), true, '1 1 1');
+  T(bx + 10, by + 10, 11, 'Qty ' + x.qty + ' x ' + fmtM(x.lengthM) + '   Girth ' + Math.round(x.girthMm) + ' mm   Bends ' + x.folds + (x.hems ? '   Hems ' + x.hems : '') + (x.colour ? '   Colour: ' + x.colour : ''), true);
+  const all = []; x.polylines.forEach(p => p.vertices.forEach(v => all.push(v)));
+  if (x.paintedSide) all.push([x.paintedSide.x, x.paintedSide.y]);
+  if (!all.length) return;
+  const minX = Math.min(...all.map(v => v[0])), maxX = Math.max(...all.map(v => v[0]));
+  const minY = Math.min(...all.map(v => v[1])), maxY = Math.max(...all.map(v => v[1]));
+  const ax = bx + 30, ay = by + 40, aw = bw - 60, ah = bh - 26 - 40 - 30;
+  const s = Math.min(aw / Math.max(1, maxX - minX), ah / Math.max(1, maxY - minY));
+  const ox = ax + (aw - (maxX - minX) * s) / 2, oy = ay + (ah - (maxY - minY) * s) / 2;
+  const P = (v) => [ox + (v[0] - minX) * s, oy + (maxY - v[1]) * s];   // y flipped
+  x.polylines.forEach(p => {
+    const pts = p.vertices.map(P);
+    ops.push((p.kind === 'squiggle' ? '0.5 0.5 0.5 RG 1 w ' : '0.06 0.09 0.16 RG 2.2 w 1 J 1 j ') + pts.map((q, i) => q[0].toFixed(1) + ' ' + q[1].toFixed(1) + (i ? ' l' : ' m')).join(' ') + ' S');
+    if (p.kind === 'squiggle') return;
+    pts.forEach((q, i) => { if (i && i < pts.length - 1) ops.push('0.06 0.09 0.16 rg ' + (q[0] - 2).toFixed(1) + ' ' + (q[1] - 2).toFixed(1) + ' 4 4 re f'); });
+    Object.keys(p.crushFolds || {}).forEach(k => { const q = pts[+k]; if (q) ops.push('0 0.47 0.7 RG 1.2 w ' + (q[0] - 4).toFixed(1) + ' ' + (q[1] - 4).toFixed(1) + ' 8 8 re S'); });
+    for (let i = 0; i < pts.length - 1; i++) {
+      const mm = p.measurements[i]; if (mm == null) continue;
+      const a = pts[i], b = pts[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      let nx = -(b[1] - a[1]), ny = b[0] - a[0]; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+      const lab = String(Math.round(mm * 10) / 10), w = tw(lab, 10);
+      const lx = mx + nx * 12 - w / 2, ly = my + ny * 12 - 3.5;
+      ops.push('1 1 1 rg ' + (lx - 2).toFixed(1) + ' ' + (ly - 3).toFixed(1) + ' ' + (w + 4).toFixed(1) + ' 13 re f');
+      T(lx, ly, 10, lab, true, '0 0.47 0.7');
+    }
+  });
+  if (x.paintedSide) {
+    const q = P([x.paintedSide.x, x.paintedSide.y]); const dx = x.paintedSide.dirX, dy = -x.paintedSide.dirY;
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, tx = q[0] + ux * 22, ty = q[1] + uy * 22;
+    ops.push('0.86 0.15 0.15 RG 1.6 w ' + q[0].toFixed(1) + ' ' + q[1].toFixed(1) + ' m ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ' l S');
+    ops.push('0.86 0.15 0.15 rg ' + tx.toFixed(1) + ' ' + ty.toFixed(1) + ' m ' + (tx - ux * 7 - uy * 4).toFixed(1) + ' ' + (ty - uy * 7 + ux * 4).toFixed(1) + ' l ' +
+      (tx - ux * 7 + uy * 4).toFixed(1) + ' ' + (ty - uy * 7 - ux * 4).toFixed(1) + ' l f');
+    T(tx + ux * 4 + 2, ty + uy * 4, 9, 'Colour side', true, '0.86 0.15 0.15');
+  }
+}
+function tw(t, s){ return String(t).length * s * 0.5; }
+
+module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M, permsOf, isPriced, nzMs, cleanFlash, orderItem, flashOrderPdf, FLASH_PRESETS };

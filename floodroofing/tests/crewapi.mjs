@@ -39,13 +39,26 @@ function nzAt(date, h, m){
 const quote = { ref: '3351', phone: '021 555 0101', client: { email: 'arran@example.nz' },
   proposalOptions: { steelGrade: 'maxam', profile: 'corrugate', colour: 'Ironsand' },
   custDesc: ['Strip the old roof and take it away', 'Supply & install new MAXAM corrugate'], custExcl: ['Spouting'], custNotes: ['Dog on site'] };
+// A Resend that records every email (the flashing orders go through it).
+import http from 'node:http';
+const mails = [];
+const rsrv = http.createServer((req, res) => { let b = ''; req.on('data', c => b += c); req.on('end', () => {
+  if (req.method === 'POST' && /\/emails/.test(req.url)) { try { mails.push(JSON.parse(b)); } catch (e) {} res.writeHead(200, { 'content-type': 'application/json' }); return res.end('{"id":"re_1"}'); }
+  res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"data":[]}'); }); });
+await new Promise(r => rsrv.listen(0, '127.0.0.1', r));
+const MY_BARGE = { name: 'My Barge', profile: 'Corrugate', flashingType: 'barge|side',
+  polylines: [{ vertices: [[0, 0], [0, 100], [200, 100], [200, 80]], measurements: { 0: 100, 1: 200, 2: 20 } }],
+  paintedSide: { x: 100, y: 100, dirX: 0, dirY: -1 } };
 const { db, port } = await startFakePostgrest({
   companies: [ { id: 'c1', name: 'Flood Roofing Ltd', plan: 'business' }, { id: 'c2', name: 'Rival Roofing', plan: 'business' } ],
   profiles: [ { id: 'u1', company_id: 'c1', email: 'Aron@floodroofing.co.nz', name: 'Aron' }, { id: 'u3', company_id: 'c1', email: 'nick@floodroofing.co.nz', name: 'Nick Example' },
     { id: 'u2', company_id: 'c2', email: 'office@rival.nz', name: 'Rival' } ],
   company_users: [ { company_id: 'c1', user_id: 'u1', role: 'owner' }, { company_id: 'c1', user_id: 'u3', role: 'member' }, { company_id: 'c2', user_id: 'u2', role: 'owner' } ],
   user_settings: [ { user_id: 'u1', company_id: 'c1', updated_at: '2026-11-01T00:00:00Z', schedule_cfg: { feed_secret: 'x',
-    crews: [ { id: 'crew1', name: 'Crew 1', colour: '#f87d20' }, { id: 'crew2', name: 'Crew 2', colour: '#22c55e' } ] } } ],
+    crews: [ { id: 'crew1', name: 'Crew 1', colour: '#f87d20' }, { id: 'crew2', name: 'Crew 2', colour: '#22c55e' } ] },
+    branding: { company_name: 'Flood Roofing', email: 'office@floodroofing.co.nz' }, quote_defaults: { email: {} },
+    price_book: { __materials_catalog: { savedFlashings: [MY_BARGE],
+      suppliers: [ { name: 'Roofing Industries Whangarei', email: 'orders@ri.example', category: 'roofing' }, { name: 'Sparky Ltd', email: 'spark@example.nz', category: 'electrician' } ] } } } ],
   jobs: [ { id: 'j1', user_id: 'u1', company_id: 'c1', client_name: 'Arran Simpson', site_address: '12 Kauri Lane, Kerikeri', version_of: null,
     created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-02T00:00:00Z', draw_state: { form: { jobPhone: '021 555 0101' }, state: { quote } } } ],
   job_files: [
@@ -59,7 +72,7 @@ const { db, port } = await startFakePostgrest({
     { id: 'b1', company_id: 'c1', user_id: 'u1', row_id: 'r1', kind: 'crew', crew_id: 'crew1', start_date: D, work_days: 1, created_at: '2026-11-01T00:00:00Z' },
     { id: 'b2', company_id: 'c1', user_id: 'u1', row_id: 'r2', kind: 'crew', crew_id: 'crew2', start_date: D, work_days: 1, created_at: '2026-11-01T00:00:00Z' },
     { id: 'b3', company_id: 'c1', user_id: 'u1', row_id: 'r2', kind: 'pencil', crew_id: 'crew1', start_date: D2, work_days: 1, created_at: '2026-11-01T00:00:00Z' } ],
-  crew_members: [], crew_events: [], crew_points: [], crew_sites: [], crew_settings: [],
+  crew_members: [], crew_events: [], crew_points: [], crew_sites: [], crew_settings: [], crew_flash_orders: [],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -69,6 +82,8 @@ process.env.BILLING_ENABLED = 'false';
 delete process.env.CREW_USERS; delete process.env.CREW_ALL; delete process.env.SUPINV_USERS;
 const PORT = process.env.TEST_PORT || '35127';
 process.env.PORT = PORT;
+process.env.RESEND_API_KEY = 're_test'; process.env.RESEND_API_BASE = 'http://127.0.0.1:' + rsrv.address().port;
+process.env.EMAIL_FROM = 'RoofMap <support@roofmap.co.nz>';
 delete process.env.DATABASE_URL;
 const log = console.log, warn = console.warn, err = console.error;
 console.log = () => {}; console.warn = () => {}; console.error = () => {};
@@ -215,6 +230,58 @@ check('the scope never carries {grade} or a price', !JSON.stringify(r.body.scope
 r = await aron('GET', '/crew/office/members');
 check('the office reads each person\'s ticks', r.body.members.find(m => m.id === 'u3').perms.phone === true && (r.body.permKeys || []).includes('priced'));
 
+// ── ORDER FLASHING (2026-11-13) ──
+const { extractPresets } = await import(pathToFileURL(_j(_ROOT, 'tools', 'build-flash-presets.mjs')).href);
+const fs = require('fs');
+check('the crew app\'s built-in flashings are the office app\'s (run tools/build-flash-presets.mjs after changing a preset)',
+  JSON.stringify(extractPresets(fs.readFileSync(_j(_ROOT, 'frontend', 'app.html'), 'utf8'))) === JSON.stringify(require('./flash-presets.json')));
+r = await nick('GET', '/crew/flashings');
+check('the library: the business\'s own flashings first, then the built-ins', r.status === 200 && r.body.items[0].name === 'My Barge' && r.body.items[0].src === 'saved' &&
+  r.body.items.some(x => x.src === 'builtin' && /Barge/.test(x.name)) && r.body.items.length >= 10, JSON.stringify((r.body.items || []).slice(0, 2).map(x => x.name)));
+check('…and a person not ticked to order is not given the suppliers', r.body.direct === false && r.body.suppliers.length === 0 && r.body.office === true);
+const barge = Object.assign({}, r.body.items[0], { qty: 4, lengthM: 6, colour: 'Ironsand' });
+barge.polylines = JSON.parse(JSON.stringify(barge.polylines)); barge.polylines[0].measurements[1] = 250;
+const custom = { name: 'Custom flashing', polylines: [{ vertices: [[10, 10], [10, 60], [90, 60]], measurements: { 0: 60, 1: 140 } }], qty: 2, lengthM: 3.2 };
+r = await nick('POST', '/crew/flash-order', { row_id: 'r1', items: [Object.assign({}, custom, { polylines: [{ vertices: [[0, 0], [0, 10], [5, 10]], measurements: { 1: 10 } }] , qty: 1, lengthM: 1 })].map(x => Object.assign(x, { polylines: [{ vertices: x.polylines[0].vertices, measurements: {} }] })) });
+check('a flashing with no lengths is not an order', r.status === 400, JSON.stringify(r.body));
+mails.length = 0;
+r = await nick('POST', '/crew/flash-order', { row_id: 'r1', items: [barge, custom], note: 'Need them Thursday', direct: true, supplier: 0 });
+check('not ticked: the order goes to the office, not the supplier', r.status === 200 && r.body.status === 'office' && r.body.mailed === true, JSON.stringify(r.body));
+const om = mails[0] || {};
+check('…emailed to the office with the PDF of the drawings', om.to && JSON.stringify(om.to).includes('office@floodroofing.co.nz') && !JSON.stringify(om).includes('orders@ri.example') &&
+  (om.attachments || []).length === 1 && /\.pdf$/.test(om.attachments[0].filename) && /send it on/i.test(om.text || ''), JSON.stringify(om).slice(0, 300));
+const pdf = Buffer.from((om.attachments || [{}])[0].content || '', 'base64').toString('latin1');
+check('the PDF draws each flashing with its edited lengths, the colour side and the order', pdf.startsWith('%PDF-1.4') && /\(250\)/.test(pdf) && /\(Colour side\)/.test(pdf) &&
+  /Qty 4 x 6\.00 m/.test(pdf) && /\(Flashing order\)/.test(pdf) && /Need them Thursday/.test(pdf) && /Girth 370 mm/.test(pdf), pdf.length + ' bytes');
+check('the email lists girth, folds, qty and length', /My Barge \(Corrugate\) — 4 × 6\.00 m, girth 370 mm, 2 bends, Ironsand/.test(om.text || '') && /12\.00 m lineal|30\.40 m lineal/.test(om.text || ''), (om.text || '').slice(0, 400));
+r = await nick('POST', '/crew/flash-order', { row_id: 'rx', items: [custom] });
+check('a job of another business cannot be ordered against', r.status === 404);
+r = await nick('GET', '/crew/office/flash-orders');
+check('a roofer cannot read the office\'s flashing orders', r.status === 403);
+r = await aron('GET', '/crew/office/flash-orders');
+const fo = (r.body.orders || [])[0] || {};
+check('the office sees the order waiting, with the roofing suppliers only', r.status === 200 && fo.status === 'office' && fo.by === 'Nick Example' && fo.items.length === 2 &&
+  r.body.suppliers.length === 1 && r.body.suppliers[0].email === 'orders@ri.example' && fo.job && fo.job.client === 'Arran Simpson', JSON.stringify(r.body).slice(0, 300));
+r = await aron('GET', '/crew/office/flash-orders/' + fo.id + '/pdf');
+check('…can open its PDF', r.status === 200 && Buffer.from(r.body.base64 || '', 'base64').toString('latin1').startsWith('%PDF'));
+mails.length = 0;
+r = await aron('POST', '/crew/office/flash-orders/' + fo.id + '/send', { email: 'orders@ri.example', name: 'Roofing Industries Whangarei' });
+check('…and sends it on to the supplier', r.status === 200 && mails.length === 1 && JSON.stringify(mails[0].to).includes('orders@ri.example') && /Please supply/.test(mails[0].text || ''), JSON.stringify(mails[0] || {}).slice(0, 200));
+r = await aron('GET', '/crew/office/flash-orders');
+check('…marked sent', r.body.orders[0].status === 'sent' && r.body.orders[0].supplier_name === 'Roofing Industries Whangarei');
+r = await aron('PUT', '/crew/office/members/u3', { perms: { orderFlash: true } });
+r = await nick('GET', '/crew/flashings');
+check('ticked: the phone is told it may order, and given the supplier by name only', r.body.direct === true && r.body.suppliers.length === 1 && r.body.suppliers[0].name === 'Roofing Industries Whangarei' && !JSON.stringify(r.body.suppliers).includes('@'));
+mails.length = 0;
+r = await nick('POST', '/crew/flash-order', { row_id: 'r1', items: [custom], direct: true, supplier: 0 });
+check('…and the order goes straight to the supplier, the office copied', r.body.status === 'sent' && r.body.supplier === 'Roofing Industries Whangarei' && mails.length === 1 &&
+  JSON.stringify(mails[0].to).includes('orders@ri.example') && JSON.stringify(mails[0].cc || '').includes('office@floodroofing.co.nz'), JSON.stringify(mails[0] || {}).slice(0, 300));
+const fb = crewLib.orderItem(Object.assign({}, crewLib.FLASH_PRESETS.find(x => x.name === 'Finish Barge Corro'), { qty: 1, lengthM: 6 }));
+check('a built-in barge counts as the office does: girth 335 mm, 5 bends, 2 hems (its hem sides left unmeasured)', fb && fb.girthMm === 335 && fb.folds === 5 && fb.hems === 2, JSON.stringify(fb && [fb.girthMm, fb.folds, fb.hems]));
+r = await aron('GET', '/crew/office/members');
+check('the office\'s permission list carries orderFlash', (r.body.permKeys || []).includes('orderFlash') && r.body.members.find(m => m.id === 'u3').perms.orderFlash === true);
+
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');
+rsrv.close();
 process.exit(pass === results.length ? 0 : 1);

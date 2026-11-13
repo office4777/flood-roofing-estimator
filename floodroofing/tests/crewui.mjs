@@ -62,7 +62,10 @@ const { db, port } = await startFakePostgrest({
   profiles: [ { id: 'u1', company_id: 'c1', email: 'aron@floodroofing.co.nz', name: 'Aron' }, { id: 'u3', company_id: 'c1', email: 'nick@floodroofing.co.nz', name: 'Nick Example' } ],
   company_users: [ { company_id: 'c1', user_id: 'u1', role: 'owner' }, { company_id: 'c1', user_id: 'u3', role: 'member' } ],
   user_settings: [ { user_id: 'u1', company_id: 'c1', updated_at: '2026-11-01T00:00:00Z', schedule_cfg: { feed_secret: 'x',
-    crews: [ { id: 'crew1', name: 'Crew 1', colour: '#f87d20' }, { id: 'crew2', name: 'Crew 2', colour: '#22c55e' } ] } } ],
+    crews: [ { id: 'crew1', name: 'Crew 1', colour: '#f87d20' }, { id: 'crew2', name: 'Crew 2', colour: '#22c55e' } ] },
+    branding: { company_name: 'Flood Roofing', email: 'office@floodroofing.co.nz' },
+    price_book: { __materials_catalog: { savedFlashings: [ { name: 'My Barge', profile: 'Corrugate', polylines: [{ vertices: [[0, 0], [0, 100], [200, 100], [200, 80]], measurements: { 0: 100, 1: 200, 2: 20 } }],
+      paintedSide: { x: 100, y: 100, dirX: 0, dirY: -1 } } ], suppliers: [ { name: 'Roofing Industries', email: 'orders@ri.example', category: 'roofing' } ] } } } ],
   jobs: [ { id: 'j1', user_id: 'u1', company_id: 'c1', client_name: 'Arran Simpson', site_address: '12 Kauri Lane, Kerikeri', version_of: null,
     created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-02T00:00:00Z', draw_state: { form: { jobPhone: '021 555 0101' }, state: { quote: {
       ref: '3351', proposalOptions: { steelGrade: 'maxam', profile: 'corrugate', colour: 'Ironsand' }, custDesc: ['Strip the old roof and take it away', 'Install New {grade} Roofing Sheets'], custExcl: ['Spouting'],
@@ -76,7 +79,7 @@ const { db, port } = await startFakePostgrest({
   schedule_rows: [ { id: 'r1', company_id: 'c1', user_id: 'u1', job_id: 'j1', client_name: 'Arran Simpson', site_address: '12 Kauri Lane, Kerikeri', email: '', length_days: 1, notes: 'Key under the mat', archived: false, job_ref: '', created_at: '2026-11-01T00:00:00Z' } ],
   schedule_blocks: [ { id: 'b1', company_id: 'c1', user_id: 'u1', row_id: 'r1', kind: 'crew', crew_id: 'crew1', start_date: D, work_days: 1, created_at: '2026-11-01T00:00:00Z' } ],
   crew_members: [ { id: 'm1', company_id: 'c1', user_id: 'u3', crew_id: 'crew1', name: '', phone: '', updated_at: '2026-11-01T00:00:00Z' } ],
-  crew_events: [], crew_points: [], crew_sites: [],
+  crew_events: [], crew_points: [], crew_sites: [], crew_flash_orders: [],
   crew_settings: [ { id: 's1', company_id: 'c1', user_id: 'u1', updated_at: '2026-11-01T00:00:00Z', data: { checklists: [ { id: 'start', name: 'Before we start', when: 'start', items: ['Scaffold tagged', 'Edge protection up'] } ] } } ],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
@@ -163,6 +166,44 @@ const jf = db.job_files.find(f => f.source === 'site');
 check('a photo taken on site lands in the job’s Files & Photos', jf && jf.status === 'ready' && /^Site photo /.test(jf.name) && jf.job_id === 'j1', JSON.stringify(jf || {}).slice(0, 200));
 check('…its bytes reached storage', [...store.values()].some(v => v.buf.length === png.length));
 
+// ── ORDER FLASHING (2026-11-13): a saved one with its lengths changed, then one drawn by hand ──
+await pg.evaluate(() => { location.hash = '#/job/r1'; }); await wait(1200);
+check('the job\'s menu has Order flashing', await pg.locator('#flashRow').count() === 1);
+await pg.click('#flashRow'); await wait(600);
+body = await pg.textContent('#main');
+check('…which starts with the two ways in: a saved flashing, or draw one', /Saved flashing/.test(body) && /Draw a custom flashing/.test(body), body.slice(0, 200));
+await pg.click('text=Saved flashing'); await wait(1500);
+body = await pg.textContent('#main');
+check('the office\'s own flashings come first, then the built-ins', /My Barge/.test(body) && /Head Barge/.test(body) && body.indexOf('My Barge') < body.indexOf('Head Barge'), body.slice(0, 200));
+await pg.click('.fl-lib:has-text("My Barge")'); await wait(600);
+check('a saved flashing opens drawn, with its lengths on it and in boxes to change', await pg.locator('#flPad svg.fl .fl-lab').count() === 3 &&
+  (await pg.inputValue('input[data-seg="0:1"]')) === '200' && /Colour side/.test(await pg.textContent('#flPad')));
+await pg.fill('input[data-seg="0:1"]', '250'); await wait(200);
+check('…a length typed changes the drawing and the girth', (await pg.locator('#flPad .fl-lab text').allTextContents()).includes('250') && /girth 370 mm/.test(await pg.textContent('#main')));
+await pg.click('.stepper button:has-text("+")'); await pg.click('.stepper button:has-text("+")');
+await pg.click('text=Finish flashing'); await wait(300);
+check('…it asks for the length of each piece first', /length of each piece/.test(await pg.textContent('#flErr')));
+await pg.fill('#flLen', '6'); await pg.click('text=Finish flashing'); await wait(600);
+body = await pg.textContent('#main');
+check('Finish puts it on the order summary: 3 × 6.00 m, girth 370 mm', /My Barge/.test(body) && /3 × 6\.00 m/.test(body) && /girth 370 mm/.test(body) && /Ironsand/.test(body), body.slice(0, 300));
+await pg.click('text=Draw a custom flashing'); await wait(500);
+const pad = pg.locator('#flPad svg.fl'); const bb = await pad.boundingBox();
+for (const [fx, fy] of [[0.2, 0.2], [0.2, 0.7], [0.75, 0.7]]) { await pg.mouse.click(bb.x + bb.width * fx, bb.y + bb.height * fy); await wait(250); }
+check('a custom flashing is drawn bend by bend', await pg.locator('#flPad svg.fl polyline').count() === 1 && (await pg.evaluate(() => JSON.parse(localStorage.getItem('crew_fdraft')).polylines[0].vertices.length)) === 3);
+await pg.click('.fl-tools button:has-text("Done")'); await wait(400);
+await pg.fill('input[data-seg="0:0"]', '60'); await pg.fill('input[data-seg="0:1"]', '140'); await pg.fill('#flLen', '3.2');
+await pg.click('.fl-tools button:has-text("Colour side")');
+await pg.click('text=Finish flashing'); await wait(600);
+body = await pg.textContent('#main');
+check('…and joins the order: two flashings, then Add another or send', /Custom flashing/.test(body) && /Flashingstoorder2/.test(body.replace(/\s+/g, '')) && /Add another flashing/.test(body) && /Send to the office to order/.test(body), body.slice(0, 300));
+await pg.fill('#flNote', 'Thursday please');
+await pg.click('#flSend'); await wait(1800);
+const fo = db.crew_flash_orders[0];
+check('not ticked to order: it goes to the office with both flashings', fo && fo.status === 'office' && fo.items.length === 2 && fo.items[0].girthMm === 370 && fo.items[0].qty === 3 &&
+  fo.items[1].lengthM === 3.2 && fo.note === 'Thursday please' && fo.items[1].paintedSide, JSON.stringify(fo || {}).slice(0, 300));
+check('…the phone says so and the order list is cleared', /Sent to the office|saved for the office/.test(await pg.textContent('#main')) && (await pg.evaluate(() => window.__crew.flCart('r1').length)) === 0);
+await pg.evaluate(() => { location.hash = '#/job/r1'; }); await wait(1200);
+
 // ── no signal ──
 await ctx.clock.setFixedTime(new Date(nzAt(D, 12)));
 await ctx.setOffline(true); await wait(200);
@@ -232,6 +273,14 @@ await p3.ctx.close();
   const p4 = await c4.newPage(); await p4.goto(ORIGIN + '/crew'); await wait(1200);
   const z = await p4.evaluate(() => ({ zoom: +document.documentElement.style.zoom || 1, w: document.querySelector('.job').getBoundingClientRect().width }));
   check('in Chrome\'s Desktop site mode the app is scaled up to fill the phone, not shown tiny', z.zoom > 2.2 && z.zoom < 2.5, JSON.stringify(z));
+  // the owner's next screenshot: the photos a whole screen tall and the page scrolling on into nothing —
+  // vh is not scaled by the zoom, so heights go through --vh1
+  await p4.evaluate(() => { location.hash = '#/job/r1'; }); await wait(1500);
+  await p4.click('details.tool[data-k="photos"] summary'); await wait(800);
+  const sh = await p4.evaluate(() => { const zz = +document.documentElement.style.zoom || 1, st = document.getElementById('phStrip');
+    return { frac: parseFloat(getComputedStyle(st).height) * zz / window.innerHeight, minH: getComputedStyle(document.body).minHeight }; });
+  check('…where the photos take about a quarter of the screen, not all of it', sh.frac > 0.15 && sh.frac < 0.34, JSON.stringify(sh));
+  check('…and the page does not run on past its last item', !/^\d{4,}/.test(sh.minH) && parseFloat(sh.minH || 0) < 1000, JSON.stringify(sh));
   await c4.close();
   const c5 = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await c5.addInitScript((api) => { window.CREW_API = api; }, API);
