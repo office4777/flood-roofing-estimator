@@ -300,6 +300,26 @@ await p3.ctx.close();
   await p6.ctx.close();
 }
 
+// ── the team map (2026-11-14, the owner: "add a map tab to see the company map to see where everyone is") ──
+{
+  db.crew_points.push({ id: 'pt-map', company_id: 'c1', user_id: 'u3', at: new Date().toISOString(), lat: -35.2271, lng: 173.9533, acc: 6, speed: null, row_id: 'r1', created_at: new Date().toISOString() });
+  const pm = await phone(nzAt(D, 10));
+  const mapReqs = [];
+  await pm.pg.route('https://api.mapbox.com/**', r => { mapReqs.push(r.request().url());
+    return r.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64') }); });
+  await pm.pg.goto(ORIGIN + '/crew#/today'); await wait(1200);
+  check('the bottom bar carries a Map tab', await pm.pg.locator('#nav button[data-v="map"]').count() === 1);
+  await pm.pg.click('#nav button[data-v="map"]'); await wait(1500);
+  const src0 = await pm.pg.getAttribute('#teamImg', 'src');
+  check('the Map tab draws the team on a map: a star for you where you were last seen, the job sites, framed to fit', /pin-l-star\+f87d20\(173\.95330,-35\.22710\)/.test(src0 || '') && /\/auto\//.test(src0 || '') && /pin-s\+/.test(src0 || ''), (src0 || '').slice(0, 200));
+  const tb = await pm.pg.textContent('#main');
+  check('…and lists the team under it, when each was seen', /The team/.test(tb) && /\(you\)/.test(tb) && /Seen (just now|\d+ min ago)/.test(tb) && /Crew 1/.test(tb), tb.slice(0, 300));
+  await pm.pg.click('.tm-row'); await wait(300);
+  const src1 = await pm.pg.getAttribute('#teamImg', 'src');
+  check('a tap on a person centres the map on them', /173\.95330,-35\.22710,15\//.test(src1 || '') && await pm.pg.locator('text=Show everyone').count() === 1, (src1 || '').slice(-200));
+  await pm.ctx.close();
+}
+
 // ── Chrome's "Desktop site" (the owner's phone, 2026-11-13): a 980 px page on a 412 px screen ──
 {
   const c4 = await b.newContext({ viewport: { width: 980, height: 2180 }, screen: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
@@ -307,7 +327,7 @@ await p3.ctx.close();
   await c4.addInitScript(([api, tok]) => { window.CREW_API = api; localStorage.setItem('crew_token', tok); }, [API, TOKEN]);
   const p4 = await c4.newPage(); await p4.goto(ORIGIN + '/crew'); await wait(1200);
   const z = await p4.evaluate(() => ({ zoom: +document.documentElement.style.zoom || 1, w: document.querySelector('.job').getBoundingClientRect().width }));
-  check('in Chrome\'s Desktop site mode the app is scaled up to fill the phone, not shown tiny', z.zoom > 2.2 && z.zoom < 2.5, JSON.stringify(z));
+  check('in Chrome\'s Desktop site mode the app is scaled up to fill the phone, not shown tiny (a fifth smaller since 14 Nov)', z.zoom > 1.75 && z.zoom < 2.0, JSON.stringify(z));
   // the owner's next screenshot: the photos a whole screen tall and the page scrolling on into nothing —
   // vh is not scaled by the zoom, so heights go through --vh1
   await p4.evaluate(() => { location.hash = '#/job/r1'; }); await wait(1500);
@@ -320,7 +340,7 @@ await p3.ctx.close();
   const c5 = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await c5.addInitScript((api) => { window.CREW_API = api; }, API);
   const p5 = await c5.newPage(); await p5.goto(ORIGIN + '/crew'); await wait(300);
-  check('…and on an ordinary phone it is left alone', !(await p5.evaluate(() => document.documentElement.style.zoom)));
+  check('…and on an ordinary phone everything is a fifth smaller (the owner: "about 20% smaller")', Math.abs((+(await p5.evaluate(() => document.documentElement.style.zoom))) - 0.8) < 0.01);
   await c5.close();
 }
 
