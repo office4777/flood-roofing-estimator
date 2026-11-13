@@ -175,24 +175,50 @@ check('…which starts with the two ways in: a saved flashing, or draw one', /Sa
 await pg.click('text=Saved flashing'); await wait(1500);
 body = await pg.textContent('#main');
 check('the office\'s own flashings come first, then the built-ins', /My Barge/.test(body) && /Head Barge/.test(body) && body.indexOf('My Barge') < body.indexOf('Head Barge'), body.slice(0, 200));
-await pg.click('.fl-lib:has-text("My Barge")'); await wait(600);
-check('a saved flashing opens drawn, with its lengths on it and in boxes to change', await pg.locator('#flPad svg.fl .fl-lab').count() === 3 &&
-  (await pg.inputValue('input[data-seg="0:1"]')) === '200' && /Colour side/.test(await pg.textContent('#flPad')));
-await pg.fill('input[data-seg="0:1"]', '250'); await wait(200);
-check('…a length typed changes the drawing and the girth', (await pg.locator('#flPad .fl-lab text').allTextContents()).includes('250') && /girth 370 mm/.test(await pg.textContent('#main')));
+await pg.click('.fl-lib:has-text("My Barge")'); await wait(700);
+// a point of the drawing, on the screen
+const scr = (x, y) => pg.evaluate(([x, y]) => { const sv = document.querySelector('#flPad svg'), rc = sv.getBoundingClientRect(), vb = sv.viewBox.baseVal;
+  const sc = Math.min(rc.width / vb.width, rc.height / vb.height), ox = (rc.width - vb.width * sc) / 2, oy = (rc.height - vb.height * sc) / 2;
+  return [rc.left + ox + (x - vb.x) * sc, rc.top + oy + (y - vb.y) * sc]; }, [x, y]);
+const tapAt = async (x, y) => { const q = await scr(x, y); await pg.mouse.click(q[0], q[1]); await wait(250); };
+const fb = await pg.locator('#flFull').boundingBox();
+check('the drawing opens full screen, with the tools along the bottom and no rows of boxes', fb && fb.height > 800 && fb.width >= 389 &&
+  await pg.locator('#flFull [data-tool]').count() === 8 && await pg.locator('input[data-seg]').count() === 0, JSON.stringify(fb));
+check('a saved flashing opens drawn, its lengths on it', await pg.locator('#flPad [data-hit^="seg:"]').count() === 3 && /Colour side/.test(await pg.textContent('#flPad')));
+await pg.click('#flPad [data-hit="seg:0:1"]'); await wait(300);
+check('a tap on a length asks for it in a big box', await pg.locator('#flAsk').count() === 1 && (await pg.inputValue('#flAskIn')) === '200');
+await pg.fill('#flAskIn', '250'); await pg.click('#flAsk [data-a="ok"]'); await wait(250);
+check('…and the drawing and the girth change', (await pg.locator('#flPad [data-hit="seg:0:1"]').textContent()).includes('250') && /Girth 370 mm/.test(await pg.textContent('#flfStats')));
+await pg.click('#flFull [data-tool="angle"]'); await tapAt(2, 98);
+await pg.fill('#flAskIn', '30'); await pg.click('#flAsk [data-a="ok"]'); await wait(250);
+check('Angle: a tap at a bend asks its angle and puts "∠ 30°" by it', /∠ 30°/.test(await pg.textContent('#flPad')) && (await pg.evaluate(() => JSON.parse(localStorage.getItem('crew_fdraft')).polylines[0].angleMarkers[1].deg)) === 30);
+await pg.click('#flFull [data-tool="crush"]'); await tapAt(200, 82);
+check('Crush fold: a tap at a bend marks it, as the office does', /Crush/.test(await pg.textContent('#flPad')) && /1 hem/.test(await pg.textContent('#flfStats')));
+await pg.click('#flFull [data-tool="guard"]'); await tapAt(120, 40);
+check('Flash guard: a tap drops its label', /Flash guard/.test(await pg.textContent('#flPad')) && /flash guard/.test(await pg.textContent('#flfStats')));
+await pg.click('#flFull [data-tool="undo"]'); await wait(200);
+check('Undo takes the last mark off', !/Flash guard/.test(await pg.textContent('#flPad')));
+await pg.click('#flFull [data-tool="guard"]'); await tapAt(120, 40);
+await pg.click('#flNext'); await wait(600);
 await pg.click('.stepper button:has-text("+")'); await pg.click('.stepper button:has-text("+")');
 await pg.click('text=Finish flashing'); await wait(300);
-check('…it asks for the length of each piece first', /length of each piece/.test(await pg.textContent('#flErr')));
+check('Next goes to the order: it asks for the length of each piece', /length of each piece/.test(await pg.textContent('#flErr')) && await pg.locator('#flFull').count() === 0);
 await pg.fill('#flLen', '6'); await pg.click('text=Finish flashing'); await wait(600);
 body = await pg.textContent('#main');
 check('Finish puts it on the order summary: 3 × 6.00 m, girth 370 mm', /My Barge/.test(body) && /3 × 6\.00 m/.test(body) && /girth 370 mm/.test(body) && /Ironsand/.test(body), body.slice(0, 300));
-await pg.click('text=Draw a custom flashing'); await wait(500);
-const pad = pg.locator('#flPad svg.fl'); const bb = await pad.boundingBox();
-for (const [fx, fy] of [[0.2, 0.2], [0.2, 0.7], [0.75, 0.7]]) { await pg.mouse.click(bb.x + bb.width * fx, bb.y + bb.height * fy); await wait(250); }
-check('a custom flashing is drawn bend by bend', await pg.locator('#flPad svg.fl polyline').count() === 1 && (await pg.evaluate(() => JSON.parse(localStorage.getItem('crew_fdraft')).polylines[0].vertices.length)) === 3);
-await pg.click('.fl-tools button:has-text("Done")'); await wait(400);
-await pg.fill('input[data-seg="0:0"]', '60'); await pg.fill('input[data-seg="0:1"]', '140'); await pg.fill('#flLen', '3.2');
-await pg.click('.fl-tools button:has-text("Colour side")');
+await pg.click('text=Draw a custom flashing'); await wait(700);
+check('a custom flashing starts on the drawing tool', await pg.locator('#flFull [data-tool="draw"].on').count() === 1);
+const pb = await pg.locator('#flPad svg').boundingBox();
+for (const [fx, fy] of [[0.2, 0.2], [0.2, 0.6], [0.75, 0.6]]) { await pg.mouse.click(pb.x + pb.width * fx, pb.y + pb.height * fy); await wait(250); }
+check('a custom flashing is drawn bend by bend', (await pg.evaluate(() => JSON.parse(localStorage.getItem('crew_fdraft')).polylines[0].vertices.length)) === 3 && await pg.locator('#flPad [data-hit^="seg:"]').count() === 2);
+await pg.click('#flFull [data-tool="paint"]'); await pg.mouse.click(pb.x + pb.width * 0.45, pb.y + pb.height * 0.52); await wait(250);
+check('Colour side: tapped beside a side, the arrow goes on that side', await pg.evaluate(() => { const d = JSON.parse(localStorage.getItem('crew_fdraft')); return !!d.paintedSide && d.paintedSide.dirY < -0.9; }));
+await pg.click('#flNext'); await wait(400);
+check('Next with sides unmeasured asks for each in turn', await pg.locator('#flAsk').count() === 1 && /Side 1/.test(await pg.textContent('#flAsk')));
+await pg.fill('#flAskIn', '60'); await pg.click('#flAsk [data-a="ok"]'); await wait(400);
+await pg.fill('#flAskIn', '140'); await pg.click('#flAsk [data-a="ok"]'); await wait(400);
+await pg.click('#flNext'); await wait(500);
+await pg.fill('#flLen', '3.2');
 await pg.click('text=Finish flashing'); await wait(600);
 body = await pg.textContent('#main');
 check('…and joins the order: two flashings, then Add another or send', /Custom flashing/.test(body) && /Flashingstoorder2/.test(body.replace(/\s+/g, '')) && /Add another flashing/.test(body) && /Send to the office to order/.test(body), body.slice(0, 300));

@@ -204,6 +204,33 @@ a.tool-go,button.tool-go{display:flex;align-items:center;gap:16px;padding:0 18px
 .tool-go .tv{width:20px;height:20px;color:#9aa5b1;stroke:currentColor;fill:none;stroke-width:2.4}
 .tool-go:active{background:#f1f5f9}
 /* ORDER FLASHING */
+#flFull{position:fixed;left:0;top:0;width:calc(var(--vw1,1vw) * 100);height:calc(var(--vh1,1vh) * 100);z-index:45;background:#fff;display:flex;flex-direction:column}
+.flf-top{background:var(--navy);color:#fff;border-bottom:3px solid var(--cyan);display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;min-height:60px}
+.flf-x{width:44px;height:44px;border-radius:10px;border:0;background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.flf-x svg{width:22px;height:22px}
+.flf-tt{flex:1;min-width:0;line-height:1.15}.flf-tt small{display:block;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#7dd3fc}
+.flf-tt b{font-size:18px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.flf-next{border:0;border-radius:10px;background:var(--green);color:#fff;font-weight:800;font-size:16px;padding:0 14px;height:44px;display:flex;align-items:center;gap:4px;cursor:pointer}
+.flf-next svg{width:20px;height:20px}.flf-next[disabled]{opacity:.45}
+.flf-stats{font-size:14px;font-weight:700;color:var(--navy);padding:8px 14px;background:#f1f5f9;border-bottom:1px solid var(--line)}
+.flf-pad{flex:1;min-height:0;position:relative;background:#fff}
+.flf-pad.grid{background-image:linear-gradient(#eef3f9 1px,transparent 1px),linear-gradient(90deg,#eef3f9 1px,transparent 1px);background-size:22px 22px}
+.flf-pad svg{display:block;width:100%;height:100%;touch-action:none}
+.flf-hint{font-size:13.5px;color:var(--mut);padding:6px 14px;text-align:center;border-top:1px solid var(--line);background:#f8fafc;min-height:30px}
+.flf-tools{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px 8px calc(env(safe-area-inset-bottom) + 8px);background:#fff;border-top:1px solid var(--line)}
+.flf-tools button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:60px;border:2px solid var(--line);border-radius:12px;background:#fff;color:var(--navy);font-weight:700;font-size:12.5px;cursor:pointer}
+.flf-tools button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.flf-tools button.on{background:var(--navy);border-color:var(--navy);color:#fff}
+#flAsk{position:fixed;left:0;top:0;width:calc(var(--vw1,1vw) * 100);height:calc(var(--vh1,1vh) * 100);z-index:60;background:rgba(10,22,40,.45);display:flex;align-items:flex-start;justify-content:center;padding-top:calc(var(--vh1,1vh) * 14)}
+.fla-card{background:#fff;border-radius:16px;width:calc(100% - 32px);max-width:420px;padding:18px;box-shadow:0 18px 40px rgba(10,22,40,.35)}
+.fla-t{font-weight:800;font-size:19px;color:var(--navy);margin-bottom:12px}
+.fla-in{display:flex;align-items:center;gap:10px}.fla-in input{flex:1;font-size:30px;font-weight:800;padding:12px 14px;border:2px solid var(--blue);border-radius:12px;min-width:0}
+.fla-in span{font-size:20px;font-weight:700;color:var(--mut)}
+.fla-b{display:flex;gap:8px;margin-top:14px}.fla-b .btn{flex:1;min-height:54px}
+.fl-prev{display:block;width:100%;border:1px solid var(--line);border-radius:14px;background:#fff;padding:0;margin:0 0 8px;position:relative;cursor:pointer;overflow:hidden}
+.fl-prev #flPrevPic{display:block}.fl-prev #flPrevPic svg{display:block;width:100%;height:auto;aspect-ratio:1/.8}
+.fl-prev-tag{position:absolute;right:10px;bottom:10px;background:var(--navy);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
+.fl-prev-tag svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2.2;min-height:0}
 .fl-pad{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 12px;position:relative}
 .fl-pad svg.fl{display:block;width:100%;height:calc(var(--vh1,1vh) * 34);min-height:210px;max-height:380px;touch-action:none;background:#fff}
 .fl-pad.draw svg.fl{background-image:linear-gradient(#eef3f9 1px,transparent 1px),linear-gradient(90deg,#eef3f9 1px,transparent 1px);background-size:20px 20px}
@@ -251,7 +278,7 @@ button.chip.ed{border:2px solid var(--blue);background:#fff;color:var(--blue-d);
 // every press is kept on the phone at once and sent when it can be. Location
 // is only asked for, and only kept, 7 am – 7 pm on a day the crew is booked
 // on the schedule board (the server refuses it outside that whatever is sent).
-var CREW_BUILD = '2026-11-13c';
+var CREW_BUILD = '2026-11-13d';
 var API = window.CREW_API || 'https://flood-roofing-estimator-production.up.railway.app';
 var NZ = 'Pacific/Auckland';
 var GPS_FROM = 7, GPS_TO = 19, SITE_R = 200, KEEP_EVERY_MS = 60000, KEEP_MOVE_M = 40;
@@ -304,7 +331,11 @@ var ICON = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   lib: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"/>',
   pen: '<path d="M3 21l3.8-1 11-11-2.8-2.8-11 11z"/><path d="M14.5 5.5l2.8 2.8"/>',
-  flip: '<path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/>'
+  flip: '<path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/>',
+  angle: '<path d="M4 20h16M4 20L15 6"/><path d="M10 20a6 6 0 0 0-1.6-4.2"/>',
+  crush: '<path d="M4 7h12a4 4 0 0 1 0 8H8"/><path d="M8 15l3-3M8 15l3 3"/>',
+  guard: '<path d="M3 18h12l6-10"/><path d="M14 18c1-2 3-3 3-6"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>'
 };
 function I(n, cls){ return '<svg class="' + (cls || 'i') + '" viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || '') + '</svg>'; }
 function uid(){ try { return crypto.randomUUID(); } catch (e) { return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2); } }
@@ -525,6 +556,7 @@ function route(){
   if ((m = /^#\/job\/([^/?]+)\/checks/.exec(h))) return renderChecks(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)\/flash\/pick/.exec(h))) return renderFlashPick(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)\/flash\/edit/.exec(h))) return renderFlashEdit(decodeURIComponent(m[1]));
+  if ((m = /^#\/job\/([^/?]+)\/flash\/details/.exec(h))) return renderFlashDetails(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)\/flash/.exec(h))) return renderFlash(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)/.exec(h))) return renderJob(decodeURIComponent(m[1]));
   if ((m = /^#\/day\/(\d{4}-\d{2}-\d{2})/.exec(h))) return renderDay(m[1]);
@@ -926,51 +958,123 @@ function flStats(f){
   });
   return { girth: Math.round(girth * 10) / 10, folds: folds, hems: hems, missing: missing, txt: folds + (folds === 1 ? ' bend' : ' bends') + (hems ? ' · ' + hems + (hems === 1 ? ' hem' : ' hems') : '') };
 }
-// The drawing as SVG: fitted to its box, every side's length at its middle, a fold a dot, the colour side red.
+// The drawing as SVG, the office's own marks: every side's length at its middle (red-edged, as the office
+// draws them), an angle "∠ 15°" where the office put it, a "Crush" arrow at a crush fold, "Flash guard",
+// and the colour side. Every mark carries data-hit so a tap on it edits it.
+function flMarkDist(f){ var s = flSpan(f); return Math.max(s * 0.11, 22); }
+function flSpan(f){
+  var all = []; ((f && f.polylines) || []).forEach(function(p){ p.vertices.forEach(function(v){ all.push(v); }); });
+  if (!all.length) return 100;
+  var xs = all.map(function(v){ return v[0]; }), ys = all.map(function(v){ return v[1]; });
+  return Math.max(Math.max.apply(null, xs) - Math.min.apply(null, xs), Math.max.apply(null, ys) - Math.min.apply(null, ys), 60);
+}
+function flCrushDir(p, idx){
+  var v = p.vertices; if (!v[idx] || v.length < 2) return { dirX: 0, dirY: -1 };
+  var n = function(ax, ay){ var L = Math.hypot(ax, ay) || 1; return { dirX: ax / L, dirY: ay / L }; };
+  if (idx === 0) return n(-(v[1][1] - v[0][1]), v[1][0] - v[0][0]);
+  if (idx === v.length - 1) return n(-(v[idx][1] - v[idx - 1][1]), v[idx][0] - v[idx - 1][0]);
+  var a = n(v[idx - 1][0] - v[idx][0], v[idx - 1][1] - v[idx][1]), c = n(v[idx + 1][0] - v[idx][0], v[idx + 1][1] - v[idx][1]);
+  var bx = a.dirX + c.dirX, by = a.dirY + c.dirY;
+  if (Math.hypot(bx, by) < 0.01) return n(-a.dirY, a.dirX);
+  return n(-bx, -by);   // outside the bend
+}
+function flMarks(f, md){
+  // where every mark sits, in the drawing's own units
+  var out = []; md = md || flMarkDist(f);
+  ((f && f.polylines) || []).forEach(function(p, pi){
+    if (p.kind === 'squiggle') return;
+    Object.keys(p.angleMarkers || {}).forEach(function(k){ var am = p.angleMarkers[k], v = p.vertices[+k]; if (!am || !v) return;
+      var x = am.x, y = am.y;
+      if (typeof x !== 'number' || typeof y !== 'number') { var dd = (typeof am.dirX === 'number') ? am : flCrushDir(p, +k), L = Math.hypot(dd.dirX, dd.dirY) || 1; x = v[0] + dd.dirX / L * md * 1.1; y = v[1] + dd.dirY / L * md * 1.1; }
+      out.push({ kind: 'angle', pi: pi, k: +k, x: x, y: y, deg: am.deg }); });
+    Object.keys(p.crushFolds || {}).forEach(function(k){ var cf = p.crushFolds[k], v = p.vertices[+k]; if (!cf || !v) return;
+      var d = (cf === true || typeof cf.dirX !== 'number') ? flCrushDir(p, +k) : cf, L = Math.hypot(d.dirX, d.dirY) || 1;
+      out.push({ kind: 'crush', pi: pi, k: +k, vx: v[0], vy: v[1], ux: d.dirX / L, uy: d.dirY / L, x: v[0] + d.dirX / L * md, y: v[1] + d.dirY / L * md }); });
+  });
+  if (f && f.flashGuard && typeof f.flashGuard.x === 'number') out.push({ kind: 'guard', x: f.flashGuard.x, y: f.flashGuard.y });
+  return out;
+}
+// Every label's corners at u drawing-units a screen pixel, so the fit leaves room for them.
+function flExtents(f, u){
+  var fs = 17 * u, md = 46 * u, out = [], add = function(x, y, t, size){ var w = String(t).length * size * 0.6 + size * 0.9; out.push([x - w / 2, y - size]); out.push([x + w / 2, y + size]); };
+  ((f && f.polylines) || []).forEach(function(p){ if (p.kind === 'squiggle') return; var pts = p.vertices;
+    for (var i = 0; i < pts.length - 1; i++) { var a = pts[i], b = pts[i + 1], nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny) || 1;
+      add((a[0] + b[0]) / 2 + nx / L * fs * 0.95, (a[1] + b[1]) / 2 + ny / L * fs * 0.95, '0000', fs); } });
+  flMarks(f, md).forEach(function(m){ add(m.x, m.y, m.kind === 'guard' ? 'Flash guard' : '∠ 00°', fs * 0.85); });
+  if (f && f.paintedSide) { var q = f.paintedSide, dl = Math.hypot(q.dirX, q.dirY) || 1, ux = q.dirX / dl, uy = q.dirY / dl;
+    add(q.x + ux * (md * 0.75 + fs * 0.8), q.y + uy * (md * 0.75 + fs * 0.8), 'Colour side', fs * 0.85); }
+  return out;
+}
 function flSvg(f, o){
   o = o || {};
-  var all = [];
-  ((f && f.polylines) || []).forEach(function(p){ p.vertices.forEach(function(v){ all.push(v); }); });
-  if (f && f.paintedSide && all.length) {
-    var q0 = f.paintedSide, s0 = Math.max.apply(null, [0, 1].map(function(k){ var a = all.map(function(v){ return v[k]; }); return Math.max.apply(null, a) - Math.min.apply(null, a); }).concat([40]));
-    var f0 = s0 / (o.thumb ? 9 : 17), d0 = Math.hypot(q0.dirX, q0.dirY) || 1, tx0 = q0.x + q0.dirX / d0 * f0 * 1.8, ty0 = q0.y + q0.dirY / d0 * f0 * 1.8;
-    all.push([q0.x, q0.y]); all.push([tx0, ty0]);
-    if (!o.thumb) { var lw0 = f0 * 7, ux0 = q0.dirX / d0; all.push([tx0 + (ux0 < -0.3 ? -lw0 : (ux0 > 0.3 ? lw0 : lw0 / 2)), ty0 + f0]); all.push([tx0 + (ux0 > 0.3 ? 0 : (ux0 < -0.3 ? 0 : -lw0 / 2)), ty0 - f0]); }
+  var verts = [];
+  ((f && f.polylines) || []).forEach(function(p){ p.vertices.forEach(function(v){ verts.push(v); }); });
+  var bbox = function(pts){ return [Math.min.apply(null, pts.map(function(v){ return v[0]; })), Math.min.apply(null, pts.map(function(v){ return v[1]; })),
+    Math.max.apply(null, pts.map(function(v){ return v[0]; })), Math.max.apply(null, pts.map(function(v){ return v[1]; }))]; };
+  var vb, u = null, md, fs, sw;
+  // ON THE DRAWING SCREEN the labels are a fixed size on the glass (15px, as the office draws them at its
+  // own size) and the drawing is fitted round them; elsewhere (the small pictures) they scale with it.
+  if (o.box && o.px) {
+    var W = o.px[0], H = o.px[1];
+    var inBox = (o.draw || o.stable) && verts.every(function(v){ return v[0] >= 0 && v[0] <= o.box[2] && v[1] >= 0 && v[1] <= o.box[3]; });
+    if (!verts.length || inBox) { vb = o.box.slice(); u = vb[2] / W; }
+    else {
+      var fit = function(bb, m){ var bw = Math.max(bb[2] - bb[0], 20), bh = Math.max(bb[3] - bb[1], 20);
+        return Math.min((W - 2 * m) / bw, (H - 2 * m) / bh, 4); };
+      var b0 = bbox(verts), sc = fit(b0, 70); u = 1 / sc;
+      var ext = flExtents(f, u).concat(verts), b1 = bbox(ext);
+      sc = fit(b1, 14); u = 1 / sc;
+      var cx = (b1[0] + b1[2]) / 2, cy = (b1[1] + b1[3]) / 2;
+      vb = [cx - W * u / 2, cy - H * u / 2, W * u, H * u];
+    }
+    md = 46 * u; fs = 17 * u; sw = 3.2 * u;
+  } else {
+    md = flMarkDist(f);
+    var all = verts.slice();
+    flMarks(f, md).forEach(function(m){ all.push([m.x - md * 0.6, m.y - md * 0.3]); all.push([m.x + md * 0.6, m.y + md * 0.3]); });
+    if (f && f.paintedSide && all.length) { var q0 = f.paintedSide, d0 = Math.hypot(q0.dirX, q0.dirY) || 1, tx0 = q0.x + q0.dirX / d0 * md, ty0 = q0.y + q0.dirY / d0 * md;
+      all.push([q0.x, q0.y]); all.push([tx0 - md * 0.8, ty0 - md * 0.3]); all.push([tx0 + md * 0.8, ty0 + md * 0.3]); }
+    if (!all.length) vb = [0, 0, 400, 300];
+    else { var bb2 = bbox(all), span = Math.max(bb2[2] - bb2[0], bb2[3] - bb2[1], 60), pad = span * (o.thumb ? 0.06 : 0.14);
+      vb = [bb2[0] - pad, bb2[1] - pad, (bb2[2] - bb2[0]) + pad * 2, (bb2[3] - bb2[1]) + pad * 2]; }
+    var unit = Math.max(vb[2], vb[3]);
+    fs = unit / (o.thumb ? 9 : 17); sw = unit / (o.thumb ? 60 : 130);
   }
-  if (o.box) { all.push([o.box[0], o.box[1]]); all.push([o.box[2], o.box[3]]); }
-  if (!all.length) all = [[0, 0], [400, 300]];
-  var minX = Math.min.apply(null, all.map(function(v){ return v[0]; })), maxX = Math.max.apply(null, all.map(function(v){ return v[0]; }));
-  var minY = Math.min.apply(null, all.map(function(v){ return v[1]; })), maxY = Math.max.apply(null, all.map(function(v){ return v[1]; }));
-  var span = Math.max(maxX - minX, maxY - minY, 40), pad = o.box ? 0 : span * (o.thumb ? 0.08 : 0.16);
-  var vb = [minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2];
-  if (o.box) vb = [o.box[0], o.box[1], o.box[2] - o.box[0], o.box[3] - o.box[1]];
-  var fs = Math.max(vb[2], vb[3]) / (o.thumb ? 9 : 17), sw = Math.max(vb[2], vb[3]) / (o.thumb ? 60 : 120);
+  var marks = flMarks(f, md);
+  var T = function(x, y, t, size, col, wt, anc){ return '<text x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" font-size="' + size.toFixed(1) + '" font-family="Inter,Arial,sans-serif" font-weight="' + (wt || 700) + '" text-anchor="' + (anc || 'middle') + '" fill="' + col + '">' + esc(t) + '</text>'; };
+  var box = function(x, y, t, size, col, bg, hit, hot){ var w = String(t).length * size * 0.6 + size * 0.9, hh = size * 1.45;
+    return '<g' + (hit ? ' data-hit="' + hit + '"' : '') + '><rect x="' + (x - w / 2).toFixed(1) + '" y="' + (y - hh / 2).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + hh.toFixed(1) + '" rx="' + (size * 0.25).toFixed(1) + '" fill="' + (hot ? col : bg) + '" stroke="' + col + '" stroke-width="' + (sw * 0.7).toFixed(2) + '"/>' +
+      T(x, y + size * 0.36, t, size, hot ? '#fff' : col) + '</g>'; };
   var h = '<svg class="fl" viewBox="' + vb.map(function(x){ return x.toFixed(1); }).join(' ') + '" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">';
   ((f && f.polylines) || []).forEach(function(p, pi){
     var pts = p.vertices;
-    h += '<polyline points="' + pts.map(function(v){ return v[0] + ',' + v[1]; }).join(' ') + '" fill="none" stroke="' + (p.kind === 'squiggle' ? '#94a3b8' : '#0a1628') + '" stroke-width="' + sw.toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+    if (pts.length > 1) h += '<polyline points="' + pts.map(function(v){ return v[0] + ',' + v[1]; }).join(' ') + '" fill="none" stroke="' + (p.kind === 'squiggle' ? '#94a3b8' : '#0a1628') + '" stroke-width="' + sw.toFixed(2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
     if (p.kind === 'squiggle') return;
-    pts.forEach(function(v, i){ if ((i && i < pts.length - 1) || (o.draw && pts.length === 1)) h += '<circle cx="' + v[0] + '" cy="' + v[1] + '" r="' + (sw * 1.6).toFixed(2) + '" fill="#0a1628"/>'; });
-    // a hem (the office's crush fold): a ring at the point it folds back on itself
-    Object.keys(p.crushFolds || {}).forEach(function(k){ var v = pts[+k]; if (v && p.crushFolds[k]) h += '<circle cx="' + v[0] + '" cy="' + v[1] + '" r="' + (sw * 3).toFixed(2) + '" fill="#fff" stroke="#0077b3" stroke-width="' + (sw * 0.8).toFixed(2) + '"/>'; });
-    if (o.draw && pts.length) { var lv = pts[pts.length - 1]; h += '<circle cx="' + lv[0] + '" cy="' + lv[1] + '" r="' + (sw * 2.4).toFixed(2) + '" fill="#0099e0"/>'; }
+    pts.forEach(function(v, i){ if ((i && i < pts.length - 1) || pts.length === 1) h += '<circle cx="' + v[0] + '" cy="' + v[1] + '" r="' + (sw * 1.6).toFixed(2) + '" fill="#0a1628"/>'; });
+    if (o.draw && pts.length) { var lv = pts[pts.length - 1]; h += '<circle cx="' + lv[0] + '" cy="' + lv[1] + '" r="' + (sw * 2.6).toFixed(2) + '" fill="#0099e0"/>'; }
     if (o.thumb) return;
     for (var i = 0; i < pts.length - 1; i++) {
       var m = (p.measurements || {})[i]; if (!(m > 0) && !o.ask) continue;
       var a = pts[i], b = pts[i + 1], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny) || 1;
-      var off = fs * 0.9, lx = mx + nx / L * off, ly = my + ny / L * off;
-      var t = m > 0 ? String(Math.round(m * 10) / 10) : '?', hot = o.hot === pi + ':' + i;
-      var w = t.length * fs * 0.62 + fs * 0.7;
-      h += '<g class="fl-lab" data-seg="' + pi + ':' + i + '" style="cursor:pointer"><rect x="' + (lx - w / 2).toFixed(1) + '" y="' + (ly - fs * 0.72).toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + (fs * 1.4).toFixed(1) +
-        '" rx="' + (fs * 0.3).toFixed(1) + '" fill="' + (hot ? '#0099e0' : (m > 0 ? '#fff' : '#fff7e6')) + '" stroke="' + (m > 0 ? '#0099e0' : '#d97706') + '" stroke-width="' + (sw * 0.6).toFixed(2) + '"/>' +
-        '<text x="' + lx.toFixed(1) + '" y="' + (ly + fs * 0.36).toFixed(1) + '" font-size="' + fs.toFixed(1) + '" font-family="Inter,Arial,sans-serif" font-weight="700" text-anchor="middle" fill="' + (hot ? '#fff' : (m > 0 ? '#0077b3' : '#b45309')) + '">' + esc(t) + '</text></g>';
+      var off = fs * 0.95;
+      h += box(mx + nx / L * off, my + ny / L * off, m > 0 ? String(Math.round(m * 10) / 10) : '?', fs, m > 0 ? '#dc2626' : '#d97706', m > 0 ? '#fff' : '#fff7e6', 'seg:' + pi + ':' + i, o.hot === 'seg:' + pi + ':' + i);
     }
   });
+  marks.forEach(function(mk){
+    var s2 = o.thumb ? fs : fs * 0.85;
+    if (mk.kind === 'crush') {
+      var tx = mk.vx + mk.ux * sw * 3, ty = mk.vy + mk.uy * sw * 3, lx = mk.x - mk.ux * s2 * 0.8, ly = mk.y - mk.uy * s2 * 0.8;
+      h += '<line x1="' + lx.toFixed(1) + '" y1="' + ly.toFixed(1) + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="#ea580c" stroke-width="' + (sw * 0.9).toFixed(2) + '"/>' +
+        '<path d="M' + tx.toFixed(1) + ' ' + ty.toFixed(1) + 'l' + (mk.ux * s2 * 0.5 - mk.uy * s2 * 0.3).toFixed(1) + ' ' + (mk.uy * s2 * 0.5 + mk.ux * s2 * 0.3).toFixed(1) + 'l' + (mk.uy * s2 * 0.6).toFixed(1) + ' ' + (-mk.ux * s2 * 0.6).toFixed(1) + 'Z" fill="#ea580c"/>';
+      if (!o.thumb) h += box(mk.x, mk.y, 'Crush', s2, '#ea580c', '#fff', 'crush:' + mk.pi + ':' + mk.k);
+    } else if (mk.kind === 'angle' && !o.thumb) h += box(mk.x, mk.y, '∠ ' + (mk.deg != null && isFinite(mk.deg) ? Math.round(mk.deg * 10) / 10 : '?') + '°', s2, '#0ea5e9', '#fff', 'angle:' + mk.pi + ':' + mk.k);
+    else if (mk.kind === 'guard' && !o.thumb) h += box(mk.x, mk.y, 'Flash guard', s2, '#ea580c', '#fff', 'guard');
+  });
   if (f && f.paintedSide) {
-    var q = f.paintedSide, dl = Math.hypot(q.dirX, q.dirY) || 1, ux = q.dirX / dl, uy = q.dirY / dl, al = fs * 1.8, tx = q.x + ux * al, ty = q.y + uy * al;
-    h += '<line x1="' + q.x + '" y1="' + q.y + '" x2="' + tx.toFixed(1) + '" y2="' + ty.toFixed(1) + '" stroke="#dc2626" stroke-width="' + (sw * 0.9).toFixed(2) + '"/>' +
-      '<path d="M' + tx.toFixed(1) + ' ' + ty.toFixed(1) + 'L' + (tx - ux * fs * 0.6 - uy * fs * 0.35).toFixed(1) + ' ' + (ty - uy * fs * 0.6 + ux * fs * 0.35).toFixed(1) + 'L' + (tx - ux * fs * 0.6 + uy * fs * 0.35).toFixed(1) + ' ' + (ty - uy * fs * 0.6 - ux * fs * 0.35).toFixed(1) + 'Z" fill="#dc2626"/>' +
-      (o.thumb ? '' : '<text x="' + (tx + ux * fs * 0.4).toFixed(1) + '" y="' + (ty + uy * fs * 0.4 + fs * 0.35).toFixed(1) + '" font-size="' + (fs * 0.8).toFixed(1) + '" font-family="Inter,Arial,sans-serif" font-weight="700" fill="#dc2626" text-anchor="' + (ux < -0.3 ? 'end' : (ux > 0.3 ? 'start' : 'middle')) + '">Colour side</text>');
+    var q = f.paintedSide, dl = Math.hypot(q.dirX, q.dirY) || 1, ux = q.dirX / dl, uy = q.dirY / dl, al = md * (o.thumb ? 0.8 : 0.75), ex = q.x + ux * al, ey = q.y + uy * al, s3 = fs * 0.85;
+    h += '<line x1="' + ex.toFixed(1) + '" y1="' + ey.toFixed(1) + '" x2="' + (q.x + ux * sw * 2).toFixed(1) + '" y2="' + (q.y + uy * sw * 2).toFixed(1) + '" stroke="#16a34a" stroke-width="' + (sw * 0.9).toFixed(2) + '"/>' +
+      '<path d="M' + (q.x + ux * sw * 2).toFixed(1) + ' ' + (q.y + uy * sw * 2).toFixed(1) + 'l' + (ux * s3 * 0.5 - uy * s3 * 0.3).toFixed(1) + ' ' + (uy * s3 * 0.5 + ux * s3 * 0.3).toFixed(1) + 'l' + (uy * s3 * 0.6).toFixed(1) + ' ' + (-ux * s3 * 0.6).toFixed(1) + 'Z" fill="#16a34a"/>';
+    if (!o.thumb) h += box(ex + ux * s3 * 0.9, ey + uy * s3 * 0.9, 'Colour side', s3, '#16a34a', '#fff', 'paint');
   }
   return h + '</svg>';
 }
@@ -1035,114 +1139,198 @@ async function renderFlashPick(id){
   draw('');
 }
 function flNew(id){
-  flDraftSet({ rowId: id, idx: -1, mode: 'draw', custom: true, name: 'Custom flashing', profile: '', polylines: [{ vertices: [], measurements: {} }], paintedSide: null,
+  _FL.tool = ''; flDraftSet({ rowId: id, idx: -1, mode: 'draw', custom: true, name: 'Custom flashing', profile: '', polylines: [{ vertices: [], measurements: {} }], paintedSide: null, flashGuard: null, flashGuards: false,
     qty: 1, lengthM: '', colour: flJobColour(id) });
   go('#/job/' + encodeURIComponent(id) + '/flash/edit');
 }
 function flPick(id, fid){
+  _FL.tool = '';
   var lib = LS.get('crew_flib', null) || {}; var x = (lib.items || []).find(function(i){ return i.id === fid; }); if (!x) return;
   flDraftSet({ rowId: id, idx: -1, mode: 'edit', name: x.name, profile: x.profile || '', flashingType: x.flashingType || '', from: x.name,
     polylines: JSON.parse(JSON.stringify(x.polylines || [])), paintedSide: x.paintedSide ? Object.assign({}, x.paintedSide) : null,
+    flashGuard: x.flashGuard ? Object.assign({}, x.flashGuard) : null, flashGuards: !!x.flashGuards,
     qty: 1, lengthM: '', colour: flJobColour(id) });
   location.replace('#/job/' + encodeURIComponent(id) + '/flash/edit');
 }
-function flEditItem(id, i){ var x = flCart(id)[i]; if (!x) return; flDraftSet(Object.assign(JSON.parse(JSON.stringify(x)), { rowId: id, idx: i, mode: 'edit' })); go('#/job/' + encodeURIComponent(id) + '/flash/edit'); }
+function flEditItem(id, i){ var x = flCart(id)[i]; if (!x) return; _FL.tool = ''; flDraftSet(Object.assign(JSON.parse(JSON.stringify(x)), { rowId: id, idx: i, mode: 'edit' })); go('#/job/' + encodeURIComponent(id) + '/flash/edit'); }
 function flRemove(id, i){ var a = flCart(id); if (!confirm('Take ' + ((a[i] && a[i].name) || 'this flashing') + ' off the order?')) return; a.splice(i, 1); flCartSet(id, a); renderFlash(id); }
-// THE DRAWING BOX: tap to put in each bend (the angle snaps to 15°), then type each side's length.
-var _FL = { hot: '' };
+// THE DRAWING SCREEN (2026-11-13, the owner on the first build: "Make the flashing draw area the whole screen,
+// then remove the measurement rows ... just let me tap the measure to edit them, i also need to be able to add a
+// angle, flash-guard and crush fold"). The whole screen is the drawing; the tools sit along the bottom. Tap a
+// number to change it, a side with no number to give it one. Angle / Crush fold toggle at the nearest bend,
+// Flash guard drops its label where tapped, Colour side goes on the side of the line tapped. "Next" goes on
+// to the name, colour, quantity and length.
+var _FL = { tool: '', hist: [] };
+var FL_TOOLS = [['draw', 'pen', 'Draw'], ['tap', 'note', 'Measure'], ['angle', 'angle', 'Angle'], ['crush', 'crush', 'Crush fold'],
+  ['guard', 'guard', 'Flash guard'], ['paint', 'flip', 'Colour side'], ['undo', 'undo', 'Undo'], ['clear', 'trash', 'Clear']];
+function flHasLines(d){ return flPolys(d).some(function(p){ return p.vertices.length >= 2; }); }
 function renderFlashEdit(id){
   var d = flDraft();
   if (!d || d.rowId !== id) return go('#/job/' + encodeURIComponent(id) + '/flash');
-  setTop(d.idx >= 0 ? 'Edit flashing' : (d.mode === 'draw' ? 'Draw a flashing' : 'Flashing'), true);
+  _FL.tool = flHasLines(d) ? 'tap' : 'draw'; _FL.hist = [];
+  setTop('Flashing', true);
+  main('');
+  var old = document.getElementById('flFull'); if (old) old.remove();
+  var el = document.createElement('div'); el.id = 'flFull';
+  el.innerHTML = '<div class="flf-top"><button class="flf-x" onclick="flExit()" aria-label="Back">' + I('left') + '</button><div class="flf-tt"><small>' + (d.idx >= 0 ? 'Edit flashing' : (d.custom ? 'Draw a flashing' : 'Flashing')) + '</small><b id="flfName">' + esc(d.name || 'Flashing') + '</b></div>' +
+    '<button class="flf-next" id="flNext" onclick="flNext()">Next ' + I('chev') + '</button></div>' +
+    '<div class="flf-stats" id="flfStats"></div><div class="flf-pad" id="flPad"></div><div class="flf-hint" id="flfHint"></div>' +
+    '<div class="flf-tools">' + FL_TOOLS.map(function(t){ return '<button data-tool="' + t[0] + '" onclick="flTool(\'' + t[0] + '\')">' + I(t[1]) + '<span>' + t[2] + '</span></button>'; }).join('') + '</div>';
+  document.body.appendChild(el);
+  flPaint();
+}
+function flExit(){ var e = document.getElementById('flFull'); if (e) e.remove(); var d = flDraft(); go('#/job/' + encodeURIComponent((d && d.rowId) || '') + '/flash'); }
+window.addEventListener('hashchange', function(){ if (!/\/flash\/edit/.test(location.hash)) { var e = document.getElementById('flFull'); if (e) e.remove(); } });
+var FL_HINT = { draw: 'Tap each bend in order. Lines snap to 15°.', tap: 'Tap a number to change it, or a side to give it a length.',
+  angle: 'Tap a bend to add its angle. Tap an angle to change or remove it.', crush: 'Tap a bend to add or take off a crush fold.',
+  guard: 'Tap where the Flash guard label goes. Tap it again to remove it.', paint: 'Tap beside a side, on its coloured side.' };
+function flPaint(){
+  var d = flDraft(), pad = document.getElementById('flPad'); if (!d || !pad) return;
+  var r = pad.getBoundingClientRect(), W = r.width || 360, H = r.height || 500;
+  pad.className = 'flf-pad' + (_FL.tool === 'draw' ? ' grid' : '');
+  pad.innerHTML = flSvg(d, { px: [W, H], box: [0, 0, 400, 400 * H / W], draw: _FL.tool === 'draw', stable: d.custom, ask: d.custom, hot: _FL.hot });
+  pad.querySelector('svg').addEventListener('pointerdown', flPadTap);
   var st = flStats(d);
-  var drawing = d.mode === 'draw';
-  var segs = [];
-  (d.polylines || []).forEach(function(p, pi){ if (p.kind === 'squiggle') return; for (var i = 0; i < p.vertices.length - 1; i++) segs.push([pi, i]); });
-  main('<div class="fl-pad' + (drawing ? ' draw' : '') + '" id="flPad">' + flSvg(d, drawing ? { draw: true, box: [0, 0, 400, 300] } : { hot: _FL.hot, ask: d.custom }) +
-      (drawing ? '<div class="fl-hint">' + ((d.polylines[0].vertices.length) ? 'Tap the next bend' : 'Tap where the flashing starts') + '</div>' : '') +
-      '<div class="fl-tools">' + (drawing
-        ? '<button class="btn o" onclick="flUndo()">' + I('undo') + ' Undo</button><button class="btn o" onclick="flClear()">Clear</button><button class="btn n" onclick="flDoneDraw()"' + (segs.length ? '' : ' disabled') + '>' + I('check') + ' Done</button>'
-        : '<button class="btn o" onclick="flFlip()">' + I('flip') + ' Colour side</button><button class="btn o" onclick="flRedraw()">' + I('pen') + ' Redraw</button>') + '</div></div>' +
-    (drawing ? '<div class="mut" style="margin:0 2px 14px">Tap each bend in order along the flashing. Lines snap to 15°; the drawing doesn’t need to be to scale — you type each length next.</div>' :
-    '<div class="card"><h2>' + I('flash') + 'Sides<span class="r">girth ' + st.girth + ' mm · ' + st.txt + '</span></h2><div class="bd">' +
-      (segs.length ? segs.map(function(sg, k){ var m = (d.polylines[sg[0]].measurements || {})[sg[1]];
-        return '<div class="seg-row" data-row="' + sg[0] + ':' + sg[1] + '"><span class="sn">' + (k + 1) + '</span><input class="t" type="number" inputmode="decimal" step="any" min="0" data-seg="' + sg[0] + ':' + sg[1] + '" value="' + (m > 0 ? m : '') + '" placeholder="' + (d.custom ? 'Side ' + (k + 1) : 'not measured') + '"><span class="u">mm</span></div>'; }).join('') +
-        (d.custom ? '' : '<div class="mut" style="margin-top:8px">A side left blank (a hem or a return) is made as the office drew it.</div>') : '<div class="mut">Draw the flashing first.</div>') +
-    '</div></div>' +
+  document.getElementById('flfStats').textContent = flHasLines(d) ? 'Girth ' + st.girth + ' mm · ' + st.txt + (d.custom && st.missing ? ' · ' + st.missing + ' to measure' : '') + (d.flashGuards ? ' · flash guard' : '') : 'Nothing drawn yet';
+  document.getElementById('flfHint').textContent = FL_HINT[_FL.tool] || '';
+  document.querySelectorAll('#flFull [data-tool]').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-tool') === _FL.tool); });
+  document.getElementById('flNext').disabled = !flHasLines(d);
+}
+function flTool(t){
+  if (t === 'undo') { var s = _FL.hist.pop(); if (s) { var d = flDraft(); Object.assign(d, s); flDraftSet(d); } flPaint(); return; }
+  if (t === 'clear') { if (!confirm('Clear the drawing and start again?')) return; flPush(); var d2 = flDraft(); d2.polylines = [{ vertices: [], measurements: {} }]; d2.paintedSide = null; d2.flashGuard = null; d2.flashGuards = false; d2.custom = true; flDraftSet(d2); _FL.tool = 'draw'; flPaint(); return; }
+  _FL.tool = t; flPaint();
+}
+function flPush(){ var d = flDraft(); _FL.hist.push(JSON.parse(JSON.stringify({ polylines: d.polylines, paintedSide: d.paintedSide || null, flashGuard: d.flashGuard || null, flashGuards: !!d.flashGuards, custom: !!d.custom }))); if (_FL.hist.length > 60) _FL.hist.shift(); }
+// where a tap is, in the drawing's own units
+function flPt(e, svg){
+  var rc = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
+  var sc = Math.min(rc.width / vb.width, rc.height / vb.height), ox = (rc.width - vb.width * sc) / 2, oy = (rc.height - vb.height * sc) / 2;
+  return { x: (e.clientX - rc.left - ox) / sc + vb.x, y: (e.clientY - rc.top - oy) / sc + vb.y, unit: 1 / sc };
+}
+function flNearest(d, p, what){
+  var best = null;
+  flPolys(d).forEach(function(pl){ var pi = d.polylines.indexOf(pl), v = pl.vertices;
+    if (what === 'vertex') v.forEach(function(q, k){ var dd = Math.hypot(q[0] - p.x, q[1] - p.y); if (!best || dd < best.d) best = { pi: pi, k: k, d: dd }; });
+    else for (var i = 0; i < v.length - 1; i++) { var a = v[i], b = v[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1;
+      var t = Math.max(0, Math.min(1, ((p.x - a[0]) * dx + (p.y - a[1]) * dy) / L2)), fx = a[0] + dx * t, fy = a[1] + dy * t, dd = Math.hypot(p.x - fx, p.y - fy);
+      if (!best || dd < best.d) best = { pi: pi, k: i, d: dd, fx: fx, fy: fy }; } });
+  return best;
+}
+function flPadTap(e){
+  var svg = e.currentTarget, d = flDraft(), p = flPt(e, svg), hitEl = e.target.closest && e.target.closest('[data-hit]'), hit = hitEl ? hitEl.getAttribute('data-hit') : '';
+  var tool = _FL.tool, tol = 34 * p.unit;
+  if (tool === 'draw') {
+    var pl = flPolys(d)[0]; if (!pl) { d.polylines.unshift({ vertices: [], measurements: {} }); pl = d.polylines[0]; }
+    var vs = pl.vertices, x = p.x, y = p.y;
+    if (vs.length) { var q = vs[vs.length - 1], dx = x - q[0], dy = y - q[1], L = Math.hypot(dx, dy);
+      if (L < 12 * p.unit) return;
+      var an = Math.round(Math.atan2(dy, dx) / (Math.PI / 12)) * (Math.PI / 12); L = Math.max(10, Math.round(L / 5) * 5); x = q[0] + Math.cos(an) * L; y = q[1] + Math.sin(an) * L; }
+    flPush(); vs.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]); d.custom = d.custom || !d.from; flDraftSet(d); flPaint(); return;
+  }
+  // a mark tapped is that mark, whatever the tool
+  // a length is changed with Measure (or Colour side / Flash guard, which have nothing to do on a number);
+  // Angle and Crush fold act at the bend nearest the tap even when a number sits on it
+  if ((/^seg:/.test(hit) && tool !== 'angle' && tool !== 'crush') || (tool === 'tap' && !hit)) {
+    var sg = /^seg:/.test(hit) ? { pi: +hit.split(':')[1], k: +hit.split(':')[2], d: 0 } : flNearest(d, p, 'side');
+    if (!sg || sg.d > tol) return;
+    var cur = (d.polylines[sg.pi].measurements || {})[sg.k];
+    _FL.hot = 'seg:' + sg.pi + ':' + sg.k; flPaint();
+    return flAsk('Side ' + (sg.k + 1) + ' length', cur > 0 ? cur : '', 'mm', cur > 0, function(v, del){
+      _FL.hot = ''; var dd = flDraft(); flPush(); var ms = dd.polylines[sg.pi].measurements = dd.polylines[sg.pi].measurements || {};
+      if (del) delete ms[sg.k]; else if (v > 0) ms[sg.k] = Math.round(v * 10) / 10; flDraftSet(dd); flPaint();
+      if (!del && dd.custom) { var nx = flNextMissing(dd, sg); if (nx) setTimeout(function(){ flAskSide(nx); }, 120); } }, function(){ _FL.hot = ''; flPaint(); });
+  }
+  if (/^angle:/.test(hit)) return flAngleAsk(+hit.split(':')[1], +hit.split(':')[2]);
+  if (/^crush:/.test(hit)) { flPush(); delete d.polylines[+hit.split(':')[1]].crushFolds[+hit.split(':')[2]]; flDraftSet(d); return flPaint(); }
+  if (hit === 'guard' && (tool === 'guard' || tool === 'tap')) { flPush(); d.flashGuard = null; d.flashGuards = false; flDraftSet(d); return flPaint(); }
+  if (tool === 'angle') { var vx = flNearest(d, p, 'vertex'); if (!vx) return toast('Draw the flashing first.');
+    var pl2 = d.polylines[vx.pi]; if (pl2.angleMarkers && pl2.angleMarkers[vx.k]) return flAngleAsk(vx.pi, vx.k);
+    return flAngleAsk(vx.pi, vx.k, true); }
+  if (tool === 'crush') { var cv = flNearest(d, p, 'vertex'); if (!cv) return toast('Draw the flashing first.'); flPush();
+    var pl3 = d.polylines[cv.pi]; pl3.crushFolds = pl3.crushFolds || {};
+    if (pl3.crushFolds[cv.k]) delete pl3.crushFolds[cv.k]; else pl3.crushFolds[cv.k] = flCrushDir(pl3, cv.k);
+    flDraftSet(d); return flPaint(); }
+  if (tool === 'guard') { flPush(); d.flashGuard = { x: Math.round(p.x), y: Math.round(p.y) }; d.flashGuards = true; flDraftSet(d); return flPaint(); }
+  if (tool === 'paint') { var s = flNearest(d, p, 'side'); if (!s) return toast('Draw the flashing first.');
+    var dx2 = p.x - s.fx, dy2 = p.y - s.fy, L3 = Math.hypot(dx2, dy2);
+    var a = d.polylines[s.pi].vertices[s.k], b = d.polylines[s.pi].vertices[s.k + 1], nx2 = -(b[1] - a[1]), ny2 = b[0] - a[0], Ln = Math.hypot(nx2, ny2) || 1;
+    var ux = nx2 / Ln, uy = ny2 / Ln; if (L3 > 0.01 && (dx2 * ux + dy2 * uy) < 0) { ux = -ux; uy = -uy; }
+    flPush(); d.paintedSide = { x: Math.round(s.fx * 10) / 10, y: Math.round(s.fy * 10) / 10, dirX: ux, dirY: uy }; flDraftSet(d); return flPaint(); }
+}
+function flNextMissing(d, after){
+  var list = []; flPolys(d).forEach(function(pl){ var pi = d.polylines.indexOf(pl); for (var i = 0; i < pl.vertices.length - 1; i++) if (!((pl.measurements || {})[i] > 0)) list.push({ pi: pi, k: i }); });
+  return list.find(function(x){ return x.pi > after.pi || (x.pi === after.pi && x.k > after.k); }) || list[0] || null;
+}
+function flAskSide(sg){
+  var d = flDraft(); _FL.hot = 'seg:' + sg.pi + ':' + sg.k; flPaint();
+  flAsk('Side ' + (sg.k + 1) + ' length', '', 'mm', false, function(v){ _FL.hot = ''; var dd = flDraft(); flPush(); var ms = dd.polylines[sg.pi].measurements = dd.polylines[sg.pi].measurements || {};
+    if (v > 0) ms[sg.k] = Math.round(v * 10) / 10; flDraftSet(dd); flPaint(); var nx = flNextMissing(dd, sg); if (nx && v > 0) setTimeout(function(){ flAskSide(nx); }, 120); }, function(){ _FL.hot = ''; flPaint(); });
+}
+function flAngleAsk(pi, k, fresh){
+  var d = flDraft(), pl = d.polylines[pi], am = (pl.angleMarkers || {})[k];
+  flAsk('Angle at bend ' + (k + 1), am && am.deg != null ? am.deg : '', '°', !fresh, function(v, del){
+    var dd = flDraft(), p2 = dd.polylines[pi]; flPush(); p2.angleMarkers = p2.angleMarkers || {};
+    if (del) delete p2.angleMarkers[k];
+    else if (v > 0 && v < 360) { var cur = p2.angleMarkers[k];
+      if (cur && typeof cur.x === 'number') cur.deg = v;
+      else { var dir = flCrushDir(p2, k), md = flMarkDist(dd) * 1.15, vv = p2.vertices[k]; p2.angleMarkers[k] = { x: Math.round((vv[0] + dir.dirX * md) * 10) / 10, y: Math.round((vv[1] + dir.dirY * md) * 10) / 10, deg: v }; } }
+    flDraftSet(dd); flPaint(); });
+}
+// One question, a big box: a length, an angle. OK keeps it, Remove takes it off.
+function flAsk(title, val, unit, canRemove, ok, cancel){
+  var o = document.getElementById('flAsk'); if (o) o.remove();
+  o = document.createElement('div'); o.id = 'flAsk';
+  o.innerHTML = '<div class="fla-card"><div class="fla-t">' + esc(title) + '</div><div class="fla-in"><input id="flAskIn" type="number" inputmode="decimal" step="any" min="0" value="' + esc(val) + '"><span>' + esc(unit) + '</span></div>' +
+    '<div class="fla-b">' + (canRemove ? '<button class="btn o" data-a="rm">Remove</button>' : '') + '<button class="btn o" data-a="no">Cancel</button><button class="btn g" data-a="ok">' + I('check') + ' OK</button></div></div>';
+  document.body.appendChild(o);
+  var inp = document.getElementById('flAskIn'); setTimeout(function(){ inp.focus(); inp.select(); }, 30);
+  var done = function(a){ o.remove(); if (a === 'ok') ok(parseFloat(inp.value), false); else if (a === 'rm') ok(null, true); else if (cancel) cancel(); };
+  o.addEventListener('click', function(e){ var b = e.target.closest('[data-a]'); if (b) done(b.getAttribute('data-a')); else if (e.target === o) done('no'); });
+  inp.addEventListener('keydown', function(e){ if (e.key === 'Enter') done('ok'); if (e.key === 'Escape') done('no'); });
+}
+function flNext(){
+  var d = flDraft(); if (!flHasLines(d)) return;
+  var st = flStats(d);
+  if (d.custom && st.missing) { toast('Give every side a length first (' + st.missing + ' to go).'); var nx = flNextMissing(d, { pi: -1, k: -1 }); if (nx) flAskSide(nx); return; }
+  if (!(st.girth > 0)) return toast('Give at least one side a length.');
+  var e = document.getElementById('flFull'); if (e) e.remove();
+  go('#/job/' + encodeURIComponent(d.rowId) + '/flash/details');
+}
+// THE ORDER: the drawing small (a tap goes back to it), name, colour, how many, how long.
+function renderFlashDetails(id){
+  var d = flDraft();
+  if (!d || d.rowId !== id) return go('#/job/' + encodeURIComponent(id) + '/flash');
+  setTop(d.name || 'Flashing', true);
+  var st = flStats(d);
+  main('<button class="fl-prev" onclick="go(\'#/job/' + encodeURIComponent(id) + '/flash/edit\')"><span id="flPrevPic"></span><span class="fl-prev-tag">' + I('pen') + ' Edit drawing</span></button>' +
+    '<div class="mut" style="margin:0 2px 12px">Girth ' + st.girth + ' mm · ' + st.txt + (d.flashGuards ? ' · flash guard' : '') + '</div>' +
     '<div class="card"><h2>' + I('note') + 'The order</h2><div class="bd">' +
       '<label class="f" for="flName">Name</label><input class="t" id="flName" value="' + esc(d.name || '') + '">' +
       '<label class="f" for="flColour">Colour</label><input class="t" id="flColour" value="' + esc(d.colour || '') + '" placeholder="e.g. Ironsand">' +
       '<div class="grid2"><div><label class="f">Quantity</label><div class="stepper"><button type="button" onclick="flQty(-1)">−</button><input id="flQty" type="number" inputmode="numeric" min="1" value="' + esc(d.qty || 1) + '"><button type="button" onclick="flQty(1)">+</button></div></div>' +
       '<div><label class="f" for="flLen">Length (m)</label><input class="t" id="flLen" type="number" inputmode="decimal" step="0.01" min="0.1" max="12" value="' + esc(d.lengthM || '') + '" placeholder="e.g. 6.0"></div></div>' +
       '<div class="err" id="flErr"></div>' +
-      '<button class="btn g w xl" style="margin-top:8px" onclick="flFinish()">' + I('check') + ' Finish flashing</button></div></div>'));
-  var svg = document.querySelector('#flPad svg.fl');
-  if (drawing) svg.addEventListener('pointerdown', flTap);
-  else {
-    svg.querySelectorAll('.fl-lab').forEach(function(g){ g.addEventListener('click', function(){ var inp = document.querySelector('input[data-seg="' + g.getAttribute('data-seg') + '"]'); if (inp) { inp.focus(); inp.select(); } }); });
-    document.querySelectorAll('input[data-seg]').forEach(function(inp){
-      inp.addEventListener('focus', function(){ _FL.hot = inp.getAttribute('data-seg'); flRepaint(); });
-      inp.addEventListener('input', function(){ var dd = flDraft(), k = inp.getAttribute('data-seg').split(':'), p = dd.polylines[+k[0]];
-        p.measurements = p.measurements || {}; var v = parseFloat(inp.value); if (v > 0) p.measurements[k[1]] = Math.round(v * 10) / 10; else delete p.measurements[k[1]];
-        flDraftSet(dd); flRepaint(); }); });
-    ['flName', 'flColour', 'flQty', 'flLen'].forEach(function(x){ document.getElementById(x).addEventListener('input', flKeepFields); });
-  }
+      '<button class="btn g w xl" style="margin-top:8px" onclick="flFinish()">' + I('check') + ' Finish flashing</button></div></div>');
+  ['flName', 'flColour', 'flQty', 'flLen'].forEach(function(x){ document.getElementById(x).addEventListener('input', flKeepFields); });
+  // the picture at the drawing screen's own label size, fitted to its box
+  var pic = document.getElementById('flPrevPic'), pr = pic.parentNode.getBoundingClientRect(), pw = pr.width || 360, ph = Math.max(220, Math.round(pw * 0.8));
+  pic.innerHTML = flSvg(d, { px: [pw, ph], box: [0, 0, 400, 400 * ph / pw], ask: d.custom });
 }
-function flKeepFields(){ var d = flDraft(); if (!d) return;
+function flKeepFields(){ var d = flDraft(); if (!d || !document.getElementById('flName')) return;
   d.name = document.getElementById('flName').value; d.colour = document.getElementById('flColour').value;
   d.qty = parseInt(document.getElementById('flQty').value, 10) || 1; d.lengthM = document.getElementById('flLen').value; flDraftSet(d); }
-function flRepaint(){
-  var d = flDraft(), pad = document.getElementById('flPad'); if (!d || !pad) return;
-  var old = pad.querySelector('svg.fl'); var tmp = document.createElement('div'); tmp.innerHTML = flSvg(d, { hot: _FL.hot, ask: d.custom }); var nu = tmp.firstChild;
-  old.replaceWith(nu);
-  nu.querySelectorAll('.fl-lab').forEach(function(g){ g.addEventListener('click', function(){ var inp = document.querySelector('input[data-seg="' + g.getAttribute('data-seg') + '"]'); if (inp) { inp.focus(); inp.select(); } }); });
-  var st = flStats(d), r = document.querySelector('.card h2 .r'); if (r) r.textContent = 'girth ' + st.girth + ' mm · ' + st.txt;
-}
-function flTap(e){
-  var svg = e.currentTarget, rc = svg.getBoundingClientRect(), vb = svg.viewBox.baseVal;
-  // the box is drawn "meet": work out where the 400 × 300 area sits inside it
-  var sc = Math.min(rc.width / vb.width, rc.height / vb.height), ox = (rc.width - vb.width * sc) / 2, oy = (rc.height - vb.height * sc) / 2;
-  var x = (e.clientX - rc.left - ox) / sc + vb.x, y = (e.clientY - rc.top - oy) / sc + vb.y;
-  x = Math.max(4, Math.min(396, x)); y = Math.max(4, Math.min(296, y));
-  var d = flDraft(), vs = d.polylines[0].vertices;
-  if (vs.length) {
-    var p = vs[vs.length - 1], dx = x - p[0], dy = y - p[1], L = Math.hypot(dx, dy);
-    if (L < 8) return;
-    var a = Math.round(Math.atan2(dy, dx) / (Math.PI / 12)) * (Math.PI / 12);
-    L = Math.max(10, Math.round(L / 5) * 5);
-    x = p[0] + Math.cos(a) * L; y = p[1] + Math.sin(a) * L;
-  }
-  vs.push([Math.round(x * 10) / 10, Math.round(y * 10) / 10]);
-  flDraftSet(d); renderFlashEdit(d.rowId);
-}
-function flUndo(){ var d = flDraft(); d.polylines[0].vertices.pop(); delete d.polylines[0].measurements[d.polylines[0].vertices.length - 1]; flDraftSet(d); renderFlashEdit(d.rowId); }
-function flClear(){ var d = flDraft(); d.polylines = [{ vertices: [], measurements: {} }]; d.paintedSide = null; flDraftSet(d); renderFlashEdit(d.rowId); }
-function flDoneDraw(){ var d = flDraft(); if (flPolys(d).every(function(p){ return p.vertices.length < 2; })) return; d.mode = 'edit'; _FL.hot = ''; flDraftSet(d); renderFlashEdit(d.rowId);
-  setTimeout(function(){ var i = document.querySelector('input[data-seg]'); if (i) i.focus(); }, 60); }
-function flRedraw(){ if (!confirm('Draw this flashing again from scratch? Its measurements go with it.')) return; flClear(); var d = flDraft(); d.mode = 'draw'; flDraftSet(d); renderFlashEdit(d.rowId); }
-// Colour side: put it on the first side if there is none, otherwise turn it round.
-function flFlip(){
-  var d = flDraft(); flKeepFields();
-  d = flDraft();
-  var p = flPolys(d)[0]; if (!p || p.vertices.length < 2) return;
-  if (!d.paintedSide) { var bi = 0, bl = -1;
-    for (var i = 0; i < p.vertices.length - 1; i++) { var ll = Math.hypot(p.vertices[i + 1][0] - p.vertices[i][0], p.vertices[i + 1][1] - p.vertices[i][1]); if (ll > bl) { bl = ll; bi = i; } }
-    var a = p.vertices[bi], b = p.vertices[bi + 1], nx = -(b[1] - a[1]), ny = b[0] - a[0], L = Math.hypot(nx, ny) || 1;
-    // a quarter of the way along the longest side, on the side away from its measurement
-    d.paintedSide = { x: a[0] + (b[0] - a[0]) * 0.25, y: a[1] + (b[1] - a[1]) * 0.25, dirX: -nx / L, dirY: -ny / L }; }
-  else { d.paintedSide.dirX = -d.paintedSide.dirX; d.paintedSide.dirY = -d.paintedSide.dirY; }
-  flDraftSet(d); flRepaint(); toast('Colour side marked');
-}
 function flQty(n){ var i = document.getElementById('flQty'); i.value = Math.max(1, (parseInt(i.value, 10) || 1) + n); flKeepFields(); }
 function flFinish(){
   flKeepFields();
   var d = flDraft(), st = flStats(d), err = document.getElementById('flErr');
   var len = parseFloat(d.lengthM);
-  if (d.custom && st.missing) { err.textContent = 'Put in a length for every side (' + st.missing + ' to go).'; var i = Array.prototype.find.call(document.querySelectorAll('input[data-seg]'), function(x){ return !(parseFloat(x.value) > 0); }); if (i) i.focus(); return; }
+  if (d.custom && st.missing) { err.textContent = 'Give every side a length (' + st.missing + ' to go) — tap the drawing.'; return; }
+  if (!(st.girth > 0)) { err.textContent = 'Give at least one side a length — tap the drawing.'; return; }
   if (!(len > 0 && len <= 12)) { err.textContent = 'Put in the length of each piece, in metres (up to 12).'; document.getElementById('flLen').focus(); return; }
-  if (!(st.girth > 0)) { err.textContent = 'Put in the length of at least one side.'; return; }
   var item = { custom: !!d.custom, name: (d.name || 'Flashing').trim(), profile: d.profile || '', flashingType: d.flashingType || '', colour: (d.colour || '').trim(),
-    qty: Math.max(1, parseInt(d.qty, 10) || 1), lengthM: Math.round(len * 100) / 100, polylines: d.polylines, paintedSide: d.paintedSide || null };
+    qty: Math.max(1, parseInt(d.qty, 10) || 1), lengthM: Math.round(len * 100) / 100, polylines: d.polylines, paintedSide: d.paintedSide || null,
+    flashGuard: d.flashGuard || null, flashGuards: !!d.flashGuards };
   var a = flCart(d.rowId); if (d.idx >= 0 && a[d.idx]) a[d.idx] = item; else a.push(item);
   flCartSet(d.rowId, a); LS.del('crew_fdraft');
   toast(item.name + ' added');

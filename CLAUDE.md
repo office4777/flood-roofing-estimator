@@ -2722,8 +2722,20 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   page, vectors and Helvetica, nothing uploaded from the phone), emailed as the business (`crewMail` in server.js, the
   Job Pack order's identity) to the supplier with the office CC'd when `perms.orderFlash`, else to the office
   (Settings → Branding email) to send on. `orderFlash` is in PERM_DEFAULTS (off) and the GPS Map tab's ticks; the tab
-  has a Flashing orders card (`loadFlash`: PDF, Send to supplier, Done → /crew/office/flash-orders…). `crewapi` (67),
-  `crewui` (50, a saved flashing edited and one drawn by tapping).
+  has a Flashing orders card (`loadFlash`: PDF, Send to supplier, Done → /crew/office/flash-orders…).
+  THE DRAWING IS THE WHOLE SCREEN, TAP TO MEASURE, AND THE OFFICE'S MARKS (the same night, the owner on the first
+  build: "Make the flashing draw area the whole screen, then remove the measurement rows ... just let me tap the
+  measure to edit them, i also need to be able to add a angle, flash-guard and crush fold"). `/flash/edit` is a
+  full-screen layer `#flFull` (sized by --vw1 / --vh1, over the header and the tabs): Next on the bar, the girth line,
+  the drawing (`#flPad`), a hint, and eight tools (`FL_TOOLS`: Draw, Measure, Angle, Crush fold, Flash guard, Colour
+  side, Undo, Clear). No rows of boxes: a tap on a number (`data-hit="seg:pi:i"`) or near a side opens `flAsk` (one
+  big box, OK / Remove / Cancel); Next on a hand drawing asks each unmeasured side in turn. Angle = `angleMarkers[i]
+  {x, y, deg}` ("∠ 30°"), Crush fold = `crushFolds[i] {dirX, dirY}` (the office's arrow and "Crush"; a hem), Flash
+  guard = `flashGuard {x, y}` + `flashGuards` (the office's pricing flag), Colour side goes on the side of the line
+  tapped — all the office's own fields, kept through `cleanPoly` / `cleanFlash` and drawn on the PDF (`pdfMarks`).
+  Labels are a fixed 17px on the glass and the drawing is fitted round them (`flExtents`, `o.px`); a hand drawing's
+  view holds still (`stable`). Then `/flash/details` (`renderFlashDetails`): the drawing (a tap goes back), name,
+  colour, quantity, length, Finish flashing. `crewapi` (67), `crewui` (59, a real mouse on the drawing).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with
