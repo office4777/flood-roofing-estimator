@@ -2747,8 +2747,9 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   picked since (`clockModeSet`, written by PUT /crew/office/settings), so a stored 'button' from before counts as
   unset; the GPS Map tab lists typed times first, "(standard)". THE ICON: `brand/crew-192.png`, `crew-512.png`,
   `crew-maskable-512.png` (the manifest, apple-touch-icon, sign-in) and `crew-mark.png` (the bar) — the RoofMap pin
-  in a yellow hard hat with its arms crossed, a hammer in its fist, on a white tile (the owner's second ask the next
-  morning; the first build was a crossed drill and hammer under the pin); `crew-sw.js` crew-v4. A phone that already
+  in a yellow hard hat, a hammer leaning beside it and "RoofMap Crew" written under it, on a white tile (the owner's
+  third ask the next morning: "Remove the arms, and write RoofMap Crew"; before it a crossed drill and hammer, then
+  crossed arms); the top bar's small mark has no words (the bar says RoofMap Crew already); `crew-sw.js` crew-v5. A phone that already
   added the app to its home screen keeps the old icon until it is removed and added again. Order flashing's row icon is the owner's drawn
   shape (hem, up, across, hem). THE WEEK: `board()` reads the quote's number for a RoofMap row with no `job_ref`
   (`refs`, one jobs read), and a card shows a "Job 3351" chip. THE PACK: the automatic copy waited for the office to
