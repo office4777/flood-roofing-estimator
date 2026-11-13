@@ -300,6 +300,35 @@ await p3.ctx.close();
   await p6.ctx.close();
 }
 
+// ── the Week tab and the photo viewer (2026-11-14, the owner: "clicking a job in the week keeps jumping from the job to
+//    the week tab ... when i click on the exit button [on a photo] it jumps me back to the week tab") ──
+{
+  const pw = await phone(nzAt(D, 10));
+  let slow = 0;
+  await pw.pg.route('**/crew/week**', async r => { if (slow) { await wait(2500); } return r.continue(); });
+  await pw.pg.goto(ORIGIN + '/crew#/week'); await wait(1500);
+  slow = 1;
+  await pw.pg.evaluate(() => { S.weekFrom = null; renderWeek(); }); await wait(200);   // a week still loading…
+  await pw.pg.click('.job'); await wait(3500);                                            // …when the job is opened
+  check('a job opened from the Week stays open when the week finishes loading behind it', /#\/job\//.test(await pw.pg.evaluate(() => location.hash)) && await pw.pg.locator('details.tool[data-k="photos"]').count() === 1,
+    await pw.pg.evaluate(() => location.hash + ' ' + document.getElementById('title').textContent));
+  slow = 0;
+  await pw.pg.click('details.tool[data-k="photos"] summary'); await wait(800);
+  await pw.pg.click('#phStrip .slide'); await wait(400);
+  check('…a photo opens full screen over it', await pw.pg.locator('#viewer').count() === 1);
+  const vb = await pw.pg.evaluate(() => { const r = document.querySelector('#viewer .vw-top button').getBoundingClientRect(), z = +document.documentElement.style.zoom || 1; return { right: r.right * z, w: window.innerWidth }; });
+  check('…its ✕ is on the screen', vb.right <= vb.w + 1, JSON.stringify(vb));
+  await pw.pg.click('#viewer .vw-top button'); await wait(500);
+  check('…✕ closes the photo and leaves you on the job’s photos', await pw.pg.locator('#viewer').count() === 0 && /#\/job\//.test(await pw.pg.evaluate(() => location.hash)) && await pw.pg.locator('#phStrip').isVisible());
+  await pw.pg.click('#phStrip .slide'); await wait(400);
+  await pw.pg.goBack(); await wait(600);
+  check('…and the phone’s Back closes the photo too, still on the job', await pw.pg.locator('#viewer').count() === 0 && /#\/job\//.test(await pw.pg.evaluate(() => location.hash)) && await pw.pg.locator('#phStrip').isVisible(),
+    await pw.pg.evaluate(() => location.hash));
+  await pw.pg.goBack(); await wait(600);
+  check('…then Back again goes to the Week', /#\/week/.test(await pw.pg.evaluate(() => location.hash)));
+  await pw.ctx.close();
+}
+
 // ── the team map (2026-11-14, the owner: "add a map tab to see the company map to see where everyone is") ──
 {
   db.crew_points.push({ id: 'pt-map', company_id: 'c1', user_id: 'u3', at: new Date().toISOString(), lat: -35.2271, lng: 173.9533, acc: 6, speed: null, row_id: 'r1', created_at: new Date().toISOString() });
