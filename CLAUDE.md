@@ -2729,13 +2729,31 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   full-screen layer `#flFull` (sized by --vw1 / --vh1, over the header and the tabs): Next on the bar, the girth line,
   the drawing (`#flPad`), a hint, and eight tools (`FL_TOOLS`: Draw, Measure, Angle, Crush fold, Flash guard, Colour
   side, Undo, Clear). No rows of boxes: a tap on a number (`data-hit="seg:pi:i"`) or near a side opens `flAsk` (one
-  big box, OK / Remove / Cancel); Next on a hand drawing asks each unmeasured side in turn. Angle = `angleMarkers[i]
+  big box, OK / Remove / Cancel); a side is asked only when it is tapped — OK closes the box and nothing asks for the
+  next (the owner, 2026-11-13), and Next with sides missing only says so and lights the first. Angle = `angleMarkers[i]
   {x, y, deg}` ("∠ 30°"), Crush fold = `crushFolds[i] {dirX, dirY}` (the office's arrow and "Crush"; a hem), Flash
   guard = `flashGuard {x, y}` + `flashGuards` (the office's pricing flag), Colour side goes on the side of the line
   tapped — all the office's own fields, kept through `cleanPoly` / `cleanFlash` and drawn on the PDF (`pdfMarks`).
   Labels are a fixed 17px on the glass and the drawing is fitted round them (`flExtents`, `o.px`); a hand drawing's
   view holds still (`stable`). Then `/flash/details` (`renderFlashDetails`): the drawing (a tap goes back), name,
   colour, quantity, length, Finish flashing. `crewapi` (67), `crewui` (59, a real mouse on the drawing).
+  THE BOX STAYS OPEN UNDER A THUMB, TYPED TIMES ARE STANDARD, ITS OWN ICON, THE JOB NUMBER, THE PACK ON A PRESS
+  (2026-11-13 late, the owner: "the enter measurement box only appears for a split second then disappears";
+  "Change the time default ... to the enter start time and finish time"; "a drill and hammer crossed over symbol with
+  the roofmap logo"; "this job #3338 still isn't showing a job pack, and show the job number in the weeks schedule").
+  `flAsk` opens on the pointerdown, and on a TOUCH screen the click that follows is hit-tested after the box is up —
+  it landed on the backdrop and closed it; a backdrop click within 600 ms of opening is ignored now (`crewui` taps
+  with `touchscreen.tap`; a mouse never showed it). CLOCK MODE: `settingsOf` answers 'times' unless the office has
+  picked since (`clockModeSet`, written by PUT /crew/office/settings), so a stored 'button' from before counts as
+  unset; the GPS Map tab lists typed times first, "(standard)". THE ICON: `brand/crew-192.png`, `crew-512.png`,
+  `crew-maskable-512.png` (the manifest, apple-touch-icon, sign-in) and `crew-mark.png` (the bar) — the RoofMap pin
+  over a crossed drill and hammer, white tile; `crew-sw.js` crew-v3. Order flashing's row icon is the owner's drawn
+  shape (hem, up, across, hem). THE WEEK: `board()` reads the quote's number for a RoofMap row with no `job_ref`
+  (`refs`, one jobs read), and a card shows a "Job 3351" chip. THE PACK: the automatic copy waited for the office to
+  sit still on the Job Pack tab and nobody does, so 3338 never got one — the toolbar carries "📲 Send to crew app"
+  (`#jpCrewBtn` → `_crewPackRun(true)`: no idle wait, no fingerprint, any saved job) and `#jpCrewStatus` says "On the
+  crew app 13 Nov, 9:41 pm" (`fr_crewpack_at_<job>`); the automatic wait is 3 s now. `crewapi` (71), `crewui` (63),
+  `jobfilesui` (19).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with

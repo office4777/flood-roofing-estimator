@@ -732,8 +732,8 @@
     var opt = function(v, t, d){ return '<label class="of-opt" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;cursor:pointer"><input type="radio" name="ofClockMode" value="' + v + '"' + (G.clockMode === v ? ' checked' : '') +
       ' onchange="_ofClockMode(\'' + v + '\')" style="width:18px;height:18px;margin-top:2px"><span><b>' + t + '</b><div class="of-note">' + d + '</div></span></label>'; };
     box.innerHTML = '<div style="font-weight:700;margin-bottom:8px">How the crew put in their hours</div>' +
-      opt('button', 'Clock on and off with a button', 'They press Clock on when they reach a job and Clock off when they leave; travel between jobs is worked out for them.') +
-      opt('times', 'Type in their start and finish time', 'Each day they put in when they started, when they finished, their breaks and which job — no buttons to remember.');
+      opt('times', 'Type in their start and finish time (standard)', 'Each day they put in when they started, when they finished, their breaks and which job — no buttons to remember.') +
+      opt('button', 'Clock on and off with a button', 'They press Clock on when they reach a job and Clock off when they leave; travel between jobs is worked out for them.');
   }
   window._ofClockMode = async function(v){
     try { await api('PUT', '/crew/office/settings', { clockMode: v }); G.clockMode = v; toast('Saved — the crew app switches next time it opens'); }
