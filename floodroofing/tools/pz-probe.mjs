@@ -13,7 +13,7 @@ console.log(JSON.stringify(await pg.evaluate((g) => {
   DRAW.scaleMetresPerPx = g.scaleMetresPerPx; DRAW.calPitch = g.calPitch;
   DRAW.outline = g.outline; DRAW.outlineDone = true; DRAW.lines = g.lines.map(l => Object.assign({}, l));
   DRAW.roofs = []; DRAW.activeRoofIdx = -1; DRAW.showAllRoofs = true;
-  if (g.autoType && !(g.lines || []).length) { try { autoGenerateRoof(g.autoType); } catch (e) {} }
+  if (g.autoType && !(g.lines || []).length) { DRAW.trueWalls = !!g.trueWalls; DRAW.bumpModes = g.bumpModes || null; try { autoGenerateRoof(g.autoType); if (g.bumpModes) { DRAW.bumpModes = g.bumpModes; regenerateAutoRoofLines(g.autoType); } } catch (e) {} }
   redrawAll();
   window.__PZ_NO_CACHE = true;
   const sum = z => ({ n: z.tally.reduce((t, x) => t + x.count, 0), m: +(z.tally.reduce((t, x) => t + x.Lmm * x.count, 0) / 1000).toFixed(1), tally: z.tally.map(x => x.count + 'x' + x.Lmm).join(' '), lay: z._lay || null, rectMain: !!z.rectMain,
