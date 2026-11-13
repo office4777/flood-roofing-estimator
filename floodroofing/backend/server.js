@@ -6412,6 +6412,8 @@ const CUSTOMER_HIDDEN_FIELDS = [
   'psSubtotal', 'shedEst', 'showLabourCalc',
   // Price-book materials on the job carry the supplier's COST (2026-10-27).
   'cpbMat',
+  // The crew's allocated hours (2026-11-13), the crew app's, not the customer's.
+  'crewHours',
 ];
 function _customerQuoteView(quote){
   if (!quote || typeof quote !== 'object') return quote;
@@ -15484,6 +15486,7 @@ const _MIGRATION_SQL = [
   // days, the sites learned from a clock-on, and the office's checklists.
   "create table if not exists public.crew_members (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, crew_id text not null default '', name text not null default '', phone text not null default '', updated_at timestamptz not null default now())",
   "create index if not exists crew_members_co_idx on public.crew_members (company_id, user_id)",
+  "alter table public.crew_members add column if not exists perms jsonb",
   "alter table public.crew_members enable row level security",
   "create table if not exists public.crew_events (id uuid primary key default gen_random_uuid(), company_id uuid, user_id uuid, client_id text not null default '', kind text not null default '', row_id text not null default '', job_id text not null default '', at timestamptz not null default now(), lat double precision, lng double precision, acc double precision, data jsonb, created_at timestamptz not null default now())",
   "create index if not exists crew_events_user_idx on public.crew_events (company_id, user_id, at)",
@@ -16210,7 +16213,8 @@ const CREW = (function(){
   try {
     return require('./crew').mount(app, { supabase, requireAuth, scopeCompany: _scopeCompany, recordError, rateLimit,
       schedCfg: _schedCfg, schedNonWork: _schedNonWork, schedBlockDates: _schedBlockDates, schedISO: _schedISO,
-      schedShift: _schedShift, quoteChoiceLines: _quoteChoiceLines });
+      schedShift: _schedShift, quoteChoiceLines: _quoteChoiceLines, noPrice: _selLinesNoPrice,
+      fileUrl: (path, secs) => _jfStorage().signedUrl(path, secs || 3600) });
   } catch (e) {
     recordError('crew-boot', e, { route: 'boot' });
     console.warn('[crew] not mounted: ' + e.message);

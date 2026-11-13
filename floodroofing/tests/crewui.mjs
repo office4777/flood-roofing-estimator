@@ -38,7 +38,11 @@ const site = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname.startsWith('/store/')) {
     const chunks = []; req.on('data', c => chunks.push(c));
-    req.on('end', () => { if (req.method === 'PUT') { store.set(decodeURIComponent(u.pathname.slice(7)), { buf: Buffer.concat(chunks), mime: req.headers['content-type'] }); res.writeHead(200); return res.end('{}'); } res.writeHead(404); res.end(); });
+    req.on('end', () => { if (req.method === 'PUT') { store.set(decodeURIComponent(u.pathname.slice(7)), { buf: Buffer.concat(chunks), mime: req.headers['content-type'] }); res.writeHead(200); return res.end('{}'); }
+      // GET: what was put there, else a little picture (the fixture's photos and roof map)
+      const got = store.get(decodeURIComponent(u.pathname.slice(7)));
+      res.writeHead(200, { 'content-type': got ? got.mime : 'image/png', 'access-control-allow-origin': '*' });
+      res.end(got ? got.buf : Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')); });
     return;
   }
   const name = u.pathname === '/crew' ? 'crew.html' : u.pathname.replace(/^\/+/, '');
@@ -61,8 +65,14 @@ const { db, port } = await startFakePostgrest({
     crews: [ { id: 'crew1', name: 'Crew 1', colour: '#f87d20' }, { id: 'crew2', name: 'Crew 2', colour: '#22c55e' } ] } } ],
   jobs: [ { id: 'j1', user_id: 'u1', company_id: 'c1', client_name: 'Arran Simpson', site_address: '12 Kauri Lane, Kerikeri', version_of: null,
     created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-02T00:00:00Z', draw_state: { form: { jobPhone: '021 555 0101' }, state: { quote: {
-      ref: '3351', proposalOptions: { steelGrade: 'maxam', profile: 'corrugate', colour: 'Ironsand' }, custDesc: ['Strip the old roof and take it away'], custExcl: ['Spouting'] } } } } ],
-  job_files: [ { id: 'f1', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Job Pack 3351.pdf', mime: 'application/pdf', size: 1000, kind: 'export', source: 'job-pack', author: 'office', status: 'ready', storage_path: 'p', created_at: '2026-11-03T00:00:00Z' } ],
+      ref: '3351', proposalOptions: { steelGrade: 'maxam', profile: 'corrugate', colour: 'Ironsand' }, custDesc: ['Strip the old roof and take it away', 'Install New {grade} Roofing Sheets'], custExcl: ['Spouting'],
+      inclExtras: [ { id: 'x1', name: 'Leaf Diverters', price: 782 } ],
+      crewHours: { items: [ { label: 'Main Roof', guys: 2, total: 50 }, { label: 'Scaffolding (own crew)', guys: 2, total: 8 } ] } } } } } ],
+  job_files: [ { id: 'f1', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Job Pack 3351.pdf', mime: 'application/pdf', size: 1000, kind: 'export', source: 'job-pack', author: 'office', status: 'ready', storage_path: 'p', created_at: '2026-11-03T00:00:00Z' },
+    { id: 'f2', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Sent - Quote 3351 - Roofing.pdf', mime: 'application/pdf', size: 1000, kind: 'export', source: 'sent-quote', author: 'office', status: 'ready', storage_path: 'q', created_at: '2026-11-03T00:00:00Z' },
+    { id: 'f3', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Order_-_SO_H042880.pdf', mime: 'application/pdf', size: 1000, kind: 'upload', source: 'upload', author: 'office', status: 'ready', storage_path: 'o', created_at: '2026-11-03T00:00:00Z' },
+    { id: 'f4', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Roof map Job 3351.jpg', mime: 'image/jpeg', size: 1000, kind: 'export', source: 'roof-map-auto', author: 'office', status: 'ready', storage_path: 'map', created_at: '2026-11-03T00:00:00Z' },
+    { id: 'f5', company_id: 'c1', user_id: 'u1', job_id: 'j1', name: 'Site photo 1.png', mime: 'image/png', size: 1000, kind: 'upload', source: 'site', author: 'office', status: 'ready', storage_path: 'ph1', created_at: '2026-11-03T00:00:00Z' } ],
   schedule_rows: [ { id: 'r1', company_id: 'c1', user_id: 'u1', job_id: 'j1', client_name: 'Arran Simpson', site_address: '12 Kauri Lane, Kerikeri', email: '', length_days: 1, notes: 'Key under the mat', archived: false, job_ref: '', created_at: '2026-11-01T00:00:00Z' } ],
   schedule_blocks: [ { id: 'b1', company_id: 'c1', user_id: 'u1', row_id: 'r1', kind: 'crew', crew_id: 'crew1', start_date: D, work_days: 1, created_at: '2026-11-01T00:00:00Z' } ],
   crew_members: [ { id: 'm1', company_id: 'c1', user_id: 'u3', crew_id: 'crew1', name: '', phone: '', updated_at: '2026-11-01T00:00:00Z' } ],
@@ -127,7 +137,17 @@ const gm = await pg.getAttribute('a:has-text("Google Maps")', 'href');
 check('Google Maps opens directions to the site', /google\.com\/maps\/dir\/\?api=1&destination=12%20Kauri%20Lane/.test(gm || ''), gm);
 check('one tap rings the customer', await pg.locator('a[href="tel:0215550101"]').count() >= 1);
 check('the job pack is there', /Job Pack 3351\.pdf/.test(body));
+check('no quote, order or price reaches the crew', !/Quote 3351|SO_H042880|\$782|782\.00/.test(body), body.match(/.{40}(Quote 3351|SO_H|782).{40}/) + '');
+check('the scope says the steel grade, not {grade}', /Install New Colorsteel MAXAM/i.test(body) && !/\{grade\}/.test(body), (body.match(/Install New.{30}/) || [''])[0]);
+check('the scope of work is folded behind its own row', await pg.evaluate(() => { const d = document.querySelector('details.tool[data-k="scope"]'); return !!d && !d.open && /Scope of work/.test(d.querySelector('summary').textContent); }));
+check('allocated hours (58h) and hours used are near the top', /Allocated/.test(body) && /58h/.test(body) && /Used so far/.test(body));
+check('the job menu has its rows, like Fergus Go', await pg.evaluate(() => ['scope', 'photos', 'pack', 'checks', 'notes'].every(k => document.querySelector('details.tool[data-k="' + k + '"]'))));
+check('the roof map sits at the top of the job', await pg.locator('#rmap img').count() === 1);
+await pg.click('details.tool[data-k="photos"] summary'); await wait(1200);
+check('Photos drops down a strip of the job\'s photos to swipe', await pg.evaluate(() => { const st = document.getElementById('phStrip'); const r = st && st.getBoundingClientRect();
+  return !!st && st.querySelectorAll('.slide img').length === 1 && r.height > 200 && r.height < 0.45 * innerHeight && getComputedStyle(st).overflowX === 'auto'; }));
 check('the office’s checklist is on the job', /Before we start/.test(body) && /Scaffold tagged/.test(body));
+await pg.click('details.tool[data-k="checks"] summary'); await wait(300);
 await pg.locator('label.chk:has-text("Scaffold tagged") input').check(); await wait(1200);
 check('a tick reaches the job', db.crew_events.some(e => e.kind === 'check' && e.row_id === 'r1' && e.data && e.data.done === true && e.data.item === 0));
 await pg.click('text=Clock on at this job'); await wait(1500);
@@ -183,6 +203,26 @@ const p3 = await phone(nzAt(D, 20));
 await p3.pg.goto(ORIGIN + '/crew'); await wait(1500);
 check('after 7 pm location is off', /Location is off outside 7 am – 7 pm/.test(await p3.pg.textContent('#main')));
 await p3.ctx.close();
+
+// ── the office's "type in start and finish" setting ──
+{
+  db.crew_settings[0].data.clockMode = 'times';
+  const p6 = await phone(nzAt(D, 17));
+  await p6.pg.goto(ORIGIN + '/crew'); await wait(1500);
+  const tb = await p6.pg.textContent('#main');
+  check('with typed hours set, Today asks for today\'s hours instead of clock buttons', /Enter today’s hours/.test(tb) && !/Travelling/.test(tb), tb.slice(0, 200));
+  await p6.pg.click('text=Enter today’s hours'); await wait(500);
+  await p6.pg.fill('#dStart', '07:00'); await p6.pg.fill('#dEnd', '16:00'); await p6.pg.fill('#dBreak', '30');
+  check('…the form adds it up (8h 30m)', /8h 30m/.test(await p6.pg.textContent('#dTot')));
+  await p6.pg.click('text=Save hours'); await wait(1500);
+  const de = db.crew_events.find(e => e.kind === 'day');
+  check('…and the day is kept for that job', de && de.data.start === '07:00' && de.data.end === '16:00' && de.data.breakMin === 30 && de.row_id === 'r1', JSON.stringify(de || {}));
+  await p6.pg.evaluate(() => { location.hash = '#/week'; }); await wait(1500);
+  const wb = await p6.pg.textContent('#main');
+  check('the Week tab shows the hours put in on each day', /8h 30m/.test(wb), wb.slice(0, 300));
+  delete db.crew_settings[0].data.clockMode;
+  await p6.ctx.close();
+}
 
 // ── Chrome's "Desktop site" (the owner's phone, 2026-11-13): a 980 px page on a 412 px screen ──
 {

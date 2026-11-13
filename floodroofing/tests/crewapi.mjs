@@ -186,6 +186,35 @@ check('the office moves him to another crew', r.status === 200 && db.crew_member
 r = await aron('PUT', '/crew/office/members/u2', { crew_id: 'crew2' });
 check('…never somebody from another business', r.status === 404);
 
+// ── what each person sees, and typed-in hours (2026-11-13) ──
+check('a price-bearing file is a quote, an order or an invoice; a job pack is not',
+  crewLib.isPriced({ name: 'Sent - Quote 3338 - Roofing.pdf' }) && crewLib.isPriced({ name: 'Order_-_SO_H042880.pdf' }) && crewLib.isPriced({ name: 'Quotation_-_SO_H042814.pdf' })
+  && crewLib.isPriced({ name: 'x.pdf', source: 'sent-quote' }) && !crewLib.isPriced({ name: 'Job Pack 3338.pdf' }) && !crewLib.isPriced({ name: 'Customer selections - Quote 3338.pdf'.replace('Quote', 'Job') }));
+check('nobody sees prices unless the office ticks it', crewLib.permsOf({}).priced === false && crewLib.permsOf({}).phone === true && crewLib.permsOf({ perms: { phone: false } }).phone === false);
+const td = crewLib.computeDays([{ kind: 'on', row_id: 'a', at: '2026-01-05T20:00:00Z' },
+  { kind: 'day', row_id: 'r1', at: '2026-01-06T06:00:00Z', data: { date: '2026-01-06', start: '07:00', end: '16:30', breakMin: 30 } }], [], Date.now());
+const tdd = td.find(x => x.date === '2026-01-06');
+check('a typed day (7:00 – 4:30, 30 min break) is 9 hours on that job', tdd && tdd.total === 9 && tdd.onsite.r1 === 9 && tdd.travel === 0, JSON.stringify(tdd));
+r = await aron('PUT', '/crew/office/settings', { clockMode: 'times' });
+check('the office switches the crew to typing their hours, keeping the checklists', r.status === 200 && r.body.clockMode === 'times' && r.body.checklists.length === 1);
+r = await nick('GET', '/crew/me');
+check('…and the phone is told', r.body.clockMode === 'times' && r.body.perms && r.body.perms.priced === false);
+r = await nick('POST', '/crew/sync', { events: [{ client_id: 'day-1', kind: 'day', row_id: 'r1', at: new Date().toISOString(), data: { date: D2, start: '06:30', end: '15:00', breakMin: 30 } }] });
+check('a typed day is kept', r.status === 200 && (r.body.kept || []).includes('day-1'), JSON.stringify(r.body));
+r = await nick('GET', '/crew/hours?from=' + D2 + '&to=' + D2);
+check('…and is that day\'s hours (8h)', r.body.days[0] && r.body.days[0].total === 8 && r.body.days[0].typed && r.body.days[0].typed.start === '06:30', JSON.stringify(r.body.days[0]));
+r = await nick('POST', '/crew/sync', { events: [{ client_id: 'day-2', kind: 'day', at: new Date().toISOString(), data: { date: D2, start: '', end: '15:00' } }] });
+check('…but a day with no start is refused', (r.body.bad || []).includes('day-2'));
+r = await aron('PUT', '/crew/office/members/u3', { perms: { phone: false, scope: false } });
+r = await nick('GET', '/crew/row/r1');
+check('the office takes the phone number and the scope away from one person', r.body.phone === '' && !r.body.choices.length && !r.body.scope.length && r.body.perms.phone === false, JSON.stringify(r.body).slice(0, 200));
+r = await aron('PUT', '/crew/office/members/u3', { perms: { phone: true, scope: true } });
+r = await nick('GET', '/crew/row/r1');
+check('…and gives them back', r.body.phone === '021 555 0101' && r.body.scope.length === 2);
+check('the scope never carries {grade} or a price', !JSON.stringify(r.body.scope).includes('{grade}') && !/\$\d/.test(JSON.stringify(r.body.choices)), JSON.stringify(r.body.choices));
+r = await aron('GET', '/crew/office/members');
+check('the office reads each person\'s ticks', r.body.members.find(m => m.id === 'u3').perms.phone === true && (r.body.permKeys || []).includes('priced'));
+
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');
 process.exit(pass === results.length ? 0 : 1);
