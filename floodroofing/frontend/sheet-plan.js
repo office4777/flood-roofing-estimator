@@ -7369,6 +7369,12 @@ var PZ_RECT_MAIN = true;
 // already lay.)
 var _PZ_RECT_STEP_MM = 800;
 function _pzRectMain(){ if (typeof window !== 'undefined' && window.__PZ_RECT_MAIN != null) return !!window.__PZ_RECT_MAIN; return PZ_RECT_MAIN; }
+// RULE 3e — THE LONGEST SHEETS FIRST AMONG THE SLOPES A WING STANDS ON
+// (feedback report 92, job 3351, 2026-11-13: the west wing's end was cut from
+// the stem's 4.08 m slope, 11px nearer, not the 14.24 x 9.91 m main block's
+// 5.14 m slope). OFF until the owner's go: `window.__PZ_LONGEST_TMPL = true`.
+var PZ_LONGEST_TMPL = false;
+function _pzLongestTmpl(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_TMPL != null) return !!window.__PZ_LONGEST_TMPL; return PZ_LONGEST_TMPL; }
 function _pzNearTmpl(){ if (typeof window !== 'undefined' && window.__PZ_NEAR_TMPL != null) return !!window.__PZ_NEAR_TMPL; return PZ_NEAR_TMPL; }
 var PZ_LONGEST_RECT = true;
 function _pzLongestRect(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_RECT != null) return !!window.__PZ_LONGEST_RECT; return PZ_LONGEST_RECT; }
@@ -7662,7 +7668,7 @@ function _pzBuildKey(opts){
     // thumbnail, a size — lay the same roof.)
     ['_monoDefer', '_noAlt', '_noGuard', 'apexShift', 'coverMm', 'noApexTmpl', 'noClears', 'noFill', 'noTipLay', 'rectArea'].forEach(function(k){ if (opts[k] != null) o[k] = opts[k]; });
     var flags = [_PZ_OPT_ON, PZ_SET_GUARD, PZ_APEX_SHIFT, _PZ_NO_FULL, _PZ_FIT_MM, _PZ_OPT_PACKS, _PZ_OPT_MOVE, _PZ_OPT_BUDGET, _PZ_STEEL_TIE_MM,
-      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(), _pzNearTmpl(), _pzRectMain(),
+      window.__PZ_SET_CORNER, window.__PZ_RUN_ORDER, window.__PZ_TRIM_NEAR, window.__PZ_FACE_NUM, window.__PZ_SET_ON, window.__PZ_WELD, PZ_WELD_ON, _pzLongestRect(), _pzNearTmpl(), _pzRectMain(), _pzLongestTmpl(),
       (document.getElementById('pitchDeg') || {}).value, DRAW.roofs ? DRAW.roofs.length : 0];
     return JSON.stringify([idxs, sigs, o, flags]);
   } catch(e){ return null; }
@@ -7975,7 +7981,13 @@ function _sheetPuzzleBuildRaw(opts){
           return Math.min(a1, T.t1) - Math.max(a0, T.t0);
         };
         var rank = slopes.map(function(T, i){ var o = ovl(T); return { T: T, i: i, on: o > coverPx * 0.5 && T.dMin > f.dMin + tol, gap: T.dMin - f.dMin }; });
-        rank.sort(function(a, b){ if (a.on !== b.on) return a.on ? -1 : 1; if (a.on && Math.abs(a.gap - b.gap) > tol) return a.gap - b.gap; return a.i - b.i; });
+        // (Rule 3e, behind its switch: of the slopes the wing stands on, the one
+        // with the LONGEST SHEETS first — rule 3b's rectangle — then the
+        // nearest. The same sheet to 10 mm is a tie.)
+        var _lt = _pzLongestTmpl(), _ltTie = Math.max(0.5, 0.01 / scaleM);
+        rank.sort(function(a, b){ if (a.on !== b.on) return a.on ? -1 : 1;
+          if (_lt && a.on){ var da = a.T.dMax - a.T.dMin, db = b.T.dMax - b.T.dMin; if (Math.abs(da - db) > _ltTie) return db - da; }
+          if (a.on && Math.abs(a.gap - b.gap) > tol) return a.gap - b.gap; return a.i - b.i; });
         slopes = rank.map(function(r){ return r.T; });
       }
       slopes.forEach(function(T){ cands.push(T); });
