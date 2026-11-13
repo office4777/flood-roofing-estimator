@@ -27,7 +27,30 @@ const crypto = require('crypto');
 const NZ = 'Pacific/Auckland';
 const GPS_FROM_H = 7, GPS_TO_H = 19;          // 7 am to 7 pm NZ
 const SITE_RADIUS_M = 200;                    // a position this close to a site is "on site"
-const EV_KINDS = ['on', 'off', 'travel', 'break', 'end', 'check', 'note'];
+const EV_KINDS = ['on', 'off', 'travel', 'break', 'end', 'check', 'note', 'day'];
+// WHAT EACH PERSON SEES (2026-11-13, the owner: "make the individual user
+// permissions to show what they can see (and remove the quote from the files,
+// i don't need the guys seeing the quoted totals)"). Set per person in the
+// office's GPS Map tab; anything not set takes these.
+const PERM_DEFAULTS = { phone: true, scope: true, files: true, photos: true, upload: true, allCrews: true, hours: true, priced: false };
+function permsOf(m){
+  const p = (m && m.perms && typeof m.perms === 'object') ? m.perms : {};
+  const o = {}; Object.keys(PERM_DEFAULTS).forEach(k => { o[k] = (k in p) ? !!p[k] : PERM_DEFAULTS[k]; }); return o;
+}
+// A file with money in it: a quote, an invoice, an order, the pricing.
+const PRICED_RE = /quot(e|ation)|invoice|pricing|price|order|estimate|statement|\bSO\b|_SO_/i;
+const PRICED_SRC = /quote|pricing|invoice|order/i;
+function isPriced(f){ return PRICED_RE.test(String(f.name || '')) || PRICED_SRC.test(String(f.source || '')); }
+// "HH:MM" on an NZ date -> ms.
+function nzMs(date, hm){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || '')); if (!m || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return NaN;
+  const h = +m[1], mi = +m[2]; if (h > 23 || mi > 59) return NaN;
+  for (const off of [13, 12]) {
+    const t = Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), h - off, mi);
+    const p = nzParts(new Date(t)); if (p.date === date && p.hour === h && p.minute === mi) return t;
+  }
+  return NaN;
+}
 const MAX_POINTS = 400, MAX_EVENTS = 300;
 
 function nzParts(d){
@@ -56,7 +79,13 @@ const clean = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f]+/g, 
 // to its last event or position and says so (open).
 function computeDays(events, points, nowMs){
   const byDay = {};
-  (events || []).filter(e => e.kind !== 'check' && e.kind !== 'note').forEach(e => {
+  // A day typed in (start / finish / break, the office's "enter times" setting)
+  // is that day's hours, whatever was pressed: the latest entry for a date wins.
+  const typed = {};
+  (events || []).filter(e => e.kind === 'day' && e.data && e.data.date).forEach(e => {
+    const d = e.data.date; if (!typed[d] || Date.parse(e.at) >= Date.parse(typed[d].at)) typed[d] = e;
+  });
+  (events || []).filter(e => e.kind !== 'check' && e.kind !== 'note' && e.kind !== 'day').forEach(e => {
     const d = nzDate(e.at); (byDay[d] = byDay[d] || { ev: [], pts: [] }).ev.push(e);
   });
   (points || []).forEach(p => { const d = nzDate(p.at); if (byDay[d]) byDay[d].pts.push(p); });
@@ -94,12 +123,27 @@ function computeDays(events, points, nowMs){
     out.push({ date, onsite, onsiteTotal: round(on), travel: round(travel), total: round(on + travel), open,
       first: ev[0].at, last: ev[ev.length - 1].at, status: (ev[ev.length - 1] || {}).kind });
   });
+  Object.keys(typed).forEach(date => {
+    const e = typed[date], d = e.data || {};
+    const a = nzMs(date, d.start), b = nzMs(date, d.end);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return;
+    const h = Math.max(0, (b - a) / 3600000 - (Math.max(0, +d.breakMin || 0) / 60));
+    const round = (x) => Math.round(x * 100) / 100;
+    const row = String(e.row_id || d.row_id || '');
+    const day = { date, onsite: row ? { [row]: round(h) } : {}, onsiteTotal: round(h), travel: 0, total: round(h), open: false,
+      first: new Date(a).toISOString(), last: new Date(b).toISOString(), status: 'end', typed: { start: d.start, end: d.end, breakMin: +d.breakMin || 0 } };
+    const i = out.findIndex(x => x.date === date);
+    if (i >= 0) out[i] = day; else out.push(day);
+  });
+  out.sort((x, y) => x.date < y.date ? -1 : 1);
   return out;
 }
 
 function mount(app, deps){
   const { supabase, requireAuth, scopeCompany, recordError, rateLimit,
           schedCfg, schedNonWork, schedBlockDates, schedISO, schedShift, quoteChoiceLines } = deps;
+  const noPrice = deps.noPrice || ((a) => a);
+  const fileUrl = deps.fileUrl || null;
   const USERS = () => String(process.env.CREW_USERS || process.env.SUPINV_USERS || 'aron@floodroofing.co.nz, aaron@floodroofing.co.nz')
     .split(/[\s,]+/).map(x => x.trim().toLowerCase()).filter(Boolean);
   const rows = (r) => { if (r && r.error) throw new Error(r.error.message); return (r && r.data) || []; };
@@ -154,7 +198,7 @@ function mount(app, deps){
   async function settingsOf(req){
     const r = rows(await scopeCompany(supabase.from('crew_settings').select('*'), req).order('updated_at', { ascending: false }).limit(1));
     const d = (r[0] && r[0].data) || {};
-    return { row: r[0] || null, data: { checklists: cleanLists(d.checklists) } };
+    return { row: r[0] || null, data: { checklists: cleanLists(d.checklists), clockMode: d.clockMode === 'times' ? 'times' : 'button' } };
   }
   function cleanLists(v){
     return (Array.isArray(v) ? v : []).slice(0, 30).map(l => ({
@@ -203,6 +247,36 @@ function mount(app, deps){
       notes: clean(x.r.notes, 400), progress: x.r.progress_pct == null ? null : x.r.progress_pct };
   }
 
+  // THE HOURS ALLOCATED ON THE QUOTE: what the office stamped (the schedule
+  // board's own sum, `crewHours`), else the main roof's crew, the roofs the
+  // customer took, the own-crew scaffold and the gutter's typed crew.
+  function allocHours(q){
+    if (!q || typeof q !== 'object') return null;
+    const f = (v) => parseFloat(v) || 0;
+    if (q.crewHours && Array.isArray(q.crewHours.items)) {
+      const items = q.crewHours.items.map(x => ({ label: clean(x.label, 80), guys: parseInt(x.guys, 10) || 0, total: f(x.total) })).filter(x => x.total > 0);
+      return { total: Math.round(items.reduce((a, x) => a + x.total, 0) * 100) / 100, items };
+    }
+    const items = [];
+    const crew = (l) => { l = l || {}; return f(l.leadHrs) + f(l.appHrs) + (Array.isArray(l.extras) ? l.extras.reduce((a, x) => a + f(x && x.hrs), 0) : 0); };
+    const add = (label, h) => { if (h > 0) items.push({ label, total: Math.round(h * 100) / 100 }); };
+    const sc = q.scaffold || {};
+    if (!sc.excluded && sc.mode === 'diy' && sc.diy) add('Scaffolding (own crew)', f(sc.diy.leadHrs) + f(sc.diy.appHrs));
+    add('Main roof', crew(q.labour));
+    const geom = (q.roofMapGeom && Array.isArray(q.roofMapGeom.roofs)) ? q.roofMapGeom.roofs : [];
+    const sel = (q.proposalOptions && q.proposalOptions.extraRoofsSel) || {};
+    const rl = (q.roofLabour && typeof q.roofLabour === 'object') ? q.roofLabour : {};
+    geom.forEach(r => {
+      if (!r || !(r.idx >= 1) || r.mode === 'folded' || r.mode === 'excluded') return;
+      if (r.mode === 'separate' && !(r.extraPos != null && sel[r.extraPos] === true)) return;
+      add(r.name || ('Roof ' + (r.idx + 1)), crew(rl[r.idx]));
+    });
+    const gl = q.gutterLabour || {};
+    if (f(gl.leadHrs) + f(gl.appHrs) > 0) add('Guttering', f(gl.leadHrs) + f(gl.appHrs));
+    if (!items.length) return null;
+    return { total: Math.round(items.reduce((a, x) => a + x.total, 0) * 100) / 100, items };
+  }
+
   // ── what the crew sees ──────────────────────────────────────────
   app.get('/crew/enabled', requireAuth, async (req, res) => {
     res.json({ enabled: await companyOn(req), office: await officeOn(req) });
@@ -215,7 +289,7 @@ function mount(app, deps){
       res.json({ ok: true, user: { id: req.user.id, email: (prof && prof.email) || req.user.email || '', name: (m && m.name) || (prof && prof.name) || '' },
         crew_id: (m && m.crew_id) || '', phone: (m && m.phone) || '', company: (co && co.data && co.data.name) || '',
         crews: cfg.crews.filter(c => c.id !== 'scaffold' || true).map(c => ({ id: c.id, name: c.name, colour: c.colour })),
-        checklists: st.data.checklists, office: await officeOn(req),
+        checklists: st.data.checklists, clockMode: st.data.clockMode, perms: permsOf(m), office: await officeOn(req),
         gps: { from: GPS_FROM_H, to: GPS_TO_H, rule: 'Location is only recorded 7 am – 7 pm on days your crew is booked on the schedule.' },
         today: nzDate(new Date()) });
     } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
@@ -257,7 +331,7 @@ function mount(app, deps){
       let from = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.from || '')) ? String(req.query.from) : null;
       if (!from) { const t = new Date(today + 'T00:00:00Z'); const dow = (t.getUTCDay() + 6) % 7; from = schedISO(schedShift(t, -dow)); }
       const n = Math.max(1, Math.min(42, parseInt(req.query.days, 10) || 14));
-      const all = req.query.all === '1';
+      const all = req.query.all === '1' && permsOf(m).allCrews;
       const nonwork = schedNonWork(bd.cfg, from, schedISO(schedShift(new Date(from + 'T00:00:00Z'), n)));
       const days = [];
       for (let i = 0; i < n; i++) {
@@ -278,12 +352,14 @@ function mount(app, deps){
       if (!r) return res.status(404).json({ error: 'That job is not on the schedule.' });
       const bd = await board(req);
       const days = Object.keys(bd.byDate).filter(d => bd.byDate[d].some(x => x.r.id === r.id)).sort();
+      const perms = permsOf(await memberOf(req));
       const out = { row_id: r.id, job_id: r.job_id || '', client: r.client_name || '', site: r.site_address || '', email: r.email || '',
         job_ref: r.job_ref || '', notes: clean(r.notes, 2000), days, phone: '', choices: [], scope: [], exclusions: [], quoteNotes: [],
-        description: '', files: [], checks: {}, site_point: null };
+        description: '', files: [], checks: {}, site_point: null, perms, fergus_id: clean(r.fergus_job_id, 40), map_file: null,
+        alloc: null, used: null };
       if (r.job_id) {
         const j = rows(await scopeCompany(supabase.from('jobs').select('id, version_of, client_name, site_address, ' +
-          'quote:draw_state->state->quote, form:draw_state->form'), req).eq('id', r.job_id).limit(1))[0];
+          'quote:draw_state->state->quote, form:draw_state->form, linked:draw_state->state->linkedJobId'), req).eq('id', r.job_id).limit(1))[0];
         if (j) {
           const q = j.quote || {};
           const acc = (q.versions && q.versions.accepted && q.versions.accepted.quote) || null;
@@ -292,15 +368,23 @@ function mount(app, deps){
           out.phone = clean((j.form && j.form.jobPhone) || q.phone || (q.client && q.client.phone) || '', 40);
           out.email = out.email || clean((q.client && q.client.email) || q.email || '', 120);
           out.job_ref = out.job_ref || clean(q.ref, 40);
-          try { out.choices = (quoteChoiceLines(useQ) || []).map(x => clean(x, 300)).slice(0, 60); } catch (e) {}
-          const lines = (v) => (Array.isArray(v) ? v : []).map(x => clean(typeof x === 'string' ? x : (x && (x.text || x.t)), 300)).filter(Boolean).slice(0, 40);
+          if (!out.fergus_id && j.linked) out.fergus_id = clean(j.linked, 40);
+          // The crew never see money: every choice line goes without its price.
+          try { out.choices = noPrice((quoteChoiceLines(useQ) || []).map(x => clean(x, 300))).slice(0, 60); } catch (e) {}
+          const gradeLine = out.choices.find(x => /^steel grade:/i.test(x));
+          const grade = gradeLine ? gradeLine.replace(/^steel grade:\s*/i, '') : '';
+          const lines = (v) => (Array.isArray(v) ? v : []).map(x => clean(typeof x === 'string' ? x : (x && (x.text || x.t)), 300))
+            .filter(Boolean).map(x => x.replace(/\{grade\}/gi, grade || 'roofing')).slice(0, 40);
           out.scope = lines(useQ.custDesc); out.exclusions = lines(useQ.custExcl); out.quoteNotes = lines(useQ.custNotes);
           out.description = clean(useQ.scope, 2000);
+          out.alloc = allocHours(useQ);
           const root = String(j.version_of || j.id);
           const fs = rows(await scopeCompany(supabase.from('job_files').select('id, name, mime, size, kind, source, author, status, created_at'), req)
             .eq('job_id', root).order('created_at', { ascending: false }).limit(300));
-          out.files = fs.filter(f => f.status === 'ready').map(f => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, kind: f.kind,
+          out.files = fs.filter(f => f.status === 'ready' && (perms.priced || !isPriced(f))).map(f => ({ id: f.id, name: f.name, mime: f.mime, size: f.size, kind: f.kind,
             source: f.source || '', author: f.author || '', at: f.created_at }));
+          const mf = out.files.find(f => f.source === 'roof-map-auto' && /^image\//.test(f.mime || ''));
+          if (mf) out.map_file = mf.id;
         }
       }
       // Checklist state: the latest tick per list + item on this job.
@@ -313,8 +397,44 @@ function mount(app, deps){
         .map(e => ({ at: e.at, by: e.user_id, text: clean(e.data && e.data.text, 1000) }));
       const site = rows(await scopeCompany(supabase.from('crew_sites').select('*'), req).eq('row_id', r.id).limit(1))[0];
       if (site) out.site_point = { lat: site.lat, lng: site.lng };
+      // Hours used so far: everyone's time on site at this job.
+      try {
+        const who = [...new Set(ev.map(e => String(e.user_id)))];
+        let used = 0;
+        for (const uid of who) {
+          const all = rows(await scopeCompany(supabase.from('crew_events').select('*'), req).eq('user_id', uid).limit(5000))
+            .filter(e => String(e.user_id) === uid);
+          computeDays(all, [], Date.now()).forEach(d => { used += (d.onsite[r.id] || 0); });
+        }
+        out.used = Math.round(used * 100) / 100;
+      } catch (e) {}
+      if (!perms.phone) out.phone = '';
+      if (!perms.scope) { out.choices = []; out.scope = []; out.exclusions = []; out.quoteNotes = []; out.description = ''; }
+      if (!perms.files) out.files = out.files.filter(f => /^(image|video)\//.test(f.mime || '') || /job ?pack|roof ?map/i.test(f.name) || /auto$/.test(f.source || ''));
+      if (!perms.photos) out.files = out.files.filter(f => !/^(image|video)\//.test(f.mime || '') || f.source === 'roof-map-auto');
+      if (!perms.hours) { out.alloc = null; out.used = null; }
       res.json(Object.assign({ ok: true }, out));
     } catch (e) { recordError('crew', e, { route: 'GET /crew/row/:id' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+
+  // The job's pictures with links that open them (one read, not one per photo).
+  app.get('/crew/row/:id/media', ...G, async (req, res) => {
+    try {
+      const perms = permsOf(await memberOf(req));
+      const r = rows(await scopeCompany(supabase.from('schedule_rows').select('id, job_id'), req).eq('id', req.params.id).limit(1))[0];
+      if (!r || !r.job_id) return res.json({ ok: true, items: [] });
+      const j = rows(await scopeCompany(supabase.from('jobs').select('id, version_of'), req).eq('id', r.job_id).limit(1))[0];
+      if (!j || !fileUrl) return res.json({ ok: true, items: [] });
+      const root = String(j.version_of || j.id);
+      const fs = rows(await scopeCompany(supabase.from('job_files').select('id, name, mime, source, status, storage_path, created_at'), req)
+        .eq('job_id', root).order('created_at', { ascending: false }).limit(300))
+        .filter(f => f.status === 'ready' && /^(image|video)\//.test(f.mime || '') && (perms.priced || !isPriced(f)))
+        .filter(f => req.query.map === '1' ? f.source === 'roof-map-auto' : (perms.photos && f.source !== 'roof-map-auto'))
+        .slice(0, req.query.map === '1' ? 1 : 120);
+      const items = [];
+      for (const f of fs) { try { items.push({ id: f.id, name: f.name, mime: f.mime, at: f.created_at, url: await fileUrl(f.storage_path, 3600) }); } catch (e) {} }
+      res.json({ ok: true, items });
+    } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
   });
 
   // The phone's queue: clock events, checklist ticks, notes and positions.
@@ -336,9 +456,13 @@ function mount(app, deps){
         if (have.length) { dup.push(cid); continue; }
         let lat = num(e.lat), lng = num(e.lng);
         if (!okLatLng(lat, lng) || !mayLocate(t)) { lat = null; lng = null; }
-        const data = (e.data && typeof e.data === 'object') ? {
+        const tm = (v) => /^\d{1,2}:\d{2}$/.test(String(v || '')) ? String(v) : '';
+        const data = (e.data && typeof e.data === 'object') ? (e.kind === 'day' ? {
+          date: /^\d{4}-\d{2}-\d{2}$/.test(String(e.data.date || '')) ? String(e.data.date) : nzDate(new Date(t)),
+          start: tm(e.data.start), end: tm(e.data.end), breakMin: Math.max(0, Math.min(600, parseInt(e.data.breakMin, 10) || 0)) } : {
           list: clean(e.data.list, 40), item: parseInt(e.data.item, 10) || 0, done: !!e.data.done, day: clean(e.data.day, 10),
-          text: clean(e.data.text, 1000) } : null;
+          text: clean(e.data.text, 1000) }) : null;
+        if (e.kind === 'day' && (!data || !data.start || !data.end)) { bad.push(cid); continue; }
         const row = { id: crypto.randomUUID(), company_id: req.companyId, user_id: req.user.id, client_id: cid, kind: e.kind,
           row_id: clean(e.row_id, 60), job_id: clean(e.job_id, 60), at: new Date(t).toISOString(), lat, lng,
           acc: lat == null ? null : num(e.acc), data, created_at: new Date().toISOString() };
@@ -378,7 +502,10 @@ function mount(app, deps){
 
   async function hoursFor(req, uid, from, to){
     const ev = rows(await scopeCompany(supabase.from('crew_events').select('*'), req).eq('user_id', uid).limit(5000))
-      .filter(e => String(e.user_id) === String(uid) && nzDate(e.at) >= from && nzDate(e.at) <= to);
+      .filter(e => { if (String(e.user_id) !== String(uid)) return false;
+        // a typed day belongs to the date it is for, not the day it was typed
+        const d = (e.kind === 'day' && e.data && e.data.date) ? e.data.date : nzDate(e.at);
+        return d >= from && d <= to; });
     const pts = rows(await scopeCompany(supabase.from('crew_points').select('at, user_id'), req).eq('user_id', uid).limit(20000))
       .filter(p => String(p.user_id) === String(uid) && nzDate(p.at) >= from && nzDate(p.at) <= to);
     return computeDays(ev, pts, Date.now());
@@ -412,7 +539,7 @@ function mount(app, deps){
       for (const p of mem) {
         const cm = crewRows.find(c => String(c.user_id) === p.id) || {};
         const ev = rows(await scopeCompany(supabase.from('crew_events').select('*'), req).eq('user_id', p.id).limit(3000))
-          .filter(e => String(e.user_id) === p.id && nzDate(e.at) === today && e.kind !== 'check' && e.kind !== 'note')
+          .filter(e => String(e.user_id) === p.id && nzDate(e.at) === today && e.kind !== 'check' && e.kind !== 'note' && e.kind !== 'day')
           .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
         const pts = rows(await scopeCompany(supabase.from('crew_points').select('*'), req).eq('user_id', p.id).limit(20000))
           .filter(x => String(x.user_id) === p.id && nzDate(x.at) === today).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
@@ -449,7 +576,8 @@ function mount(app, deps){
       const crewRows = rows(await scopeCompany(supabase.from('crew_members').select('*'), req).limit(200));
       res.json({ ok: true, crews: cfg.crews.map(c => ({ id: c.id, name: c.name, colour: c.colour })),
         members: mem.map(p => { const cm = crewRows.find(c => String(c.user_id) === p.id) || {};
-          return Object.assign({}, p, { crew_id: cm.crew_id || '', crew_name: cm.name || '' }); }) });
+          return Object.assign({}, p, { crew_id: cm.crew_id || '', crew_name: cm.name || '', perms: permsOf(cm) }); }),
+        permKeys: Object.keys(PERM_DEFAULTS) });
     } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
   });
   app.put('/crew/office/members/:uid', ...O, async (req, res) => {
@@ -463,6 +591,11 @@ function mount(app, deps){
         patch.crew_id = id;
       }
       if ('name' in b) patch.name = clean(b.name, 80);
+      if (b.perms && typeof b.perms === 'object') {
+        const cur = permsOf(await memberOf(req, String(req.params.uid)));
+        Object.keys(PERM_DEFAULTS).forEach(k => { if (k in b.perms) cur[k] = !!b.perms[k]; });
+        patch.perms = cur;
+      }
       await saveMember(req, String(req.params.uid), patch);
       res.json({ ok: true });
     } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
@@ -473,8 +606,10 @@ function mount(app, deps){
   });
   app.put('/crew/office/settings', ...O, async (req, res) => {
     try {
-      const data = { checklists: cleanLists((req.body || {}).checklists) };
-      const { row } = await settingsOf(req); const now = new Date().toISOString();
+      const b = req.body || {};
+      const { row, data: cur } = await settingsOf(req); const now = new Date().toISOString();
+      const data = { checklists: ('checklists' in b) ? cleanLists(b.checklists) : cur.checklists,
+        clockMode: ('clockMode' in b) ? (b.clockMode === 'times' ? 'times' : 'button') : cur.clockMode };
       let error;
       if (row) ({ error } = await supabase.from('crew_settings').update({ data, updated_at: now }).eq('id', row.id).eq('company_id', req.companyId));
       else ({ error } = await supabase.from('crew_settings').insert({ id: crypto.randomUUID(), company_id: req.companyId, user_id: req.user.id, data, updated_at: now }));
@@ -486,4 +621,4 @@ function mount(app, deps){
   return { computeDays, enabledFor: companyOn, inWindow, nzParts, distM };
 }
 
-module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M };
+module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M, permsOf, isPriced, nzMs };

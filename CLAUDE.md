@@ -2667,6 +2667,37 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   line SVG icons (`ICON`, `I(name)`) and no emoji; big tiles (`.tile`, 104px) for Travelling / Break /
   Finish day, Directions / Call / Text and the photo buttons; 70px Clock on / off (`.btn.xl`); 68px tabs.
   `crew-sw.js` crew-v2 holds the cache write in `e.waitUntil`. `crewui` (26) pins the fit both ways.
+  THE JOB IS FERGUS GO'S MENU, AND THE OFFICE DECIDES WHAT EACH PERSON SEES (the same evening, the owner with
+  Fergus Go's job screen: "one should be upload photos, the other 'View Photos' ... the app should auto upload
+  the job pack ... show the detailed roof map ... hide [the scope] in a collapsed drop down ... the allocated hours
+  and the taken / used hours ... individual user permissions ... remove the quote from the files ... a checklists
+  button ... clock on and off with a button, or simply enter their start and end time ... in the week tab, show the
+  hours"; then "when I click onto a tab, for example photos, make it drop down the photos and just take up maybe a
+  third of the screen and let the user swipe"). THE JOB: hero, the roof map (`#rmap`, kept on the phone in
+  IndexedDB `crewq` v2 store `maps`), Hours on this job (Allocated vs Used so far, a bar), Directions / Call / Text,
+  Clock on, then a grey "Job" band and a row a thing (`tool(k, icon, label, count, body)`, `details.tool`):
+  Scope of work (choices, scope, not included, please note — folded), Photos (a 33vh scroll-snap strip
+  `#phStrip`, the job's own pictures from GET /crew/row/:id/media plus Fergus's through /fergus-files, a tap
+  enlarges in `viewer()`, Upload photos), Job pack, Files, Checklists (`checksHtml`), Notes, Booked days; what
+  was open stays open across a redraw (`JOB_OPEN`). SERVER (`crew.js`): choices go through `_selLinesNoPrice`
+  (dep `noPrice`), `{grade}` in the scope is the steel grade; `allocHours(q)` = the quote's `crewHours` (stamped
+  by `_qStampCrewHours` from `_crewHoursItems` — the schedule board job window's own list, even on an accepted
+  quote; in CUSTOMER_HIDDEN_FIELDS) else the main roof / taken roofs / DIY scaffold / typed gutter crew; `used`
+  = everyone's on-site hours at the row. PERMISSIONS: `crew_members.perms` (boot DDL), `PERM_DEFAULTS` phone,
+  scope, files, photos, upload, allCrews, hours on and `priced` OFF — `isPriced` (quote, quotation, invoice,
+  order, SO, pricing, estimate, statement; source quote/pricing/invoice/order) keeps those files off the phone;
+  ticked per person in the GPS Map tab's "Who is on which crew, and what they see" (`_ofPermSet`). NOTE: a crew
+  login can still open the office app itself — limiting that is not built. CLOCK MODE: `crew_settings.data.
+  clockMode` 'button' | 'times' (GPS Map tab → Crew app settings, `_ofClockMode`); 'times' replaces the clock
+  buttons with "Enter today's hours" (`#/day/<date>`, `renderDay`/`saveDay`: start, finish, breaks, job →
+  event kind 'day' {date, start, end, breakMin}); `computeDays` lets a typed day replace that date's pressed
+  hours; `hoursFor` places a typed day by its own date. WEEK: each day's hours as a chip and the week's total
+  (`S.weekHrs`). THE JOB PACK REACHES THE CREW BY ITSELF: on an ACCEPTED job, 8 s after the Job Pack renders and
+  6 s with no input, `_crewPackRun` keeps the detailed roof map (JPEG, `roof-map-auto`) and the Job Pack PDF
+  (`job-pack-auto`) in Files & Photos, deleting the last automatic copies, only when `_crewPackFp` changed
+  (`fr_crewpack_<job>` per device; `window.__TEST_NO_CREWPACK` stops it, `__CREWPACK_ALL` widens it past
+  accepted jobs). The GPS Map tab has jump buttons (Map, Hours, Crew & what they see, Checklists, Crew app
+  settings). `crewui` (37), `crewapi` (49).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with

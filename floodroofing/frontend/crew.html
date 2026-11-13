@@ -141,6 +141,58 @@ table.h td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nu
 .pre{white-space:pre-wrap;font-size:16.5px}
 .photo-in{display:none}
 .foot{text-align:center;color:var(--mut);font-size:13px;margin:14px 0}
+/* the job's menu, Fergus Go's list: a grey band, then a row a thing (icon, label, count, chevron) that drops open */
+.tools-h{margin:18px -14px 0;padding:14px 18px;background:#e4ebf3;color:var(--navy);font-weight:800;font-size:17px;border-top:1px solid var(--line)}
+.tools{margin:0 -14px 14px;background:#fff;border-bottom:1px solid var(--line)}
+details.tool{border-bottom:1px solid var(--line)}details.tool:last-child{border-bottom:0}
+details.tool > summary{list-style:none;display:flex;align-items:center;gap:16px;padding:0 18px;min-height:66px;cursor:pointer;-webkit-user-select:none;user-select:none}
+details.tool > summary::-webkit-details-marker{display:none}
+details.tool > summary:active{background:#f1f5f9}
+details.tool .ti{width:30px;display:flex;justify-content:center;color:#7b8794}
+details.tool .ti svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2}
+details.tool .tl{flex:1;font-size:18px;color:var(--ink)}
+details.tool .tc{min-width:34px;height:32px;padding:0 9px;border-radius:7px;background:#eef1f5;color:var(--ink);font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center}
+details.tool .tv{width:20px;height:20px;color:#9aa5b1;stroke:currentColor;fill:none;stroke-width:2.4;transition:transform .2s}
+details.tool[open] .tv{transform:rotate(90deg)}
+details.tool[open] > summary{background:#f6f9fc}
+details.tool[open] > summary .ti,details.tool[open] > summary .tl{color:var(--blue-d);font-weight:700}
+details.tool .tb{padding:4px 18px 18px;animation:tdrop .22s ease-out}
+@keyframes tdrop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;height:33vh;min-height:200px;margin:6px -18px 0;padding:0 18px;scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.strip .slide{flex:0 0 88%;height:100%;scroll-snap-align:center;border-radius:12px;overflow:hidden;background:#dbe3ee;position:relative;cursor:zoom-in}
+.strip .slide:only-child{flex-basis:100%}
+.strip .slide img,.strip .slide video{width:100%;height:100%;object-fit:cover;display:block}
+.slide-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff}.slide-play svg{width:54px;height:54px;stroke:currentColor;fill:rgba(0,0,0,.35);stroke-width:2}
+.strip-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--mut);background:#f1f5f9;border-radius:12px;font-size:16px}
+.strip-dots{color:var(--mut);font-size:14px;margin-top:8px;text-align:center}
+.hbig{font-size:26px;font-weight:800;color:var(--navy);line-height:1.15}.hbig.over{color:var(--red)}
+.bar{height:12px;border-radius:999px;background:#e2e8f0;overflow:hidden;margin-top:12px}.bar span{display:block;height:100%;border-radius:999px}
+details.sow > summary{list-style:none;cursor:pointer;background:var(--navy);color:#fff;font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:14px;display:flex;align-items:center;gap:8px;min-height:54px}
+details.sow > summary::-webkit-details-marker{display:none}
+details.sow > summary span{display:flex;align-items:center;gap:8px;flex:1}
+details.sow > summary .cv{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.4;transition:transform .2s}
+details.sow[open] > summary .cv{transform:rotate(90deg)}
+.card details.sow > summary{background:none;color:var(--blue-d);padding:0;min-height:0;font-size:14px;letter-spacing:0;text-transform:none}
+.sub{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--navy);margin:14px 0 4px}.bd > .sub:first-child{margin-top:0}
+.rmap{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px;cursor:zoom-in}
+.rmap img{display:block;width:100%;height:auto;max-height:42vh;object-fit:contain;background:#fff}
+.rmap-tag{position:absolute;right:10px;bottom:10px;background:rgba(10,22,40,.82);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
+#viewer{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center}
+#viewer img,#viewer video{max-width:100%;max-height:100%;object-fit:contain}
+#viewer .vw-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;background:linear-gradient(rgba(0,0,0,.7),transparent);color:#fff;font-weight:600;z-index:2}
+#viewer .vw-top span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#viewer .vw-top button{width:48px;height:48px;border-radius:12px;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:22px;cursor:pointer}
+#viewer .vw-nav{position:absolute;top:50%;transform:translateY(-50%);width:52px;height:52px;border-radius:50%;border:0;background:rgba(255,255,255,.2);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#viewer .vw-nav svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.4}
+#viewer .vw-nav.l{left:10px}#viewer .vw-nav.r{right:10px}
+.phgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.ph{aspect-ratio:1;border:0;padding:0;border-radius:10px;overflow:hidden;background:#dbe3ee;cursor:pointer}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph-v{display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:var(--navy)}.ph-v svg{width:34px;height:34px;stroke:currentColor;fill:none;stroke-width:2}
+.day h3 .dh{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.day h3 .chip{margin:0}
+.chip.hrs{background:var(--navy);color:#fff}.chip svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.2}
+button.chip.ed{border:2px solid var(--blue);background:#fff;color:var(--blue-d);cursor:pointer;font:inherit;font-size:13px;font-weight:700}
 </style>
 </head>
 <body>
@@ -274,14 +326,21 @@ window.addEventListener('online', function(){ setOnline(true); });
 window.addEventListener('offline', function(){ setOnline(false); });
 
 // ── photos and videos waiting to upload (IndexedDB: a blob does not fit localStorage) ──
-function idb(){ return new Promise(function(res, rej){ var r = indexedDB.open('crewq', 1);
-  r.onupgradeneeded = function(){ r.result.createObjectStore('files', { keyPath: 'id' }); };
+function idb(){ return new Promise(function(res, rej){ var r = indexedDB.open('crewq', 2);
+  r.onupgradeneeded = function(){ var db = r.result;
+    if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
+    if (!db.objectStoreNames.contains('maps')) db.createObjectStore('maps', { keyPath: 'id' }); };
   r.onsuccess = function(){ res(r.result); }; r.onerror = function(){ rej(r.error); }; }); }
 async function fqDo(mode, fn){ var db = await idb(); return new Promise(function(res, rej){ var tx = db.transaction('files', mode), st = tx.objectStore('files'), q = fn(st);
   tx.oncomplete = function(){ res(q && 'result' in q ? q.result : undefined); }; tx.onerror = function(){ rej(tx.error); }; }); }
 var fqAdd = function(o){ return fqDo('readwrite', function(st){ return st.put(o); }); };
 var fqAll = function(){ return fqDo('readonly', function(st){ return st.getAll(); }); };
 var fqDel = function(id){ return fqDo('readwrite', function(st){ return st.delete(id); }); };
+// The roof map is kept on the phone (a picture is too big for localStorage) so it opens with no signal.
+async function mapDo(mode, fn){ var db = await idb(); return new Promise(function(res, rej){ var tx = db.transaction('maps', mode), q = fn(tx.objectStore('maps'));
+  tx.oncomplete = function(){ res(q && 'result' in q ? q.result : undefined); }; tx.onerror = function(){ rej(tx.error); }; }); }
+var mapGet = function(id){ return mapDo('readonly', function(st){ return st.get(id); }).catch(function(){ return null; }); };
+var mapPut = function(o){ return mapDo('readwrite', function(st){ return st.put(o); }).catch(function(){}); };
 async function fileCount(){ try { S.fileWait = (await fqAll()).length; } catch (e) { S.fileWait = 0; } paintSync(); }
 async function uploadQueued(){
   var all = []; try { all = await fqAll(); } catch (e) { return; }
@@ -386,9 +445,9 @@ async function record(kind, o){
   o = o || {};
   var e = { client_id: uid(), kind: kind, at: new Date().toISOString(), row_id: o.row_id || '', job_id: o.job_id || '' };
   if (o.data) e.data = o.data;
-  if (kind !== 'check' && kind !== 'note') { var p = await posNow(); if (p) { e.lat = p.lat; e.lng = p.lng; e.acc = p.acc; } }
+  if (kind !== 'check' && kind !== 'note' && kind !== 'day') { var p = await posNow(); if (p) { e.lat = p.lat; e.lng = p.lng; e.acc = p.acc; } }
   S.q.events.push(e); saveQ();
-  if (kind !== 'check' && kind !== 'note') { S.status = { kind: kind, row_id: e.row_id, at: e.at, date: nzToday() }; LS.set('crew_status', S.status); }
+  if (kind !== 'check' && kind !== 'note' && kind !== 'day') { S.status = { kind: kind, row_id: e.row_id, at: e.at, date: nzToday() }; LS.set('crew_status', S.status); }
   syncNow();
   return e;
 }
@@ -419,7 +478,9 @@ function route(){
   if (!S.token) return renderSignIn();
   document.getElementById('nav').hidden = false;
   var h = location.hash || '#/today', m;
+  if ((m = /^#\/job\/([^/?]+)\/checks/.exec(h))) return renderChecks(decodeURIComponent(m[1]));
   if ((m = /^#\/job\/([^/?]+)/.exec(h))) return renderJob(decodeURIComponent(m[1]));
+  if ((m = /^#\/day\/(\d{4}-\d{2}-\d{2})/.exec(h))) return renderDay(m[1]);
   if (h.indexOf('#/week') === 0) return renderWeek();
   if (h.indexOf('#/hours') === 0) return renderHours();
   if (h.indexOf('#/me') === 0) return renderMe();
@@ -512,11 +573,15 @@ async function renderToday(quick){
     main('<div class="date">' + esc(dayName(t, true)) + (S.me && S.me.company ? ' · ' + esc(S.me.company) : '') + (stale ? ' · <b>offline copy</b>' : '') + '</div>' +
       (S.me && !S.me.crew_id ? '<div class="banner warn">' + I('users') + '<div style="flex:1">Pick your crew so your jobs show here.<button class="btn p w" onclick="go(\'#/me\')">' + I('users') + ' Pick my crew</button></div></div>' : '') +
       locBanner() +
+      (timesMode() ? (function(){ var sv = LS.get('crew_days', {})[t];
+        return '<div class="card"><h2>' + I('clock') + 'Today’s hours</h2><div class="bd">' +
+          (sv ? '<div class="now on"><span class="dot"></span><div class="status">' + esc(sv.start) + ' – ' + esc(sv.end) + (sv.breakMin ? ' · ' + sv.breakMin + ' min break' : '') + '</div></div>' : '<div class="mut">Put in when you started and finished today.</div>') +
+          '<button class="btn ' + (sv ? 'o' : 'g') + ' w xl" style="margin-top:14px" onclick="go(\'#/day/' + t + '\')">' + I('clock') + (sv ? ' Change today’s hours' : ' Enter today’s hours') + '</button></div></div>'; })() :
       '<div class="card"><h2>' + I('clock') + 'Right now</h2><div class="bd">' +
       '<div class="now ' + ({ on: 'on', travel: 'tr', break: 'br' }[k] || '') + '"><span class="dot"></span><div class="status" id="nowStatus">' + esc(statusText()) + '</div></div>' +
       (s && s.kind === 'on' ? '<button class="btn r w xl" style="margin-top:14px" onclick="clock(\'off\',\'' + esc(s.row_id) + '\')">' + I('stop') + ' Clock off this job</button>' : '') +
       '<div class="grid3" style="margin-top:14px">' + tile('travel', 'truck', 'Travelling') + tile('break', 'cup', 'Break') + tile('end', 'flag', 'Finish day') + '</div>' +
-      '</div></div>' +
+      '</div></div>') +
       '<div class="sec-h">Your jobs today</div>' +
       (jobs.length ? jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked for your crew today.</div>'));
     checkNear();
@@ -532,19 +597,42 @@ async function renderWeek(){
     var t = nzToday();
     var days = (w && w.days || []).filter(function(d){ return !d.weekend || d.jobs.length; });
     main('<div class="wk"><button class="btn o" aria-label="Last week" onclick="weekStep(-7)">' + I('left') + '</button><div class="lbl">' + esc(dayName(S.weekFrom)) + ' – ' + esc(dayName(addDays(S.weekFrom, 6))) + '</div><button class="btn o" aria-label="Next week" onclick="weekStep(7)">' + I('chev') + '</button></div>' +
-      '<div class="seg"><button class="' + (S.weekAll ? '' : 'on') + '" onclick="S.weekAll=false;renderWeek()">My crew</button><button class="' + (S.weekAll ? 'on' : '') + '" onclick="S.weekAll=true;renderWeek()">Every crew</button></div>' +
+      (perm('allCrews') ? '<div class="seg"><button class="' + (S.weekAll ? '' : 'on') + '" onclick="S.weekAll=false;renderWeek()">My crew</button><button class="' + (S.weekAll ? 'on' : '') + '" onclick="S.weekAll=true;renderWeek()">Every crew</button></div>' : '') +
+      (S.weekHrs && S.weekHrs.from === S.weekFrom ? '<div class="hero" style="padding:12px 16px"><div class="grid2"><div><div class="mut">Your hours this week</div><div class="hbig" style="color:#fff">' + esc(hrsShort(S.weekHrs.total)) + '</div></div>' +
+        '<div><div class="mut">On site · travel</div><div style="font-weight:800;font-size:17px;margin-top:4px">' + esc(hrsShort(S.weekHrs.on)) + ' · ' + esc(hrsShort(S.weekHrs.tr)) + '</div></div></div></div>' : '') +
       (w && w._stale ? '<div class="banner info">' + I('info') + '<div>Offline copy — it updates when there is signal.</div></div>' : '') +
       (!w ? '<div class="empty">Loading…</div>' : days.map(function(d){
+        var hd = S.weekHrs && S.weekHrs.byDate[d.date];
         return '<div class="day' + (d.date === t ? ' today' : '') + '"><h3><span>' + esc(dayName(d.date, true)) + (d.date === t ? ' · today' : '') + '</span>' +
-          '<span>' + (d.nonwork && !d.weekend ? '<span class="chip">Holiday</span>' : (d.booked ? '<span class="chip g" style="margin:0">Booked</span>' : '')) + '</span></h3>' +
+          '<span class="dh">' + (hd ? '<span class="chip hrs" title="Your hours">' + I('clock') + esc(hrsShort(hd.total)) + '</span>' : '') +
+          (timesMode() && d.date <= t ? '<button class="chip ed" onclick="go(\'#/day/' + d.date + '\')">' + (hd ? 'Edit' : '+ Hours') + '</button>' : '') +
+          (d.nonwork && !d.weekend ? '<span class="chip">Holiday</span>' : (d.booked ? '<span class="chip g">Booked</span>' : '')) + '</span></h3>' +
           (d.jobs.length ? d.jobs.map(jobCardHtml).join('') : '<div class="empty">Nothing booked.</div>') + '</div>';
       }).join(''))); };
+  if (!perm('allCrews')) S.weekAll = false;
+  var hk = 'crew_hrs_' + S.weekFrom;
+  var useHrs = function(h){ if (!h) return; var o = { from: S.weekFrom, byDate: {}, on: 0, tr: 0, total: 0 };
+    (h.days || []).forEach(function(x){ o.byDate[x.date] = x; o.on += x.onsiteTotal; o.tr += x.travel; o.total += x.total; }); S.weekHrs = o; };
+  useHrs(LS.get(hk, null));
   draw(LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null));
+  api('GET', '/crew/hours?from=' + S.weekFrom + '&to=' + addDays(S.weekFrom, 6)).then(function(h){ LS.set(hk, h); useHrs(h);
+    if (location.hash.indexOf('#/week') === 0) draw(LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null)); }).catch(function(){});
   try { draw(await loadWeek(S.weekFrom, S.weekAll)); } catch (e) { if (!LS.get('crew_wk_' + S.weekFrom + (S.weekAll ? '_all' : ''), null)) main('<div class="banner warn">' + I('info') + '<div>' + esc(e.message) + '</div></div>'); }
 }
 function weekStep(n){ S.weekFrom = addDays(S.weekFrom || mondayOf(nzToday()), n); renderWeek(); }
 
 var _JOB = {};
+function timesMode(){ return !!(S.me && S.me.clockMode === 'times'); }
+function perm(k){ var p = (S.me && S.me.perms) || {}; return k in p ? !!p[k] : (k !== 'priced'); }
+function isPack(f){ return f.source === 'job-pack-auto' || /job ?pack|sheet layout|cut list/i.test(f.name || ''); }
+function isMap(f){ return f.source === 'roof-map-auto'; }
+function isMedia(f){ return /^(image|video)\//.test(f.mime || ''); }
+function chkCount(r, id){
+  var lists = (S.me && S.me.checklists) || [], checks = Object.assign({}, r.checks || {}, LS.get('crew_chk_' + id, {})), done = 0, all = 0;
+  lists.forEach(function(l){ var day = l.when === 'daily' ? nzToday() : '';
+    l.items.forEach(function(it, i){ all++; var k = l.id + ':' + i + (day ? ':' + day : ''); if (checks[k] && checks[k].done) done++; }); });
+  return { done: done, all: all };
+}
 async function renderJob(id){
   setTop('Job', true);
   var draw = async function(r){
@@ -557,12 +645,11 @@ async function renderJob(id){
     var gmaps = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(r.site || '');
     var amaps = 'https://maps.apple.com/?daddr=' + encodeURIComponent(r.site || '');
     var ios = /iP(hone|ad|od)/.test(navigator.userAgent);
-    var packs = (r.files || []).filter(function(f){ return /job ?pack|roof ?map|sheet layout|cut list/i.test(f.name); });
-    var media = (r.files || []).filter(function(f){ return packs.indexOf(f) < 0 && /^(image|video)\//.test(f.mime || ''); });
-    var docs = (r.files || []).filter(function(f){ return packs.indexOf(f) < 0 && media.indexOf(f) < 0; });
-    var lists = (S.me && S.me.checklists) || [];
-    var localChecks = LS.get('crew_chk_' + id, {});
-    var checks = Object.assign({}, r.checks || {}, localChecks);
+    var files = r.files || [];
+    var packs = files.filter(function(f){ return isPack(f) && !isMedia(f); });
+    var docs = files.filter(function(f){ return !isPack(f) && !isMap(f) && !isMedia(f); });
+    var nPhotos = files.filter(function(f){ return isMedia(f) && !isMap(f); }).length + waiting.length;
+    var cc = chkCount(r, id);
     var fileRow = function(f){ var ic = /^image/.test(f.mime) ? 'img' : (/^video/.test(f.mime) ? 'video' : 'doc');
       return '<button class="file" onclick="openFile(\'' + esc(r.job_id) + '\',\'' + esc(f.id) + '\')"><span class="ic">' + I(ic) + '</span><span class="n">' + esc(f.name) + '</span><span class="mut">' + esc(new Date(f.at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })) + '</span></button>'; };
     var sec = function(title, body, right){ return '<div class="card"><h2>' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</h2><div class="bd">' + body + '</div></div>'; };
@@ -571,40 +658,201 @@ async function renderJob(id){
     tiles.push('<a class="tile p" href="' + esc(gmaps) + '" target="_blank" rel="noopener">' + I('nav') + 'Directions<small>Google Maps</small></a>');
     if (ios) tiles.push('<a class="tile" href="' + esc(amaps) + '" target="_blank" rel="noopener">' + I('pin') + 'Apple Maps</a>');
     if (phone) { tiles.push('<a class="tile" href="tel:' + esc(phone) + '">' + I('phone') + 'Call</a>'); tiles.push('<a class="tile" href="sms:' + esc(phone) + '">' + I('msg') + 'Text</a>'); }
+    var hrsCard = '';
+    if (r.alloc || r.used != null) {
+      var al = r.alloc ? r.alloc.total : 0, us = +r.used || 0, pct = al ? Math.min(100, Math.round(us / al * 100)) : 0, over = al && us > al;
+      hrsCard = '<div class="card"><h2>' + I('clock') + 'Hours on this job</h2><div class="bd"><div class="grid2">' +
+        '<div><div class="mut">Allocated</div><div class="hbig">' + (al ? esc(hrsShort(al)) : '—') + '</div></div>' +
+        '<div><div class="mut">Used so far</div><div class="hbig' + (over ? ' over' : '') + '">' + esc(hrsShort(us)) + '</div></div></div>' +
+        (al ? '<div class="bar"><span style="width:' + pct + '%;background:' + (over ? 'var(--red)' : (pct > 85 ? '#d97706' : 'var(--green)')) + '"></span></div><div class="mut" style="margin-top:6px">' +
+          (over ? esc(hrsShort(us - al)) + ' over the allocated hours' : esc(hrsShort(al - us)) + ' left') + '</div>' : '') +
+        (r.alloc && r.alloc.items && r.alloc.items.length > 1 ? '<details class="sow" style="margin-top:8px"><summary>How the hours were allocated</summary><table class="h">' +
+          r.alloc.items.map(function(x){ return '<tr><td>' + esc(x.label) + (x.guys ? ' <span class="mut">· ' + x.guys + ' guys</span>' : '') + '</td><td class="n">' + esc(hrsShort(x.total)) + '</td></tr>'; }).join('') + '</table></details>' : '') +
+        '</div></div>';
+    }
+    var haveScope = (r.choices && r.choices.length) || (r.scope && r.scope.length) || r.description || (r.exclusions && r.exclusions.length) || (r.quoteNotes && r.quoteNotes.length);
     var html = (r._stale ? '<div class="banner info">' + I('info') + '<div>Offline copy — it updates when there is signal.</div></div>' : '') +
       '<div class="hero"><div class="big">' + esc(r.client || 'Job') + '</div>' + (r.job_ref ? '<div class="mut">Job ' + esc(r.job_ref) + '</div>' : '') +
       '<div style="margin-top:8px;font-size:17px;display:flex;gap:8px">' + I('pin') + '<span>' + esc(r.site || '') + '</span></div>' +
       (phone ? '<div style="margin-top:6px;font-size:16px;display:flex;gap:8px;color:#bcd0e6">' + I('phone') + '<span>' + esc(r.phone) + '</span></div>' : '') + '</div>' +
+      '<div class="rmap" id="rmap" onclick="openMap()"' + (r.map_file ? '' : ' hidden') + '><div class="mut" style="padding:30px;text-align:center">Loading the roof map…</div></div>' +
+      hrsCard +
       '<div class="' + (tiles.length === 1 ? '' : (tiles.length === 2 ? 'grid2' : (tiles.length === 4 ? 'grid2' : 'grid3'))) + '" style="margin:0 0 12px">' + tiles.join('') + '</div>' +
-      (phone ? '' : '<div class="mut" style="margin:-4px 2px 12px">No phone number on the job.</div>') +
-      (on ? '<button class="btn r w xl" style="margin:0 0 16px" onclick="clock(\'off\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('stop') + ' Clock off this job</button>'
-        : '<button class="btn g w xl" style="margin:0 0 16px" onclick="clock(\'on\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('play') + ' Clock on at this job</button>') +
-      (r.notes ? sec(I('info') + 'From the office', '<div class="pre">' + esc(r.notes) + '</div>') : '') +
-      (r.choices && r.choices.length ? sec(I('check') + 'What the customer chose', lineList(r.choices)) : '') +
-      (r.scope && r.scope.length ? sec(I('doc') + 'Scope of work', lineList(r.scope)) : (r.description ? sec(I('doc') + 'Scope of work', '<div class="pre">' + esc(r.description) + '</div>') : '')) +
-      (r.exclusions && r.exclusions.length ? sec('Not included', lineList(r.exclusions)) : '') +
-      (r.quoteNotes && r.quoteNotes.length ? sec('Please note', lineList(r.quoteNotes)) : '') +
-      lists.map(function(l){
-        var day = l.when === 'daily' ? nzToday() : '';
-        var done = 0;
-        var items = l.items.map(function(it, i){ var k = l.id + ':' + i + (day ? ':' + day : ''); var c = checks[k] && checks[k].done; if (c) done++;
-          return '<label class="chk' + (c ? ' done' : '') + '"><input type="checkbox"' + (c ? ' checked' : '') + ' onchange="tick(\'' + esc(id) + '\',\'' + esc(l.id) + '\',' + i + ',\'' + day + '\',this.checked)"><span>' + esc(it) + '</span></label>'; }).join('');
-        return sec(I('check') + esc(l.name), items, done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : ''));
-      }).join('') +
-      sec(I('doc') + 'Job pack &amp; roof map', packs.length ? packs.map(fileRow).join('') : '<div class="mut">The office hasn’t kept a job pack on this job yet.</div>') +
-      sec(I('cam') + 'Photos &amp; videos', '<div class="grid2" style="margin-bottom:8px"><button class="tile p" onclick="pickPhoto(true)">' + I('cam') + 'Take photo / video</button><button class="tile" onclick="pickPhoto(false)">' + I('img') + 'From phone</button></div>' +
-        waiting.map(function(f){ return '<div class="file"><span class="ic">' + I('wait') + '</span><span class="n">' + esc(f.name) + '</span><span class="wait-chip">waiting to upload</span></div>'; }).join('') +
-        (media.length ? media.map(fileRow).join('') : (waiting.length ? '' : '<div class="mut">No photos yet.</div>'))) +
-      (docs.length ? sec(I('doc') + 'Files', docs.map(fileRow).join('')) : '') +
-      sec(I('note') + 'Notes from site', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn n w" style="margin-top:10px" onclick="addNote(\'' + esc(id) + '\')">' + I('send') + ' Add note</button>' +
+      (timesMode() ? '<button class="btn n w xl" style="margin:0 0 16px" onclick="go(\'#/day/' + nzToday() + '\')">' + I('clock') + ' Enter today’s hours</button>'
+        : (on ? '<button class="btn r w xl" style="margin:0 0 16px" onclick="clock(\'off\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('stop') + ' Clock off this job</button>'
+        : '<button class="btn g w xl" style="margin:0 0 16px" onclick="clock(\'on\',\'' + esc(id) + '\',\'' + esc(r.job_id) + '\')">' + I('play') + ' Clock on at this job</button>')) +
+      (r.notes ? '<div class="banner info">' + I('info') + '<div><b>From the office</b><div class="pre" style="margin-top:4px">' + esc(r.notes) + '</div></div></div>' : '') +
+      // THE JOB'S MENU (2026-11-13, the owner with Fergus Go's job screen: "make it
+      // look a little bit more like that ... when I click onto a tab, for example
+      // photos, make it drop down the photos and just take up maybe a third of the
+      // screen and let the user swipe left and right"). One row a thing, an icon,
+      // a count; a tap opens it in place.
+      '<div class="tools-h">Job</div><div class="tools">' +
+      (haveScope ? tool('scope', 'doc', 'Scope of work', '',
+        (r.choices && r.choices.length ? '<div class="sub">What the customer chose</div>' + lineList(r.choices) : '') +
+        (r.scope && r.scope.length ? '<div class="sub">Scope of work</div>' + lineList(r.scope) : (r.description ? '<div class="sub">Scope of work</div><div class="pre">' + esc(r.description) + '</div>' : '')) +
+        (r.exclusions && r.exclusions.length ? '<div class="sub">Not included</div>' + lineList(r.exclusions) : '') +
+        (r.quoteNotes && r.quoteNotes.length ? '<div class="sub">Please note</div>' + lineList(r.quoteNotes) : '')) : '') +
+      (perm('photos') || perm('upload') ? tool('photos', 'img', 'Photos', nPhotos || '',
+        (perm('photos') ? '<div class="strip" id="phStrip"><div class="strip-empty">Loading photos…</div></div><div class="strip-dots" id="phDots"></div>' : '') +
+        (waiting.length ? '<div class="banner warn" style="margin-top:10px">' + I('wait') + '<div>' + waiting.length + (waiting.length === 1 ? ' photo is' : ' photos are') + ' waiting to upload — they go when there is signal.</div></div>' : '') +
+        (perm('upload') ? '<button class="btn p w" style="margin-top:10px" onclick="pickPhoto(false)">' + I('cam') + ' Upload photos</button>' : '')) : '') +
+      tool('pack', 'doc', 'Job pack', packs.length || '', packs.length ? packs.map(fileRow).join('') : '<div class="mut">The office hasn’t made the job pack for this job yet — it appears here once they open it on an accepted job.</div>') +
+      (docs.length ? tool('files', 'doc', 'Files', docs.length, docs.map(fileRow).join('')) : '') +
+      tool('checks', 'check', 'Checklists', cc.all ? cc.done + '/' + cc.all : '', checksHtml(r, id)) +
+      tool('notes', 'note', 'Notes', (r.notesFromCrew || []).length || '', '<textarea class="t" id="noteTx" placeholder="Something the office should know…"></textarea><button class="btn n w" style="margin-top:10px" onclick="addNote(\'' + esc(id) + '\')">' + I('send') + ' Add note</button>' +
         ((r.notesFromCrew || []).length ? '<div style="margin-top:12px">' + r.notesFromCrew.map(function(n){ return '<div style="padding:10px 0;border-top:1px solid var(--line)"><div class="mut">' + esc(dayName(nzParts(new Date(n.at)).date)) + ' ' + esc(hm(n.at)) + '</div><div class="pre">' + esc(n.text) + '</div></div>'; }).join('') + '</div>' : '')) +
-      (r.days && r.days.length ? sec(I('clock') + 'Booked days', r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '');
+      (r.days && r.days.length ? tool('days', 'clock', 'Booked days', r.days.length, r.days.map(function(d){ return '<span class="chip">' + esc(dayName(d)) + '</span>'; }).join(' ')) : '') +
+      '</div>';
     main(html);
+    if (r.map_file) loadMap(r);
+    // what was open stays open across a redraw (a tick, a note)
+    (JOB_OPEN[id] || []).forEach(function(k){ var d = document.querySelector('details.tool[data-k="' + k + '"]'); if (d) d.open = true; });
+    document.querySelectorAll('details.tool').forEach(function(d){ d.addEventListener('toggle', function(){
+      var k = d.getAttribute('data-k'), a = JOB_OPEN[id] = (JOB_OPEN[id] || []).filter(function(x){ return x !== k; });
+      if (d.open) { a.push(k); if (k === 'photos') loadStrip(id); } }); });
+    if ((JOB_OPEN[id] || []).indexOf('photos') >= 0) loadStrip(id);
   };
   var cached = LS.get('crew_row_' + id, null);
   await draw(cached);
-  try { var r = await loadRow(id); if (location.hash.indexOf('#/job/' + encodeURIComponent(id)) === 0 || location.hash.indexOf('#/job/' + id) === 0) await draw(r); }
+  try { var r = await loadRow(id); if (location.hash === '#/job/' + encodeURIComponent(id) || location.hash === '#/job/' + id) await draw(r); }
   catch (e) { if (!cached) main('<div class="banner warn">' + I('info') + '<div>' + esc(e.offline ? 'No signal, and this job hasn’t been opened on this phone before.' : e.message) + '</div></div>'); }
+}
+var JOB_OPEN = {};
+function tool(k, icon, label, count, body){
+  return '<details class="tool" data-k="' + k + '"><summary><span class="ti">' + I(icon) + '</span><span class="tl">' + label + '</span>' +
+    (count !== '' && count != null ? '<span class="tc">' + esc(count) + '</span>' : '') + I('chev', 'tv') + '</summary><div class="tb">' + body + '</div></details>';
+}
+function checksHtml(r, id){
+  var lists = (S.me && S.me.checklists) || [];
+  if (!lists.length) return '<div class="mut">The office hasn’t set any checklists yet.</div>';
+  var checks = Object.assign({}, r.checks || {}, LS.get('crew_chk_' + id, {}));
+  return lists.map(function(l){
+    var day = l.when === 'daily' ? nzToday() : '', done = 0;
+    var items = l.items.map(function(it, i){ var k = l.id + ':' + i + (day ? ':' + day : ''); var c = checks[k] && checks[k].done; if (c) done++;
+      return '<label class="chk' + (c ? ' done' : '') + '"><input type="checkbox"' + (c ? ' checked' : '') + ' onchange="tick(\'' + esc(id) + '\',\'' + esc(l.id) + '\',' + i + ',\'' + day + '\',this.checked)"><span>' + esc(it) + '</span></label>'; }).join('');
+    return '<div class="sub" style="display:flex">' + esc(l.name) + '<span style="margin-left:auto;color:var(--mut)">' + done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : '') + '</span></div>' + items;
+  }).join('');
+}
+// THE PHOTOS STRIP: a third of the screen, swiped left and right, a tap to enlarge.
+var _STRIP = {};
+async function loadStrip(id){
+  var box = document.getElementById('phStrip'); if (!box) return;
+  if (_STRIP.id === id && _STRIP.list && _STRIP.list.length) return paintStrip();
+  if (!S.online) { box.innerHTML = '<div class="strip-empty">Photos need signal.</div>'; return; }
+  _STRIP = { id: id, list: [] };
+  var r = LS.get('crew_row_' + id, null) || _JOB;
+  try { var m = await api('GET', '/crew/row/' + encodeURIComponent(id) + '/media'); (m.items || []).forEach(function(x){ _STRIP.list.push({ src: x.url, name: x.name, mime: x.mime }); }); } catch (e) {}
+  paintStrip(r && r.fergus_id ? 'Loading Fergus photos…' : '');
+  if (r && r.fergus_id) {
+    try {
+      var f = await api('GET', '/fergus-files/list?jobId=' + encodeURIComponent(r.fergus_id));
+      var imgs = (f.files || []).filter(function(x){ return /^image\//.test(x.contentType || '') || /\.(jpe?g|png|webp|heic|gif)$/i.test(x.name || ''); }).slice(0, 80);
+      for (var k = 0; k < imgs.length; k += 5) {
+        await Promise.all(imgs.slice(k, k + 5).map(async function(x){
+          try {
+            var get = async function(w){ var resp = await fetch(API + '/fergus-files/download?w=' + w + '&url=' + encodeURIComponent(x.url || x.thumbnail), { headers: { Authorization: 'Bearer ' + S.token } });
+              if (!resp.ok) throw new Error(resp.status); return URL.createObjectURL(await resp.blob()); };
+            var th = await get(900);
+            _STRIP.list.push({ src: th, name: x.name, full: function(){ return get(1800); } });
+          } catch (e) {}
+        }));
+        if (_STRIP.id === id) paintStrip(k + 5 < imgs.length ? 'Loading Fergus photos…' : '');
+      }
+    } catch (e) { paintStrip(''); }
+  }
+}
+function paintStrip(note){
+  var box = document.getElementById('phStrip'), dots = document.getElementById('phDots'); if (!box) return;
+  var L = _STRIP.list || [];
+  var at = box.scrollLeft;
+  box.innerHTML = L.length ? L.map(function(x, i){ return '<div class="slide" onclick="viewer(_STRIP.list,' + i + ')">' +
+      (/^video/.test(x.mime || '') ? '<video src="' + esc(x.src) + '" preload="metadata" playsinline muted></video><span class="slide-play">' + I('play') + '</span>' : '<img alt="" loading="lazy" src="' + esc(x.src) + '">') + '</div>'; }).join('')
+    : '<div class="strip-empty">' + (note || 'No photos on this job yet.') + '</div>';
+  box.scrollLeft = at;
+  if (dots) dots.textContent = L.length ? L.length + (L.length === 1 ? ' photo' : ' photos') + ' · swipe' + (note ? ' · ' + note : '') : '';
+}
+function hrsShort(h){ var m = Math.round((+h || 0) * 60), H = Math.floor(m / 60), M = m % 60; return H ? H + 'h' + (M ? ' ' + M + 'm' : '') : M + 'm'; }
+// The detailed roof map the office's Job Pack keeps on the job.
+async function loadMap(r){
+  var box = document.getElementById('rmap'); if (!box) return;
+  var key = r.row_id, have = await mapGet(key);
+  var show = function(src){ var b = document.getElementById('rmap'); if (b) { b.hidden = false; b.innerHTML = '<img alt="Roof map" src="' + src + '"><span class="rmap-tag">' + I('img') + ' Tap to enlarge</span>'; } };
+  if (have && have.file === r.map_file) return show(have.data);
+  if (have) show(have.data);
+  if (!S.online) { if (!have) box.hidden = true; return; }
+  try {
+    var m = await api('GET', '/crew/row/' + encodeURIComponent(key) + '/media?map=1');
+    var it = (m.items || [])[0]; if (!it) { if (!have) box.hidden = true; return; }
+    var blob = await (await fetch(it.url)).blob();
+    var data = await new Promise(function(res){ var fr = new FileReader(); fr.onload = function(){ res(fr.result); }; fr.readAsDataURL(blob); });
+    await mapPut({ id: key, file: r.map_file, data: data });
+    show(data);
+  } catch (e) { if (!have) box.hidden = true; }
+}
+function openMap(){ var im = document.querySelector('#rmap img'); if (im) viewer([{ src: im.src, name: 'Roof map' }], 0); }
+// Full-screen picture viewer: swipe or the arrows for the next one.
+function viewer(list, i){
+  var v = document.getElementById('viewer'); if (!v) { v = document.createElement('div'); v.id = 'viewer'; document.body.appendChild(v); }
+  var show = function(){ var it = list[i];
+    if (it.full && !it._big) { it._big = 1; it.full().then(function(u){ it.src = u; if (list[i] === it && document.getElementById('viewer')) show(); }).catch(function(){}); }
+    v.innerHTML = '<div class="vw-top"><span>' + esc(it.name || '') + (list.length > 1 ? ' · ' + (i + 1) + ' of ' + list.length : '') + '</span><button onclick="document.getElementById(\'viewer\').remove()" aria-label="Close">✕</button></div>' +
+    (/^video/.test(it.mime || '') ? '<video src="' + esc(it.src) + '" controls playsinline></video>' : '<img src="' + esc(it.src) + '" alt="">') +
+    (list.length > 1 ? '<button class="vw-nav l" aria-label="Previous">' + I('left') + '</button><button class="vw-nav r" aria-label="Next">' + I('chev') + '</button>' : '');
+    var l = v.querySelector('.vw-nav.l'), rr = v.querySelector('.vw-nav.r');
+    if (l) l.onclick = function(){ i = (i + list.length - 1) % list.length; show(); };
+    if (rr) rr.onclick = function(){ i = (i + 1) % list.length; show(); };
+  };
+  var x0 = null; v.ontouchstart = function(e){ x0 = e.touches[0].clientX; };
+  v.ontouchend = function(e){ if (x0 == null || list.length < 2) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
+    if (Math.abs(dx) > 60) { i = (i + (dx < 0 ? 1 : list.length - 1)) % list.length; show(); } };
+  show();
+}
+// CHECKLISTS: the office's lists, ticked on this job.
+async function renderChecks(id){
+  setTop('Checklists', true);
+  var r = LS.get('crew_row_' + id, null) || {};
+  _JOB = r.row_id ? r : _JOB;
+  var lists = (S.me && S.me.checklists) || [];
+  var checks = Object.assign({}, r.checks || {}, LS.get('crew_chk_' + id, {}));
+  var sec = function(title, body, right){ return '<div class="card"><h2>' + title + (right ? '<span class="r">' + right + '</span>' : '') + '</h2><div class="bd">' + body + '</div></div>'; };
+  var whenTxt = { start: 'Before we start', daily: 'Every day', end: 'When we finish' };
+  main((r.client ? '<div class="date">' + esc(r.client) + ' · ' + esc(r.site || '') + '</div>' : '') + (lists.length ? lists.map(function(l){
+    var day = l.when === 'daily' ? nzToday() : '';
+    var done = 0;
+    var items = l.items.map(function(it, i){ var k = l.id + ':' + i + (day ? ':' + day : ''); var c = checks[k] && checks[k].done; if (c) done++;
+      return '<label class="chk' + (c ? ' done' : '') + '"><input type="checkbox"' + (c ? ' checked' : '') + ' onchange="tick(\'' + esc(id) + '\',\'' + esc(l.id) + '\',' + i + ',\'' + day + '\',this.checked)"><span>' + esc(it) + '</span></label>'; }).join('');
+    return sec(I('check') + esc(l.name), items, done + ' / ' + l.items.length + (l.when === 'daily' ? ' today' : '')) ;
+  }).join('') : '<div class="empty">The office hasn’t set any checklists yet.</div>'));
+}
+// TYPED HOURS (the office's "enter start and finish" setting).
+async function renderDay(date){
+  setTop(date === nzToday() ? 'Today’s hours' : 'Hours', true);
+  var saved = LS.get('crew_days', {})[date] || {};
+  var w = S.week, d = w && (w.days || []).find(function(x){ return x.date === date; });
+  var jobs = (d && d.jobs) || [];
+  main('<div class="date">' + esc(dayName(date, true)) + '</div>' +
+    '<div class="card"><h2>' + I('clock') + 'Your hours</h2><div class="bd">' +
+    '<div class="grid2"><div><label class="f" for="dStart">Start</label><input class="t" type="time" id="dStart" value="' + esc(saved.start || '07:00') + '"></div>' +
+    '<div><label class="f" for="dEnd">Finish</label><input class="t" type="time" id="dEnd" value="' + esc(saved.end || '') + '"></div></div>' +
+    '<label class="f" for="dBreak">Breaks (minutes)</label><input class="t" type="number" inputmode="numeric" id="dBreak" min="0" step="5" value="' + esc(saved.breakMin != null ? saved.breakMin : 30) + '">' +
+    '<label class="f" for="dJob">Job</label><select class="t" id="dJob">' + jobs.map(function(j){ return '<option value="' + esc(j.row_id) + '"' + (saved.row_id === j.row_id ? ' selected' : '') + '>' + esc(j.client || j.site || 'Job') + '</option>'; }).join('') +
+      '<option value=""' + (jobs.length && saved.row_id === '' ? ' selected' : '') + '>Yard / other</option></select>' +
+    '<div class="mut" id="dTot" style="margin-top:10px"></div>' +
+    '<button class="btn g w xl" style="margin-top:12px" onclick="saveDay(\'' + date + '\')">' + I('check') + ' Save hours</button></div></div>');
+  var tot = function(){ var a = document.getElementById('dStart').value, b = document.getElementById('dEnd').value, br = +document.getElementById('dBreak').value || 0;
+    var mm = function(x){ var p = /^(\d+):(\d+)/.exec(x || ''); return p ? +p[1] * 60 + +p[2] : null; };
+    var h = (mm(b) != null && mm(a) != null && mm(b) > mm(a)) ? (mm(b) - mm(a) - br) / 60 : null;
+    document.getElementById('dTot').textContent = h != null && h > 0 ? 'That’s ' + hrsShort(h) + ' worked.' : ''; };
+  ['dStart', 'dEnd', 'dBreak'].forEach(function(x){ document.getElementById(x).addEventListener('input', tot); }); tot();
+}
+async function saveDay(date){
+  var a = document.getElementById('dStart').value, b = document.getElementById('dEnd').value, br = parseInt(document.getElementById('dBreak').value, 10) || 0;
+  var rowId = document.getElementById('dJob').value || '';
+  if (!a || !b || b <= a) return toast('Put in a start and a finish time after it.');
+  var all = LS.get('crew_days', {}); all[date] = { start: a, end: b, breakMin: br, row_id: rowId }; LS.set('crew_days', all);
+  await record('day', { row_id: rowId, data: { date: date, start: a, end: b, breakMin: br } });
+  toast('Hours saved'); history.length > 1 ? history.back() : go('#/today');
 }
 function pickPhoto(cam){ var el = document.getElementById(cam ? 'camIn' : 'pickIn'); el.value = ''; el.click(); }
 ['camIn', 'pickIn'].forEach(function(id){ document.getElementById(id).addEventListener('change', function(){
@@ -620,7 +868,7 @@ async function tick(rowId, list, item, day, done){
   var k = list + ':' + item + (day ? ':' + day : '');
   var lc = LS.get('crew_chk_' + rowId, {}); lc[k] = { done: done, at: new Date().toISOString() }; LS.set('crew_chk_' + rowId, lc);
   await record('check', { row_id: rowId, job_id: _JOB.job_id || '', data: { list: list, item: item, done: done, day: day } });
-  renderJob(rowId);
+  if (location.hash.indexOf('/checks') >= 0) renderChecks(rowId); else renderJob(rowId);
 }
 async function addNote(rowId){
   var t = (document.getElementById('noteTx') || {}).value || ''; t = t.trim(); if (!t) return;

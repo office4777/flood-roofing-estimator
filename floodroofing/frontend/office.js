@@ -573,16 +573,20 @@
     var link = location.origin.replace(/^file:.*$/, 'https://roofmap.co.nz') + '/crew';
     root.innerHTML = '<div class="of-hd"><h2>GPS map &amp; crew</h2><span class="of-note">Crew app: <b>' + esc(link) + '</b></span>' +
       '<button class="of-btn sm" onclick="_ofCopy(\'' + esc(link) + '\')">Copy link</button><button class="of-btn sm" onclick="_ofGpsLoad()">↻ Refresh</button></div>' +
-      '<div class="of-card"><h3>Where the crew are today</h3><div class="of-note" style="margin-bottom:8px">Location is only recorded 7 am – 7 pm on days a person\'s crew is booked on the schedule, and only while the crew app is open on their phone.</div>' +
+      '<div class="of-chips" id="ofGpsJump" style="margin:0 0 12px">' + [['ofGpsCardMap', 'Map'], ['ofGpsCardHours', 'Hours'], ['ofGpsCardMembers', 'Crew &amp; what they see'], ['ofGpsCardLists', 'Checklists'], ['ofGpsCardSet', 'Crew app settings']]
+        .map(function(x){ return '<button class="of-btn sm' + (x[0] === 'ofGpsCardLists' ? ' pri' : '') + '" data-jump="' + x[0] + '" onclick="_ofGpsJump(\'' + x[0] + '\')">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="of-card" id="ofGpsCardMap"><h3>Where the crew are today</h3><div class="of-note" style="margin-bottom:8px">Location is only recorded 7 am – 7 pm on days a person\'s crew is booked on the schedule, and only while the crew app is open on their phone.</div>' +
       '<div id="ofGpsMap" style="height:420px;border-radius:10px;overflow:hidden;background:#e2e8f0;margin-bottom:10px"></div><div id="ofGpsPeople"></div></div>' +
-      '<div class="of-card"><h3>Hours</h3><div id="ofGpsHours"><div class="of-note">Loading…</div></div></div>' +
-      '<div class="of-card"><h3>Who is on which crew</h3><div id="ofGpsMembers"><div class="of-note">Loading…</div></div></div>' +
-      '<div class="of-card"><h3>Checklists for the crew app</h3><div class="of-note" style="margin-bottom:8px">Every job in the crew app shows these. “Before we start” and “When we finish” are ticked once a job; “Every day” is ticked each day on site.</div><div id="ofGpsLists"><div class="of-note">Loading…</div></div></div>';
+      '<div class="of-card" id="ofGpsCardHours"><h3>Hours</h3><div id="ofGpsHours"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card" id="ofGpsCardMembers"><h3>Who is on which crew, and what they see</h3><div id="ofGpsMembers"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card" id="ofGpsCardSet"><h3>Crew app settings</h3><div id="ofGpsSet"><div class="of-note">Loading…</div></div></div>' +
+      '<div class="of-card" id="ofGpsCardLists"><h3>Checklists for the crew app</h3><div class="of-note" style="margin-bottom:8px">Every job in the crew app shows these. “Before we start” and “When we finish” are ticked once a job; “Every day” is ticked each day on site.</div><div id="ofGpsLists"><div class="of-note">Loading…</div></div></div>';
     G.map = null; G.marks = [];
     clearInterval(G.timer); G.timer = setInterval(function(){ if ($('ofGpsMap') && document.body.getAttribute('data-tab') === 'gps') loadNow(); else clearInterval(G.timer); }, 60000);
-    await Promise.all([loadNow(), loadHours(), loadMembers(), loadLists()]);
+    await Promise.all([loadNow(), loadHours(), loadMembers(), loadSet(), loadLists()]);
   }
   window._ofGpsLoad = function(){ loadNow(); loadHours(); };
+  window._ofGpsJump = function(id){ var el = $(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   window._ofCopy = function(t){ try { navigator.clipboard.writeText(t); toast('Link copied'); } catch (e) { prompt('Copy this link', t); } };
   async function loadNow(){
     var box = $('ofGpsPeople'); if (!box) return;
@@ -660,17 +664,47 @@
     var blob = new Blob([out.map(function(r){ return r.map(q).join(','); }).join('\n')], { type: 'text/csv' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Crew hours ' + h.from + ' to ' + h.to + '.csv'; document.body.appendChild(a); a.click(); a.remove();
   };
+  // WHAT EACH PERSON SEES IN THE CREW APP (2026-11-13, the owner: "make the
+  // individual user permissions to show what they can see (and remove the
+  // quote from the files, i don't need the guys seeing the quoted totals)").
+  var PERM_LABELS = [['phone', 'Customer phone'], ['scope', 'Scope of work & choices'], ['files', 'Files'], ['photos', 'View photos'],
+    ['upload', 'Upload photos'], ['hours', 'Allocated vs used hours'], ['allCrews', 'Every crew\'s week'], ['priced', 'Quotes, orders & invoices (prices)']];
   async function loadMembers(){
     var box = $('ofGpsMembers'); if (!box) return;
     try { G.members = await api('GET', '/crew/office/members'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
     var crews = G.members.crews || [];
-    box.innerHTML = '<div class="of-note" style="margin-bottom:8px">The crews are the schedule board\'s crews. A person\'s jobs in the crew app — and the days their location may be recorded — are the days their crew is booked. Invite someone in Settings → Team first.</div>' +
-      '<div class="of-scroll"><table class="of-tbl"><thead><tr><th>Person</th><th>Email</th><th>Crew</th></tr></thead><tbody>' +
+    box.innerHTML = '<div class="of-note" style="margin-bottom:8px">The crews are the schedule board\'s crews. A person\'s jobs in the crew app — and the days their location may be recorded — are the days their crew is booked. Tick what each person can see in the crew app; quotes, supplier orders and invoices (anything with a price) are hidden unless ticked. Invite someone in Settings → Team first.</div>' +
+      '<div class="of-scroll"><table class="of-tbl" id="ofPermTbl"><thead><tr><th>Person</th><th>Crew</th>' + PERM_LABELS.map(function(p){ return '<th style="text-align:center;font-size:11px;max-width:90px;white-space:normal">' + p[1] + '</th>'; }).join('') + '</tr></thead><tbody>' +
       (G.members.members || []).map(function(m){
-        return '<tr><td>' + esc(m.crew_name || m.name || '—') + '</td><td>' + esc(m.email) + '</td><td><select data-crew-uid="' + esc(m.id) + '" onchange="_ofCrewSet(\'' + esc(m.id) + '\',this.value)"><option value="">— no crew (office) —</option>' +
-          crews.map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === m.crew_id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></td></tr>';
+        var pm = m.perms || {};
+        return '<tr><td><b>' + esc(m.crew_name || m.name || '—') + '</b><div class="of-note">' + esc(m.email) + '</div></td><td><select data-crew-uid="' + esc(m.id) + '" onchange="_ofCrewSet(\'' + esc(m.id) + '\',this.value)"><option value="">— no crew (office) —</option>' +
+          crews.map(function(c){ return '<option value="' + esc(c.id) + '"' + (c.id === m.crew_id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></td>' +
+          PERM_LABELS.map(function(p){ return '<td style="text-align:center"><input type="checkbox" data-perm="' + p[0] + '" data-perm-uid="' + esc(m.id) + '"' + (pm[p[0]] ? ' checked' : '') +
+            ' onchange="_ofPermSet(\'' + esc(m.id) + '\',\'' + p[0] + '\',this.checked)" style="width:18px;height:18px"></td>'; }).join('') + '</tr>';
       }).join('') + '</tbody></table></div>';
   }
+  window._ofPermSet = async function(uid, key, on){
+    var o = {}; o[key] = !!on;
+    try { await api('PUT', '/crew/office/members/' + encodeURIComponent(uid), { perms: o }); toast('Saved — the crew app picks it up next time it opens'); }
+    catch (e) { alert(e.message); loadMembers(); }
+  };
+  // HOW THE CREW PUT IN THEIR HOURS (the same message: "change whether the
+  // roofers clock on and off with a button, or simply enter their start and end
+  // time for the day").
+  async function loadSet(){
+    var box = $('ofGpsSet'); if (!box) return;
+    var st; try { st = await api('GET', '/crew/office/settings'); } catch (e) { box.innerHTML = '<div class="of-note">' + esc(e.message) + '</div>'; return; }
+    G.clockMode = st.clockMode === 'times' ? 'times' : 'button';
+    var opt = function(v, t, d){ return '<label class="of-opt" style="display:flex;gap:10px;align-items:flex-start;margin-bottom:8px;cursor:pointer"><input type="radio" name="ofClockMode" value="' + v + '"' + (G.clockMode === v ? ' checked' : '') +
+      ' onchange="_ofClockMode(\'' + v + '\')" style="width:18px;height:18px;margin-top:2px"><span><b>' + t + '</b><div class="of-note">' + d + '</div></span></label>'; };
+    box.innerHTML = '<div style="font-weight:700;margin-bottom:8px">How the crew put in their hours</div>' +
+      opt('button', 'Clock on and off with a button', 'They press Clock on when they reach a job and Clock off when they leave; travel between jobs is worked out for them.') +
+      opt('times', 'Type in their start and finish time', 'Each day they put in when they started, when they finished, their breaks and which job — no buttons to remember.');
+  }
+  window._ofClockMode = async function(v){
+    try { await api('PUT', '/crew/office/settings', { clockMode: v }); G.clockMode = v; toast('Saved — the crew app switches next time it opens'); }
+    catch (e) { alert(e.message); loadSet(); }
+  };
   window._ofCrewSet = async function(uid, crew){ try { await api('PUT', '/crew/office/members/' + encodeURIComponent(uid), { crew_id: crew }); toast('Crew saved'); loadNow(); } catch (e) { alert(e.message); } };
   async function loadLists(){
     var box = $('ofGpsLists'); if (!box) return;
