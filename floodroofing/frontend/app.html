@@ -5677,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-12T23:55:15Z';
+  window.APP_BUILT_AT = '2026-11-13T00:15:08Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -22443,7 +22443,7 @@ function snapshotCurrentJob(){
             flashLayoutOverrides:DRAW.flashLayoutOverrides||{},
             matSheetByRoof:DRAW.matSheetByRoof||{},
             roofType:DRAW.roofType||'', rotation:DRAW.rotation||0,
-            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null, endKinds:DRAW.endKinds||null,
+            gableRidgeOffset:DRAW.gableRidgeOffset||0, ridgeBreaks:DRAW.ridgeBreaks||[], hipEnds:DRAW.hipEnds||null, bumpModes:DRAW.bumpModes||null, endKinds:DRAW.endKinds||null, trueWalls:!!DRAW.trueWalls,
             roofBaseHoriz:(typeof DRAW.roofBaseHoriz==='boolean'?DRAW.roofBaseHoriz:null),
             monoBaseDeg:(typeof DRAW.monoBaseDeg==='number'?DRAW.monoBaseDeg:null),
             dutchGabletFrac:(typeof DRAW.dutchGabletFrac==='number'?DRAW.dutchGabletFrac:0.5),
@@ -22650,6 +22650,7 @@ function restoreFromJob(j){
     DRAW.hipEnds = (snap.draw.hipEnds && typeof snap.draw.hipEnds === 'object') ? snap.draw.hipEnds : null;
     DRAW.bumpModes = (snap.draw.bumpModes && typeof snap.draw.bumpModes === 'object') ? snap.draw.bumpModes : null;
     DRAW.endKinds = (snap.draw.endKinds && typeof snap.draw.endKinds === 'object') ? snap.draw.endKinds : null;
+    DRAW.trueWalls = !!snap.draw.trueWalls;
     DRAW.roofBaseHoriz = (typeof snap.draw.roofBaseHoriz === 'boolean') ? snap.draw.roofBaseHoriz : undefined;
     DRAW.monoBaseDeg   = (typeof snap.draw.monoBaseDeg === 'number')   ? snap.draw.monoBaseDeg   : undefined;
     DRAW.dutchGabletFrac = (typeof snap.draw.dutchGabletFrac === 'number') ? snap.draw.dutchGabletFrac : 0.5;
@@ -58248,7 +58249,7 @@ function _roofGeometryPayload(){
       activeRoofIdx: DRAW.activeRoofIdx,
       // The builder's own inputs, so a report re-builds the same roof.
       roofType: DRAW.roofType || '', rotation: DRAW.rotation || 0, roofBaseHoriz: DRAW.roofBaseHoriz,
-      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null, endKinds: DRAW.endKinds || null,
+      gableRidgeOffset: DRAW.gableRidgeOffset || 0, ridgeBreaks: DRAW.ridgeBreaks || [], hipEnds: DRAW.hipEnds || null, bumpModes: DRAW.bumpModes || null, endKinds: DRAW.endKinds || null, trueWalls: !!DRAW.trueWalls,
       sheetRuns: ((window._lastSheetDims || []).map(function(d){ return d.label; })),
       // Everything the CUT LIST is built from besides the geometry — the
       // typed quantities and lengths, sheets deleted off the plan, measure
@@ -58774,6 +58775,7 @@ function _cornerRepoNudge(dirX, dirY){
   var cur = DRAW.outline[idx];
   var nx = cur[0] + dx, ny = cur[1] + dy;
   var initial = DRAW.outline.map(function(p){ return p.slice(); });
+  DRAW.trueWalls = true;   // report 91
   var stretched = (typeof _stretchRectilinearOutline === 'function') ? _stretchRectilinearOutline(idx, nx, ny, initial) : null;
   if (stretched && stretched.length === DRAW.outline.length){ for (var i=0;i<stretched.length;i++) DRAW.outline[i] = stretched[i]; }
   else { DRAW.outline[idx] = [nx, ny]; }
@@ -64501,6 +64503,7 @@ function onCanvasMove(e) {
         : _stretchParallelOutline(DRAG_OUTLINE_VERT.idx, rawX, rawY, _io);
     }
     var movedC;
+    DRAW.trueWalls = true;   // the office has placed this corner (report 91)
     if (stretched && stretched.length === DRAW.outline.length) {
       for (var si = 0; si < stretched.length; si++) {
         DRAW.outline[si] = stretched[si];
@@ -65152,6 +65155,7 @@ function _setOutlineEdgeLength(edgeIdx, newLenM){
   var nx = A[0] + (dx/L)*newLpx, ny = A[1] + (dy/L)*newLpx;
   saveSnapshot();
   var initial = DRAW.outline.map(function(p){ return p.slice(); });
+  DRAW.trueWalls = true;   // report 91
   var stretched = (typeof _stretchRectilinearOutline === 'function') ? _stretchRectilinearOutline(i1, nx, ny, initial) : null;
   if (stretched && stretched.length === n){ for (var k = 0; k < n; k++) DRAW.outline[k] = stretched[k]; }
   else { DRAW.outline[i1] = [nx, ny]; }
@@ -65355,6 +65359,7 @@ function finishCurrent() {
     DRAW.outlineDone=true;
     DRAW.bumpModes=null;   // a new outline's bumps carry no choice yet
     DRAW.endKinds=null;    // nor its ends
+    DRAW.trueWalls=false;  // nor a corner moved (report 91)
     DRAW.currentPts=[];
     // Lazily seed roofs[] for the very first outline so subsequent
     // outlines extend the multi-roof model.
@@ -66189,6 +66194,7 @@ function _captureSnapState() {
     tapes: JSON.parse(JSON.stringify(DRAW.tapes || [])),
     bumpModes: DRAW.bumpModes ? JSON.parse(JSON.stringify(DRAW.bumpModes)) : null,
     endKinds: DRAW.endKinds ? JSON.parse(JSON.stringify(DRAW.endKinds)) : null,
+    trueWalls: !!DRAW.trueWalls,
     hipEnds: DRAW.hipEnds ? JSON.parse(JSON.stringify(DRAW.hipEnds)) : null,
     sheetOverrides: DRAW.sheetOverrides || {},
     matSheetExtras: DRAW.matSheetExtras || [],
@@ -66273,6 +66279,7 @@ function _applySnapState(snapStr) {
   if ('lowPitch' in s)        DRAW.lowPitch        = s.lowPitch || 0;
   if ('bumpModes' in s)       DRAW.bumpModes       = s.bumpModes ? JSON.parse(JSON.stringify(s.bumpModes)) : null;
   if ('endKinds' in s)        DRAW.endKinds        = s.endKinds ? JSON.parse(JSON.stringify(s.endKinds)) : null;
+  if ('trueWalls' in s)       DRAW.trueWalls       = !!s.trueWalls;
   if ('hipEnds' in s)         DRAW.hipEnds         = s.hipEnds ? JSON.parse(JSON.stringify(s.hipEnds)) : null;
   if ('calMeasType' in s)     DRAW.calMeasType     = s.calMeasType || 'flat';
   if ('calRealM' in s)        DRAW.calRealM        = s.calRealM || 0;
@@ -66440,7 +66447,7 @@ function clearAll(silent) {
   DRAW.editMode = 'scaled';
   DRAW.offScale = null;
   // A new job never inherits the last roof's broken ridge or hipped ends.
-  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null; DRAW.endKinds = null;
+  DRAW.ridgeBreaks = []; DRAW.hipEnds = null; DRAW.bumpModes = null; DRAW.endKinds = null; DRAW.trueWalls = false;
   // Wipe any multi-roof snapshots so we don't restore stale geometry.
   if (Array.isArray(DRAW.roofs)) DRAW.roofs = [];
   DRAW.activeRoofIdx = -1;
@@ -68714,12 +68721,50 @@ function redrawAll() {
     // + roof profile calls up, right under the size.
     var _bt = (typeof _penBackTrayName === 'function') ? _penBackTrayName(p) : null;
     if (_bt){
+      // THE TRAY IS DRAWN WHERE IT GOES (2026-11-13, the owner: "it's pointing
+      // the 340mm corrugate back tray to the right. Which would make it run
+      // parallel to the roof face ... It should rather be perpendicular to that
+      // gutter line"). The label read "→ 340mm Corrugate back-tray", and the
+      // arrow — only ever meaning "calls up" — read as the tray running along
+      // the gutter. The tray is now a cyan band at its own width, square to the
+      // gutter, from the gutter (Full) or a metre below the pipe (Short) up to
+      // the top of the sheet, with its length beside it; the take-off always
+      // measured it this way.
+      var _bd = null, _bg = null;
+      try { _bd = _penBackTrayDetail(p, i); _bg = _penSheetGeom(p); } catch(e){}
+      var _tw = parseFloat(_bt) || 340;
+      if (_bg && _bg.ok && _bg.upX != null && _t){
+        var _s = _t.s || 1, _ux = _bg.upX, _uy = _bg.upY;
+        var _dn = (_bd && _bd.mode === 'short') ? Math.min(_bg.gutPx, 1.0 * _bg.pxPerM) : _bg.gutPx;
+        var _p0 = dp([p.cx - _ux * _dn, p.cy - _uy * _dn]), _p1 = dp([p.cx + _ux * _bg.topPx, p.cy + _uy * _bg.topPx]);
+        var _hw = Math.max(2, (_tw / 1000) * (DRAW.scaleMetresPerPx > 0 ? 1 / DRAW.scaleMetresPerPx : 0) * _s / 2);
+        var _nx = -_uy * _hw, _ny = _ux * _hw;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(_p0[0] + _nx, _p0[1] + _ny); ctx.lineTo(_p1[0] + _nx, _p1[1] + _ny);
+        ctx.lineTo(_p1[0] - _nx, _p1[1] - _ny); ctx.lineTo(_p0[0] - _nx, _p0[1] - _ny); ctx.closePath();
+        ctx.fillStyle = 'rgba(8,145,178,0.16)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(8,145,178,0.85)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke();
+        ctx.setLineDash([]);
+        // An arrowhead at the top: the tray runs UP the slope.
+        var _ah = Math.max(5, Math.min(9, _hw * 1.6));
+        ctx.beginPath();
+        ctx.moveTo(_p1[0], _p1[1]);
+        ctx.lineTo(_p1[0] - _ux * _ah * 1.6 + _nx / _hw * _ah, _p1[1] - _uy * _ah * 1.6 + _ny / _hw * _ah);
+        ctx.moveTo(_p1[0], _p1[1]);
+        ctx.lineTo(_p1[0] - _ux * _ah * 1.6 - _nx / _hw * _ah, _p1[1] - _uy * _ah * 1.6 - _ny / _hw * _ah);
+        ctx.strokeStyle = '#0891b2'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+        window.__penTrayDrawn = window.__penTrayDrawn || {};
+        window.__penTrayDrawn[i] = { from: _p0, to: _p1, halfW: _hw, up: [_ux, _uy] };
+      }
       ctx.fillStyle = '#0891b2';
       ctx.font = Math.round(8 * _dsc2) + 'px sans-serif';
       ctx.textAlign = 'left';
       // Clear of the size label above it at every setting, or the two overlap
       // the moment the slider is moved.
-      ctx.fillText('→ ' + _bt, cx+dotR+3, cy+Math.round(13 * _dsc2));
+      var _lenTxt = (_bd && _bd.hasGeom) ? ' · ' + (_bd.mode === 'short' ? 'short ' : '') + _bd.lengthM.toFixed(1) + ' m' : '';
+      ctx.fillText(_bt + _lenTxt, cx+dotR+3, cy+Math.round(13 * _dsc2));
     }
   });
 
@@ -71661,9 +71706,15 @@ function _penSheetGeom(p, ctx, allowBox){
     if (!alongOK && !(gp > 0)) return;              // past this edge's ends with nothing below it
     if (!best || (alongOK && !best.alongOK) ||
         (alongOK === best.alongOK && perpAbs < best.perpAbs))
-      best = { perpAbs:perpAbs, gutterPerp:gp, alongOK:alongOK };
+      best = { perpAbs:perpAbs, gutterPerp:gp, alongOK:alongOK, dxs:dxs, dys:dys };
   });
   if (!best) return out;
+  // Which way is up the slope, and how far (image px) to the top and to the
+  // gutter: the map draws the tray along this line (report of 2026-11-13).
+  out.upX = -best.dxs; out.upY = -best.dys;
+  out.topPx = best.perpAbs;
+  out.gutPx = best.gutterPerp > 0 ? Math.max(0, best.gutterPerp - best.perpAbs) : 0;
+  out.pxPerM = 1 / (spp * pitchF);
   out.topToPenM = best.perpAbs * spp * pitchF;                              // raw slope distance top → pipe
   out.sheetM    = best.gutterPerp>0 ? _calibratedSheetM(best.gutterPerp * spp * pitchF) : 0;
   out.ok = true;
@@ -74458,6 +74509,27 @@ function _withCaptureDpr(fn){
     try { redrawAll(); } catch(e){}
   }
 }
+// THE JOB PACK'S MAP IS FRAMED FOR THE PAGE, NOT FOR THE SCREEN (2026-11-13,
+// the owner: "I was too zoomed in on the map roof tab that in the job pack the
+// detailed roof map was falling off the page. Doesn't matter how zoomed in I
+// am ... it should always fit the detailed map to the size of the page").
+// A capture redraws the live canvas, so it took whatever zoom and pan Map Roof
+// was left on, and a roof running past the canvas edge was cut off the pack.
+// The capture now fits what it draws to the canvas first (the Fit button's own
+// geometry fit, over just the roofs being drawn) and puts the office's view
+// back the moment it is done — zoom, pan and the zoom box.
+function _jpFitForCapture(){
+  var z = DRAW.zoom, ox = IMG_OFFSET.x, oy = IMG_OFFSET.y, savedRoofs = DRAW.roofs;
+  try {
+    // A single-roof capture draws DRAW.outline alone; fit to that, not every roof.
+    if (DRAW.showAllRoofs === false && Array.isArray(savedRoofs) && savedRoofs.length) DRAW.roofs = [];
+    fitDrawingToCanvas();
+  } catch(e){} finally { DRAW.roofs = savedRoofs; }
+  return function(){
+    DRAW.zoom = z; IMG_OFFSET.x = ox; IMG_OFFSET.y = oy;
+    try { _zoomLabelSync(); } catch(e){}
+  };
+}
 function _jpCaptureDetailed(roofIdx, opts){ return _withCaptureDpr(function(){ return _jpCaptureDetailedRaw(roofIdx, opts); }); }
 function _jpCaptureDetailedRaw(roofIdx, opts){
   var src = document.getElementById('roofCanvas');
@@ -74479,6 +74551,7 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
   var prevLines = (DRAW.lines || []).map(function(l){
     return Object.assign({}, l, { pts: l.pts ? l.pts.map(function(p){return p.slice();}) : [] });
   });
+  var _unfit = null;
   try {
     window._hideCalibrationOverlay = true;
     // The Job Pack's map has no aerial behind it; the schedule board's job
@@ -74497,11 +74570,13 @@ function _jpCaptureDetailedRaw(roofIdx, opts){
       DRAW.activeRoofIdx = roofIdx;
       DRAW.showAllRoofs = false;
     }
+    _unfit = _jpFitForCapture();
     redrawAll();
     var _cc = _cropCanvasToContentCv(src, 30);
     if (_cc && opts && opts.rotWide) _cc = _cvRotIfWide(_cc);
     return _jpCvOut(_cc || src);
   } finally {
+    if (_unfit) _unfit();
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
     window._matRoofMapHideGrid = prevHideGrid;
@@ -74580,6 +74655,7 @@ function _jpCaptureFlashRef(roofIdx, opts){
   var prevLines = (DRAW.lines || []).map(function(l){
     return Object.assign({}, l, { pts: l.pts ? l.pts.map(function(p){return p.slice();}) : [] });
   });
+  var _unfit = null;
   try {
     window._hideCalibrationOverlay = true;
     window._matRoofMapHideBg = true;
@@ -74594,6 +74670,7 @@ function _jpCaptureFlashRef(roofIdx, opts){
       DRAW.activeRoofIdx = roofIdx;
       DRAW.showAllRoofs = false;
     }
+    _unfit = _jpFitForCapture();
     redrawAll();
     // Composite: roofCanvas pixels on the bottom, letter overlays on top.
     var off = document.createElement('canvas');
@@ -74609,6 +74686,7 @@ function _jpCaptureFlashRef(roofIdx, opts){
     } catch(e){ console.warn('flashref overlay:', e); }
     return _jpCvOut(off);
   } finally {
+    if (_unfit) _unfit();
     window._hideCalibrationOverlay = prevHideCal;
     window._matRoofMapHideBg = prevHideBg;
     window._matRoofMapHideGrid = prevHideGrid;
@@ -87068,14 +87146,32 @@ function _roofSquareUp(outline){
   // it moved two hips' feet 17px off 45° when they went back on the true
   // corners. Twenty-four pixels covers a hand-trace at any zoom in use.
   var tol = Math.max(2, Math.min(0.05 * Math.min(spanX, spanY), 24));
-  var n = outline.length, i, square = true, needs = false;
+  var n = outline.length, i, square = true, needs = false, exact = true;
   for (i = 0; i < n; i++){
     var a = outline[i], b = outline[(i + 1) % n];
     var minor = Math.min(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
     if (minor > tol){ square = false; break; }
     if (minor > 0.01) needs = true;
+    if (minor > 0.5) exact = false;
   }
   if (!square) return null;                           // angled for real
+  // A BUILDING WHOSE EVERY WALL IS ALREADY LEVEL OR PLUMB IS THE BUILDING THE
+  // ROOFER MEANS (feedback report 91, 2026-11-13, job 3351: "when i moved the
+  // clicked corner across it snaps the 3x valleys, 2x ridges and 1x hip
+  // together out of 45deg, it should always keep true 45deg no matter how
+  // close together the corners are"). Since report 21 the drawing squares each
+  // wall on its own, so a corner dragged 11px off another wall's line arrives
+  // here as two DIFFERENT, dead-straight walls 11px apart — and merging them
+  // built the roof on a building that is not there, every line off the moved
+  // corner put back at the corner and bent off 45°. So once the office has
+  // MOVED a corner of this roof (a drag, the nudge pad, a typed wall length —
+  // DRAW.trueWalls, per roof, saved), two walls of a square outline are two
+  // walls however close, and the exact skeleton gives each its own 45°. A
+  // roof as first drawn keeps the merge: report 29's H wants its 4–6px jogs
+  // as one wall (one ridge a wing), and report 78's shallow bump unchosen is
+  // the main slope carried over it. A hand trace still wobbling off square
+  // (a wall more than half a pixel off level or plumb) is merged either way.
+  if (exact && window.DRAW && DRAW.trueWalls) tol = 0.5;
   // Two DIFFERENT walls a few pixels apart are the same wall too: the H
   // from report 29 has its two wings' top walls six pixels apart and their
   // inner walls four, every wall dead straight. Left as drawn, the solver's
@@ -90365,7 +90461,7 @@ function _clearBuiltRoofLines() {
 // DRAW.outline as before; the model is additive.
 DRAW.roofs = DRAW.roofs || [];
 DRAW.activeRoofIdx = (typeof DRAW.activeRoofIdx === 'number') ? DRAW.activeRoofIdx : -1;
-var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes','endKinds'];
+var ROOF_FIELDS = ['outline','lines','sections','penetrations','infoItems','notes','outlineDone','roofType','calPitch','rotation','gableRidgeOffset','dutchGabletFrac','roofBaseHoriz','monoBaseDeg','sheetType','clearlites','pitchLabel','ridgeBreaks','hipEnds','lowPitch','bumpModes','endKinds','trueWalls'];
 // Defaults for the SCALAR per-roof fields. Used when loading a roof that
 // doesn't carry a value for one, so it resets to a clean default instead
 // of leaking the previously-active roof's value into the newly-loaded one
@@ -90382,7 +90478,7 @@ var ROOF_FIELD_DEFAULTS = {
   // Sheet type is per ROOF, not per job — a lean-to in Clearlite over a
   // steel main roof is the ordinary case, not the exception.
   sheetType:'steel-corrugate',
-  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null, endKinds:null,
+  gableRidgeOffset:0, dutchGabletFrac:0.5, ridgeBreaks:[], hipEnds:null, bumpModes:null, endKinds:null, trueWalls:false,
   // undefined = "not decided yet", so a fresh roof takes its orientation
   // from its own drawing instead of inheriting the last roof's.
   roofBaseHoriz:undefined, monoBaseDeg:undefined,
@@ -90394,7 +90490,7 @@ function _newEmptyRoof(name){
     clearlites: [],
     outlineDone: false, roofType: '', calPitch: 0, lowPitch: 0, rotation: 0,
     sheetType: 'steel-corrugate',
-    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null, endKinds: null,
+    gableRidgeOffset: 0, dutchGabletFrac: 0.5, ridgeBreaks: [], hipEnds: null, bumpModes: null, endKinds: null, trueWalls: false,
     roofBaseHoriz: undefined, monoBaseDeg: undefined,
   };
 }

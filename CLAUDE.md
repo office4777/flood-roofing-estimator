@@ -1981,6 +1981,49 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   together); the roof BUILDERS still call `_roofSquareUp` themselves, so the
   hips and valleys are worked out on the tidied shape exactly as before.
   `tests/report21.mjs` (12, UI list; 4 fail on the old code).
+- A MOVED CORNER KEEPS EVERY HIP AND VALLEY AT 45° (feedback report 91,
+  2026-11-13, job 3351: "when i moved the clicked corner across it snaps the 3x
+  valleys, 2x ridges and 1x hip together out of 45deg, it should always keep
+  true 45deg no matter how close together the corners are, only when holding
+  down the shift button should it be able to lock in out fo 45deg"). The
+  builders square the outline again (`_roofSquareUp`), which merges two
+  DIFFERENT walls within ~5% of the span: the stem's left wall dragged 11px off
+  the main block's was averaged with it at 1182.5, the roof worked out on a
+  building that is not there, and every line off the moved corner bent (48.9°,
+  47.8°, 41.6°). A corner MOVED by the office — a drag (`DRAG_OUTLINE_VERT`),
+  the nudge pad, a typed wall length — sets `DRAW.trueWalls` (per roof,
+  ROOF_FIELDS, the draw block, the undo snapshot, the feedback payload; a new
+  outline and clearAll clear it), and on such a roof an outline whose every
+  wall is level or plumb to half a pixel is NOT cross-merged: the exact
+  skeleton gives each wall its own 45° (an 11px step comes out as a 0.5 m ridge
+  and two tiny hips — the real geometry). A roof as first drawn keeps the merge,
+  because report 29's H wants its 4–6px jogs as one ridge a wing and report
+  78's shallow unchosen bump is the main slope carried over it (`roofreal`,
+  `report78` pin both). Shift still frees the drag (angled walls, nothing
+  merged). `tests/report91.mjs` (18, a real drag; 6 fail on the old build).
+- THE JOB PACK'S MAP IS FRAMED FOR THE PAGE (2026-11-13, the owner: "I was too
+  zoomed in on the map roof tab that in the job pack the detailed roof map was
+  falling off the page ... it should always fit the detailed map to the size of
+  the page. Without cutting any of it off"). `_jpCaptureDetailed` and
+  `_jpCaptureFlashRef` redrew the live canvas at Map Roof's zoom and pan, so a
+  zoomed-in roof was cut off (5× in: no roof at all; zoomed out: a strip).
+  `_jpFitForCapture()` fits what the capture draws (the Fit button's own
+  `fitDrawingToCanvas`, over just the roof being drawn when it is one) and hands
+  back a function that puts the office's zoom, pan and zoom box back.
+  `tests/jpmapfit.mjs` (5, UI).
+- A PIPE'S BACK-TRAY IS DRAWN UP THE SLOPE (2026-11-13, the owner: "it's
+  pointing the 340mm corrugate back tray to the right. Which would make it run
+  parallel to the roof face ... It should rather be perpendicular to that gutter
+  line so the full length of that back tray should be 3.97 meters"). The label
+  "→ 340mm Corrugate back-tray" only ever meant "calls up" — the take-off always
+  measured the tray square to the gutter (`_penSheetGeom`: 3.99 m of sheet +
+  100 mm = 4.1 m Full). The map now draws the tray: a cyan dashed band at its
+  own width, square to the face's gutter, from the gutter (Full) or a metre
+  below the pipe (Short) up to the top of the sheet, an arrowhead at the top,
+  the label "340mm Corrugate back-tray · 4.1 m" (no arrow). `_penSheetGeom`
+  answers `upX/upY`, `topPx`, `gutPx`, `pxPerM`; `window.__penTrayDrawn` records
+  each band for the suite. The Full length rule (sheet + 0.1 m) is unchanged —
+  told to the owner. `tests/backtraydir.mjs` (6, UI).
 - THE 📦 TICK SAYS WHO THE MATERIALS CAME FROM AND WHEN (2026-11-12, the owner:
   "when they tick that, can it prompt the user to input which supplier ... If
   it was ordered through RoofMap, it should automatically tick and it will
