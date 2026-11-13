@@ -5677,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-13T06:50:25Z';
+  window.APP_BUILT_AT = '2026-11-13T06:57:35Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -37816,7 +37816,12 @@ function _qStampCrewHours(){
   if (!S.quote) return;
   try {
     var _ch = _crewHoursItems(S.quote);
-    if (_ch && _ch.length) S.quote.crewHours = { at: new Date().toISOString(), items: _ch.map(function(x){ return { label: x.label, guys: x.guys, total: Math.round(x.total * 100) / 100 }; }) };
+    // Written only when the hours differ: the quote's fingerprint decides
+    // whether a send uploads it again (emailpush pins two uploads, not four).
+    if (_ch && _ch.length){
+      var _nx = { items: _ch.map(function(x){ return { label: x.label, guys: x.guys, total: Math.round(x.total * 100) / 100 }; }) };
+      if (JSON.stringify(S.quote.crewHours || null) !== JSON.stringify(_nx)) S.quote.crewHours = _nx;
+    }
   } catch(e){}
 }
 function _qStampCustomerCopy(){
