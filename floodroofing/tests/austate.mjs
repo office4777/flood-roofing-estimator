@@ -277,9 +277,17 @@ async function capture(pg, src){
       getBounds: () => ({ getWest: () => 153.02, getEast: () => 153.04, getSouth: () => -27.48, getNorth: () => -27.46 }),
       getSource: (id) => id === 'rm-cover' && fc ? { setData(d){ fc = d; } } : null, addSource(id, o){ if (id === 'rm-cover') fc = o.data; },
       addLayer(){}, getLayer: () => true, moveLayer(){} };
-    window._stateSrcKey = 'NSW'; document.getElementById('imagerySource').value = 'state';
-    _stateCoverCheck();
-    for (let i = 0; i < 60 && !window._coverCells; i++) await new Promise(r => setTimeout(r, 50));
+    // A switch to the state source still settling from an earlier step can
+    // re-pick the region under this stand-in map (Brisbane → QLD) and land a
+    // later cover check; let it settle, and read again until it is NSW's.
+    await new Promise(r => setTimeout(r, 400));
+    for (let a = 0; a < 3; a++) {
+      window._coverCells = null; window._stateSrcKey = 'NSW'; document.getElementById('imagerySource').value = 'state';
+      _stateCoverCheck();
+      for (let i = 0; i < 60 && !window._coverCells; i++) await new Promise(r => setTimeout(r, 50));
+      await new Promise(r => setTimeout(r, 150));
+      if (window._coverCells && window._coverCells.src === 'nsw') break;
+    }
     await new Promise(r => setTimeout(r, 100));
     const n = document.getElementById('aerialCoverNote');
     const out = { cells: window._coverCells, shaded: fc ? fc.features.length : -1, note: n.style.display !== 'none' ? n.textContent : '' };
