@@ -586,6 +586,27 @@ THE LAY:
    when tried; offered, not done. `tests/sheetlayout.mjs` (451): the wing's
    template, 18 south, the north run, the C8 column off an offcut, the C and
    E sets in order, 53 / under 292 m, and 57 sheets with both switches off.
+3e. AMONG THE SLOPES A WING STANDS ON, THE LONGEST SHEETS FIRST (feedback
+   report 92, 2026-11-13, job 3351, the owner: "It's taken the main rectangle
+   as the blue and red sheets, the main rectangle should be the 14.24 × 9.91
+   meter rectangle because they have the longest sheet length"). Rule 3c ranks
+   the slopes a wing's span lies across NEAREST behind first; on report 92 the
+   stem's west slope (4.08 m sheets, gutter x = 1177) stood 11px nearer the
+   west wing's end than the main block's west slope (5.14 m, x = 1188) — the
+   corner had been dragged off its line (report 91) — so the wing's end was
+   cut from the stem and the main block was patched with E offcuts. Now, of
+   the slopes the wing stands on, the one with the LONGEST sheets comes first
+   (the same sheet to 10 mm is a tie), then the nearest (`_pzLongestTmpl`,
+   `PZ_LONGEST_TMPL`, `window.__PZ_LONGEST_TMPL`, in `_pzBuildKey`). Report
+   92: 106 → 103 sheets, 462.2 → 457.7 m; the main block's west slope A1–A13
+   whole at 5.14 m, its feet and A14–A18 on the wing's end, the stem its own E
+   and F. Every other fixture and the 37-shape gate identical
+   (`tools/pz-diff.mjs`, which lays every fixture with a switch off and on).
+   Shown as "Sheet layout v16 - report 92"; LIVE 2026-11-13 on his "go live on
+   v16". The brief's open question — does the longest-sheets rectangle win
+   even where the area lay is lighter (rule 3b's `rectDiff` / rule 10)? — did
+   not arise here (it won AND was lighter) and is still unasked.
+   `fixtures-report92.json`; `tests/sheetlayout.mjs` (463).
 4. THEN THE COOKIE CUTTER. Everything else is cut OUT OF the plain hip's
    sheets where they lie, not laid afresh:
    a. A wing standing in front of the main's SLOPE (Big-L, reports 70, 72,
@@ -1218,7 +1239,7 @@ SWITCHES AND CONSTANTS (sheet-plan.js; `false` = off): `_PZ_OPT_ON`,
 `__PZ_RUN_ORDER`, `__PZ_TRIM_NEAR`, `__PZ_FACE_NUM`, `__PZ_SET_ON` (rule 9k,
 on), `PZ_WELD_ON` / `__PZ_WELD` (rule 7c, on), `PZ_NEAR_TMPL` /
 `__PZ_NEAR_TMPL` (rule 3c, on), `PZ_RECT_MAIN` / `__PZ_RECT_MAIN` (rule 3d,
-on; `_PZ_RECT_STEP_MM` 800), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
+on; `_PZ_RECT_STEP_MM` 800), `PZ_LONGEST_TMPL` / `__PZ_LONGEST_TMPL` (rule 3e, on), `__PZ_NO_CACHE`, `__SHEET_COUNT_ENGINE` (suites that pin the engine's
 count), `SHEET_LAYOUT_HIDDEN` / `CALC_CHECK_HIDDEN` (app.html). Tolerances:
 `_PZ_FIT_MM` 25 (an offcut may be this short of its piece — the lap covers
 it), `_PZ_HIP_CAP_MM` 100 (rule 6), `_PZ_ROUND_MM` 10 (lengths round up to
