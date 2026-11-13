@@ -676,7 +676,7 @@ function mount(app, deps){
     const items = order.items || [];
     const lm = items.reduce((a, x) => a + x.qty * x.lengthM, 0);
     const lines = items.map((x, i) => (i + 1) + '. ' + x.name + (x.profile ? ' (' + x.profile + ')' : '') + ' — ' + x.qty + ' × ' + fmtM(x.lengthM) +
-      ', girth ' + Math.round(x.girthMm) + ' mm, ' + x.folds + ' bends' + (x.hems ? ', ' + x.hems + ' hems' : '') + (x.colour ? ', ' + x.colour : ''));
+      ', girth ' + Math.round(x.girthMm) + ' mm, ' + x.folds + ' bends' + (x.hems ? ', ' + x.hems + ' hems' : '') + (x.flashGuards ? ', flash guard' : '') + (x.colour ? ', ' + x.colour : ''));
     const toOffice = order.status !== 'sent';
     const subject = (toOffice ? 'Flashing order to send on — ' : 'Flashing order — ') + (where || 'job') + (job.job_ref ? ' (Job ' + job.job_ref + ')' : '');
     const head = toOffice
@@ -691,7 +691,7 @@ function mount(app, deps){
       '<br><b>Ordered by:</b> ' + esc(order.by) + '</p><table cellpadding="6" style="border-collapse:collapse;font-size:13px"><tr style="background:#0a1628;color:#fff">' +
       '<th align="left">#</th><th align="left">Flashing</th><th align="left">Colour</th><th align="right">Girth</th><th align="right">Bends</th><th align="right">Qty</th><th align="right">Length</th></tr>' +
       items.map((x, i) => '<tr style="border-bottom:1px solid #dde4ee"><td>' + (i + 1) + '</td><td>' + esc(x.name) + (x.profile ? ' <span style="color:#5b6b80">(' + esc(x.profile) + ')</span>' : '') +
-        '</td><td>' + esc(x.colour || '—') + '</td><td align="right">' + Math.round(x.girthMm) + ' mm</td><td align="right">' + x.folds + (x.hems ? ' + ' + x.hems + ' hem' + (x.hems > 1 ? 's' : '') : '') + '</td><td align="right">' + x.qty + '</td><td align="right">' + fmtM(x.lengthM) + '</td></tr>').join('') +
+        (x.flashGuards ? ' <b style="color:#ea580c">+ flash guard</b>' : '') + '</td><td>' + esc(x.colour || '—') + '</td><td align="right">' + Math.round(x.girthMm) + ' mm</td><td align="right">' + x.folds + (x.hems ? ' + ' + x.hems + ' hem' + (x.hems > 1 ? 's' : '') : '') + '</td><td align="right">' + x.qty + '</td><td align="right">' + fmtM(x.lengthM) + '</td></tr>').join('') +
       '</table>' + (order.note ? '<p><b>Note:</b> ' + esc(order.note).replace(/\n/g, '<br>') + '</p>' : '') + '<p>' + esc(lib.company || '') + '</p></div>';
     const fname = 'Flashing order - ' + (job.job_ref || job.client_name || 'job') + '.pdf';
     return crewMail(req, { to, subject, text, html, toOffice, officeEmail: lib.officeEmail,
@@ -786,8 +786,16 @@ function cleanPoly(p){
   const cf = {};
   if (p.crushFolds && typeof p.crushFolds === 'object') Object.keys(p.crushFolds).forEach(k => { const v = p.crushFolds[k]; if (!v) return;
     cf[parseInt(k, 10) || 0] = (typeof v === 'object' && fnum(v.dirX) != null) ? { dirX: fnum(v.dirX), dirY: fnum(v.dirY) || 0 } : true; });
+  const am = {};
+  if (p.angleMarkers && typeof p.angleMarkers === 'object') Object.keys(p.angleMarkers).forEach(k => { const v = p.angleMarkers[k], i = parseInt(k, 10);
+    if (!v || !(i >= 0 && i < vs.length)) return;
+    const o2 = {}; if (fnum(v.x) != null && fnum(v.y) != null) { o2.x = fnum(v.x); o2.y = fnum(v.y); }
+    if (fnum(v.dirX) != null) { o2.dirX = fnum(v.dirX); o2.dirY = fnum(v.dirY) || 0; }
+    if (fnum(v.deg) != null && v.deg > 0 && v.deg < 360) o2.deg = Math.round(fnum(v.deg) * 10) / 10;
+    am[i] = o2; });
   const o = { vertices: vs, measurements: meas };
   if (Object.keys(cf).length) o.crushFolds = cf;
+  if (Object.keys(am).length) o.angleMarkers = am;
   if (p.kind === 'squiggle') o.kind = 'squiggle';
   return o;
 }
@@ -796,7 +804,9 @@ function cleanFlash(e){
   const polylines = (Array.isArray(e.polylines) ? e.polylines : []).slice(0, 8).map(cleanPoly).filter(Boolean);
   const ps = e.paintedSide && typeof e.paintedSide === 'object' && fnum(e.paintedSide.x) != null
     ? { x: fnum(e.paintedSide.x), y: fnum(e.paintedSide.y) || 0, dirX: fnum(e.paintedSide.dirX) || 0, dirY: fnum(e.paintedSide.dirY) || 0 } : null;
-  return { name: clean(e.name, 80) || 'Flashing', profile: clean(e.profile, 40), flashingType: clean(e.flashingType, 40), polylines, paintedSide: ps };
+  const fg = e.flashGuard && typeof e.flashGuard === 'object' && fnum(e.flashGuard.x) != null ? { x: fnum(e.flashGuard.x), y: fnum(e.flashGuard.y) || 0 } : null;
+  return { name: clean(e.name, 80) || 'Flashing', profile: clean(e.profile, 40), flashingType: clean(e.flashingType, 40), polylines, paintedSide: ps,
+    flashGuard: fg, flashGuards: !!(e.flashGuards || fg) };
 }
 function flashStats(f){
   // bends (a corner at every inner point) and hems (a crush fold) — the office's own two counts
@@ -888,10 +898,12 @@ function drawFlash(ops, T, x, n, bx, by, bw, bh){
   ops.push('0.87 0.89 0.93 RG 1 w ' + bx + ' ' + by + ' ' + bw + ' ' + bh + ' re S');
   ops.push('0.039 0.086 0.157 rg ' + bx + ' ' + (by + bh - 26) + ' ' + bw + ' 26 re f');
   T(bx + 10, by + bh - 18, 12, n + '. ' + x.name + (x.profile ? ' (' + x.profile + ')' : ''), true, '1 1 1');
-  T(bx + 10, by + 10, 11, 'Qty ' + x.qty + ' x ' + fmtM(x.lengthM) + '   Girth ' + Math.round(x.girthMm) + ' mm   Bends ' + x.folds + (x.hems ? '   Hems ' + x.hems : '') + (x.colour ? '   Colour: ' + x.colour : ''), true);
+  T(bx + 10, by + 10, 11, 'Qty ' + x.qty + ' x ' + fmtM(x.lengthM) + '   Girth ' + Math.round(x.girthMm) + ' mm   Bends ' + x.folds + (x.hems ? '   Hems ' + x.hems : '') + (x.flashGuards ? '   Flash guard' : '') + (x.colour ? '   Colour: ' + x.colour : ''), true);
   const all = []; x.polylines.forEach(p => p.vertices.forEach(v => all.push(v)));
   if (x.paintedSide) all.push([x.paintedSide.x, x.paintedSide.y]);
   if (!all.length) return;
+  const marks = pdfMarks(x);
+  marks.forEach(m => all.push([m.x, m.y]));
   const minX = Math.min(...all.map(v => v[0])), maxX = Math.max(...all.map(v => v[0]));
   const minY = Math.min(...all.map(v => v[1])), maxY = Math.max(...all.map(v => v[1]));
   const ax = bx + 30, ay = by + 40, aw = bw - 60, ah = bh - 26 - 40 - 30;
@@ -914,6 +926,14 @@ function drawFlash(ops, T, x, n, bx, by, bw, bh){
       T(lx, ly, 10, lab, true, '0 0.47 0.7');
     }
   });
+  marks.forEach(m => {
+    const q = P([m.x, m.y]);
+    const lab = m.kind === 'angle' ? (m.deg != null ? Math.round(m.deg * 10) / 10 + '\u00b0 angle' : 'angle') : (m.kind === 'crush' ? 'Crush' : 'Flash guard');
+    const col = m.kind === 'angle' ? '0.05 0.65 0.91' : '0.92 0.35 0.05', w = tw(lab, 9) + 6;
+    if (m.kind === 'crush') { const v = P([m.vx, m.vy]); ops.push(col + ' RG 1.4 w ' + q[0].toFixed(1) + ' ' + q[1].toFixed(1) + ' m ' + v[0].toFixed(1) + ' ' + v[1].toFixed(1) + ' l S'); }
+    ops.push('1 1 1 rg ' + col + ' RG 1 w ' + (q[0] - w / 2).toFixed(1) + ' ' + (q[1] - 6).toFixed(1) + ' ' + w.toFixed(1) + ' 13 re B');
+    T(q[0] - w / 2 + 3, q[1] - 3, 9, lab, true, col);
+  });
   if (x.paintedSide) {
     const q = P([x.paintedSide.x, x.paintedSide.y]); const dx = x.paintedSide.dirX, dy = -x.paintedSide.dirY;
     const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, tx = q[0] + ux * 22, ty = q[1] + uy * 22;
@@ -924,5 +944,30 @@ function drawFlash(ops, T, x, n, bx, by, bw, bh){
   }
 }
 function tw(t, s){ return String(t).length * s * 0.5; }
+// where the angle, crush and flash-guard labels go (the office's own places)
+function crushDir(p, i){
+  const v = p.vertices, n = (x, y) => { const L = Math.hypot(x, y) || 1; return [x / L, y / L]; };
+  if (!v[i] || v.length < 2) return [0, -1];
+  if (i === 0) return n(-(v[1][1] - v[0][1]), v[1][0] - v[0][0]);
+  if (i === v.length - 1) return n(-(v[i][1] - v[i - 1][1]), v[i][0] - v[i - 1][0]);
+  const a = n(v[i - 1][0] - v[i][0], v[i - 1][1] - v[i][1]), c = n(v[i + 1][0] - v[i][0], v[i + 1][1] - v[i][1]);
+  return Math.hypot(a[0] + c[0], a[1] + c[1]) < 0.01 ? n(-a[1], a[0]) : n(-(a[0] + c[0]), -(a[1] + c[1]));
+}
+function pdfMarks(x){
+  const all = []; x.polylines.forEach(p => p.vertices.forEach(v => all.push(v)));
+  const span = Math.max(60, Math.max(...all.map(v => v[0])) - Math.min(...all.map(v => v[0])), Math.max(...all.map(v => v[1])) - Math.min(...all.map(v => v[1])));
+  const md = Math.max(span * 0.11, 22), out = [];
+  x.polylines.forEach(p => {
+    if (p.kind === 'squiggle') return;
+    Object.keys(p.angleMarkers || {}).forEach(k => { const am = p.angleMarkers[k], v = p.vertices[+k]; if (!v) return;
+      if (am.x != null && am.y != null) out.push({ kind: 'angle', x: am.x, y: am.y, deg: am.deg });
+      else { const d = am.dirX != null ? [am.dirX, am.dirY] : crushDir(p, +k), L = Math.hypot(d[0], d[1]) || 1; out.push({ kind: 'angle', x: v[0] + d[0] / L * md, y: v[1] + d[1] / L * md, deg: am.deg }); } });
+    Object.keys(p.crushFolds || {}).forEach(k => { const cf = p.crushFolds[k], v = p.vertices[+k]; if (!v) return;
+      const d = (cf && typeof cf === 'object' && cf.dirX != null) ? [cf.dirX, cf.dirY] : crushDir(p, +k), L = Math.hypot(d[0], d[1]) || 1;
+      out.push({ kind: 'crush', vx: v[0], vy: v[1], x: v[0] + d[0] / L * md, y: v[1] + d[1] / L * md }); });
+  });
+  if (x.flashGuard) out.push({ kind: 'guard', x: x.flashGuard.x, y: x.flashGuard.y });
+  return out;
+}
 
-module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M, permsOf, isPriced, nzMs, cleanFlash, orderItem, flashOrderPdf, FLASH_PRESETS };
+module.exports = { mount, computeDays, nzParts, inWindow, distM, SITE_RADIUS_M, permsOf, isPriced, nzMs, cleanFlash, orderItem, flashOrderPdf, FLASH_PRESETS, pdfMarks };
