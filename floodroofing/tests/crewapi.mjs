@@ -192,6 +192,17 @@ r = await aron('GET', '/crew/office/now');
 const pn = (r.body.people || []).find(p => p.id === 'u3');
 check('the office sees each person, their crew and colour', pn && pn.crew === 'Crew 1' && pn.colour === '#f87d20', JSON.stringify(pn));
 check('…and the sites learned', (r.body.sites || []).some(s => s.row_id === 'r1' && s.client === 'Arran Simpson'));
+// ── the team map (2026-11-14) ──
+db.crew_points.push({ id: 'pt-now', company_id: 'c1', user_id: 'u3', at: new Date().toISOString(), lat: -35.72, lng: 174.32, acc: 8, speed: null, row_id: 'r1', created_at: new Date().toISOString() });
+db.crew_points.push({ id: 'pt-other', company_id: 'c2', user_id: 'u9', at: new Date().toISOString(), lat: -36.8, lng: 174.7, acc: 8, speed: null, row_id: '', created_at: new Date().toISOString() });
+r = await nick('GET', '/crew/team');
+const tn = (r.body.people || []).find(p => p.id === 'u3');
+check('the crew app\'s map shows where each person was last seen today, their crew and colour, marked as you', r.status === 200 && tn && tn.last && tn.last.lat === -35.72 && tn.me === true && tn.crew === 'Crew 1' && tn.colour === '#f87d20', JSON.stringify(tn || r.body).slice(0, 300));
+check('…without anyone\'s email or their whole track, and never another business\'s people', !JSON.stringify(r.body.people).includes('@') && !(r.body.people || []).some(p => p.track || p.id === 'u9'));
+check('…with the job sites learned', (r.body.sites || []).some(s => s.row_id === 'r1'));
+r = await aron('GET', '/crew/office/now');
+const on2 = (r.body.people || []).find(p => p.id === 'u3');
+check('the office\'s own map still carries the email and the track', on2 && /@/.test(on2.email || '') && Array.isArray(on2.track) && on2.track.length >= 1);
 r = await aron('GET', '/crew/office/hours?from=' + D + '&to=' + D);
 const ph = (r.body.people || []).find(p => p.id === 'u3');
 check('the office reads everyone’s hours', ph && ph.days[0].total === 8.75, JSON.stringify(ph));
@@ -276,6 +287,10 @@ r = await aron('POST', '/crew/office/flash-orders/' + fo.id + '/send', { email: 
 check('…and sends it on to the supplier', r.status === 200 && mails.length === 1 && JSON.stringify(mails[0].to).includes('orders@ri.example') && /Please supply/.test(mails[0].text || ''), JSON.stringify(mails[0] || {}).slice(0, 200));
 r = await aron('GET', '/crew/office/flash-orders');
 check('…marked sent', r.body.orders[0].status === 'sent' && r.body.orders[0].supplier_name === 'Roofing Industries Whangarei');
+r = await aron('PUT', '/crew/office/members/u3', { perms: { teamMap: false } });
+r = await nick('GET', '/crew/team');
+check('the office can turn the team map off for a person', r.status === 403 && r.body.code === 'CREW_TEAMMAP_OFF');
+r = await aron('PUT', '/crew/office/members/u3', { perms: { teamMap: true } });
 r = await aron('PUT', '/crew/office/members/u3', { perms: { orderFlash: true } });
 r = await nick('GET', '/crew/flashings');
 check('ticked: the phone is told it may order, and given the supplier by name only', r.body.direct === true && r.body.suppliers.length === 1 && r.body.suppliers[0].name === 'Roofing Industries Whangarei' && !JSON.stringify(r.body.suppliers).includes('@'));

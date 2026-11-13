@@ -35,7 +35,7 @@ const EV_KINDS = ['on', 'off', 'travel', 'break', 'end', 'check', 'note', 'day']
 // orderFlash (2026-11-13, the owner: "let office set permissions for who can
 // order flashings directly or not"): off, a crew member's flashing order goes
 // to the office to send on; on, it goes straight to the roofing supplier.
-const PERM_DEFAULTS = { phone: true, scope: true, files: true, photos: true, upload: true, allCrews: true, hours: true, priced: false, orderFlash: false };
+const PERM_DEFAULTS = { phone: true, scope: true, files: true, photos: true, upload: true, allCrews: true, hours: true, priced: false, orderFlash: false, teamMap: true };
 function permsOf(m){
   const p = (m && m.perms && typeof m.perms === 'object') ? m.perms : {};
   const o = {}; Object.keys(PERM_DEFAULTS).forEach(k => { o[k] = (k in p) ? !!p[k] : PERM_DEFAULTS[k]; }); return o;
@@ -544,9 +544,13 @@ function mount(app, deps){
     } catch (e) { res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
   });
 
-  // ── the office ──────────────────────────────────────────────────
-  app.get('/crew/office/now', ...O, async (req, res) => {
-    try {
+  // WHERE EVERYONE IS TODAY — the office's GPS Map and the crew app's Map tab
+  // (2026-11-14, the owner: "add a map tab to see the company map to see where
+  // everyone is"). Only what the location rule let in: positions from 7 am to
+  // 7 pm NZ on a day the person's crew is booked. The crew's copy carries no
+  // track and no email; the office ticks it off per person (perms.teamMap).
+  async function peopleNow(req, opts){
+      const crewApp = !!(opts && opts.crewApp);
       const [mem, crewRows, bd] = await Promise.all([companyMembers(req),
         scopeCompany(supabase.from('crew_members').select('*'), req).limit(200).then(rows), board(req)]);
       const today = nzDate(new Date());
@@ -561,16 +565,35 @@ function mount(app, deps){
           .filter(x => String(x.user_id) === p.id && nzDate(x.at) === today).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
         const last = pts[pts.length - 1] || null, le = ev[ev.length - 1] || null;
         const crew = bd.cfg.crews.find(c => c.id === cm.crew_id) || {};
-        out.push({ id: p.id, name: cm.name || p.name || p.email, email: p.email, role: p.role, crew_id: cm.crew_id || '',
+        const o = { id: p.id, name: cm.name || p.name || (crewApp ? String(p.email || '').split('@')[0] : p.email), role: p.role, crew_id: cm.crew_id || '',
           crew: crew.name || '', colour: crew.colour || '#94a3b8', booked: bookedFor(bd, cm.crew_id, today),
           status: le ? le.kind : '', status_at: le ? le.at : null, status_row: le ? (names[le.row_id] || null) : null,
-          last: last ? { lat: last.lat, lng: last.lng, at: last.at, acc: last.acc } : null,
-          track: pts.slice(-300).map(x => [x.lat, x.lng]) });
+          last: last ? { lat: last.lat, lng: last.lng, at: last.at, acc: last.acc } : null };
+        if (!crewApp) { o.email = p.email; o.track = pts.slice(-300).map(x => [x.lat, x.lng]); }
+        else o.me = String(p.id) === String(req.user.id);
+        out.push(o);
       }
       const sites = rows(await scopeCompany(supabase.from('crew_sites').select('*'), req).limit(500))
         .map(s => Object.assign({ lat: s.lat, lng: s.lng, row_id: s.row_id }, names[s.row_id] || {}));
-      res.json({ ok: true, today, people: out, sites });
-    } catch (e) { recordError('crew', e, { route: 'GET /crew/office/now' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+      // today's booked jobs, so the map can name where each crew should be
+      const jobs = (bd.byDate[today] || []).map(x => jobCard(x, bd.cfg, bd.refs));
+      return { ok: true, today, people: out, sites, jobs };
+  }
+  app.get('/crew/team', ...G, async (req, res) => {
+    try {
+      const perms = permsOf(await memberOf(req));
+      if (!perms.teamMap) return res.status(403).json({ error: 'The office has not turned the team map on for you.', code: 'CREW_TEAMMAP_OFF' });
+      const r = await peopleNow(req, { crewApp: true });
+      // only people the crew app is for: a crew member, or anyone with a position today
+      r.people = r.people.filter(p => p.crew_id || p.last || p.me);
+      res.json(r);
+    } catch (e) { recordError('crew', e, { route: 'GET /crew/team' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
+  });
+
+  // ── the office ──────────────────────────────────────────────────
+  app.get('/crew/office/now', ...O, async (req, res) => {
+    try { res.json(await peopleNow(req)); }
+    catch (e) { recordError('crew', e, { route: 'GET /crew/office/now' }); res.status(503).json({ error: e.message, code: 'UPSTREAM_UNAVAILABLE' }); }
   });
   app.get('/crew/office/hours', ...O, async (req, res) => {
     try {

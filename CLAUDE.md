@@ -2758,6 +2758,18 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   (`#jpCrewBtn` → `_crewPackRun(true)`: no idle wait, no fingerprint, any saved job) and `#jpCrewStatus` says "On the
   crew app 13 Nov, 9:41 pm" (`fr_crewpack_at_<job>`); the automatic wait is 3 s now. `crewapi` (71), `crewui` (63),
   `jobfilesui` (19).
+  A FIFTH SMALLER, AND A MAP TAB (2026-11-14, the owner: "make it everything about 20% smaller so more info fits
+  on the screen, and add a map tab to see the company map to see where everyone is"). `CREW_SCALE` 0.8 in the head
+  `fit()`: the page is zoomed 0.8 on every screen (and the Desktop-site zoom × 0.8), `--vh1` / `--vw1` divided by
+  the whole zoom. THE MAP TAB (`#/map`, `renderMap`, `teamDraw`, between Week and Hours): GET /crew/team (crew
+  gate, `perms.teamMap`, default on, a tick on the GPS Map tab; 403 CREW_TEAMMAP_OFF) = `peopleNow(req,
+  {crewApp:true})`, the office's /crew/office/now made one function — each person's last position TODAY (only what
+  the 7 am – 7 pm booked-day rule let in), crew, colour, status, `me`, NO email and NO track; the job sites; today's
+  booked jobs. Drawn as Mapbox's STATIC map (`teamMapUrl`, `MAPBOX_PK`): a lettered pin a person in the crew's
+  colour (a star for you), small grey pins for sites, framed `auto`; a tap on a person centres on them at zoom 15
+  ("Show everyone" goes back). A picture, not a live map, on purpose: an interactive map under the page zoom puts
+  every tap in the wrong place. Kept in `crew_team` for no signal; re-read every 60 s while open. `crewapi` (76),
+  `crewui` (67).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with

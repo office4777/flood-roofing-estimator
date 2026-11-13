@@ -670,7 +670,7 @@
   // quote from the files, i don't need the guys seeing the quoted totals)").
   var PERM_LABELS = [['phone', 'Customer phone'], ['scope', 'Scope of work & choices'], ['files', 'Files'], ['photos', 'View photos'],
     ['upload', 'Upload photos'], ['hours', 'Allocated vs used hours'], ['allCrews', 'Every crew\'s week'], ['priced', 'Quotes, orders & invoices (prices)'],
-    ['orderFlash', 'Order flashings straight from the supplier']];
+    ['orderFlash', 'Order flashings straight from the supplier'], ['teamMap', 'See where the team is (map)']];
   // ORDER FLASHING: what the crew drew up on site (2026-11-13).
   async function loadFlash(){
     var box = $('ofGpsFlash'); if (!box) return;
