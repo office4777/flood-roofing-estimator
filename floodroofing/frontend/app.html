@@ -5677,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-13T00:15:08Z';
+  window.APP_BUILT_AT = '2026-11-13T01:39:34Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -36625,6 +36625,14 @@ function _qvPackAll(){
 //
 // Acceptance belongs to the quote that was accepted. The frozen "Accepted
 // Quote" version keeps it, and keeps it exactly; a draft starts clean.
+// A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
+// create a new draft quote, it should have today's date. The date that I
+// started the draft, not the date when I first sent"). A duplicate or a
+// template draft copied the quote it came from WHOLE, its date included, so a
+// draft started today read the original send's date — and its expiry with
+// it (_qbExpiryText counts the validity from q.date). A saved draft opened
+// again keeps its own date: that is the day it was started.
+function _qvTodayDate(){ return new Date().toLocaleDateString('en-NZ'); }
 function _qvFreshDraft(q){
   var c = _qvCopyOf(q);
   delete c.accepted;
@@ -36917,6 +36925,7 @@ function _qvNewDraft(){
     if (_rec){ try { _qvRealignToRoofs(_rec); } catch(e){} }
     S.quote.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     S.quote.draftStartedAt = new Date().toISOString();
+    S.quote.date = _qvTodayDate();
     S._qvViewing = null; S._qvWork = null;
     S.jobLocked = false;
     try { _jobLockRender(); } catch(e){}
@@ -51502,6 +51511,7 @@ function _qChangeTemplate(id){
   q.versions = keepVersions;
   q.draftId = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
   q.draftStartedAt = new Date().toISOString();
+  q.date = _qvTodayDate();
   S.quote = q;
   S._qvViewing = null; S._qvWork = null;
   S.jobLocked = false;

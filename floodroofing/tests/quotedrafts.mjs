@@ -228,13 +228,25 @@ check('…and "Duplicate this quote", which is the sent one kept and a copy to e
 // Duplicating really does make a new, editable, un-accepted draft.
 const dup = await pg.evaluate(() => {
   S.quote.accepted = { name: 'Megan Smith', at: new Date().toISOString(), total: 1234 };
+  S.quote.date = '2/10/2026';                        // the day the original went out
   S.jobLocked = true;
   const wasId = S.quote.draftId;
   _qvNewDraft();
-  return { wasId, nowId: S.quote.draftId, accepted: S.quote.accepted || null, locked: S.jobLocked };
+  return { wasId, nowId: S.quote.draftId, accepted: S.quote.accepted || null, locked: S.jobLocked,
+           date: S.quote.date, today: new Date().toLocaleDateString('en-NZ'), box: (document.getElementById('qdDate') || {}).value };
 });
 check('duplicating an accepted quote gives an editable draft that is not itself accepted',
   dup.nowId && dup.nowId !== dup.wasId && !dup.accepted && !dup.locked, JSON.stringify(dup));
+// A new draft is dated the day it is started (2026-11-13, the owner).
+check('a duplicated draft is dated today, not the original send\'s date',
+  dup.date === dup.today && dup.date !== '2/10/2026' && (dup.box == null || dup.box === dup.today), JSON.stringify(dup));
+const tdd = await pg.evaluate(async () => {
+  S.quote.date = '2/10/2026';
+  _qChangeTemplate('__default');
+  await new Promise(r => setTimeout(r, 300));
+  return { date: S.quote.date, today: new Date().toLocaleDateString('en-NZ') };
+});
+check('a draft from a template is dated today too', tdd.date === tdd.today, JSON.stringify(tdd));
 
 
 check('no page errors', errs.length === 0, errs.join(' | '));
