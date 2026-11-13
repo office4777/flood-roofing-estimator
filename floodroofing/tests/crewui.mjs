@@ -184,6 +184,22 @@ await p3.pg.goto(ORIGIN + '/crew'); await wait(1500);
 check('after 7 pm location is off', /Location is off outside 7 am – 7 pm/.test(await p3.pg.textContent('#main')));
 await p3.ctx.close();
 
+// ── Chrome's "Desktop site" (the owner's phone, 2026-11-13): a 980 px page on a 412 px screen ──
+{
+  const c4 = await b.newContext({ viewport: { width: 980, height: 2180 }, screen: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+  await c4.clock.setFixedTime(new Date(nzAt(D, 10)));
+  await c4.addInitScript(([api, tok]) => { window.CREW_API = api; localStorage.setItem('crew_token', tok); }, [API, TOKEN]);
+  const p4 = await c4.newPage(); await p4.goto(ORIGIN + '/crew'); await wait(1200);
+  const z = await p4.evaluate(() => ({ zoom: +document.documentElement.style.zoom || 1, w: document.querySelector('.job').getBoundingClientRect().width }));
+  check('in Chrome\'s Desktop site mode the app is scaled up to fill the phone, not shown tiny', z.zoom > 2.2 && z.zoom < 2.5, JSON.stringify(z));
+  await c4.close();
+  const c5 = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await c5.addInitScript((api) => { window.CREW_API = api; }, API);
+  const p5 = await c5.newPage(); await p5.goto(ORIGIN + '/crew'); await wait(300);
+  check('…and on an ordinary phone it is left alone', !(await p5.evaluate(() => document.documentElement.style.zoom)));
+  await c5.close();
+}
+
 await b.close(); site.close();
 const pass = results.filter(Boolean).length;
 console.log('\n' + pass + '/' + results.length + ' passed');

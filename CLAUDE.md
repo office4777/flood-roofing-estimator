@@ -2657,6 +2657,16 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   who is on which crew, and the crew app's checklists (before we start / every
   day / when we finish). `tests/crewapi.mjs` (37, API), `crewui.mjs` (24, UI, the
   real page on a fixed clock with offline and a photo), `officeui` (26).
+  IT FITS THE PHONE AND LOOKS LIKE ROOFMAP (the same evening, the owner with two screenshots, the app
+  tiny then pinch-zoomed: "shouldn't be a zoom in ... hard fit to screen size and big buttons like fergus,
+  also make it look like roofmap, not generic ai"). His Chrome was in DESKTOP SITE mode, which ignores the
+  viewport tag and lays a page out 980 px wide: a head script (`window.__crewFit`) sets `zoom` on <html>
+  to clientWidth / screen.width on a touch screen whose page is over 1.15x its screen, so it fills the
+  phone whatever the setting; `maximum-scale=1` stops a pinch. THE LOOK: light (#eef3f9), the navy bar
+  with the cyan rule and the RoofMap mark, white cards under navy bands (`.card > h2` + `.bd`), Inter,
+  line SVG icons (`ICON`, `I(name)`) and no emoji; big tiles (`.tile`, 104px) for Travelling / Break /
+  Finish day, Directions / Call / Text and the photo buttons; 70px Clock on / off (`.btn.xl`); 68px tabs.
+  `crew-sw.js` crew-v2 holds the cache write in `e.waitUntil`. `crewui` (26) pins the fit both ways.
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with
