@@ -2770,6 +2770,14 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   ("Show everyone" goes back). A picture, not a live map, on purpose: an interactive map under the page zoom puts
   every tap in the wrong place. Kept in `crew_team` for no signal; re-read every 60 s while open. `crewapi` (76),
   `crewui` (67).
+  NO PAGE PAINTS OVER ANOTHER, AND A PHOTO IS A STEP BACK (2026-11-14, the owner: "clicking a job in the week keeps
+  jumping from the job to the week tab ... when i click on the exit button [on a photo] it jumps me back to the week tab").
+  `renderWeek`'s draw had no hash guard, so a week still loading when a job was tapped drew itself over the job; every
+  async renderer now draws only while its page is the one in the address (Week, Map, the flashing library). The photo
+  viewer (`viewer`) pushes a history entry (`crewViewer`), so the phone's Back closes the photo and leaves you on the job;
+  ✕ is `viewerClose()` (back through that entry), a `popstate` without it removes the viewer, a page change removes it,
+  and it is sized by --vw1 / --vh1 (inset:0 under the page zoom could put the ✕ off the screen). `crew-sw.js` crew-v8.
+  `crewui` (73).
   A PROFILE KEEPS THE ADDRESS AS TYPED (the same evening, the owner: "the crew
   login for aron@floodroofing.co.nz isn't working" — "Not switched on yet"):
   his profile reads "Aron@…", and the business lookup matched profiles with

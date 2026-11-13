@@ -198,7 +198,7 @@ details.sow[open] > summary .cv{transform:rotate(90deg)}
 .rmap{position:relative;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 14px;cursor:zoom-in}
 .rmap img{display:block;width:100%;height:auto;max-height:calc(var(--vh1,1vh) * 42);object-fit:contain;background:#fff}
 .rmap-tag{position:absolute;right:10px;bottom:10px;background:rgba(10,22,40,.82);color:#fff;font-size:13px;font-weight:700;padding:6px 10px;border-radius:999px;display:flex;align-items:center;gap:6px}
-#viewer{position:fixed;inset:0;z-index:60;background:#000;display:flex;align-items:center;justify-content:center}
+#viewer{position:fixed;left:0;top:0;width:calc(var(--vw1,1vw) * 100);height:calc(var(--vh1,1vh) * 100);z-index:60;background:#000;display:flex;align-items:center;justify-content:center}
 #viewer img,#viewer video{max-width:100%;max-height:100%;object-fit:contain}
 #viewer .vw-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;background:linear-gradient(rgba(0,0,0,.7),transparent);color:#fff;font-weight:600;z-index:2}
 #viewer .vw-top span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -295,7 +295,7 @@ button.chip.ed{border:2px solid var(--blue);background:#fff;color:var(--blue-d);
 // every press is kept on the phone at once and sent when it can be. Location
 // is only asked for, and only kept, 7 am – 7 pm on a day the crew is booked
 // on the schedule board (the server refuses it outside that whatever is sent).
-var CREW_BUILD = '2026-11-14d';
+var CREW_BUILD = '2026-11-14e';
 var API = window.CREW_API || 'https://flood-roofing-estimator-production.up.railway.app';
 var NZ = 'Pacific/Auckland';
 var GPS_FROM = 7, GPS_TO = 19, SITE_R = 200, KEEP_EVERY_MS = 60000, KEEP_MOVE_M = 40;
@@ -584,7 +584,7 @@ function route(){
   if (h.indexOf('#/me') === 0) return renderMe();
   return renderToday();
 }
-window.addEventListener('hashchange', route);
+window.addEventListener('hashchange', function(){ var v = document.getElementById('viewer'); if (v) v.remove(); route(); });
 function refresh(){ route(); }
 
 function renderSignIn(msg){
@@ -692,6 +692,7 @@ async function renderWeek(){
   setTop('Week');
   if (!S.weekFrom) S.weekFrom = mondayOf(nzToday());
   var draw = function(w){
+    if ((location.hash || '#/today').indexOf('#/week') !== 0) return;  // the person has moved on (a job opened) — never paint over it
     var t = nzToday();
     var days = (w && w.days || []).filter(function(d){ return !d.weekend || d.jobs.length; });
     main('<div class="wk"><button class="btn o" aria-label="Last week" onclick="weekStep(-7)">' + I('left') + '</button><div class="lbl">' + esc(dayName(S.weekFrom)) + ' – ' + esc(dayName(addDays(S.weekFrom, 6))) + '</div><button class="btn o" aria-label="Next week" onclick="weekStep(7)">' + I('chev') + '</button></div>' +
@@ -892,11 +893,17 @@ async function loadMap(r){
 }
 function openMap(){ var im = document.querySelector('#rmap img'); if (im) viewer([{ src: im.src, name: 'Roof map' }], 0); }
 // Full-screen picture viewer: swipe or the arrows for the next one.
+// THE VIEWER IS A STEP IN THE HISTORY: the phone's back (or ✕) closes the photo
+// and leaves you on the job — it used to leave the job for the page before it.
+function viewerClose(){ var v = document.getElementById('viewer'); if (!v) return;
+  if (history.state && history.state.crewViewer) history.back(); else v.remove(); }
+window.addEventListener('popstate', function(){ if (!(history.state && history.state.crewViewer)) { var v = document.getElementById('viewer'); if (v) v.remove(); } });
 function viewer(list, i){
-  var v = document.getElementById('viewer'); if (!v) { v = document.createElement('div'); v.id = 'viewer'; document.body.appendChild(v); }
+  var v = document.getElementById('viewer'); if (!v) { v = document.createElement('div'); v.id = 'viewer'; document.body.appendChild(v);
+    try { if (!(history.state && history.state.crewViewer)) history.pushState({ crewViewer: 1 }, '', location.href); } catch (e) {} }
   var show = function(){ var it = list[i];
     if (it.full && !it._big) { it._big = 1; it.full().then(function(u){ it.src = u; if (list[i] === it && document.getElementById('viewer')) show(); }).catch(function(){}); }
-    v.innerHTML = '<div class="vw-top"><span>' + esc(it.name || '') + (list.length > 1 ? ' · ' + (i + 1) + ' of ' + list.length : '') + '</span><button onclick="document.getElementById(\'viewer\').remove()" aria-label="Close">✕</button></div>' +
+    v.innerHTML = '<div class="vw-top"><span>' + esc(it.name || '') + (list.length > 1 ? ' · ' + (i + 1) + ' of ' + list.length : '') + '</span><button onclick="viewerClose()" aria-label="Close">✕</button></div>' +
     (/^video/.test(it.mime || '') ? '<video src="' + esc(it.src) + '" controls playsinline></video>' : '<img src="' + esc(it.src) + '" alt="">') +
     (list.length > 1 ? '<button class="vw-nav l" aria-label="Previous">' + I('left') + '</button><button class="vw-nav r" aria-label="Next">' + I('chev') + '</button>' : '');
     var l = v.querySelector('.vw-nav.l'), rr = v.querySelector('.vw-nav.r');
@@ -1142,7 +1149,7 @@ async function renderFlashPick(id){
   setTop('Saved flashings', true);
   main('<div class="empty">Loading the library…</div>');
   var lib;
-  try { lib = await flLib(); } catch (e) { return main('<div class="banner warn">' + I('info') + '<div>' + esc(e.offline ? 'No signal, and the library hasn’t been opened on this phone before.' : e.message) + '</div></div>'); }
+  try { lib = await flLib(); } catch (e) { if (location.hash.indexOf('/flash/pick') < 0) return; return main('<div class="banner warn">' + I('info') + '<div>' + esc(e.offline ? 'No signal, and the library hasn’t been opened on this phone before.' : e.message) + '</div></div>'); }
   var items = lib.items || [];
   var draw = function(q){
     q = String(q || '').toLowerCase();
@@ -1470,7 +1477,7 @@ async function renderMap(force){
   if (S.online || force) renderMapLoad();
 }
 async function renderMapLoad(){
-  try { var t = await api('GET', '/crew/team'); t._at = new Date().toISOString(); LS.set('crew_team', t); teamDraw(t); }
+  try { var t = await api('GET', '/crew/team'); t._at = new Date().toISOString(); LS.set('crew_team', t); if (location.hash.indexOf('#/map') === 0) teamDraw(t); }
   catch (e) {
     if (location.hash.indexOf('#/map') !== 0) return;
     if (e && e.code === 'CREW_TEAMMAP_OFF') return main('<div class="empty">' + esc(e.message) + '</div>');
