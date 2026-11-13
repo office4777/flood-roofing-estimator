@@ -42,7 +42,10 @@ globalThis.__TEST_SUPINV_STORAGE = {
   async signedUrl(p){ return 'https://store.test/' + encodeURIComponent(p); }, async remove(ps){ ps.forEach(p => files.delete(p)); }, async ensureBucket(){ return true; }, maxBytes: 50 << 20,
 };
 const AI = {};
+const AI_CALLS = [];
 globalThis.__TEST_SUPINV_AI = async (q) => {
+  AI_CALLS.push(q);
+  if (q.via === 'photo') return AI['PHOTO'];
   const k = Object.keys(AI).find(n => q.text.indexOf(n) >= 0);
   if (!k) throw new Error('unreadable');
   return AI[k];
@@ -53,6 +56,23 @@ AI['INV-ST-2'] = { kind: 'invoice', supplier: 'Steel & Tube', invoice_number: 'S
   currency: 'NZD', references: [], site_address: '12 Kauri Lane Kerikeri', description: 'Gutter brackets', lines: [] };
 AI['INV-NONE-3'] = { kind: 'invoice', supplier: 'Carters', invoice_number: 'C-9', invoice_date: '2026-11-12', due_date: '', subtotal: 100, gst: 15, total: 115,
   currency: 'NZD', references: ['Cash sale'], site_address: '', description: 'Screws', lines: [] };
+AI['INV-TXT-9'] = { kind: 'invoice', supplier: 'Dimond', invoice_number: 'D-9', invoice_date: '2026-11-12', due_date: '', subtotal: 1000, gst: 150, total: 1150,
+  currency: 'NZD', references: [], site_address: '', description: 'Corrugate', lines: [] };
+AI['PHOTO'] = { kind: 'invoice', supplier: 'Photo Supplies', invoice_number: 'P-1', invoice_date: '2026-11-12', due_date: '', subtotal: 50, gst: 7.5, total: 57.5,
+  currency: 'NZD', references: [], site_address: '', description: 'Rivets', lines: [] };
+// A real PDF with a text layer, written by hand (one page, Helvetica).
+function makePdf(text){
+  const stream = 'BT /F1 11 Tf 40 780 Td (' + text + ') Tj ET';
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    '<< /Length ' + stream.length + ' >>\nstream\n' + stream + '\nendstream', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+  let out = '%PDF-1.4\n'; const offs = [];
+  objs.forEach((o, i) => { offs.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const x = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + offs.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('');
+  out += 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R >>\nstartxref\n' + x + '\n%%EOF';
+  return Buffer.from(out, 'latin1');
+}
 const calls = [];
 const RESEND_ATTS = {};
 globalThis.__TEST_SUPINV_FETCH = async (url, opts) => {
@@ -168,6 +188,30 @@ check('an invoice with no job number is put on the job whose site address is on 
 const ca = db.supplier_invoices.find(x => x.inv_number === 'C-9') || {};
 check('one the engine cannot place waits to be assigned', ca.status === 'read' && !ca.job_id, JSON.stringify([ca.status, ca.job_id]));
 
+// ── what is sent to the A.I.: text when the PDF has words, a small picture for a photo ──
+AI_CALLS.length = 0;
+r = await aron('POST', '/supinv/upload', { name: 'dimond.pdf', mime: 'application/pdf',
+  data: makePdf('TAX INVOICE INV-TXT-9 Dimond Roofing Ltd - Your order reference: Job 3351 - corrugate sheets and flashings delivered to site, thank you for your business').toString('base64') });
+await settle();
+const tx = AI_CALLS[0] || {};
+const dm = db.supplier_invoices.find(x => x.inv_number === 'D-9') || {};
+check('a PDF with words on it is sent as its TEXT alone — no picture, no PDF', tx.via === 'text' && /INV-TXT-9/.test(tx.text) && /Job 3351/.test(tx.text) && !(tx.images || []).length && dm.read_via === 'text', JSON.stringify({ via: tx.via, imgs: (tx.images || []).length, rv: dm.read_via }));
+check('…and the job number printed on the page puts it on the job even when the A.I. did not list it', dm.job_id === 'j2' && /3351/.test(dm.alloc_why), JSON.stringify([dm.job_id, dm.alloc_why]));
+{
+  const { createCanvas } = require('@napi-rs/canvas');
+  // A phone photo: 3200 x 2400 of noise, saved as a high-quality JPEG (a few MB).
+  const W = 3200, H = 2400, cv = createCanvas(W, H), g = cv.getContext('2d'), im = g.createImageData(W, H);
+  let seed = 7; for (let i = 0; i < im.data.length; i += 4) { seed = (seed * 1103515245 + 12345) & 0x7fffffff; im.data[i] = seed & 255; im.data[i + 1] = (seed >> 8) & 255; im.data[i + 2] = (seed >> 16) & 255; im.data[i + 3] = 255; }
+  g.putImageData(im, 0, 0);
+  const big = cv.toBuffer('image/jpeg', 95);
+  AI_CALLS.length = 0;
+  await aron('POST', '/supinv/upload', { name: 'phone-photo.jpg', mime: 'image/jpeg', data: big.toString('base64') });
+  await settle();
+  const ph = AI_CALLS[0] || {};
+  check('a big photo is shrunk to a small JPEG before it is read', ph.via === 'photo' && ph.images && ph.images[0] && ph.images[0].mime === 'image/jpeg' && ph.images[0].bytes < big.length / 3,
+    JSON.stringify({ via: ph.via, img: ph.images, orig: big.length }));
+}
+
 // ── assigning by hand ──
 r = await aron('PUT', '/supinv/' + ca.id + '/assign', { jobId: 'jr' });
 check('it cannot be put on another business’s job', r.status === 404, String(r.status));
@@ -184,7 +228,7 @@ const J = (r.body.jobs || []);
 const j1 = J.find(x => x.id === 'j1') || {}, j2 = J.find(x => x.id === 'j2') || {};
 check('job costing lists each job once, its versions folded', J.filter(x => x.id === 'j1').length === 1 && !J.some(x => x.id === 'j1v' || x.id === 'jr'), JSON.stringify(J.map(x => x.id)));
 check('…the accepted price excl. GST against its supplier invoices', j1.acceptedEx === 10000 && j1.cost === 2400 && (j1.invoices || []).length === 1, JSON.stringify(j1));
-check('…every invoice on a job adds up', j2.cost === 600, JSON.stringify(j2));
+check('…every invoice on a job adds up', j2.cost === 1600, JSON.stringify(j2));
 
 // ── Xero ──
 r = await aron('POST', '/supinv/' + ri.id + '/xero');
