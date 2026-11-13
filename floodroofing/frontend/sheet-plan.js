@@ -7372,8 +7372,9 @@ function _pzRectMain(){ if (typeof window !== 'undefined' && window.__PZ_RECT_MA
 // RULE 3e — THE LONGEST SHEETS FIRST AMONG THE SLOPES A WING STANDS ON
 // (feedback report 92, job 3351, 2026-11-13: the west wing's end was cut from
 // the stem's 4.08 m slope, 11px nearer, not the 14.24 x 9.91 m main block's
-// 5.14 m slope). OFF until the owner's go: `window.__PZ_LONGEST_TMPL = true`.
-var PZ_LONGEST_TMPL = false;
+// 5.14 m slope). LIVE 2026-11-13 on the owner's "go live on v16";
+// `window.__PZ_LONGEST_TMPL = false` turns it off.
+var PZ_LONGEST_TMPL = true;
 function _pzLongestTmpl(){ if (typeof window !== 'undefined' && window.__PZ_LONGEST_TMPL != null) return !!window.__PZ_LONGEST_TMPL; return PZ_LONGEST_TMPL; }
 function _pzNearTmpl(){ if (typeof window !== 'undefined' && window.__PZ_NEAR_TMPL != null) return !!window.__PZ_NEAR_TMPL; return PZ_NEAR_TMPL; }
 var PZ_LONGEST_RECT = true;

@@ -512,6 +512,31 @@ rules('report 71', r);
     nOf(r) <= 53 && steel(r) < 292 && nOf(r0) === 57, tallyOf(r) + ' ' + steel(r).toFixed(2) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(2) + ' m');
   rules('report 85', r);
 }
+// THE LONGEST SHEETS FIRST AMONG THE SLOPES A WING STANDS ON (rule 3e,
+// feedback report 92, 2026-11-13, job 3351: "the main rectangle should be the
+// 14.24 x 9.91 meter rectangle because they have the longest sheet length").
+// The west wing's end was cut from the stem's 4.08 m slope, 11px nearer than
+// the main block's 5.14 m slope, and the main block was patched with offcuts.
+{
+  const steel = z => z.tally.reduce((t, x) => t + x.Lmm * x.count, 0) / 1000;
+  const LEN = z => { const m = {}; z.blocks.forEach(bb => { m[bb.letter] = bb.Lmm; }); return m; };
+  await pg.evaluate(() => { window.__PZ_LONGEST_TMPL = false; });
+  const r0 = await lay(fx('report92'));
+  await pg.evaluate(() => { window.__PZ_LONGEST_TMPL = null; });
+  r = await lay(fx('report92'));
+  const len = LEN(r);
+  const wing = r.faces.find(f => f.lay === 'grid' && f.d[0] > 0.9);
+  const T = wing && r.faces.find(f => f.id === wing.template);
+  const tLen = T ? (r.pieces.filter(p => p.face === T.id && p.ordered).map(p => len[p.block])[0] || 0) : 0;
+  check('report 92: the west wing\'s end is cut from the 14.24 x 9.91 m main block\'s west slope, its 5.14 m sheets (was the stem\'s 4.08 m slope)',
+    !!T && tLen === 5140, T ? 'template ' + T.id + ' ' + tLen : 'no template');
+  const wl = wing ? labels(r, wing) : [];
+  check('…the wing\'s end is the main block\'s sheets and their carried feet, no stem (4.04 m) sheet among them',
+    wl.length >= 8 && r.pieces.filter(p => p.face === wing.id && p.ordered).every(p => len[p.block] === 5140), wl.join(' '));
+  check('report 92: 103 sheets, under 458 m of steel (106 and 462.2 m before, which the switch off still gives)',
+    nOf(r) === 103 && steel(r) < 458 && nOf(r0) === 106, tallyOf(r) + ' ' + steel(r).toFixed(1) + ' m; before ' + tallyOf(r0) + ' ' + steel(r0).toFixed(1) + ' m');
+  rules('report 92', r);
+}
 // THE SET BEFORE THE SHEET (2026-11-02, the owner on the walkthrough video's
 // roof, a hip with a 1.4 m step down its west side: "it's all patchy again,
 // and it's not following the rules of using a full offcut set in order").
