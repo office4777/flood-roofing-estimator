@@ -8374,6 +8374,15 @@ not why they try it.
 
 ## Working style
 
+NO COLOURED STRIPE DOWN THE LEFT OF A CARD, EVER (2026-11-13, the owner on the crew app's job cards: "remove the
+little orange color to the left of the jobs ... that's just classic AI. Every single AI thing ... makes it like
+that, and it just always looks like AI. So never do that, just make it look a bit cleaner and a bit more
+professional, but still keeping the sort of feel like RoofMap has"). No `border-left` accent bars on cards, rows
+or callouts, and no little coloured bar beside a heading. A colour that carries meaning (a crew's colour) goes in
+a small dot inside a label. RoofMap's own look: white cards with a 1px edge, the navy bands, the cyan rule under
+the top bar, line icons. (app.html still carries older left borders in places — take them out when touching
+those parts, not as a sweep.)
+
 TIMES ARE ALWAYS AUCKLAND TIME. The owner is in Whangarei; whenever a time
 is said to him (a promote check, a scheduled reminder, "landed at …",
 what time a check will fire), convert it to Pacific/Auckland (NZST is
