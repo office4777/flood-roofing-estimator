@@ -123,6 +123,7 @@ r = await nick('GET', '/crew/week?from=' + D2 + '&days=3');
 const dD = (r.body.days || []).find(x => x.date === D), dD2 = (r.body.days || []).find(x => x.date === D2);
 check('his crew’s job is on its day, and the day reads booked', dD && dD.booked && dD.jobs.length === 1 && dD.jobs[0].row_id === 'r1' &&
   dD.jobs[0].client === 'Arran Simpson' && dD.jobs[0].crew === 'Crew 1' && dD.jobs[0].notes === 'Key under the mat', JSON.stringify(dD));
+check('a RoofMap job’s card carries the quote’s job number', dD && dD.jobs[0] && dD.jobs[0].job_ref === '3351', JSON.stringify(dD && dD.jobs[0]));
 check('another crew’s job is not his, and a pencilled day is not a booked day', dD && !dD.jobs.some(j => j.row_id === 'r2') && dD2 && !dD2.booked && !dD2.jobs.length, JSON.stringify(dD2));
 r = await nick('GET', '/crew/week?from=' + D + '&days=1&all=1');
 check('“every crew” shows the other crew’s job too, and never another business’s', r.body.days[0].jobs.length === 2 && !r.body.days[0].jobs.some(j => j.row_id === 'rx'));
@@ -210,6 +211,12 @@ const td = crewLib.computeDays([{ kind: 'on', row_id: 'a', at: '2026-01-05T20:00
   { kind: 'day', row_id: 'r1', at: '2026-01-06T06:00:00Z', data: { date: '2026-01-06', start: '07:00', end: '16:30', breakMin: 30 } }], [], Date.now());
 const tdd = td.find(x => x.date === '2026-01-06');
 check('a typed day (7:00 – 4:30, 30 min break) is 9 hours on that job', tdd && tdd.total === 9 && tdd.onsite.r1 === 9 && tdd.travel === 0, JSON.stringify(tdd));
+r = await nick('GET', '/crew/me');
+check('typed start and finish times are the standard until the office picks the buttons', r.body.clockMode === 'times', r.body.clockMode);
+r = await aron('PUT', '/crew/office/settings', { clockMode: 'button' });
+check('…the office can pick the clock buttons', r.status === 200 && r.body.clockMode === 'button' && r.body.clockModeSet === true);
+r = await nick('GET', '/crew/me');
+check('…and the phone then gets the buttons', r.body.clockMode === 'button', r.body.clockMode);
 r = await aron('PUT', '/crew/office/settings', { clockMode: 'times' });
 check('the office switches the crew to typing their hours, keeping the checklists', r.status === 200 && r.body.clockMode === 'times' && r.body.checklists.length === 1);
 r = await nick('GET', '/crew/me');

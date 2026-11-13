@@ -80,7 +80,7 @@ const { db, port } = await startFakePostgrest({
   schedule_blocks: [ { id: 'b1', company_id: 'c1', user_id: 'u1', row_id: 'r1', kind: 'crew', crew_id: 'crew1', start_date: D, work_days: 1, created_at: '2026-11-01T00:00:00Z' } ],
   crew_members: [ { id: 'm1', company_id: 'c1', user_id: 'u3', crew_id: 'crew1', name: '', phone: '', updated_at: '2026-11-01T00:00:00Z' } ],
   crew_events: [], crew_points: [], crew_sites: [], crew_flash_orders: [],
-  crew_settings: [ { id: 's1', company_id: 'c1', user_id: 'u1', updated_at: '2026-11-01T00:00:00Z', data: { checklists: [ { id: 'start', name: 'Before we start', when: 'start', items: ['Scaffold tagged', 'Edge protection up'] } ] } } ],
+  crew_settings: [ { id: 's1', company_id: 'c1', user_id: 'u1', updated_at: '2026-11-01T00:00:00Z', data: { clockMode: 'button', clockModeSet: true, checklists: [ { id: 'start', name: 'Before we start', when: 'start', items: ['Scaffold tagged', 'Edge protection up'] } ] } } ],
 });
 process.env.SUPABASE_URL = 'http://127.0.0.1:' + port;
 process.env.SUPABASE_SERVICE_KEY = 'k';
@@ -214,8 +214,15 @@ check('a custom flashing is drawn bend by bend', (await pg.evaluate(() => JSON.p
 await pg.click('#flFull [data-tool="paint"]'); await pg.mouse.click(pb.x + pb.width * 0.45, pb.y + pb.height * 0.52); await wait(250);
 check('Colour side: tapped beside a side, the arrow goes on that side', await pg.evaluate(() => { const d = JSON.parse(localStorage.getItem('crew_fdraft')); return !!d.paintedSide && d.paintedSide.dirY < -0.9; }));
 await pg.click('#flNext'); await wait(400);
-check('Next with sides unmeasured asks for each in turn', await pg.locator('#flAsk').count() === 1 && /Side 1/.test(await pg.textContent('#flAsk')));
+check('Next with sides unmeasured says so and asks nothing (the owner: no box until a side is tapped)', await pg.locator('#flAsk').count() === 0 && await pg.locator('#flFull').count() === 1);
+// a thumb on a phone: down, a moment, up — the box must still be there after the click lands
+const thumb = async (sel) => { const bb = await pg.locator(sel).boundingBox(); await pg.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2); await wait(450); };
+await pg.click('#flFull [data-tool="tap"]'); await wait(150);
+await thumb('#flPad [data-hit="seg:0:0"]');
+check('a side tapped for its length keeps its box open (it flashed and vanished)', await pg.locator('#flAsk').count() === 1 && /Side 1/.test(await pg.textContent('#flAsk')));
 await pg.fill('#flAskIn', '60'); await pg.click('#flAsk [data-a="ok"]'); await wait(400);
+check('…OK closes it and does not ask for the next side', await pg.locator('#flAsk').count() === 0);
+await thumb('#flPad [data-hit="seg:0:1"]');
 await pg.fill('#flAskIn', '140'); await pg.click('#flAsk [data-a="ok"]'); await wait(400);
 await pg.click('#flNext'); await wait(500);
 await pg.fill('#flLen', '3.2');
@@ -287,7 +294,9 @@ await p3.ctx.close();
   await p6.pg.evaluate(() => { location.hash = '#/week'; }); await wait(1500);
   const wb = await p6.pg.textContent('#main');
   check('the Week tab shows the hours put in on each day', /8h 30m/.test(wb), wb.slice(0, 300));
-  delete db.crew_settings[0].data.clockMode;
+  check('…and each job’s number (the quote’s, Job 3351)', /Job 3351/.test(wb), wb.slice(0, 300));
+  check('the crew app wears its own icon (drill and hammer under the RoofMap pin)', await p6.pg.evaluate(() => /crew-192\.png/.test(document.querySelector('link[rel="apple-touch-icon"]').href) && /crew-mark\.png/.test(document.querySelector('#topMark img').src)));
+  db.crew_settings[0].data.clockMode = 'button';
   await p6.ctx.close();
 }
 

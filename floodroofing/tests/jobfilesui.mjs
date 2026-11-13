@@ -155,6 +155,23 @@ v = await pg.evaluate(async () => { _jobFilesOpen(); await new Promise(r => setT
   return { gone: !document.querySelector('#jobFilesModal [data-jf-file="f-c"]') }; });
 check('a file can be deleted from the window', deleted.indexOf('f-c') >= 0 && v.gone, JSON.stringify({ deleted, v }));
 
+// ── "Send to crew app" on the Job Pack (job 3338 never got its pack: the automatic copy
+//    waits for the office to sit still on the tab) ──
+const n3 = signs.length;
+v = await pg.evaluate(async () => {
+  window._jpCaptureDetailed = () => { const c = document.createElement('canvas'); c.width = 40; c.height = 30; return c.toDataURL('image/png'); };
+  window._buildJobPackPdf = async () => ({ output: () => new Blob(['%PDF-1.4 pack'], { type: 'application/pdf' }) });
+  gotoTab('materials'); await new Promise(r => setTimeout(r, 900));
+  const btn = document.getElementById('jpCrewBtn');
+  const shown = !!btn && getComputedStyle(btn).display !== 'none';
+  btn.click(); await new Promise(r => setTimeout(r, 1500));
+  return { shown, status: document.getElementById('jpCrewStatus').textContent };
+});
+const sent = signs.slice(n3).map(s => s.source).sort();
+check('the Job Pack carries "Send to crew app", and a press puts the pack and the roof map on the job at once', v.shown &&
+  JSON.stringify(sent) === '["job-pack-auto","roof-map-auto"]', JSON.stringify({ v, sent }));
+check('…and says when it went', /On the crew app/.test(v.status), v.status);
+
 // ── the customer never keeps anything ──
 const n2 = signs.length;
 await pg.evaluate(async () => { window.__CUSTOMER_MODE = true; await _jfKeep(new Blob(['x']), 'x.pdf', 'quote-pdf'); window.__CUSTOMER_MODE = false; });

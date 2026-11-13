@@ -201,7 +201,10 @@ function mount(app, deps){
   async function settingsOf(req){
     const r = rows(await scopeCompany(supabase.from('crew_settings').select('*'), req).order('updated_at', { ascending: false }).limit(1));
     const d = (r[0] && r[0].data) || {};
-    return { row: r[0] || null, data: { checklists: cleanLists(d.checklists), clockMode: d.clockMode === 'times' ? 'times' : 'button' } };
+    // Typed start and finish times are the default (the owner, 2026-11-13); the
+    // clock buttons only where the office has chosen them since.
+    return { row: r[0] || null, data: { checklists: cleanLists(d.checklists),
+      clockMode: (d.clockModeSet && d.clockMode === 'button') ? 'button' : 'times', clockModeSet: !!d.clockModeSet } };
   }
   function cleanLists(v){
     return (Array.isArray(v) ? v : []).slice(0, 30).map(l => ({
@@ -237,16 +240,26 @@ function mount(app, deps){
       const r = srs.find(x => x.id === b.row_id);
       schedBlockDates(b, nonwork).forEach(d => { (byDate[d] = byDate[d] || []).push({ b, r }); });
     });
-    return { cfg, srs, blocks, byDate };
+    // The job number on the week's cards: a row typed on the board carries its
+    // own; a row from a RoofMap job gets the quote's number.
+    const need = [...new Set(srs.filter(r => !r.job_ref && r.job_id && blocks.some(b => b.row_id === r.id)).map(r => String(r.job_id)))];
+    const refs = {};
+    if (need.length) {
+      try {
+        rows(await scopeCompany(supabase.from('jobs').select('id, job_no:draw_state->state->quote->ref'), req).in('id', need).limit(400))
+          .forEach(j => { if (need.includes(String(j.id)) && j.job_no) refs[String(j.id)] = clean(String(j.job_no), 40); });
+      } catch (e) {}
+    }
+    return { cfg, srs, blocks, byDate, refs };
   }
   function bookedFor(bd, crewId, date){
     if (!crewId) return false;
     return (bd.byDate[date] || []).some(x => x.b.crew_id === crewId);
   }
-  function jobCard(x, cfg){
+  function jobCard(x, cfg, refs){
     const crew = cfg.crews.find(c => c.id === x.b.crew_id) || {};
     return { row_id: x.r.id, block_id: x.b.id, job_id: x.r.job_id || '', client: x.r.client_name || '', site: x.r.site_address || '',
-      job_ref: x.r.job_ref || '', crew_id: x.b.crew_id, crew: crew.name || '', colour: crew.colour || '#94a3b8',
+      job_ref: x.r.job_ref || (refs && x.r.job_id && refs[String(x.r.job_id)]) || '', crew_id: x.b.crew_id, crew: crew.name || '', colour: crew.colour || '#94a3b8',
       notes: clean(x.r.notes, 400), progress: x.r.progress_pct == null ? null : x.r.progress_pct };
   }
 
@@ -339,7 +352,7 @@ function mount(app, deps){
       const days = [];
       for (let i = 0; i < n; i++) {
         const date = schedISO(schedShift(new Date(from + 'T00:00:00Z'), i));
-        const list = (bd.byDate[date] || []).filter(x => all || x.b.crew_id === crewId).map(x => jobCard(x, bd.cfg));
+        const list = (bd.byDate[date] || []).filter(x => all || x.b.crew_id === crewId).map(x => jobCard(x, bd.cfg, bd.refs));
         const dow = new Date(date + 'T00:00:00Z').getUTCDay();
         days.push({ date, dow, weekend: dow === 0 || dow === 6, nonwork: nonwork.has(date),
           booked: bookedFor(bd, crewId, date), jobs: list });
@@ -612,7 +625,8 @@ function mount(app, deps){
       const b = req.body || {};
       const { row, data: cur } = await settingsOf(req); const now = new Date().toISOString();
       const data = { checklists: ('checklists' in b) ? cleanLists(b.checklists) : cur.checklists,
-        clockMode: ('clockMode' in b) ? (b.clockMode === 'times' ? 'times' : 'button') : cur.clockMode };
+        clockMode: ('clockMode' in b) ? (b.clockMode === 'button' ? 'button' : 'times') : cur.clockMode,
+        clockModeSet: ('clockMode' in b) ? true : !!cur.clockModeSet };
       let error;
       if (row) ({ error } = await supabase.from('crew_settings').update({ data, updated_at: now }).eq('id', row.id).eq('company_id', req.companyId));
       else ({ error } = await supabase.from('crew_settings').insert({ id: crypto.randomUUID(), company_id: req.companyId, user_id: req.user.id, data, updated_at: now }));

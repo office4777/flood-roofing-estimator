@@ -5677,7 +5677,7 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
   // WHEN THIS BUILD WAS MADE — set at every commit by the git hook
   // (.githooks/pre-commit → tools/stamp-build.mjs); tests/buildstamp.mjs fails
   // a ship whose stamp was left behind. Shown under the company logo.
-  window.APP_BUILT_AT = '2026-11-13T06:57:35Z';
+  window.APP_BUILT_AT = '2026-11-13T17:59:51Z';
   // ── Nothing of one business may survive into another's session ──
   // A phone or an office machine gets signed out and signed back in as a
   // DIFFERENT account. Everything below is business-scoped state that used
@@ -7695,6 +7695,8 @@ html:is(.print-modern,.pdf-modern) .qd-move{ display:none!important; }
       <button onclick="printJobPack()" class="mat-btn mat-btn-light" style="padding:4px 9px;font-size:11.5px">🖨 Print</button>
       <button onclick="pushJobPackToFergus(this)" class="mat-btn mat-btn-green jms-only" style="padding:4px 9px;font-size:11.5px" title="Build the Job Pack PDF and upload it to the linked Fergus job">📤 Push to Fergus</button>
       <button onclick="orderRoofViaSupplier()" data-tour="jp-order" class="mat-btn mat-btn-blue" style="padding:4px 9px;font-size:11.5px">🛒 Order Roof</button>
+      <button onclick="_crewPackSend()" id="jpCrewBtn" class="mat-btn mat-btn-light no-print" style="padding:4px 9px;font-size:11.5px;display:none" title="Put this Job Pack and the detailed roof map on the crew app now">📲 Send to crew app</button>
+      <span id="jpCrewStatus" class="no-print" style="font-size:11px"></span>
     </div>
   </div>
   <div class="jp-pages" id="jpPages"></div>
@@ -31517,17 +31519,37 @@ function _crewPackFp(){
   } catch(e){ return ''; }
 }
 function _crewPackSoon(ms){
+  _crewPackStatus();
   if (!_crewPackWanted()) return;
   clearTimeout(_CREWPACK.t);
-  _CREWPACK.t = setTimeout(_crewPackRun, ms || 8000);
+  _CREWPACK.t = setTimeout(_crewPackRun, ms || 5000);
 }
-async function _crewPackRun(){
-  if (_CREWPACK.busy || !_crewPackWanted()) return;
+// "Send to crew app" on the Job Pack toolbar (2026-11-13, job 3338 never got
+// one: the automatic copy waits for the office to sit still on this tab, and
+// nobody does). A press sends it now, whatever the fingerprint says.
+function _crewPackStatus(msg, kind){
+  var el = document.getElementById('jpCrewStatus'), btn = document.getElementById('jpCrewBtn');
+  if (btn) btn.style.display = (function(){ try { return _jfCanKeep() && !window.__MAPSHOT && !window.__QPV; } catch(e){ return false; } })() ? '' : 'none';
+  if (!el) return;
+  if (!msg){
+    var at = 0; try { at = +localStorage.getItem('fr_crewpack_at_' + S.currentJobId) || 0; } catch(e){}
+    msg = at ? 'On the crew app ' + new Date(at).toLocaleString('en-NZ', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' }) : '';
+    kind = 'ok';
+  }
+  el.textContent = msg; el.style.color = kind === 'err' ? '#b91c1c' : kind === 'busy' ? '#64748b' : '#15803d';
+}
+function _crewPackSend(){ return _crewPackRun(true); }
+async function _crewPackRun(force){
+  force = force === true;
+  if (_CREWPACK.busy) return;
+  if (!force && !_crewPackWanted()) return;
+  if (force){ try { if (!_jfCanKeep()) return _crewPackStatus('Save the job first', 'err'); } catch(e){ return; } }
   if (document.body.getAttribute('data-tab') !== 'materials' || document.visibilityState === 'hidden') return;
-  if (Date.now() - _CREWPACK.input < 6000) return _crewPackSoon(4000);
+  if (!force && Date.now() - _CREWPACK.input < 3000) return _crewPackSoon(3000);
   var jobId = S.currentJobId, fp = _crewPackFp(), key = 'fr_crewpack_' + jobId;
-  try { if (fp && localStorage.getItem(key) === fp) return; } catch(e){}
+  if (!force){ try { if (fp && localStorage.getItem(key) === fp) return; } catch(e){} }
   _CREWPACK.busy = true;
+  if (force) _crewPackStatus('Sending to the crew app…', 'busy');
   try {
     var q = S.quote || {};
     var tag = [q.ref ? 'Job ' + q.ref : '', q.client && q.client.name || (document.getElementById('jobClient') || {}).value || ''].filter(Boolean).join(' - ');
@@ -31552,7 +31574,7 @@ async function _crewPackRun(){
         if (pb && pb.size && S.currentJobId === jobId) kept.push(await _jfPut(jobId, pb, ('Job Pack ' + tag).trim() + '.pdf', 'export', 'job-pack-auto'));
       } catch(e){ try { console.warn('crew job pack', e && e.message); } catch(_){} }
     }
-    if (!kept.length) return;
+    if (!kept.length){ if (force) _crewPackStatus('Could not make the job pack — try again', 'err'); return; }
     // the last automatic copies go
     try {
       var r = await api('GET', '/jobs/' + jobId + '/files');
@@ -31562,9 +31584,11 @@ async function _crewPackRun(){
           try { await api('DELETE', '/jobs/' + jobId + '/files/' + f.id); } catch(e){}
       }
     } catch(e){}
-    try { if (fp) localStorage.setItem(key, fp); } catch(e){}
+    try { if (fp) localStorage.setItem(key, fp); localStorage.setItem('fr_crewpack_at_' + jobId, String(Date.now())); } catch(e){}
     try { if (_JF.jobId === jobId) _jfLoad(true); _jfCountSet(); } catch(e){}
-  } finally { _CREWPACK.busy = false; }
+    if (S.currentJobId === jobId) _crewPackStatus();
+  } catch(e){ if (force) _crewPackStatus('Not sent — ' + ((e && e.message) || 'try again'), 'err'); }
+  finally { _CREWPACK.busy = false; }
 }
 function _jfCountSet(){
   var c = document.getElementById('navJobFilesCount'); if (!c) return;
