@@ -2519,6 +2519,13 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   History → Roof map history: `job_revisions` keeps the EIGHT newest snapshots
   per job, one per 10 minutes, and a restore is itself snapshotted — so tell
   the owner to stop saving a damaged job before anything else.
+- A NEW DRAFT IS DATED THE DAY IT IS STARTED (2026-11-13, the owner: "if I
+  create a new draft quote, it should have today's date"). Duplicate this quote
+  (`_qvNewDraft`) and a draft from a template (`_qChangeTemplate`) copied the
+  quote whole, its `date` included, so a draft started today read the original
+  send's date (and its expiry, which `_qbExpiryText` counts from it). Both set
+  `date = _qvTodayDate()`; a saved draft opened again keeps its own.
+  `tests/quotedrafts.mjs` (26).
 - EVERY SEND IS KEPT (2026-10-02): `versions.sent` is the LATEST send (every
   "was it sent?" reader uses it) and `_qvMarkSent` moves the one it replaces,
   whole, into `versions.sentEarlier` (oldest first, packed by `_qvPackAll`).
