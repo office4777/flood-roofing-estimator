@@ -61,11 +61,15 @@
       '.of-note{font-size:12.5px;color:#64748b;line-height:1.5}',
       '.of-addr{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0 10px}',
       '.of-addr code{font-size:15px;font-weight:800;color:#0a1628;background:#e0f2fe;border:1px solid #9bd5f0;border-radius:8px;padding:6px 10px}',
-      '.of-opts{display:grid;grid-template-columns:1fr 1fr;gap:12px}',
-      '@media (max-width:900px){.of-opts{grid-template-columns:1fr}}',
-      '.of-opt{border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;background:#f8fafc}',
-      '.of-opt b{display:block;margin-bottom:6px;color:#0a1628}',
-      '.of-opt ol{margin:6px 0 0 18px;padding:0;font-size:12.5px;color:#334155;line-height:1.55}',
+      '.of-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}',
+      '@media (max-width:640px){.of-choices{grid-template-columns:1fr}}',
+      '.of-choice{display:block;text-align:left;border:2px solid #cbd5e1;background:#fff;border-radius:12px;padding:16px;font:inherit;cursor:pointer;color:#0a1628}',
+      '.of-choice:hover{border-color:#0099e0}.of-choice.on{border-color:#0099e0;background:#e0f2fe}',
+      '.of-choice b{display:block;font-size:15px;margin-bottom:4px}.of-choice span{display:block;font-size:12.5px;color:#64748b}',
+      '.of-setdetail{margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;padding:12px 14px;background:#f8fafc}',
+      '.of-setdetail h4{margin:0 0 6px;font-size:14px;color:#0a1628}',
+      '.of-setdetail ol{margin:8px 0 8px 18px;padding:0;font-size:12.5px;color:#334155;line-height:1.55}',
+      '.of-notebox{margin-top:8px;font-size:12.5px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;white-space:pre-wrap}',
       '.of-chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:0 0 10px}',
       '.of-chip{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:700;cursor:pointer;color:#334155}',
       '.of-chip.on{background:#0a1628;border-color:#0a1628;color:#fff}',
@@ -228,28 +232,17 @@
     var todo = O.inv.filter(function(x){ return !x.job_id && x.status !== 'no-file'; }).length;
     var x = O.xero || {};
     var a = O.addr || {};
-    var setupOpen = !O.inv.length;
     root.innerHTML =
       '<div class="of-hd"><h2>Supplier invoices</h2>' +
         '<span class="of-note">' + (x.connected ? ('Xero: <b>' + esc(x.org) + '</b>') : '<a href="#" onclick="gotoTab(\'finance\');return false">Connect Xero</a>') + '</span>' +
-        '<button class="of-btn" onclick="_ofSetupToggle()">How invoices get here</button>' +
         '<label class="of-btn pri" style="display:inline-block">Upload invoices<input type="file" multiple accept="application/pdf,image/*" style="display:none" onchange="_ofUpload(this.files);this.value=\'\'"></label></div>' +
-      '<div class="of-card" id="ofSetup" style="display:' + (setupOpen ? 'block' : 'none') + '">' +
+      '<div class="of-card of-addrcard" id="ofSetup">' +
         '<h3>Your RoofMap invoice address</h3>' +
-        '<div class="of-addr"><code id="ofAddr">' + esc(a.address || '…') + '</code><button class="of-btn sm" onclick="_ofCopy(\'ofAddr\')">Copy</button></div>' +
-        (a.receiving === false ? '<div class="of-note" style="color:#92400e;margin-bottom:10px">Receiving is not switched on yet — invoices sent here will start arriving once it is. Upload them by hand in the meantime.</div>' : '') +
-        '<div class="of-note" style="margin-bottom:10px">Anything emailed here lands in this tab: RoofMap reads the invoice, finds your job number (or the site address) on it and puts it on that job. Put your job number on every order so it comes back on the invoice.</div>' +
-        '<div class="of-opts">' +
-          '<div class="of-opt"><b>Option 1 — forward them from your own email</b><span class="of-note">Nothing changes for your suppliers. Set a rule that forwards their emails here:</span><ol>' +
-            '<li><b>Gmail:</b> Settings → See all settings → Forwarding → add the address above and confirm it, then Filters → Create a filter → From: your suppliers\' addresses (e.g. <i>accounts@roofingindustries.co.nz OR invoices@steelandtube.co.nz</i>) → Forward it to this address.</li>' +
-            '<li><b>Outlook / Microsoft 365:</b> Settings → Mail → Rules → Add new rule → From: the supplier → Forward to this address.</li>' +
-            '<li><b>Anything else:</b> look for "rules", "filters" or "auto-forward" and point supplier mail here.</li></ol>' +
-            '<div class="of-note" style="margin-top:6px">Gmail sends a confirmation code to the address — it arrives here as a "No PDF" email; open it to read the code.</div></div>' +
-          '<div class="of-opt"><b>Option 2 — give your suppliers this address</b><span class="of-note">Ask each supplier to send invoices and statements here instead. A note to send them:</span>' +
-            '<div id="ofNote" style="margin-top:8px;font-size:12.5px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;white-space:pre-wrap">Hi,\n\nPlease send all our invoices, credit notes and statements to ' + esc(a.address || '') + ' from now on, and quote our job number (our "your ref" / PO) on every invoice.\n\nThanks</div>' +
-            '<button class="of-btn sm" style="margin-top:6px" onclick="_ofCopy(\'ofNote\')">Copy note</button>' +
-            '<div class="of-note" style="margin-top:6px">If you still want a copy in Xero\'s own bill inbox, keep it there too — RoofMap sends the bill to Xero for you once it is on a job.</div></div>' +
-        '</div></div>' +
+        '<div class="of-addr"><code id="ofAddr">' + esc(a.address || '…') + '</code><button class="of-btn sm" onclick="_ofCopy(\'ofAddr\')">Copy</button>' +
+          '<button class="of-btn pri sm" id="ofSetupBtn" onclick="_ofSetupOpen()">Set up</button></div>' +
+        (a.receiving === false ? '<div class="of-note" style="color:#92400e">Receiving is not switched on yet — invoices sent here will start arriving once it is. Upload them by hand in the meantime.</div>' : '') +
+        '<div class="of-note">Anything emailed here lands in this tab and goes on the job its number (or site address) names. Press <b>Set up</b> to choose how invoices get here.</div>' +
+      '</div>' +
       '<div class="of-drag" id="ofDrop">Drop supplier invoice PDFs or photos here</div>' +
       '<div class="of-chips">' +
         chip('todo', 'To assign' + (todo ? ' (' + todo + ')' : '')) + chip('assigned', 'On a job') + chip('xero', 'Not in Xero yet') + chip('all', 'All') +
@@ -324,7 +317,37 @@
   };
   window._ofFilter = function(f){ O.filter = f; renderSupinv(); };
   window._ofSearch = function(q){ O.q = q; var p = $('ofQ'), pos = p ? p.selectionStart : 0; renderSupinv(); p = $('ofQ'); if (p) { p.focus(); try { p.setSelectionRange(pos, pos); } catch (e) {} } };
-  window._ofSetupToggle = function(){ var c = $('ofSetup'); if (c) c.style.display = c.style.display === 'none' ? 'block' : 'none'; };
+  // SET UP: the two ways invoices reach RoofMap, behind one button (2026-11-14, the owner: "Put these two big options in
+  // a setup button that opens a pop-up window with the two buttons"). A tap on an option shows its steps under it.
+  function setupDetail(k){
+    var a = O.addr || {};
+    if (k === 'fwd') return '<h4>Forward them from your own email</h4><div class="of-note">Nothing changes for your suppliers. Set a rule that forwards their emails to your RoofMap address:</div><ol>' +
+      '<li><b>Gmail:</b> Settings → See all settings → Forwarding → add the address and confirm it, then Filters → Create a filter → From: your suppliers\' addresses (e.g. <i>accounts@roofingindustries.co.nz OR invoices@steelandtube.co.nz</i>) → Forward it to this address.</li>' +
+      '<li><b>Outlook / Microsoft 365:</b> Settings → Mail → Rules → Add new rule → From: the supplier → Forward to this address.</li>' +
+      '<li><b>Anything else:</b> look for "rules", "filters" or "auto-forward" and point supplier mail here.</li></ol>' +
+      '<div class="of-note">Gmail sends a confirmation code to the address — it arrives in this tab as a "No PDF" email; open it to read the code.</div>';
+    return '<h4>Give your suppliers this address</h4><div class="of-note">Ask each supplier to send invoices and statements here instead. A note to send them:</div>' +
+      '<div id="ofNote" class="of-notebox">Hi,\n\nPlease send all our invoices, credit notes and statements to ' + esc(a.address || '') + ' from now on, and quote our job number (our "your ref" / PO) on every invoice.\n\nThanks</div>' +
+      '<button class="of-btn sm" style="margin-top:8px" onclick="_ofCopy(\'ofNote\')">Copy note</button>' +
+      '<div class="of-note" style="margin-top:8px">If you still want a copy in Xero\'s own bill inbox, keep it there too — RoofMap sends the bill to Xero for you once it is on a job.</div>';
+  }
+  window._ofSetupOpen = function(k){
+    var old = $('ofSetupModal'); if (old) old.remove();
+    var a = O.addr || {};
+    var m = document.createElement('div'); m.className = 'of-modal'; m.id = 'ofSetupModal';
+    m.onclick = function(e){ if (e.target === m) m.remove(); };
+    var btn = function(id, t, sub){ return '<button class="of-choice' + (k === id ? ' on' : '') + '" data-opt="' + id + '" onclick="_ofSetupOpen(\'' + id + '\')"><b>' + t + '</b><span>' + sub + '</span></button>'; };
+    m.innerHTML = '<div class="of-box"><div style="display:flex;align-items:center;gap:8px"><h3 style="flex:1;margin:0">Set up supplier invoices</h3>' +
+        '<button class="of-btn sm" onclick="document.getElementById(\'ofSetupModal\').remove()" aria-label="Close">✕</button></div>' +
+      '<div class="of-note" style="margin:8px 0 2px">Your RoofMap invoice address</div>' +
+      '<div class="of-addr"><code id="ofAddrM">' + esc(a.address || '…') + '</code><button class="of-btn sm" onclick="_ofCopy(\'ofAddrM\')">Copy</button></div>' +
+      '<div class="of-note" style="margin-bottom:12px">Choose how your suppliers\' invoices get to it:</div>' +
+      '<div class="of-choices">' + btn('fwd', 'Forward from your own email', 'Nothing changes for your suppliers') + btn('sup', 'Give your suppliers this address', 'They email invoices straight to RoofMap') + '</div>' +
+      (k ? '<div class="of-setdetail" id="ofSetupDetail">' + setupDetail(k) + '</div>' : '') +
+      '</div>';
+    document.body.appendChild(m);
+  };
+  window._ofSetupToggle = window._ofSetupOpen;
   window._ofCopy = function(id){ var t = ($(id) || {}).textContent || ''; try { navigator.clipboard.writeText(t); toast('Copied'); } catch (e) { prompt('Copy:', t); } };
   function wireDrop(){
     var d = $('ofDrop'); if (!d || d._w) return; d._w = 1;
