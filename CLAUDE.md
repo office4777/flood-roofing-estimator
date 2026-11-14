@@ -2604,6 +2604,10 @@ drawing oddly (the gable BUILDER's lines, not the puzzle).
   THE CREW APP'S LOCATION RULE (decided by the owner, not built yet): location
   only 7 am – 7 pm NZ on a day the person is BOOKED on the schedule board (a
   pencilled or crew block), never on a day they are not.
+  THE TWO WAYS IN ARE BEHIND SET UP (2026-11-14, the owner: "Put these two big options in a setup button that opens a
+  pop-up window with the two buttons"): the tab shows the address card alone (address, Copy, `#ofSetupBtn` "Set up",
+  the receiving warning); `_ofSetupOpen(k)` opens `#ofSetupModal` — the address, two big `.of-choice` buttons
+  (`data-opt` fwd / sup), and the picked one's steps under them (`#ofSetupDetail`, the supplier note `#ofNote`).
   `tests/supinv.mjs` (36, API), `tests/officeui.mjs` (22, UI).
 - THE CREW APP (2026-11-13, the owner: "a phone app ... offline ... Android and
   iPhone ... GPS ... calendar ... weekly and daily ... links up to the schedule

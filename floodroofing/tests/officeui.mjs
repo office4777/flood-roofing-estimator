@@ -84,6 +84,16 @@ check('…the left menu keeps Schedule, Settings and Request a Fix, and drops th
   await vis(pg, '#navScheduleBtn') && await vis(pg, '#navSettingsBtn') && await vis(pg, '#navFeedbackBtn') && !(await vis(pg, '#navRoofBtn')) && !(await vis(pg, '#navQuoteBtn')), '');
 const tx = await pg.evaluate(() => document.getElementById('supinvRoot').innerText);
 check('the invoice address and both ways of getting invoices there are shown', /floodroofing-ab12@invoices\.roofmap\.co\.nz/.test(tx) || await pg.evaluate(() => /floodroofing-ab12/.test(document.getElementById('ofAddr').textContent)), tx.slice(0, 200));
+check('the two ways in are not on the page itself, only the address and a Set up button', !/Option 1|Forward from your own email/.test(tx) && await pg.locator('#ofSetupBtn').count() === 1, tx.slice(0, 300));
+await pg.click('#ofSetupBtn'); await pg.waitForTimeout(200);
+check('Set up opens a window with the address and two big buttons', await pg.evaluate(() => { const m = document.getElementById('ofSetupModal');
+  return !!m && m.querySelectorAll('.of-choice').length === 2 && /floodroofing-ab12/.test(m.textContent) && !document.getElementById('ofSetupDetail'); }));
+await pg.click('#ofSetupModal .of-choice[data-opt="fwd"]'); await pg.waitForTimeout(150);
+check('…the first shows the forwarding steps (Gmail, Outlook)', await pg.evaluate(() => /Gmail:[\s\S]*Outlook/.test(document.getElementById('ofSetupDetail').textContent) && document.querySelector('.of-choice[data-opt="fwd"]').classList.contains('on')));
+await pg.click('#ofSetupModal .of-choice[data-opt="sup"]'); await pg.waitForTimeout(150);
+check('…the second the note for suppliers with the address in it', await pg.evaluate(() => /floodroofing-ab12@invoices/.test(document.getElementById('ofNote').textContent)));
+await pg.click('#ofSetupModal button[aria-label="Close"]'); await pg.waitForTimeout(100);
+check('…and ✕ closes it', await pg.locator('#ofSetupModal').count() === 0);
 check('it opens on the ones to assign: Carters, not the one already on job 3341', /Carters/.test(tx) && !/Roofing Industries/.test(tx), '');
 await pg.click('.of-chip:has-text("All")');
 const tx2 = await pg.evaluate(() => document.getElementById('supinvRoot').innerText);
